@@ -8,11 +8,11 @@
 
 | Directory | Stack | Role |
 |---|---|---|
-| [`rega/`](./rega) | Flutter | **Customer App** — Marketplace browsing, search, cart, coupons, checkout, live order tracking & delivery PIN |
+| [`rega/`](./rega) | Flutter | **Customer App** — Marketplace browsing, HD Kalar GPS pin picker, **1-second live street order tracker (`MM:SS` & meters)** & 4-digit delivery PIN |
 | [`rega_froshyar/`](./rega_froshyar) | Flutter | **Vendor / Merchant App** — Store order queue, kitchen prep timer, handover PIN verification, menu & working hours |
-| [`rega_delivery/`](./rega_delivery) | Flutter | **Driver / Captain App** — Dispatch radar, route stages, handover & delivery PIN verification, COD wallet & KYC |
-| [`rega_admin/`](./rega_admin) | Flutter (Web / Desktop / Tablet) | **Admin Control Center** — Executive KPIs, live dispatch, store/driver provisioning, KYC, zones, marketing, finance & settings |
-| [`rega_backend/`](./rega_backend) | Laravel 12 + PostgreSQL + Sanctum | **Unified REST API Backend** — Powers all 4 apps (`/api/v1/public/*`, `/customer/*`, `/vendor/*`, `/driver/*`, `/admin/*`) |
+| [`rega_delivery/`](./rega_delivery) | Flutter | **Driver / Captain App** — Real Kalar street navigation map (OSRM polylines, 60fps gliding motorcycle, 1s GPS telemetry sync), PIN verification & COD wallet |
+| [`rega_admin/`](./rega_admin) | Flutter (Web / Desktop / Tablet) | **Admin Control Center** — Executive KPIs, **1-second Live Kalar Fleet & Order Radar**, dispatch, KYC, zones, marketing & finance |
+| [`rega_backend/`](./rega_backend) | Laravel 12 + PostgreSQL + Sanctum | **Unified REST API + 1s Live Telemetry Engine** — Powers all apps (`/api/v1/public/*`, `/customer/*`, `/vendor/*`, `/driver/*`, `/admin/*`, `/live-telemetry/*`) |
 
 ---
 

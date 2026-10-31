@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'live_captain_map.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -310,6 +313,10 @@ class OrderModel {
   final int deliveryFee;
   final int tip;
   final String deliveryPin;
+  final double storeLat;
+  final double storeLng;
+  final double customerLat;
+  final double customerLng;
 
   OrderModel({
     required this.id,
@@ -325,6 +332,10 @@ class OrderModel {
     required this.deliveryFee,
     required this.tip,
     required this.deliveryPin,
+    this.storeLat = 34.6836,
+    this.storeLng = 45.3189,
+    this.customerLat = 34.6912,
+    this.customerLng = 45.3264,
   });
 
   int get itemsTotal => items.fold(0, (sum, i) => sum + (i.price * i.quantity));
@@ -456,6 +467,103 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     _resetActiveOrder();
   }
 
+  CaptainRouteStage _toCaptainStage(OrderStatus s) {
+    switch (s) {
+      case OrderStatus.driverAssigned:
+        return CaptainRouteStage.assigned;
+      case OrderStatus.driverArrivingPickup:
+        return CaptainRouteStage.arrivingPickup;
+      case OrderStatus.arrivedPickup:
+        return CaptainRouteStage.arrivedPickup;
+      case OrderStatus.pickedUp:
+        return CaptainRouteStage.pickedUp;
+      case OrderStatus.onTheWay:
+        return CaptainRouteStage.onTheWay;
+      case OrderStatus.arrivedCustomer:
+        return CaptainRouteStage.arrivedCustomer;
+      case OrderStatus.delivered:
+        return CaptainRouteStage.delivered;
+    }
+  }
+
+  OrderStatus _fromCaptainStage(CaptainRouteStage s) {
+    switch (s) {
+      case CaptainRouteStage.assigned:
+        return OrderStatus.driverAssigned;
+      case CaptainRouteStage.arrivingPickup:
+        return OrderStatus.driverArrivingPickup;
+      case CaptainRouteStage.arrivedPickup:
+        return OrderStatus.arrivedPickup;
+      case CaptainRouteStage.pickedUp:
+        return OrderStatus.pickedUp;
+      case CaptainRouteStage.onTheWay:
+        return OrderStatus.onTheWay;
+      case CaptainRouteStage.arrivedCustomer:
+        return OrderStatus.arrivedCustomer;
+      case CaptainRouteStage.delivered:
+        return OrderStatus.delivered;
+    }
+  }
+
+  void _applySyncedBackendOrder(Map<String, dynamic> data) {
+    final store = (data['store'] as Map<String, dynamic>?) ?? const {};
+    final cust = (data['customer'] as Map<String, dynamic>?) ?? const {};
+    final rawItems = (data['items'] as List<dynamic>?) ?? const [];
+    final ref = (data['order_ref'] ?? '10245').toString();
+
+    final mappedItems = rawItems.isNotEmpty
+        ? rawItems.asMap().entries.map((e) {
+            final m = e.value as Map<String, dynamic>;
+            return OrderItem(
+              id: '${e.key + 1}',
+              name: (m['name'] ?? 'خواردنی کەلار').toString(),
+              quantity: (m['quantity'] as num?)?.toInt() ?? 1,
+              price: (m['price'] as num?)?.toInt() ?? 5000,
+            );
+          }).toList()
+        : _activeOrder.items;
+
+    setState(() {
+      _isOrderCardVisible = true;
+      _activeOrder = OrderModel(
+        id: 'ord_$ref',
+        orderNumber: ref.startsWith('#') ? ref : '#$ref',
+        status: OrderStatus.driverArrivingPickup,
+        merchantName: (store['name'] ?? 'کەبابخانەی کەلار').toString(),
+        merchantAddress: (store['address'] ?? 'ناو بازاڕی کەلار').toString(),
+        merchantPhone: (store['phone'] ?? '07701112233').toString(),
+        customerName: (cust['name'] ?? 'سەربەست عەلی').toString(),
+        customerAddress: (cust['address'] ?? 'گەڕەکی شەهیدان، کەلار').toString(),
+        customerPhone: (cust['phone'] ?? '07703001001').toString(),
+        items: mappedItems,
+        deliveryFee: (data['delivery_fee'] as num?)?.toInt() ?? 1500,
+        tip: (data['driver_tip'] as num?)?.toInt() ?? 500,
+        deliveryPin: (data['delivery_pin'] ?? '4821').toString(),
+        storeLat: (store['lat'] as num?)?.toDouble() ?? 34.6836,
+        storeLng: (store['lng'] as num?)?.toDouble() ?? 45.3189,
+        customerLat: (cust['lat'] as num?)?.toDouble() ?? 34.6912,
+        customerLng: (cust['lng'] as num?)?.toDouble() ?? 45.3264,
+      );
+    });
+    _showSuccessSnackBar('داواکاری زیندووی کڕیار (#$ref) هێنرایە سەر نەخشە!');
+  }
+
+  Future<void> _notifyBackendPinVerified() async {
+    final cleanRef = _activeOrder.orderNumber.replaceAll('#', '').trim();
+    try {
+      await http
+          .post(
+            Uri.parse('http://127.0.0.1:8001/api/v1/live-telemetry/$cleanRef/verify-pin'),
+            headers: const {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({'pin': _activeOrder.deliveryPin}),
+          )
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {}
+  }
+
   void _resetActiveOrder() {
     _isOrderCardVisible = true;
     _activeOrder = OrderModel(
@@ -502,6 +610,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           onSuccess: () {
             Navigator.pop(ctx);
             _updateOrderStatus(OrderStatus.delivered);
+            _notifyBackendPinVerified();
             _showSuccessSnackBar('گەیاندنەکە بە سەرکەوتوویی کۆتایی هات! پیرۆزە.');
           },
         ),
@@ -691,12 +800,30 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       children: [
         // نەخشەی نەخشێندراوی تایبەت (Simulated interactive map canvas)
         Positioned.fill(
-          child: DeliveryMapPainterWidget(status: _activeOrder.status),
+          child: CaptainLiveMapWidget(
+            orderNumber: _activeOrder.orderNumber,
+            stage: _toCaptainStage(_activeOrder.status),
+            merchantName: _activeOrder.merchantName,
+            merchantAddress: _activeOrder.merchantAddress,
+            customerName: _activeOrder.customerName,
+            customerAddress: _activeOrder.customerAddress,
+            deliveryPin: _activeOrder.deliveryPin,
+            storeLat: _activeOrder.storeLat,
+            storeLng: _activeOrder.storeLng,
+            customerLat: _activeOrder.customerLat,
+            customerLng: _activeOrder.customerLng,
+            isOnline: _isOnline,
+            onStageAutoReached: (nextStage) {
+              _updateOrderStatus(_fromCaptainStage(nextStage));
+            },
+            onArrivedPromptPin: _openPinVerification,
+            onNewBackendOrderFound: _applySyncedBackendOrder,
+          ),
         ),
 
         // دوگمەی سەر نەخشە بۆ ڕیسێت / داواکاری نوێ
         Positioned(
-          top: 16,
+          top: 96,
           left: 16,
           child: FloatingActionButton.small(
             backgroundColor: Colors.white,

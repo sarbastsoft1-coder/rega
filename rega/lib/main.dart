@@ -11,6 +11,8 @@ import 'package:connectivity_plus/connectivity_plus.dart'; // 🛡️ بۆ پش�
 import 'package:safe_device/safe_device.dart'; // 🔒 بۆ پشکنینی هاک و ئیمۆلیتۆر
 import 'package:screen_protector/screen_protector.dart'; // 🔒 بۆ ڕێگری لە وێنەگرتنی شاشە
 // Platform import removed to fix unused warning
+import 'package:latlong2/latlong.dart' show LatLng;
+import 'live_order_tracker.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -254,7 +256,10 @@ class OrderItem {
   final String id;
   final String storeName;
   final int totalAmount;
-  final String status; // 'pending' | 'preparing' | 'on_the_way' | 'delivered'
+  String status; // 'pending' | 'preparing' | 'on_the_way' | 'delivered'
+  final String deliveryPin;
+  final double customerLat;
+  final double customerLng;
   final DateTime date;
   final List<CartEntry> items;
   final String driverName;
@@ -271,6 +276,9 @@ class OrderItem {
     required this.driverName,
     required this.driverPhone,
     this.address = 'گەڕەکی شەهیدان - کۆڵانی ١٤، تەنیشت قوتابخانەی کەلار',
+    this.deliveryPin = '4821',
+    this.customerLat = 34.6912,
+    this.customerLng = 45.3264,
   });
 }
 
@@ -790,6 +798,8 @@ class _MainScreenState extends State<MainScreen> {
   UserProfile? _userProfile; // NULL by default (Guest mode)
   bool _isLoginMode = false; // Toggle between Login and Register
   final List<OrderItem> _orders = [];
+  double? _pinnedCustomerLat;
+  double? _pinnedCustomerLng;
   String _selectedOrderFilter = 'هەموو';
   final Set<String> _favoriteStoreIds = {'store_sarwar'};
 
@@ -1598,6 +1608,14 @@ class _MainScreenState extends State<MainScreen> {
                       items: List.from(cartItems),
                       driverName: 'ئاراس ئەحمەد (ماتۆڕسوار)',
                       driverPhone: '07709876543',
+                      address: '${_selectedNeighborhood.name} - شاری کەلار',
+                      deliveryPin: orderCode.length >= 4
+                          ? orderCode.substring(orderCode.length - 4)
+                          : '4821',
+                      customerLat: _pinnedCustomerLat ??
+                          KalarGeoCatalog.forNeighborhoodId(_selectedNeighborhood.id).latitude,
+                      customerLng: _pinnedCustomerLng ??
+                          KalarGeoCatalog.forNeighborhoodId(_selectedNeighborhood.id).longitude,
                     );
 
                     setState(() {
@@ -1733,6 +1751,9 @@ class _MainScreenState extends State<MainScreen> {
                   Navigator.pop(ctx);
                   setState(() {
                     _currentIndex = 3; // Switch to Orders tab
+                    if (_orders.isNotEmpty) {
+                      Future.microtask(() => _showLiveTrackingModal(_orders.first));
+                    }
                   });
                 },
                 child: const Text(
@@ -1955,6 +1976,70 @@ class _MainScreenState extends State<MainScreen> {
 
                   const Divider(height: 1),
 
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 38,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F172A),
+                          foregroundColor: const Color(0xFFFAC800),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        onPressed: () {
+                          final startPt = LatLng(
+                            _pinnedCustomerLat ?? KalarGeoCatalog.forNeighborhoodId(tempSelected.id).latitude,
+                            _pinnedCustomerLng ?? KalarGeoCatalog.forNeighborhoodId(tempSelected.id).longitude,
+                          );
+                          showDialog(
+                            context: context,
+                            builder: (dCtx) => Dialog(
+                              insetPadding: const EdgeInsets.all(14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(24),
+                                child: SizedBox(
+                                  height: MediaQuery.of(dCtx).size.height * 0.72,
+                                  child: Stack(
+                                    children: [
+                                      KalarInteractivePickerMap(
+                                        initialPoint: startPt,
+                                        selectedNeighborhoodName: tempSelected.name,
+                                        onLocationChanged: (pt) {
+                                          setState(() {
+                                            _pinnedCustomerLat = pt.latitude;
+                                            _pinnedCustomerLng = pt.longitude;
+                                          });
+                                        },
+                                      ),
+                                      Positioned(
+                                        bottom: 14,
+                                        right: 14,
+                                        child: ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFFFAC800),
+                                            foregroundColor: Colors.black,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                          ),
+                                          onPressed: () => Navigator.pop(dCtx),
+                                          icon: const Icon(Icons.check_circle_rounded, size: 18),
+                                          label: const Text('پەسەندکردنی شوێنی GPS', style: TextStyle(fontWeight: FontWeight.w900)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.satellite_alt_rounded, size: 17),
+                        label: const Text('کردنەوەی نەخشەی ڕاستەقینەی شەقامەکانی کەلار (HD)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                      ),
+                    ),
+                  ),
                   // 🗺️ GOOGLE MAPS STYLE INTERACTIVE MAP CANVAS (EXPANDED FULL VIEW)
                   Expanded(
                     child: Padding(
@@ -5406,6 +5491,40 @@ class _MainScreenState extends State<MainScreen> {
                       Icon(Icons.receipt_long_outlined, size: 72, color: Colors.grey.shade400),
                       const SizedBox(height: 16),
                       Text(_t('هیچ داواکارییەکی تۆمارکراوت نییە'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 18),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFAC800),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                          elevation: 3,
+                        ),
+                        onPressed: () {
+                          final demoCoords = KalarGeoCatalog.forNeighborhoodId(_selectedNeighborhood.id);
+                          final demoOrder = OrderItem(
+                            id: '#10245',
+                            storeName: 'چێشتخانەی دیوان - کەلار',
+                            totalAmount: 18000,
+                            status: 'preparing',
+                            date: DateTime.now(),
+                            items: const [],
+                            driverName: 'کاروان محەمەد (ماتۆڕسوار)',
+                            driverPhone: '07702001001',
+                            address: '${_selectedNeighborhood.name} - شاری کەلار',
+                            deliveryPin: '4821',
+                            customerLat: _pinnedCustomerLat ?? demoCoords.latitude,
+                            customerLng: _pinnedCustomerLng ?? demoCoords.longitude,
+                          );
+                          setState(() => _orders.insert(0, demoOrder));
+                          _showLiveTrackingModal(demoOrder);
+                        },
+                        icon: const Icon(Icons.two_wheeler_rounded, size: 22),
+                        label: const Text(
+                          'بینینی نەخشەی زیندوو چرکە بە چرکە (#10245)',
+                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                        ),
+                      ),
                     ],
                   ),
                 )
@@ -5651,6 +5770,31 @@ class _MainScreenState extends State<MainScreen> {
   // 🛵 LIVE GPS TRACKING MODAL (شوێنپێهەڵگرتنی ڕاستەوخۆ)
   // ============================================================================
   void _showLiveTrackingModal(OrderItem order) {
+    if (order.id.isNotEmpty) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CustomerLiveOrderTrackerScreen(
+            orderCode: order.id,
+            storeName: order.storeName,
+            customerAddress: order.address,
+            driverName: order.driverName,
+            driverPhone: order.driverPhone,
+            deliveryPin: order.deliveryPin,
+            totalAmount: order.totalAmount,
+            initialStatus: order.status,
+            customerLocation: LatLng(order.customerLat, order.customerLng),
+            onOrderStatusChanged: (nextStatus) {
+              if (mounted) {
+                setState(() {
+                  order.status = nextStatus;
+                });
+              }
+            },
+          ),
+        ),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -6146,14 +6290,14 @@ class _MainScreenState extends State<MainScreen> {
                       fit: BoxFit.scaleDown,
                       child: GestureDetector(
                         onTap: () {
-                          if (order.status == 'on_the_way' || order.status == 'preparing') {
+                          if (order.status != 'cancelled') {
                             _showLiveTrackingModal(order);
                           }
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: (order.status == 'on_the_way' || order.status == 'preparing') 
+                            color: (order.status != 'cancelled') 
                                 ? const Color(0xFFF59E0B) 
                                 : Colors.grey.shade300,
                             borderRadius: BorderRadius.circular(12),
@@ -6163,14 +6307,14 @@ class _MainScreenState extends State<MainScreen> {
                               Icon(
                                 Icons.visibility_outlined, 
                                 size: 16, 
-                                color: (order.status == 'on_the_way' || order.status == 'preparing') ? Colors.black : Colors.grey.shade500
+                                color: (order.status != 'cancelled') ? Colors.black : Colors.grey.shade500
                               ),
                               const SizedBox(width: 6),
                               Text(
                                 'شوێن پێهەڵگرتن', 
                                 style: TextStyle(
                                   fontSize: 13, 
-                                  color: (order.status == 'on_the_way' || order.status == 'preparing') ? Colors.black : Colors.grey.shade500, 
+                                  color: (order.status != 'cancelled') ? Colors.black : Colors.grey.shade500, 
                                   fontWeight: FontWeight.bold
                                 )
                               ),

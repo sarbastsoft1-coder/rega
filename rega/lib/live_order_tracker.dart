@@ -1,0 +1,1546 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
+
+/// Real Kalar neighborhood center coordinates
+class KalarGeoCatalog {
+  static const Map<String, LatLng> neighborhoodCoords = {
+    'n1': LatLng(34.6695, 45.2950), // شارۆچکەی رزگاری
+    'n2': LatLng(34.7010, 45.3315), // گەڕەکی زانکۆ
+    'n3': LatLng(34.6912, 45.3264), // گەڕەکی شەهیدان
+    'n4': LatLng(34.6785, 45.3320), // گەڕەکی سیروان
+    'n5': LatLng(34.6895, 45.3140), // گەڕەکی شۆڕش
+    'n6': LatLng(34.6960, 45.3195), // گەڕەکی بێساری
+    'n7': LatLng(34.6815, 45.3095), // گەڕەکی کاکەییان
+    'n8': LatLng(34.6872, 45.3238), // گەڕەکی فەرمانبەران
+    'n9': LatLng(34.6836, 45.3189), // ناو بازاڕی کەلار
+  };
+
+  static LatLng forNeighborhoodId(String id) {
+    return neighborhoodCoords[id] ?? const LatLng(34.6912, 45.3264);
+  }
+}
+
+/// Interactive real Kalar street map for picking exact customer delivery pin
+class KalarInteractivePickerMap extends StatefulWidget {
+  final LatLng initialPoint;
+  final String selectedNeighborhoodName;
+  final ValueChanged<LatLng> onLocationChanged;
+
+  const KalarInteractivePickerMap({
+    super.key,
+    required this.initialPoint,
+    required this.selectedNeighborhoodName,
+    required this.onLocationChanged,
+  });
+
+  @override
+  State<KalarInteractivePickerMap> createState() => _KalarInteractivePickerMapState();
+}
+
+class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
+  final MapController _controller = MapController();
+  late LatLng _pinned;
+  bool _darkStyle = false;
+  bool _ready = false;
+
+  static const _landmarks = <(String, LatLng)>[
+    ('🏰 قەڵای شێروانە', LatLng(34.6698, 45.3222)),
+    ('🎓 زانکۆی گەرمیان', LatLng(34.7032, 45.3338)),
+    ('🏪 ناو بازاڕی کەلار', LatLng(34.6836, 45.3189)),
+    ('🌊 ڕووباری سیروان', LatLng(34.6725, 45.3355)),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _pinned = widget.initialPoint;
+  }
+
+  @override
+  void didUpdateWidget(covariant KalarInteractivePickerMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialPoint != widget.initialPoint) {
+      _pinned = widget.initialPoint;
+      if (_ready) {
+        _controller.move(_pinned, 15.8);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _controller,
+          options: MapOptions(
+            initialCenter: _pinned,
+            initialZoom: 15.4,
+            minZoom: 12.0,
+            maxZoom: 18.5,
+            onMapReady: () => _ready = true,
+            onTap: (_, latLng) {
+              setState(() => _pinned = latLng);
+              widget.onLocationChanged(latLng);
+            },
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: _darkStyle
+                  ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+                  : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+              subdomains: const ['a', 'b', 'c', 'd'],
+              userAgentPackageName: 'iq.rega.customer',
+            ),
+            MarkerLayer(
+              markers: [
+                ..._landmarks.map(
+                  (lm) => Marker(
+                    point: lm.$2,
+                    width: 118,
+                    height: 30,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.78),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFFAC800), width: 0.8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          lm.$1,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Marker(
+                  point: _pinned,
+                  width: 145,
+                  height: 78,
+                  alignment: Alignment.topCenter,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFAC800), width: 1.4),
+                        ),
+                        child: Text(
+                          '📍 ${widget.selectedNeighborhoodName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFFFAC800),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const Icon(Icons.location_on_rounded, size: 42, color: Color(0xFFEF4444)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        Positioned(
+          top: 10,
+          left: 10,
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            elevation: 3,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => setState(() => _darkStyle = !_darkStyle),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Icon(
+                  _darkStyle ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                  size: 20,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 10,
+          left: 10,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.78),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'GPS: ${_pinned.latitude.toStringAsFixed(4)}, ${_pinned.longitude.toStringAsFixed(4)}',
+              style: const TextStyle(
+                color: Color(0xFFFAC800),
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Full-Screen Second-by-Second Live Order Tracking Map ("Sec by Sec Until Get Order")
+class CustomerLiveOrderTrackerScreen extends StatefulWidget {
+  final String orderCode;
+  final String storeName;
+  final String customerAddress;
+  final String driverName;
+  final String driverPhone;
+  final String deliveryPin;
+  final int totalAmount;
+  final String initialStatus;
+  final LatLng storeLocation;
+  final LatLng customerLocation;
+  final String apiBaseUrl;
+  final ValueChanged<String>? onOrderStatusChanged;
+
+  const CustomerLiveOrderTrackerScreen({
+    super.key,
+    required this.orderCode,
+    required this.storeName,
+    required this.customerAddress,
+    required this.driverName,
+    required this.driverPhone,
+    required this.deliveryPin,
+    required this.totalAmount,
+    required this.initialStatus,
+    this.storeLocation = const LatLng(34.6836, 45.3189),
+    this.customerLocation = const LatLng(34.6912, 45.3264),
+    this.apiBaseUrl = 'http://127.0.0.1:8001/api/v1',
+    this.onOrderStatusChanged,
+  });
+
+  @override
+  State<CustomerLiveOrderTrackerScreen> createState() =>
+      _CustomerLiveOrderTrackerScreenState();
+}
+
+class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTrackerScreen>
+    with TickerProviderStateMixin {
+  final MapController _mapController = MapController();
+
+  late AnimationController _pulseController;
+  late AnimationController _glideController;
+
+  Timer? _oneSecondTimer;
+
+  int _mapStyleIndex = 0; // 0: Voyager, 1: Dark, 2: OSM
+  bool _followDriver = true;
+  bool _mapReady = false;
+  bool _serverLiveConnected = false;
+  bool _liveCaptainConnected = false;
+
+  late String _status; // 'pending' | 'preparing' | 'picked_up' | 'on_the_way' | 'arrived_customer' | 'delivered'
+  late String _driverName;
+  late String _driverPhone;
+  String _vehicleLabel = 'ماتۆڕسوار • KLR-402';
+
+  late LatLng _dispatchOrigin;
+  List<LatLng> _fullRoute = [];
+  int _storeSplitIndex = 12;
+
+  LatLng _prevDriverPos = const LatLng(34.6798, 45.3145);
+  LatLng _targetDriverPos = const LatLng(34.6798, 45.3145);
+  LatLng _displayDriverPos = const LatLng(34.6798, 45.3145);
+
+  double _headingDeg = 45.0;
+  double _speedKmh = 31.0;
+  int _etaSeconds = 95;
+  int _remainingMeters = 1280;
+  int _secondsSinceOpen = 0;
+  double _localProgress = 0.08; // 0.0 -> 1.0 along _fullRoute
+
+  @override
+  void initState() {
+    super.initState();
+    _status = widget.initialStatus;
+    _driverName = widget.driverName;
+    _driverPhone = widget.driverPhone;
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+
+    _glideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 920),
+    )..addListener(_onGlideTick);
+
+    _dispatchOrigin = LatLng(
+      widget.storeLocation.latitude - 0.0036,
+      widget.storeLocation.longitude - 0.0042,
+    );
+
+    _buildInitialRoute();
+    _registerAndSyncBackend();
+    _startSecondBySecondLoop();
+  }
+
+  @override
+  void dispose() {
+    _oneSecondTimer?.cancel();
+    _pulseController.dispose();
+    _glideController.dispose();
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  void _buildInitialRoute() {
+    final leg1 = _generateKalarStreetPath(_dispatchOrigin, widget.storeLocation, steps: 20);
+    final leg2 = _generateKalarStreetPath(widget.storeLocation, widget.customerLocation, steps: 44);
+    _storeSplitIndex = leg1.length - 1;
+    _fullRoute = [...leg1, ...leg2.skip(1)];
+
+    if (_status == 'delivered') {
+      _localProgress = 1.0;
+      _etaSeconds = 0;
+      _remainingMeters = 0;
+      _speedKmh = 0;
+    } else if (_status == 'on_the_way') {
+      _localProgress = (_storeSplitIndex / (_fullRoute.length - 1)) + 0.06;
+    } else {
+      _localProgress = 0.06;
+    }
+
+    final startPos = _pointAlong(_fullRoute, _localProgress);
+    _prevDriverPos = startPos;
+    _targetDriverPos = startPos;
+    _displayDriverPos = startPos;
+    _recomputeLocalMetrics();
+
+    _fetchRealOsrmRoute();
+  }
+
+  List<LatLng> _generateKalarStreetPath(LatLng a, LatLng b, {int steps = 28}) {
+    final dLat = b.latitude - a.latitude;
+    final dLng = b.longitude - a.longitude;
+    final w1 = LatLng(a.latitude + dLat * 0.30 + 0.00042, a.longitude + dLng * 0.20 - 0.00028);
+    final w2 = LatLng(a.latitude + dLat * 0.62 - 0.00024, a.longitude + dLng * 0.56 + 0.00038);
+    final w3 = LatLng(a.latitude + dLat * 0.85 + 0.00020, a.longitude + dLng * 0.84 - 0.00016);
+    final anchors = [a, w1, w2, w3, b];
+
+    final out = <LatLng>[];
+    final perSeg = math.max(4, steps ~/ (anchors.length - 1));
+    for (var i = 0; i < anchors.length - 1; i++) {
+      final p0 = anchors[i];
+      final p1 = anchors[i + 1];
+      for (var k = 0; k < perSeg; k++) {
+        final t = k / perSeg;
+        out.add(LatLng(
+          p0.latitude + (p1.latitude - p0.latitude) * t,
+          p0.longitude + (p1.longitude - p0.longitude) * t,
+        ));
+      }
+    }
+    out.add(b);
+    return out;
+  }
+
+  Future<void> _fetchRealOsrmRoute() async {
+    try {
+      final url1 = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${_dispatchOrigin.longitude},${_dispatchOrigin.latitude};'
+        '${widget.storeLocation.longitude},${widget.storeLocation.latitude}'
+        '?overview=full&geometries=geojson',
+      );
+      final url2 = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${widget.storeLocation.longitude},${widget.storeLocation.latitude};'
+        '${widget.customerLocation.longitude},${widget.customerLocation.latitude}'
+        '?overview=full&geometries=geojson',
+      );
+
+      final res = await Future.wait([
+        http.get(url1).timeout(const Duration(seconds: 4)),
+        http.get(url2).timeout(const Duration(seconds: 4)),
+      ]);
+
+      if (!mounted) return;
+      final leg1 = _parseOsrm(res[0], minPoints: 24);
+      final leg2 = _parseOsrm(res[1], minPoints: 52);
+      if (leg1.length >= 4 && leg2.length >= 4) {
+        setState(() {
+          _storeSplitIndex = leg1.length - 1;
+          _fullRoute = [...leg1, ...leg2.skip(1)];
+        });
+      }
+    } catch (_) {}
+  }
+
+  List<LatLng> _parseOsrm(http.Response res, {int minPoints = 32}) {
+    if (res.statusCode != 200) return [];
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    final routes = json['routes'] as List<dynamic>?;
+    if (routes == null || routes.isEmpty) return [];
+    final geom = (routes.first as Map<String, dynamic>)['geometry'] as Map<String, dynamic>?;
+    final coords = geom?['coordinates'] as List<dynamic>?;
+    if (coords == null || coords.length < 2) return [];
+    final raw = coords.map((e) {
+      final pair = e as List<dynamic>;
+      return LatLng((pair[1] as num).toDouble(), (pair[0] as num).toDouble());
+    }).toList();
+    if (raw.length >= minPoints) return raw;
+    final dense = <LatLng>[];
+    final mult = (minPoints / raw.length).ceil().clamp(2, 8);
+    for (var i = 0; i < raw.length - 1; i++) {
+      for (var k = 0; k < mult; k++) {
+        final t = k / mult;
+        dense.add(LatLng(
+          raw[i].latitude + (raw[i + 1].latitude - raw[i].latitude) * t,
+          raw[i].longitude + (raw[i + 1].longitude - raw[i].longitude) * t,
+        ));
+      }
+    }
+    dense.add(raw.last);
+    return dense;
+  }
+
+  Future<void> _registerAndSyncBackend() async {
+    final cleanRef = widget.orderCode.replaceAll('#', '').trim();
+    if (cleanRef.isEmpty) return;
+    try {
+      // Check if session already exists; if not, register customer's order coordinates & PIN
+      final check = await http
+          .get(
+            Uri.parse('${widget.apiBaseUrl}/live-telemetry/$cleanRef'),
+            headers: const {'Accept': 'application/json'},
+          )
+          .timeout(const Duration(milliseconds: 1200));
+
+      if (check.statusCode == 200) {
+        // Also push customer's exact coordinates if newly placed
+        if (_secondsSinceOpen <= 1 && _status != 'delivered') {
+          await http
+              .post(
+                Uri.parse('${widget.apiBaseUrl}/live-telemetry/register'),
+                headers: const {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                },
+                body: jsonEncode({
+                  'order_ref': cleanRef,
+                  'store_name': widget.storeName,
+                  'store_lat': widget.storeLocation.latitude,
+                  'store_lng': widget.storeLocation.longitude,
+                  'customer_address': widget.customerAddress,
+                  'customer_lat': widget.customerLocation.latitude,
+                  'customer_lng': widget.customerLocation.longitude,
+                  'delivery_pin': widget.deliveryPin,
+                  'total_amount': widget.totalAmount,
+                }),
+              )
+              .timeout(const Duration(milliseconds: 1200));
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _startSecondBySecondLoop() {
+    _oneSecondTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      if (!mounted) return;
+      _secondsSinceOpen += 1;
+
+      if (_status == 'delivered') return;
+
+      final synced = await _pollBackendOneSecond();
+      if (!synced) {
+        // Seamless local 1-second street progression so user ALWAYS sees sec-by-sec movement!
+        _stepLocalOneSecond();
+      }
+    });
+  }
+
+  Future<bool> _pollBackendOneSecond() async {
+    final cleanRef = widget.orderCode.replaceAll('#', '').trim();
+    if (cleanRef.isEmpty) return false;
+
+    try {
+      final res = await http
+          .get(
+            Uri.parse('${widget.apiBaseUrl}/live-telemetry/$cleanRef?auto_progress=1'),
+            headers: const {'Accept': 'application/json'},
+          )
+          .timeout(const Duration(milliseconds: 850));
+
+      if (!mounted || res.statusCode != 200) return false;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data == null) return false;
+
+      final driver = (data['driver'] as Map<String, dynamic>?) ?? const {};
+      final isLiveCaptain = driver['is_live_captain'] == true;
+
+      _serverLiveConnected = true;
+      _liveCaptainConnected = isLiveCaptain;
+
+      // Mirror real-time 1-second coordinates from Captain App or Backend Telemetry Engine!
+      final dLat = (driver['lat'] as num?)?.toDouble() ?? _displayDriverPos.latitude;
+      final dLng = (driver['lng'] as num?)?.toDouble() ?? _displayDriverPos.longitude;
+      final remoteStatus = (data['status'] ?? _status).toString();
+
+      _driverName = (driver['name'] ?? _driverName).toString();
+      _driverPhone = (driver['phone'] ?? _driverPhone).toString();
+      _vehicleLabel = (driver['vehicle_label'] ?? _vehicleLabel).toString();
+      _speedKmh = (driver['speed_kmh'] as num?)?.toDouble() ?? _speedKmh;
+      _etaSeconds = (data['eta_seconds'] as num?)?.toInt() ?? _etaSeconds;
+      _remainingMeters = (data['distance_remaining_meters'] as num?)?.toInt() ?? _remainingMeters;
+      _localProgress = ((data['progress_permille'] as num?)?.toDouble() ?? 500.0) / 1000.0;
+
+      if (remoteStatus != _status) {
+        _updateStatus(remoteStatus);
+      }
+      _glideDriverTo(LatLng(dLat, dLng), headingOverride: (driver['heading'] as num?)?.toDouble());
+      return true;
+    } catch (_) {
+      _serverLiveConnected = false;
+      _liveCaptainConnected = false;
+      return false;
+    }
+  }
+
+  void _stepLocalOneSecond() {
+    if (_status == 'delivered') return;
+
+    final storeRatio = _fullRoute.length > 2
+        ? (_storeSplitIndex / (_fullRoute.length - 1))
+        : 0.32;
+
+    if (_status == 'arrived_customer') {
+      // Wait briefly at the customer's door so customer sees the PIN prompt, or auto-complete after 12s
+      _speedKmh = 0;
+      _etaSeconds = 0;
+      _remainingMeters = 0;
+      setState(() {});
+      return;
+    }
+
+    // Advance along real Kalar street polyline every 1.0 second (~65s full visual trip)
+    _localProgress = (_localProgress + 0.0155).clamp(0.0, 1.0);
+    final nextPos = _pointAlong(_fullRoute, _localProgress);
+
+    if (_localProgress < storeRatio - 0.02) {
+      if (_status != 'preparing') _updateStatus('preparing');
+      _speedKmh = 29.0 + ((_secondsSinceOpen % 4) * 1.5);
+    } else if (_localProgress < storeRatio + 0.03) {
+      if (_status != 'picked_up') _updateStatus('picked_up');
+      _speedKmh = 14.0;
+    } else if (_localProgress < 0.995) {
+      if (_status != 'on_the_way') _updateStatus('on_the_way');
+      _speedKmh = 33.0 + ((_secondsSinceOpen % 5) * 1.2);
+    } else {
+      _localProgress = 1.0;
+      _speedKmh = 0.0;
+      _updateStatus('arrived_customer');
+    }
+
+    _glideDriverTo(nextPos);
+    _recomputeLocalMetrics();
+  }
+
+  void _updateStatus(String next) {
+    if (_status == next) return;
+    setState(() {
+      _status = next;
+    });
+    if (widget.onOrderStatusChanged != null) {
+      // Map granular statuses cleanly for parent Orders list compatibility
+      if (next == 'delivered') {
+        widget.onOrderStatusChanged!('delivered');
+      } else if (next == 'on_the_way' || next == 'picked_up' || next == 'arrived_customer') {
+        widget.onOrderStatusChanged!('on_the_way');
+      } else {
+        widget.onOrderStatusChanged!('preparing');
+      }
+    }
+  }
+
+  Future<void> _confirmOrderReceivedByCustomer() async {
+    final cleanRef = widget.orderCode.replaceAll('#', '').trim();
+    try {
+      await http
+          .post(
+            Uri.parse('${widget.apiBaseUrl}/live-telemetry/$cleanRef/verify-pin'),
+            headers: const {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({'pin': widget.deliveryPin}),
+          )
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {}
+
+    _localProgress = 1.0;
+    _etaSeconds = 0;
+    _remainingMeters = 0;
+    _speedKmh = 0.0;
+    _glideDriverTo(widget.customerLocation);
+    _updateStatus('delivered');
+  }
+
+  void _glideDriverTo(LatLng next, {double? headingOverride}) {
+    final dist = _haversineMeters(_displayDriverPos, next);
+    if (headingOverride != null) {
+      _headingDeg = headingOverride;
+    } else if (dist > 0.3) {
+      _headingDeg = _bearingDegrees(_displayDriverPos, next);
+    }
+
+    _prevDriverPos = _displayDriverPos;
+    _targetDriverPos = next;
+    _glideController.forward(from: 0.0);
+
+    if (_followDriver && _mapReady) {
+      try {
+        _mapController.move(next, _mapController.camera.zoom);
+      } catch (_) {}
+    }
+  }
+
+  void _onGlideTick() {
+    if (!mounted) return;
+    final t = _glideController.value;
+    setState(() {
+      _displayDriverPos = LatLng(
+        _prevDriverPos.latitude + (_targetDriverPos.latitude - _prevDriverPos.latitude) * t,
+        _prevDriverPos.longitude + (_targetDriverPos.longitude - _prevDriverPos.longitude) * t,
+      );
+    });
+  }
+
+  void _recomputeLocalMetrics() {
+    if (_status == 'delivered' || _status == 'arrived_customer' || _localProgress >= 1.0) {
+      _remainingMeters = 0;
+      _etaSeconds = 0;
+      return;
+    }
+    final rem = _remainingPolyline (_fullRoute, _localProgress, _displayDriverPos);
+    double meters = 0;
+    for (var i = 0; i < rem.length - 1; i++) {
+      meters += _haversineMeters(rem[i], rem[i + 1]);
+    }
+    _remainingMeters = meters.round();
+    // Smooth second-by-second countdown matched to remaining distance (~9.5 m/s)
+    _etaSeconds = math.max(1, (meters / 9.5).round());
+  }
+
+  LatLng _pointAlong(List<LatLng> pts, double progress) {
+    if (pts.isEmpty) return widget.storeLocation;
+    if (pts.length == 1) return pts.first;
+    final p = progress.clamp(0.0, 1.0);
+    final exact = p * (pts.length - 1);
+    final idx = exact.floor().clamp(0, pts.length - 2);
+    final frac = exact - idx;
+    return LatLng(
+      pts[idx].latitude + (pts[idx + 1].latitude - pts[idx].latitude) * frac,
+      pts[idx].longitude + (pts[idx + 1].longitude - pts[idx].longitude) * frac,
+    );
+  }
+
+  List<LatLng> _remainingPolyline(List<LatLng> pts, double progress, LatLng current) {
+    if (pts.length < 2 || progress >= 1.0) return [];
+    final nextIdx = (progress.clamp(0.0, 1.0) * (pts.length - 1)).ceil().clamp(1, pts.length - 1);
+    return [current, ...pts.sublist(nextIdx)];
+  }
+
+  List<LatLng> _traveledPolyline(List<LatLng> pts, double progress, LatLng current) {
+    if (pts.length < 2 || progress <= 0.0) return [];
+    final prevIdx = (progress.clamp(0.0, 1.0) * (pts.length - 1)).floor().clamp(0, pts.length - 1);
+    return [...pts.sublist(0, prevIdx + 1), current];
+  }
+
+  double _haversineMeters(LatLng a, LatLng b) {
+    const r = 6371000.0;
+    final dLat = (b.latitude - a.latitude) * math.pi / 180.0;
+    final dLon = (b.longitude - a.longitude) * math.pi / 180.0;
+    final lat1 = a.latitude * math.pi / 180.0;
+    final lat2 = b.latitude * math.pi / 180.0;
+    final h = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
+    return 2 * r * math.atan2(math.sqrt(h), math.sqrt(1 - h));
+  }
+
+  double _bearingDegrees(LatLng a, LatLng b) {
+    final lat1 = a.latitude * math.pi / 180.0;
+    final lat2 = b.latitude * math.pi / 180.0;
+    final dLon = (b.longitude - a.longitude) * math.pi / 180.0;
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    return (math.atan2(y, x) * 180.0 / math.pi + 360.0) % 360.0;
+  }
+
+  void _fitAllMarkers() {
+    if (!_mapReady) return;
+    _followDriver = false;
+    final bounds = LatLngBounds.fromPoints([
+      _displayDriverPos,
+      widget.storeLocation,
+      widget.customerLocation,
+    ]);
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.only(top: 135, bottom: 320, left: 48, right: 48),
+        maxZoom: 16.5,
+      ),
+    );
+    setState(() {});
+  }
+
+  String _formatCountdown(int secs) {
+    final m = (secs ~/ 60).toString().padLeft(2, '0');
+    final s = (secs % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  String _formatMeters(int m) {
+    if (m >= 1000) return '${(m / 1000).toStringAsFixed(2)} کم';
+    return '$m مەتر';
+  }
+
+  String _formatMoney(int n) {
+    final s = n.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+      buf.write(s[i]);
+    }
+    return buf.toString();
+  }
+
+  int get _activeStepIndex {
+    switch (_status) {
+      case 'pending':
+        return 0;
+      case 'preparing':
+        return 1;
+      case 'picked_up':
+        return 2;
+      case 'on_the_way':
+        return 3;
+      case 'arrived_customer':
+      case 'delivered':
+        return 4;
+      default:
+        return 2;
+    }
+  }
+
+  String get _statusHeadline {
+    switch (_status) {
+      case 'pending':
+        return 'داواکارییەکەت نێردرا بۆ فرۆشگا...';
+      case 'preparing':
+        return 'ئامادە دەکرێت و شۆفێر بەرەو فرۆشگایە';
+      case 'picked_up':
+        return 'شۆفێر داواکارییەکەتی لە فرۆشگا وەرگرت!';
+      case 'on_the_way':
+        return 'شۆفێر لە ڕێگایە بۆ لات (چرکە بە چرکە)';
+      case 'arrived_customer':
+        return 'شۆفێر گەیشتە بەردەم ماڵەکەت! 🔔';
+      case 'delivered':
+        return 'داواکارییەکەت گەیشت! نۆشی گیانت بێت 🎉';
+      default:
+        return 'لە ڕێگایە بۆ لات';
+    }
+  }
+
+  String get _tileUrl {
+    switch (_mapStyleIndex) {
+      case 1:
+        return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+      case 2:
+        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+      default:
+        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final traveled = _traveledPolyline(_fullRoute, _localProgress, _displayDriverPos);
+    final remaining = _remainingPolyline(_fullRoute, _localProgress, _displayDriverPos);
+
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0F172A),
+        body: Stack(
+          children: [
+            // 1. Real Interactive Kalar Street Map
+            Positioned.fill(
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: _displayDriverPos,
+                  initialZoom: 15.6,
+                  minZoom: 12.0,
+                  maxZoom: 18.5,
+                  onMapReady: () {
+                    _mapReady = true;
+                    _fitAllMarkers();
+                  },
+                  onPositionChanged: (_, hasGesture) {
+                    if (hasGesture && _followDriver) {
+                      setState(() => _followDriver = false);
+                    }
+                  },
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: _tileUrl,
+                    subdomains: _mapStyleIndex == 2 ? const [] : const ['a', 'b', 'c', 'd'],
+                    userAgentPackageName: 'iq.rega.customer',
+                  ),
+                  PolylineLayer(
+                    polylines: [
+                      if (traveled.length >= 2)
+                        Polyline(
+                          points: traveled,
+                          strokeWidth: 5,
+                          color: const Color(0xFF94A3B8).withValues(alpha: 0.55),
+                        ),
+                      if (remaining.length >= 2)
+                        Polyline(
+                          points: remaining,
+                          strokeWidth: 7.5,
+                          color: const Color(0xFF16A34A),
+                          borderStrokeWidth: 2.5,
+                          borderColor: const Color(0xFF064E3B),
+                        ),
+                    ],
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      // Store Pin
+                      Marker(
+                        point: widget.storeLocation,
+                        width: 124,
+                        height: 74,
+                        alignment: Alignment.topCenter,
+                        child: _CustomerMapPin(
+                          icon: Icons.storefront_rounded,
+                          color: const Color(0xFFEA580C),
+                          label: widget.storeName,
+                        ),
+                      ),
+
+                      // Customer Home Pin
+                      Marker(
+                        point: widget.customerLocation,
+                        width: 124,
+                        height: 78,
+                        alignment: Alignment.topCenter,
+                        child: const _CustomerMapPin(
+                          icon: Icons.home_rounded,
+                          color: Color(0xFFDC2626),
+                          label: 'شوێنی تۆ 📍',
+                        ),
+                      ),
+
+                      // Gliding 60fps Driver Motorcycle Marker
+                      if (_status != 'delivered')
+                        Marker(
+                          point: _displayDriverPos,
+                          width: 98,
+                          height: 98,
+                          child: AnimatedBuilder(
+                            animation: _pulseController,
+                            builder: (context, _) {
+                              final p = _pulseController.value;
+                              return Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Container(
+                                    width: 36 + (p * 46),
+                                    height: 36 + (p * 46),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: const Color(0xFFFAC800)
+                                          .withValues(alpha: (1 - p) * 0.45),
+                                    ),
+                                  ),
+                                  Transform.rotate(
+                                    angle: _headingDeg * math.pi / 180.0,
+                                    child: Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFAC800),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: const Color(0xFF0F172A),
+                                          width: 3,
+                                        ),
+                                        boxShadow: const [
+                                          BoxShadow(
+                                            color: Colors.black38,
+                                            blurRadius: 10,
+                                            offset: Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Icon(
+                                        Icons.two_wheeler_rounded,
+                                        color: Color(0xFF0F172A),
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: 2,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF0F172A),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '${_speedKmh.toStringAsFixed(0)} کم/ک',
+                                        style: const TextStyle(
+                                          color: Color(0xFFFAC800),
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // 2. Top Live Second-by-Second Header Bar
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.94),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: const Color(0xFFFAC800).withValues(alpha: 0.55),
+                          width: 1.5,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 20,
+                            offset: Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          InkWell(
+                            onTap: () => Navigator.pop(context),
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: _status == 'delivered'
+                                            ? const Color(0xFF22C55E)
+                                            : const Color(0xFF00E676),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        _liveCaptainConnected
+                                            ? 'LIVE GPS • ڕاستەوخۆ لە مۆبایلی شۆفێرەوە'
+                                            : (_serverLiveConnected
+                                                ? 'LIVE 1s • نوێکردنەوەی چرکە بە چرکە'
+                                                : 'LIVE 1s • شوێنپێهەڵگرتنی زیندوو'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Color(0xFF00E676),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _statusHeadline,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Exact MM:SS Second-by-Second Countdown Pill
+                          Directionality(
+                            textDirection: TextDirection.ltr,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _status == 'delivered'
+                                    ? const Color(0xFF22C55E)
+                                    : const Color(0xFFFAC800),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _status == 'delivered'
+                                        ? 'DONE'
+                                        : _formatCountdown(_etaSeconds),
+                                    style: const TextStyle(
+                                      color: Color(0xFF0F172A),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                      fontFeatures: [FontFeature.tabularFigures()],
+                                    ),
+                                  ),
+                                  Text(
+                                    _status == 'delivered'
+                                        ? 'گەیشت'
+                                        : _formatMeters(_remainingMeters),
+                                    style: const TextStyle(
+                                      color: Color(0xFF1E293B),
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // 3. Map Controls (Follow Driver, Fit Route, Map Style)
+            Positioned(
+              top: 108,
+              left: 14,
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    _TrackerMapBtn(
+                      icon: _followDriver
+                          ? Icons.gps_fixed_rounded
+                          : Icons.gps_not_fixed_rounded,
+                      active: _followDriver,
+                      onTap: () {
+                        setState(() => _followDriver = true);
+                        if (_mapReady) {
+                          _mapController.move(_displayDriverPos, 16.2);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    _TrackerMapBtn(
+                      icon: Icons.route_rounded,
+                      active: false,
+                      onTap: _fitAllMarkers,
+                    ),
+                    const SizedBox(height: 8),
+                    _TrackerMapBtn(
+                      icon: _mapStyleIndex == 1
+                          ? Icons.dark_mode_rounded
+                          : Icons.layers_rounded,
+                      active: _mapStyleIndex > 0,
+                      onTap: () => setState(() => _mapStyleIndex = (_mapStyleIndex + 1) % 3),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // 4. Bottom Live Order & Captain & 4-Digit Security PIN Sheet
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 12,
+              child: SafeArea(
+                top: false,
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 28,
+                        offset: Offset(0, -6),
+                      ),
+                    ],
+                  ),
+                  child: _status == 'delivered'
+                      ? _buildDeliveredCelebrationCard()
+                      : _buildActiveLiveBottomPanel(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveLiveBottomPanel() {
+    const stepLabels = ['وەرگیرا', 'ئامادەکردن', 'هەڵگیرا', 'لە ڕێگایە', 'گەیشت'];
+    final activeIdx = _activeStepIndex;
+    final isArrivedAtDoor = _status == 'arrived_customer';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 5-Stage Live Stepper
+        Row(
+          children: List.generate(stepLabels.length, (i) {
+            final done = i <= activeIdx;
+            final isLast = i == stepLabels.length - 1;
+            return Expanded(
+              flex: isLast ? 0 : 1,
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 350),
+                    width: i == activeIdx ? 20 : 14,
+                    height: i == activeIdx ? 20 : 14,
+                    decoration: BoxDecoration(
+                      color: done ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
+                      shape: BoxShape.circle,
+                      boxShadow: i == activeIdx
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF16A34A).withValues(alpha: 0.4),
+                                blurRadius: 8,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: done
+                        ? const Icon(Icons.check, size: 11, color: Colors.white)
+                        : null,
+                  ),
+                  if (!isLast)
+                    Expanded(
+                      child: Container(
+                        height: 3,
+                        color: i < activeIdx
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(stepLabels.length, (i) {
+            final active = i == activeIdx;
+            return Text(
+              stepLabels[i],
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: active ? FontWeight.w900 : FontWeight.w600,
+                color: i <= activeIdx ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 14),
+
+        // Security Delivery PIN Box (Customer gives to Driver at Door)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: isArrivedAtDoor ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isArrivedAtDoor ? const Color(0xFF10B981) : const Color(0xFFFCD34D),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isArrivedAtDoor
+                          ? '🔔 شۆفێر لە بەردەم دەرگایە! ئەم کۆدەی بدەرێ:'
+                          : '🔐 کۆدی وەرگرتنی داواکاری (تەنها بۆ شۆفێر):',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                        color: isArrivedAtDoor
+                            ? const Color(0xFF065F46)
+                            : const Color(0xFF92400E),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'داواکاری ${widget.orderCode} • ${_formatMoney(widget.totalAmount)} د.ع',
+                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              Directionality(
+                textDirection: TextDirection.ltr,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: widget.deliveryPin.padRight(4, '0').substring(0, 4).split('').map((d) {
+                    return Container(
+                      width: 28,
+                      height: 34,
+                      margin: const EdgeInsets.only(left: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          d,
+                          style: const TextStyle(
+                            color: Color(0xFFFAC800),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Driver Info + Action Row
+        Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.two_wheeler_rounded,
+                color: Color(0xFFB45309),
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _driverName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  Text(
+                    '$_vehicleLabel • $_driverPhone',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isArrivedAtDoor)
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF16A34A),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: _confirmOrderReceivedByCustomer,
+                icon: const Icon(Icons.verified_rounded, size: 18),
+                label: const Text(
+                  'وەرمگرت ✅',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '${_speedKmh.toStringAsFixed(0)} کم/ک',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF166534),
+                      ),
+                    ),
+                    const Text(
+                      'خێرایی شۆفێر',
+                      style: TextStyle(fontSize: 9, color: Color(0xFF15803D)),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeliveredCelebrationCard() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 60,
+          height: 60,
+          decoration: const BoxDecoration(
+            color: Color(0xFFDCFCE7),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.check_circle_rounded,
+            color: Color(0xFF16A34A),
+            size: 40,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'داواکارییەکەت بە سەلامەتی گەیشت! 🎉',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'سوپاس بۆ بەکارهێنانی ڕێگا (REGA) • کۆی گشتی: ${_formatMoney(widget.totalAmount)} د.ع',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFAC800),
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'گەڕانەوە بۆ داواکارییەکان',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CustomerMapPin extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  const _CustomerMapPin({
+    required this.icon,
+    required this.color,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color, width: 1.5),
+            boxShadow: const [
+              BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+            ],
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+        ),
+        const SizedBox(height: 3),
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.4),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Icon(icon, color: Colors.white, size: 18),
+        ),
+      ],
+    );
+  }
+}
+
+class _TrackerMapBtn extends StatelessWidget {
+  final IconData icon;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _TrackerMapBtn({
+    required this.icon,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: active ? const Color(0xFF0F172A) : Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      elevation: 4,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(
+            icon,
+            size: 20,
+            color: active ? const Color(0xFFFAC800) : const Color(0xFF0F172A),
+          ),
+        ),
+      ),
+    );
+  }
+}

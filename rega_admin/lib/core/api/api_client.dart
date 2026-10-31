@@ -213,6 +213,11 @@ class ApiClient {
     return res['data'] as Map<String, dynamic>? ?? {};
   }
 
+  Future<Map<String, dynamic>> getLiveRadar() async {
+    final res = await _send('GET', '/admin/live-radar');
+    return res['data'] as Map<String, dynamic>? ?? {};
+  }
+
   // --- Orders & Dispatch ---
   Future<Map<String, dynamic>> getOrders({
     String status = 'all',

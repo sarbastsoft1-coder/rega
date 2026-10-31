@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Admin\ProductManagementController;
 use App\Http\Controllers\Api\Admin\StoreManagementController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DriverAppController;
+use App\Http\Controllers\Api\LiveTelemetryController;
 use App\Http\Controllers\Api\PublicAndCustomerController;
 use App\Http\Controllers\Api\VendorAppController;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +43,15 @@ Route::prefix('v1')->group(function () {
         Route::get('/stores/{store}', [PublicAndCustomerController::class, 'storeDetails']);
         Route::get('/search', [PublicAndCustomerController::class, 'search']);
         Route::get('/notifications', [PublicAndCustomerController::class, 'notifications']);
+    });
+
+    // --- Real-Time 1-Second Live GPS Telemetry & Route Sync (`rega`, `rega_delivery`, `rega_admin`) ---
+    Route::prefix('live-telemetry')->group(function () {
+        Route::post('/register', [LiveTelemetryController::class, 'registerOrder']);
+        Route::get('/latest-active', [LiveTelemetryController::class, 'latestActive']);
+        Route::get('/{orderRef}', [LiveTelemetryController::class, 'show']);
+        Route::post('/{orderRef}', [LiveTelemetryController::class, 'pushTick']);
+        Route::post('/{orderRef}/verify-pin', [LiveTelemetryController::class, 'verifyPin']);
     });
 
     // --- Authentication (All Apps) ---
@@ -115,6 +125,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['auth:sanctum', 'role:super_admin,admin,dispatcher'])->prefix('admin')->group(function () {
         // Dashboard & Analytics
         Route::get('/dashboard', [DashboardController::class, 'overview']);
+        Route::get('/live-radar', [LiveTelemetryController::class, 'adminRadar']);
 
         // Orders & Dispatch
         Route::get('/orders', [OrderManagementController::class, 'index']);

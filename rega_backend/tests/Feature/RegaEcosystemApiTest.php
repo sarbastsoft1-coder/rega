@@ -255,4 +255,58 @@ class RegaEcosystemApiTest extends TestCase
             ],
         ])->assertOk()->assertJsonPath('data.default_commission_rate', 14);
     }
+
+    public function test_second_by_second_live_telemetry_sync_and_pin_delivery(): void
+    {
+        // 1. Customer registers live order tracking session in Kalar
+        $reg = $this->postJson('/api/v1/live-telemetry/register', [
+            'order_ref' => 'RA-99001',
+            'store_name' => 'چێشتخانەی دیوان',
+            'store_lat' => 34.6836,
+            'store_lng' => 45.3189,
+            'customer_name' => 'ئاراس ڕەحمان',
+            'customer_address' => 'گەڕەکی زانکۆ - کۆڵانی ١٢',
+            'customer_lat' => 34.6918,
+            'customer_lng' => 45.3270,
+            'delivery_pin' => '7392',
+            'total_amount' => 21000,
+        ])->assertCreated();
+
+        $this->assertEquals('RA-99001', $reg->json('data.order_ref'));
+        $this->assertEquals('7392', $reg->json('data.delivery_pin'));
+
+        // 2. Driver app discovers latest active order and pushes 1-second telemetry ticks
+        $this->getJson('/api/v1/live-telemetry/latest-active')
+            ->assertOk()
+            ->assertJsonPath('data.order_ref', 'RA-99001');
+
+        $this->postJson('/api/v1/live-telemetry/RA-99001', [
+            'driver_lat' => 34.6875,
+            'driver_lng' => 45.3228,
+            'driver_heading' => 48.5,
+            'driver_speed_kmh' => 36.2,
+            'eta_seconds' => 64,
+            'distance_remaining_meters' => 540,
+            'progress_permille' => 680,
+            'status' => 'on_the_way',
+            'driver_status' => 'on_the_way',
+        ])->assertOk();
+
+        // 3. Customer app polls 1s later and receives exact driver GPS, speed, heading, and countdown
+        $poll = $this->getJson('/api/v1/live-telemetry/RA-99001')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'on_the_way')
+            ->assertJsonPath('data.eta_seconds', 64)
+            ->assertJsonPath('data.distance_remaining_meters', 540)
+            ->assertJsonPath('data.driver.is_live_captain', true);
+
+        $this->assertEqualsWithDelta(34.6875, $poll->json('data.driver.lat'), 0.0001);
+
+        // 4. Verify 4-digit PIN completes delivery
+        $this->postJson('/api/v1/live-telemetry/RA-99001/verify-pin', ['pin' => '0000'])->assertStatus(422);
+        $this->postJson('/api/v1/live-telemetry/RA-99001/verify-pin', ['pin' => '7392'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'delivered')
+            ->assertJsonPath('data.eta_seconds', 0);
+    }
 }

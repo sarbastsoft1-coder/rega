@@ -3,6 +3,7 @@ import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+import 'live_radar_dialog.dart';
 
 class OrdersScreen extends StatefulWidget {
   final ApiClient api;
@@ -372,20 +373,42 @@ class _OrdersScreenState extends State<OrdersScreen> {
               SectionHeader(
                 title: AppStrings.tr('nav_orders', widget.lang),
                 subtitle: 'چاودێریکردنی زیندووی داواکارییەکان، دیاریکردنی شۆفێر و کۆدەکانی پاراستن',
-                trailing: SizedBox(
-                  width: 280,
-                  child: TextField(
-                    controller: _searchCtrl,
-                    onSubmitted: (_) => _load(),
-                    decoration: InputDecoration(
-                      hintText: 'گەڕان بە کۆدی داواکاری یان کڕیار...',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                        onPressed: _load,
+                trailing: Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: RegaColors.emerald,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      ),
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => AdminLiveRadarDialog(api: widget.api),
+                        );
+                      },
+                      icon: const Icon(Icons.radar_rounded, size: 18),
+                      label: const Text('ڕاداری زیندووی شۆفێران (1s Map)', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                    SizedBox(
+                      width: 260,
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onSubmitted: (_) => _load(),
+                        decoration: InputDecoration(
+                          hintText: 'گەڕان بە کۆدی داواکاری یان کڕیار...',
+                          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                            onPressed: _load,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
               const SizedBox(height: 14),
