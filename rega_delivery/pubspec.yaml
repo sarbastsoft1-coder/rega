@@ -1,0 +1,30 @@
+name: delivery_app
+description: "A complete modern delivery driver application in Kurdish RTL with interactive order card and OTP verification."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets1/app_logo.png"
+  adaptive_icon_background: "#16A34A"
+  adaptive_icon_foreground: "assets1/navbar_logo.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets1/

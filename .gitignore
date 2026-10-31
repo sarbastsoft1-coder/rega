@@ -1,0 +1,26 @@
+# OS & Editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.log
+*.swp
+.idea/
+.vscode/
+
+# Flutter build & tool caches across subprojects
+**/.dart_tool/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/ephemeral/
+
+# Laravel dependencies & runtime secrets
+rega_backend/vendor/
+rega_backend/node_modules/
+rega_backend/.env
+rega_backend/.env.backup
+rega_backend/.env.production
+rega_backend/public/storage
+rega_backend/public/hot
+rega_backend/storage/*.key
+

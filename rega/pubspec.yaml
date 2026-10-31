@@ -1,0 +1,40 @@
+name: rega_app
+description: "XERA - خێرا: ئەپی گەیاندنی بەکاروباری کەلار"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  shared_preferences: ^2.2.2
+  google_fonts: ^6.1.0
+  geolocator: ^13.0.1
+  permission_handler: ^11.3.1
+  connectivity_plus: ^6.0.3
+  safe_device: ^1.1.1
+  screen_protector: ^1.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: "^0.13.1"
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/my_icon.png"
+  min_sdk_android: 21  
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets1/logo.png
+    - assets2/logo2.png
+
