@@ -94,6 +94,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
             ),
           ),
+          const SizedBox(height: 18),
+
+          // 3 Core Ecosystem Parts (Vendor • Customer • Delivery)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 900;
+              final cards = [
+                _buildEcosystemPortalCard(
+                  title: '١. بەشی فرۆشیاران (Vendor Part)',
+                  subtitle: '${kpis['online_stores'] ?? 0}/${kpis['total_stores'] ?? 0} فرۆشگای ئۆنلاین • مێنۆ، چێشتخانە و کۆمیسیۆن',
+                  badge: 'LIVE • rega_froshyar',
+                  icon: Icons.storefront_rounded,
+                  gradient: const [Color(0xFFEA580C), Color(0xFFD97706)],
+                  onTap: () => widget.onNavigateTab(1),
+                ),
+                _buildEcosystemPortalCard(
+                  title: '٢. بەشی کڕیاران (Customer Part)',
+                  subtitle: '${kpis['total_customers'] ?? 0} کڕیار • داواکاری ڕاستەوخۆ، کۆپۆن، گەڕەکەکان و کۆدی کڕیار',
+                  badge: 'LIVE • rega',
+                  icon: Icons.shopping_bag_rounded,
+                  gradient: const [Color(0xFF1E293B), Color(0xFF0F172A)],
+                  accentText: RegaColors.gold,
+                  onTap: () => widget.onNavigateTab(2),
+                ),
+                _buildEcosystemPortalCard(
+                  title: '٣. بەشی گەیاندن (Delivery Part)',
+                  subtitle: '${kpis['online_drivers'] ?? 0}/${kpis['total_drivers'] ?? 0} شۆفێری ئۆنلاین • نەخشەی ١ چرکەیی، KYC و کاشی COD',
+                  badge: 'LIVE • rega_delivery',
+                  icon: Icons.two_wheeler_rounded,
+                  gradient: const [Color(0xFF059669), Color(0xFF047857)],
+                  onTap: () => widget.onNavigateTab(3),
+                ),
+              ];
+              if (wide) {
+                return Row(
+                  children: [
+                    Expanded(child: cards[0]),
+                    const SizedBox(width: 14),
+                    Expanded(child: cards[1]),
+                    const SizedBox(width: 14),
+                    Expanded(child: cards[2]),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  cards[0],
+                  const SizedBox(height: 10),
+                  cards[1],
+                  const SizedBox(height: 10),
+                  cards[2],
+                ],
+              );
+            },
+          ),
           const SizedBox(height: 20),
 
           // 8 Executive KPI Cards
@@ -116,7 +171,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     subtitle: 'ئەمڕۆ: ${formatIqd(kpis['today_gmv'] as num?, lang: widget.lang)}',
                     icon: Icons.payments_rounded,
                     accentColor: RegaColors.emeraldDark,
-                    onTap: () => widget.onNavigateTab(8),
+                    onTap: () => widget.onNavigateTab(11),
                   ),
                   StatKpiCard(
                     title: AppStrings.tr('kpi_commission', widget.lang),
@@ -124,7 +179,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     subtitle: 'ئەمڕۆ: ${formatIqd(kpis['today_commission'] as num?, lang: widget.lang)}',
                     icon: Icons.account_balance_wallet_rounded,
                     accentColor: RegaColors.goldDark,
-                    onTap: () => widget.onNavigateTab(8),
+                    onTap: () => widget.onNavigateTab(11),
                   ),
                   StatKpiCard(
                     title: AppStrings.tr('kpi_active_orders', widget.lang),
@@ -132,7 +187,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     subtitle: '${kpis['pending_orders_count'] ?? 0} چاوەڕوانی قبوڵکردن',
                     icon: Icons.shopping_bag_rounded,
                     accentColor: RegaColors.orange,
-                    onTap: () => widget.onNavigateTab(1),
+                    onTap: () => widget.onNavigateTab(4),
                   ),
                   StatKpiCard(
                     title: AppStrings.tr('kpi_online_stores', widget.lang),
@@ -140,7 +195,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     subtitle: '${kpis['pending_stores'] ?? 0} چاوەڕوانی پەسەندکردن',
                     icon: Icons.storefront_rounded,
                     accentColor: RegaColors.blue,
-                    onTap: () => widget.onNavigateTab(2),
+                    onTap: () => widget.onNavigateTab(1),
                   ),
                   StatKpiCard(
                     title: AppStrings.tr('kpi_online_drivers', widget.lang),
@@ -148,7 +203,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     subtitle: '${kpis['pending_kyc_drivers'] ?? 0} چاوەڕوانی KYC',
                     icon: Icons.two_wheeler_rounded,
                     accentColor: RegaColors.emerald,
-                    onTap: () => widget.onNavigateTab(4),
+                    onTap: () => widget.onNavigateTab(3),
                   ),
                   StatKpiCard(
                     title: AppStrings.tr('kpi_cod_cash', widget.lang),
@@ -156,7 +211,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     subtitle: 'ئامادە بۆ پاکتاوکردن',
                     icon: Icons.request_quote_rounded,
                     accentColor: RegaColors.purple,
-                    onTap: () => widget.onNavigateTab(8),
+                    onTap: () => widget.onNavigateTab(3),
                   ),
                   StatKpiCard(
                     title: AppStrings.tr('kpi_customers', widget.lang),
@@ -164,7 +219,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     subtitle: 'کۆی داواکاری: ${kpis['total_orders'] ?? 0}',
                     icon: Icons.groups_rounded,
                     accentColor: const Color(0xFF0284C7),
-                    onTap: () => widget.onNavigateTab(5),
+                    onTap: () => widget.onNavigateTab(2),
                   ),
                   StatKpiCard(
                     title: AppStrings.tr('kpi_open_tickets', widget.lang),
@@ -172,7 +227,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     subtitle: 'گەیەندراو: ${kpis['delivered_orders'] ?? 0}',
                     icon: Icons.support_agent_rounded,
                     accentColor: RegaColors.crimson,
-                    onTap: () => widget.onNavigateTab(9),
+                    onTap: () => widget.onNavigateTab(12),
                   ),
                 ],
               );
@@ -545,7 +600,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SectionHeader(
               title: 'پڕفرۆشترین فرۆشگاکان',
               trailing: TextButton(
-                onPressed: () => widget.onNavigateTab(2),
+                onPressed: () => widget.onNavigateTab(1),
                 child: const Text('بینینی هەمووی'),
               ),
             ),
@@ -603,7 +658,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SectionHeader(
               title: 'چالاکترین شۆفێرەکان',
               trailing: TextButton(
-                onPressed: () => widget.onNavigateTab(4),
+                onPressed: () => widget.onNavigateTab(3),
                 child: const Text('بینینی هەمووی'),
               ),
             ),
@@ -658,7 +713,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               title: 'نوێترین داواکارییەکان',
               subtitle: 'دوایین ١٠ داواکاری تۆمارکراو لە سیستەمدا',
               trailing: ElevatedButton.icon(
-                onPressed: () => widget.onNavigateTab(1),
+                onPressed: () => widget.onNavigateTab(4),
                 icon: const Icon(Icons.open_in_new_rounded, size: 16),
                 label: const Text('بەڕێوەبردنی داواکارییەکان'),
               ),
@@ -705,6 +760,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEcosystemPortalCard({
+    required String title,
+    required String subtitle,
+    required String badge,
+    required IconData icon,
+    required List<Color> gradient,
+    Color accentText = Colors.white,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: gradient,
+              begin: Alignment.centerRight,
+              end: Alignment.centerLeft,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: accentText == RegaColors.gold
+                ? Border.all(color: RegaColors.gold.withValues(alpha: 0.5), width: 1.3)
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: accentText == RegaColors.gold
+                          ? RegaColors.gold
+                          : Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: accentText == RegaColors.gold ? const Color(0xFF0F172A) : Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      badge,
+                      style: TextStyle(color: accentText, fontSize: 10.5, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: TextStyle(color: accentText, fontSize: 15, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white70, fontSize: 11.5),
+              ),
+            ],
+          ),
         ),
       ),
     );

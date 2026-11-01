@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Admin\CatalogAndZonesController;
 use App\Http\Controllers\Api\Admin\CustomerManagementController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\DriverManagementController;
+use App\Http\Controllers\Api\Admin\EcosystemHubController;
 use App\Http\Controllers\Api\Admin\FinanceAndSupportController;
 use App\Http\Controllers\Api\Admin\MarketingController;
 use App\Http\Controllers\Api\Admin\OrderManagementController;
@@ -43,6 +44,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/stores/{store}', [PublicAndCustomerController::class, 'storeDetails']);
         Route::get('/search', [PublicAndCustomerController::class, 'search']);
         Route::get('/notifications', [PublicAndCustomerController::class, 'notifications']);
+        Route::post('/coupons/validate', [PublicAndCustomerController::class, 'validateCoupon']);
+        Route::post('/orders', [PublicAndCustomerController::class, 'publicPlaceOrder']);
+        Route::get('/customer-orders', [PublicAndCustomerController::class, 'publicCustomerOrders']);
     });
 
     // --- Real-Time 1-Second Live GPS Telemetry & Route Sync (`rega`, `rega_delivery`, `rega_admin`) ---
@@ -123,16 +127,20 @@ Route::prefix('v1')->group(function () {
 
     // --- Admin Control Center (`rega_admin`) ---
     Route::middleware(['auth:sanctum', 'role:super_admin,admin,dispatcher'])->prefix('admin')->group(function () {
-        // Dashboard & Analytics
+        // Dashboard & Analytics + 3 Core Ecosystem Parts (Vendor / Customer / Delivery)
         Route::get('/dashboard', [DashboardController::class, 'overview']);
+        Route::get('/ecosystem-hubs', [EcosystemHubController::class, 'overview']);
         Route::get('/live-radar', [LiveTelemetryController::class, 'adminRadar']);
 
         // Orders & Dispatch
         Route::get('/orders', [OrderManagementController::class, 'index']);
+        Route::post('/orders', [EcosystemHubController::class, 'createOrder']);
         Route::get('/orders/{order}', [OrderManagementController::class, 'show']);
         Route::post('/orders/{order}/assign-driver', [OrderManagementController::class, 'assignDriver']);
         Route::patch('/orders/{order}/status', [OrderManagementController::class, 'updateStatus']);
         Route::post('/orders/{order}/waiting-bonus', [OrderManagementController::class, 'addWaitingBonus']);
+        Route::post('/orders/{order}/verify-handover', [EcosystemHubController::class, 'verifyHandoverPin']);
+        Route::post('/orders/{order}/verify-delivery', [EcosystemHubController::class, 'verifyDeliveryPin']);
 
         // Stores / Vendors
         Route::get('/stores', [StoreManagementController::class, 'index']);

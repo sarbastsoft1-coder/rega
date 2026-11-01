@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DriverProfile;
+use App\Models\LiveTelemetrySession;
 use App\Models\Order;
 use App\Models\OrderStatusLog;
 use App\Models\PlatformSetting;
@@ -164,6 +165,13 @@ class DriverAppController extends Controller
             'note' => "شۆفێر بارودۆخی گۆڕی بۆ {$nextDriverStatus}",
         ]);
 
+        LiveTelemetrySession::where('order_id', $order->id)
+            ->orWhere('order_ref', $order->order_number)
+            ->update([
+                'status' => $order->status,
+                'driver_status' => $nextDriverStatus,
+            ]);
+
         return response()->json([
             'success' => true,
             'data' => $order->fresh(['items', 'store:id,name_ku,phone,address_ku,lat,lng'])->makeHidden(['delivery_pin']),
@@ -192,6 +200,16 @@ class DriverAppController extends Controller
             $request->user(),
             'بە کۆدی پاراستنی ٤ ژمارەیی کڕیار گەیاندن تەواوکرا'
         );
+
+        LiveTelemetrySession::where('order_id', $order->id)
+            ->orWhere('order_ref', $order->order_number)
+            ->update([
+                'status' => 'delivered',
+                'driver_status' => 'delivered',
+                'eta_seconds' => 0,
+                'distance_remaining_meters' => 0,
+                'progress_permille' => 1000,
+            ]);
 
         return response()->json([
             'success' => true,

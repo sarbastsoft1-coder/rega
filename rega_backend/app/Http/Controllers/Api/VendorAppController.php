@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\LiveTelemetrySession;
 use App\Models\Order;
 use App\Models\OrderStatusLog;
 use App\Models\Product;
@@ -237,6 +238,10 @@ class VendorAppController extends Controller
             'note' => 'فرۆشیار داواکارییەکەی قبوڵکرد و دەستی بە ئامادەکردن کرد',
         ]);
 
+        LiveTelemetrySession::where('order_id', $order->id)
+            ->orWhere('order_ref', $order->order_number)
+            ->update(['status' => 'preparing']);
+
         return response()->json(['success' => true, 'data' => $order->fresh('items')->makeHidden(['handover_pin', 'delivery_pin'])]);
     }
 
@@ -293,6 +298,10 @@ class VendorAppController extends Controller
             'note' => 'داواکاری ئامادەیە بۆ وەرگرتن لەلایەن شۆفێرەوە',
         ]);
 
+        LiveTelemetrySession::where('order_id', $order->id)
+            ->orWhere('order_ref', $order->order_number)
+            ->update(['status' => 'ready']);
+
         return response()->json(['success' => true, 'data' => $order->fresh('items')->makeHidden(['handover_pin', 'delivery_pin'])]);
     }
 
@@ -330,6 +339,13 @@ class VendorAppController extends Controller
             'actor_role' => 'vendor',
             'note' => 'بە کۆدی پاراستن ڕادەستی شۆفێر کرا',
         ]);
+
+        LiveTelemetrySession::where('order_id', $order->id)
+            ->orWhere('order_ref', $order->order_number)
+            ->update([
+                'status' => 'picked_up',
+                'driver_status' => 'picked_up',
+            ]);
 
         return response()->json([
             'success' => true,

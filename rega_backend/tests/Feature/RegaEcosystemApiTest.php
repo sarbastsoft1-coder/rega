@@ -309,4 +309,85 @@ class RegaEcosystemApiTest extends TestCase
             ->assertJsonPath('data.status', 'delivered')
             ->assertJsonPath('data.eta_seconds', 0);
     }
+
+    public function test_three_admin_ecosystem_parts_and_public_customer_order_sync(): void
+    {
+        $adminToken = $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@rega.iq',
+            'password' => 'password123',
+        ])->assertOk()->json('data.token');
+
+        // 1. Verify Admin 3 Core Ecosystem Parts (Vendor / Customer / Delivery)
+        $hubs = $this->asBearer($adminToken)
+            ->getJson('/api/v1/admin/ecosystem-hubs')
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertNotEmpty($hubs->json('data.vendor_part.stores'));
+        $this->assertGreaterThan(0, $hubs->json('data.vendor_part.kpis.total_stores'));
+        $this->assertNotEmpty($hubs->json('data.customer_part.vip_customers'));
+        $this->assertGreaterThan(0, $hubs->json('data.customer_part.kpis.total_customers'));
+        $this->assertNotEmpty($hubs->json('data.delivery_part.drivers'));
+        $this->assertGreaterThan(0, $hubs->json('data.delivery_part.kpis.total_drivers'));
+
+        // 2. Admin creates a live order from Customer Hub -> verify PIN handover & delivery
+        $store = Store::with('products')->firstOrFail();
+        $product = $store->products->firstOrFail();
+
+        $adminCreated = $this->asBearer($adminToken)->postJson('/api/v1/admin/orders', [
+            'store_id' => $store->id,
+            'customer_name' => 'هێرش مەحموود',
+            'customer_phone' => '07705554433',
+            'delivery_address' => 'گەڕەکی زانکۆ - کەلار',
+            'delivery_lat' => 34.6950,
+            'delivery_lng' => 45.3280,
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 2],
+            ],
+        ])->assertCreated();
+
+        $orderId = $adminCreated->json('data.id');
+        $handoverPin = $adminCreated->json('data.handover_pin');
+        $deliveryPin = $adminCreated->json('data.delivery_pin');
+
+        $this->asBearer($adminToken)
+            ->postJson("/api/v1/admin/orders/{$orderId}/verify-handover", ['pin' => $handoverPin])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'picked_up');
+
+        $this->asBearer($adminToken)
+            ->postJson("/api/v1/admin/orders/{$orderId}/verify-delivery", ['pin' => $deliveryPin])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'delivered');
+
+        // 3. Public Customer App (`rega`) places order & syncs customer order history
+        $pubOrder = $this->postJson('/api/v1/public/orders', [
+            'store_id' => $store->id,
+            'store_name' => $store->name_ku,
+            'neighborhood_name' => 'گەڕەکی زانکۆ',
+            'customer_name' => 'سەربەست عەلی',
+            'customer_phone' => '07703331122',
+            'delivery_address' => 'گەڕەکی زانکۆ - شاری کەلار',
+            'delivery_lat' => 34.7010,
+            'delivery_lng' => 45.3315,
+            'delivery_fee' => 1000,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'name' => $product->name_ku,
+                    'quantity' => 1,
+                    'price' => $product->effectivePrice(),
+                ],
+            ],
+        ])->assertCreated();
+
+        $pubOrderNumber = $pubOrder->json('data.order_number');
+        $this->assertNotEmpty($pubOrderNumber);
+
+        $custOrders = $this->getJson('/api/v1/public/customer-orders?phone=07703331122')
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertNotEmpty($custOrders->json('data'));
+    }
 }

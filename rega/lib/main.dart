@@ -13,6 +13,7 @@ import 'package:screen_protector/screen_protector.dart'; // 🔒 بۆ ڕێگری
 // Platform import removed to fix unused warning
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'live_order_tracker.dart';
+import 'customer_api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +42,7 @@ class _RegaAppState extends State<RegaApp> {
   void initState() {
     super.initState();
     _loadSavedLanguage();
+    _syncMarketplaceFromBackend();
   }
 
   // 💾 بارکردنی زمانی پاشەکەوتکراو لە SharedPreferences کاتی کردنەوەی ئەپ
@@ -60,6 +62,7 @@ class _RegaAppState extends State<RegaApp> {
   }
 
   // 💾 گۆڕین و پاشەکەوتکردنی زمان
+  void _syncMarketplaceFromBackend() {}
   Future<void> _toggleLanguage(String lang) async {
     setState(() {
       _currentLang = lang;
@@ -792,6 +795,7 @@ class _MainScreenState extends State<MainScreen> {
   bool _isOffline = false;
   bool _isCheckingConnection = false;
   Timer? _connectivityTimer;
+  Timer? _backendOrdersTimer;
 
   // App State
   final List<CartEntry> _cart = [];
@@ -827,6 +831,7 @@ class _MainScreenState extends State<MainScreen> {
     _passwordCtrl = TextEditingController();
     _loadProfile();
     _loadSavedLanguage();
+    _syncMarketplaceFromBackend();
     
     // 🚀 دەستپێکردنی زنجیرەی چالاککردنی ئەپ بە شێوەیەکی ڕێکخراو
     _startAppInitialization();
@@ -874,6 +879,7 @@ class _MainScreenState extends State<MainScreen> {
 
   // 🔔 فەنکشن بۆ داواکردنی ڕێگەپێدانی نۆتیکەیشن
   Future<void> _requestNotificationPermission() async {
+    if (kIsWeb) return;
     final status = await Permission.notification.request();
     if (status.isGranted) {
       // ڕێگەی پێدراوە
@@ -886,6 +892,13 @@ class _MainScreenState extends State<MainScreen> {
 
   // 📍 فەنکشن بۆ داواکردنی ڕێگەپێدانی GPS لە مۆبایل (بە مەرجی ناچاری)
   Future<void> _requestLocationPermission() async {
+    if (kIsWeb) {
+      setState(() {
+        _isLocationAuthorized = true;
+        _isCheckingLocation = false;
+      });
+      return;
+    }
     setState(() => _isCheckingLocation = true);
     
     bool serviceEnabled;
@@ -1099,6 +1112,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _connectivityTimer?.cancel();
+    _backendOrdersTimer?.cancel();
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _passwordCtrl.dispose();
@@ -1129,6 +1143,145 @@ class _MainScreenState extends State<MainScreen> {
         _isCheckingConnection = false;
       });
     }
+  }
+
+  Future<void> _syncMarketplaceFromBackend() async {
+    try {
+      final boot = await CustomerApiService.instance.fetchBootstrap();
+      if (boot != null && mounted) {
+        final rawZones = boot['neighborhoods'] as List<dynamic>? ?? [];
+        if (rawZones.isNotEmpty) {
+          kalarNeighborhoods
+            ..clear()
+            ..addAll(rawZones.map((z) {
+              final m = z as Map<String, dynamic>;
+              return Neighborhood(
+                id: 'n${m['id']}',
+                name: m['name_ku']?.toString() ?? '',
+                nameEn: m['name_en']?.toString() ?? '',
+                deliveryFee: (m['delivery_fee'] as num?)?.toInt() ?? 1500,
+              );
+            }));
+          _selectedNeighborhood = kalarNeighborhoods.first;
+        }
+
+        final rawStores = boot['stores'] as List<dynamic>? ?? [];
+        for (final rs in rawStores) {
+          final sm = rs as Map<String, dynamic>;
+          final dbStoreId = (sm['id'] as num?)?.toInt();
+          if (dbStoreId == null) continue;
+          final storeKey = 'db_store_$dbStoreId';
+          final storeName = sm['name_ku']?.toString() ?? '';
+          final catName = sm['category']?['name_ku']?.toString() ?? 'خواردنگە';
+
+          final existingIdx = allStores.indexWhere((s) => s.id == storeKey || s.name == storeName);
+          final mappedStore = StoreItem(
+            id: existingIdx >= 0 ? allStores[existingIdx].id : storeKey,
+            name: storeName,
+            category: catName,
+            rating: ((sm['rating'] as num?) ?? 4.8).toDouble(),
+            deliveryTime: sm['delivery_time']?.toString() ?? '20-30 خولەک',
+            deliveryFee: (sm['base_delivery_fee'] as num?)?.toInt() ?? 1500,
+            imageUrl: sm['cover_url']?.toString() ?? 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600',
+            address: sm['address_ku']?.toString() ?? 'کەلار',
+            isOpen: sm['is_online'] == true,
+            phone: sm['phone']?.toString() ?? '',
+            discountBadge: sm['discount_badge']?.toString(),
+          );
+          if (existingIdx >= 0) {
+            allStores[existingIdx] = mappedStore;
+          } else {
+            allStores.insert(0, mappedStore);
+          }
+
+          final detail = await CustomerApiService.instance.fetchStoreDetails(dbStoreId);
+          final prods = detail?['products'] as List<dynamic>? ?? [];
+          for (final rp in prods) {
+            final pm = rp as Map<String, dynamic>;
+            final pid = '${pm['id']}';
+            final pName = pm['name_ku']?.toString() ?? '';
+            final pIdx = allProducts.indexWhere((p) => p.id == pid || (p.storeId == mappedStore.id && p.name == pName));
+            final mappedProd = ProductItem(
+              id: pid,
+              storeId: mappedStore.id,
+              name: pName,
+              price: ((pm['discount_price'] ?? pm['price'] ?? 2500) as num).toInt(),
+              description: pm['description_ku']?.toString() ?? '',
+              imageUrl: pm['image_url']?.toString() ?? mappedStore.imageUrl,
+              category: catName,
+              subCategory: pm['store_category']?['name_ku']?.toString(),
+            );
+            if (pIdx >= 0) {
+              allProducts[pIdx] = mappedProd;
+            } else {
+              allProducts.insert(0, mappedProd);
+            }
+          }
+        }
+        if (mounted) setState(() {});
+      }
+
+      await _syncCustomerOrdersFromBackend();
+      _backendOrdersTimer?.cancel();
+      _backendOrdersTimer = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _syncCustomerOrdersFromBackend(),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _syncCustomerOrdersFromBackend() async {
+    try {
+      final list = await CustomerApiService.instance.fetchCustomerOrders(phone: _userProfile?.phone);
+      if (!mounted || list.isEmpty) return;
+
+      final synced = <OrderItem>[];
+      for (final raw in list) {
+        final m = raw as Map<String, dynamic>;
+        final rawItems = m['items'] as List<dynamic>? ?? [];
+        final cartEntries = rawItems.map((ri) {
+          final im = ri as Map<String, dynamic>;
+          return CartEntry(
+            product: ProductItem(
+              id: '${im['product_id'] ?? im['id'] ?? '1'}',
+              storeId: 'db_store_${m['store_id'] ?? 1}',
+              name: im['product_name']?.toString() ?? 'بەرهەم',
+              price: ((im['unit_price'] ?? 2500) as num).toInt(),
+              description: '',
+              imageUrl: im['product_image']?.toString() ?? 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600',
+              category: 'خواردنگە',
+            ),
+            quantity: ((im['quantity'] ?? 1) as num).toInt(),
+            specialNotes: im['special_notes']?.toString() ?? '',
+          );
+        }).toList();
+
+        synced.add(
+          OrderItem(
+            id: m['order_number']?.toString() ?? 'RA-${m['id']}',
+            storeName: m['store']?['name_ku']?.toString() ?? 'فرۆشگا',
+            totalAmount: ((m['total_amount'] ?? 0) as num).toInt(),
+            status: m['status']?.toString() ?? 'pending',
+            date: DateTime.tryParse(m['created_at']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
+            items: cartEntries,
+            driverName: m['driver']?['name']?.toString() ?? 'کاروان محەمەد',
+            driverPhone: m['driver']?['phone']?.toString() ?? '07702001001',
+            address: m['delivery_address']?.toString() ?? 'کەلار',
+            deliveryPin: m['delivery_pin']?.toString() ?? '4821',
+            customerLat: ((m['delivery_lat'] ?? 34.6912) as num).toDouble(),
+            customerLng: ((m['delivery_lng'] ?? 45.3264) as num).toDouble(),
+          ),
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _orders
+            ..clear()
+            ..addAll(synced);
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadProfile() async {
@@ -1163,6 +1316,12 @@ class _MainScreenState extends State<MainScreen> {
         'address': profile.address,
       };
       await prefs.setString('user_profile', jsonEncode(profileData));
+      await CustomerApiService.instance.authenticateOrRegister(
+        name: profile.name,
+        phone: profile.phone,
+        password: _passwordCtrl.text,
+      );
+      _syncCustomerOrdersFromBackend();
     } catch (e) {
       debugPrint('Error saving profile: $e');
     }
@@ -1172,6 +1331,7 @@ class _MainScreenState extends State<MainScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('user_profile');
+      await CustomerApiService.instance.clearToken();
     } catch (e) {
       debugPrint('Error clearing profile: $e');
     }
@@ -1598,7 +1758,11 @@ class _MainScreenState extends State<MainScreen> {
                     Navigator.pop(dialogCtx); // Close Confirmation Dialog
                     Navigator.pop(parentCtx); // Close Checkout Sheet
 
-                    final storeName = cartItems.isNotEmpty ? cartItems.first.product.name : 'کەلار ستی';
+                    final matchedStore = cartItems.isNotEmpty
+                        ? allStores.where((s) => s.id == cartItems.first.product.storeId).firstOrNull
+                        : null;
+                    final storeName = matchedStore?.name ??
+                        (cartItems.isNotEmpty ? cartItems.first.product.name : 'کەبابخانەی کەلار');
                     final newOrder = OrderItem(
                       id: orderCode,
                       storeName: storeName,
@@ -1623,7 +1787,13 @@ class _MainScreenState extends State<MainScreen> {
                       _cart.clear();
                     });
 
-                    _showOrderSuccessModal(orderCode, grandTotal);
+                    _submitOrderToBackendAndShowModal(
+                      newOrder,
+                      matchedStore,
+                      orderCode,
+                      grandTotal,
+                      cartItems,
+                    );
                   },
                   child: const FittedBox(
                     fit: BoxFit.scaleDown,
@@ -1636,6 +1806,77 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _submitOrderToBackendAndShowModal(
+    OrderItem localOrder,
+    StoreItem? matchedStore,
+    String fallbackCode,
+    int grandTotal,
+    List<CartEntry> cartItems,
+  ) async {
+    int? dbStoreId;
+    if (matchedStore != null && matchedStore.id.startsWith('db_store_')) {
+      dbStoreId = int.tryParse(matchedStore.id.replaceFirst('db_store_', ''));
+    }
+
+    final mappedItems = cartItems
+        .map(
+          (c) => <String, dynamic>{
+            'product_id': int.tryParse(c.product.id),
+            'name': c.product.name,
+            'quantity': c.quantity,
+            'price': c.product.price,
+            'notes': c.specialNotes,
+          },
+        )
+        .toList();
+
+    final created = await CustomerApiService.instance.placeBackendOrder(
+      storeId: dbStoreId,
+      storeName: localOrder.storeName,
+      neighborhoodName: _selectedNeighborhood.name,
+      customerName: _userProfile?.name ?? 'سەربەست عەلی',
+      customerPhone: _userProfile?.phone ?? '07703331122',
+      deliveryAddress: localOrder.address,
+      deliveryLat: localOrder.customerLat,
+      deliveryLng: localOrder.customerLng,
+      deliveryFee: _selectedNeighborhood.deliveryFee,
+      items: mappedItems,
+    );
+
+    if (!mounted) return;
+
+    if (created != null) {
+      final realOrderNum = (created['order_number'] ?? fallbackCode).toString();
+      final realPin = (created['delivery_pin'] ?? localOrder.deliveryPin).toString();
+      final realStatus = (created['status'] ?? 'pending').toString();
+      final syncedOrder = OrderItem(
+        id: realOrderNum,
+        storeName: localOrder.storeName,
+        totalAmount: (created['grand_total'] as num?)?.toInt() ?? grandTotal,
+        status: realStatus == 'pending' ? 'preparing' : realStatus,
+        date: DateTime.now(),
+        items: localOrder.items,
+        driverName: localOrder.driverName,
+        driverPhone: localOrder.driverPhone,
+        address: localOrder.address,
+        deliveryPin: realPin,
+        customerLat: localOrder.customerLat,
+        customerLng: localOrder.customerLng,
+      );
+      setState(() {
+        final idx = _orders.indexWhere((o) => o.id == localOrder.id);
+        if (idx >= 0) {
+          _orders[idx] = syncedOrder;
+        } else {
+          _orders.insert(0, syncedOrder);
+        }
+      });
+      _showOrderSuccessModal('$realPin  •  $realOrderNum', syncedOrder.totalAmount);
+    } else {
+      _showOrderSuccessModal(fallbackCode, grandTotal);
+    }
   }
 
   void _showOrderSuccessModal(String orderCode, int grandTotal) {

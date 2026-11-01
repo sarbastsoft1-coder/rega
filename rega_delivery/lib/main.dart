@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'live_captain_map.dart';
+import 'driver_api_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +29,7 @@ class DeliveryDriverApp extends StatefulWidget {
 class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
   String _locale = 'ku';
   bool _isLoggedIn = true; // گۆڕینی بۆ true بۆ تێست، دواتر دەکرێتە false
+  final String _driverPhone = '07501234567';
 
   void _changeLanguage(String lang) {
     setState(() {
@@ -42,6 +44,7 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
   }
 
   void _handleLogout() {
+    DriverApiService.instance.logout();
     setState(() {
       _isLoggedIn = false;
     });
@@ -72,6 +75,7 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
               currentLocale: _locale, 
               onLanguageChange: _changeLanguage,
               onLogout: _handleLogout,
+              driverPhone: _driverPhone,
             )
           : AuthScreen(
               currentLocale: _locale,
@@ -312,6 +316,8 @@ class OrderModel {
   final List<OrderItem> items;
   final int deliveryFee;
   final int tip;
+  final int? dbId;
+  final String handoverPin;
   final String deliveryPin;
   final double storeLat;
   final double storeLng;
@@ -331,6 +337,8 @@ class OrderModel {
     required this.items,
     required this.deliveryFee,
     required this.tip,
+    this.dbId,
+    this.handoverPin = '7392',
     required this.deliveryPin,
     this.storeLat = 34.6836,
     this.storeLng = 45.3189,
@@ -351,12 +359,14 @@ class DriverMainScreen extends StatefulWidget {
   final String currentLocale;
   final Function(String) onLanguageChange;
   final VoidCallback onLogout;
+  final String driverPhone;
 
   const DriverMainScreen({
     super.key,
     required this.currentLocale,
     required this.onLanguageChange,
     required this.onLogout,
+    this.driverPhone = '07501234567',
   });
 
   @override
@@ -375,6 +385,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   int _selectedEarningsTimeIndex = 2; // ئۆتۆماتیکی لەسەر 'ئەمڕۆ' بێت
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  Map<String, dynamic>? _driverProfile;
+  List<Map<String, dynamic>>? _backendOrdersList;
+  final Map<String, Map<String, dynamic>> _earningsCache = {};
+  Timer? _driverSyncTimer;
+  bool _didStartBackendSync = false;
 
   // لیستی ئاگادارکردنەوەکان
   final List<Map<String, String>> _notifications = [
@@ -384,7 +399,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   ];
 
   // لیستی هەموو داواکارییەکان بۆ بەشی لیست
-  List<Map<String, dynamic>> get _allOrdersData => [
+  List<Map<String, dynamic>> get _allOrdersData =>
+      (_backendOrdersList != null && _backendOrdersList!.isNotEmpty)
+          ? _backendOrdersList!
+          : [
     {
       'id': '#10245',
       'merchant': 'چێشتخانەی دیوان',
@@ -465,6 +483,152 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   void initState() {
     super.initState();
     _resetActiveOrder();
+  }
+
+  @override
+  void dispose() {
+    _driverSyncTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initBackendDriverSync() async {
+    final ok = await DriverApiService.instance.ensureAuthenticated(phone: widget.driverPhone);
+    if (!ok || !mounted) return;
+    await _refreshBackendDriverData();
+    _driverSyncTimer?.cancel();
+    _driverSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _refreshBackendDriverData(silent: true);
+    });
+  }
+
+  OrderStatus _parseBackendDriverStatus(String? driverStatus, String? orderStatus) {
+    switch (driverStatus) {
+      case 'driver_arriving_pickup':
+        return OrderStatus.driverArrivingPickup;
+      case 'arrived_pickup':
+        return OrderStatus.arrivedPickup;
+      case 'picked_up':
+        return OrderStatus.pickedUp;
+      case 'on_the_way':
+        return OrderStatus.onTheWay;
+      case 'arrived_customer':
+        return OrderStatus.arrivedCustomer;
+      case 'delivered':
+        return OrderStatus.delivered;
+      default:
+        if (orderStatus == 'delivered') return OrderStatus.delivered;
+        if (orderStatus == 'on_the_way') return OrderStatus.onTheWay;
+        if (orderStatus == 'picked_up') return OrderStatus.pickedUp;
+        return OrderStatus.driverAssigned;
+    }
+  }
+
+  Future<void> _refreshBackendDriverData({bool silent = false}) async {
+    final profile = await DriverApiService.instance.fetchProfile();
+    final active = await DriverApiService.instance.fetchActiveOrder();
+    final history = await DriverApiService.instance.fetchOrdersHistory();
+    final todayEarn = await DriverApiService.instance.fetchEarnings(period: 'today');
+    final weekEarn = await DriverApiService.instance.fetchEarnings(period: 'week');
+    final monthEarn = await DriverApiService.instance.fetchEarnings(period: 'month');
+
+    if (!mounted) return;
+
+    setState(() {
+      if (profile != null) {
+        _driverProfile = profile;
+        if (!silent) {
+          _isOnline = profile['is_online'] == true;
+        }
+      }
+
+      if (todayEarn != null) {
+        _earningsCache['today'] = todayEarn;
+        _todayEarnings = (todayEarn['total_earnings'] as num?)?.toInt() ?? _todayEarnings;
+        _completedDeliveriesCount =
+            (todayEarn['total_deliveries'] as num?)?.toInt() ?? _completedDeliveriesCount;
+      }
+      if (weekEarn != null) _earningsCache['week'] = weekEarn;
+      if (monthEarn != null) _earningsCache['month'] = monthEarn;
+
+      if (active != null) {
+        final dbId = (active['id'] as num?)?.toInt();
+        final orderNum = (active['order_number'] ?? '#10245').toString();
+        final store = (active['store'] as Map<String, dynamic>?) ?? const {};
+        final cust = (active['customer'] as Map<String, dynamic>?) ?? const {};
+        final rawItems = (active['items'] as List<dynamic>?) ?? const [];
+        final mappedItems = rawItems
+            .asMap()
+            .entries
+            .map((e) {
+              final m = e.value as Map<String, dynamic>;
+              return OrderItem(
+                id: '${m['id'] ?? (e.key + 1)}',
+                name: (m['product_name'] ?? m['name'] ?? 'خواردنی کەلار').toString(),
+                quantity: (m['quantity'] as num?)?.toInt() ?? 1,
+                price: ((m['unit_price'] ?? m['price'] ?? 2500) as num).toInt(),
+              );
+            })
+            .toList();
+
+        final nextStatus = _parseBackendDriverStatus(
+          active['driver_status']?.toString(),
+          active['status']?.toString(),
+        );
+
+        _activeOrder = OrderModel(
+          dbId: dbId,
+          id: 'db_ord_${dbId ?? orderNum}',
+          orderNumber: orderNum.startsWith('#') ? orderNum : '#$orderNum',
+          status: nextStatus,
+          merchantName: (store['name_ku'] ?? 'فرۆشگای کەلار').toString(),
+          merchantAddress: (store['address_ku'] ?? 'ناو بازاڕی کەلار').toString(),
+          merchantPhone: (store['phone'] ?? '07701112233').toString(),
+          customerName: (active['customer_name'] ?? cust['name'] ?? 'کڕیاری ڕێگا').toString(),
+          customerAddress: (active['delivery_address'] ?? 'شاری کەلار').toString(),
+          customerPhone: (active['customer_phone'] ?? cust['phone'] ?? '07703001001').toString(),
+          items: mappedItems.isNotEmpty ? mappedItems : _activeOrder.items,
+          deliveryFee: (active['delivery_fee'] as num?)?.toInt() ?? 1500,
+          tip: (active['driver_tip'] as num?)?.toInt() ?? 0,
+          handoverPin: (active['handover_pin'] ?? '7392').toString(),
+          deliveryPin: _activeOrder.deliveryPin,
+          storeLat: (store['lat'] as num?)?.toDouble() ?? 34.6836,
+          storeLng: (store['lng'] as num?)?.toDouble() ?? 45.3189,
+          customerLat: (active['delivery_lat'] as num?)?.toDouble() ?? 34.6912,
+          customerLng: (active['delivery_lng'] as num?)?.toDouble() ?? 45.3264,
+        );
+      }
+
+      if (history.isNotEmpty) {
+        _backendOrdersList = history.map((raw) {
+          final m = raw as Map<String, dynamic>;
+          final st = (m['status'] ?? 'pending').toString();
+          final store = (m['store'] as Map<String, dynamic>?) ?? const {};
+          final cust = (m['customer'] as Map<String, dynamic>?) ?? const {};
+          final fee = ((m['driver_total_earning'] ?? m['delivery_fee'] ?? 1500) as num).toInt();
+          final isDelivered = st == 'delivered';
+          final isCancelled = st == 'cancelled' || st == 'rejected';
+          final numStr = (m['order_number'] ?? '').toString();
+          return <String, dynamic>{
+            'id': numStr.startsWith('#') ? numStr : '#$numStr',
+            'merchant': (store['name_ku'] ?? 'فرۆشگای کەلار').toString(),
+            'customer': (m['customer_name'] ?? cust['name'] ?? 'کڕیار').toString(),
+            'statusKey': isDelivered
+                ? 'status_delivered'
+                : (isCancelled ? 'status_cancelled' : 'status_on_way'),
+            'statusType': isDelivered ? 'delivered' : (isCancelled ? 'cancelled' : 'active'),
+            'price': '${_formatMoney(fee)} ${t('iqd')}',
+            'time': (m['created_at'] ?? '').toString().replaceFirst('T', ' ').split('.').first,
+            'statusColor': isDelivered
+                ? const Color(0xFF16A34A)
+                : (isCancelled ? const Color(0xFFEF4444) : const Color(0xFFD97706)),
+            'statusBg': isDelivered
+                ? const Color(0xFFDCFCE7)
+                : (isCancelled ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7)),
+          };
+        }).toList();
+      }
+    });
   }
 
   CaptainRouteStage _toCaptainStage(OrderStatus s) {
@@ -565,6 +729,12 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   }
 
   void _resetActiveOrder() {
+    if (!_didStartBackendSync) {
+      _didStartBackendSync = true;
+      _initBackendDriverSync();
+    } else {
+      _refreshBackendDriverData();
+    }
     _isOrderCardVisible = true;
     _activeOrder = OrderModel(
       id: 'ord_10245',
@@ -588,6 +758,19 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   }
 
   void _updateOrderStatus(OrderStatus nextStatus) {
+    if (_activeOrder.dbId != null && nextStatus != OrderStatus.delivered) {
+      final mapped = switch (nextStatus) {
+        OrderStatus.driverArrivingPickup => 'driver_arriving_pickup',
+        OrderStatus.arrivedPickup => 'arrived_pickup',
+        OrderStatus.pickedUp => 'picked_up',
+        OrderStatus.onTheWay => 'on_the_way',
+        OrderStatus.arrivedCustomer => 'arrived_customer',
+        _ => null,
+      };
+      if (mapped != null) {
+        DriverApiService.instance.advanceOrderStatus(_activeOrder.dbId!, mapped);
+      }
+    }
     setState(() {
       _activeOrder.status = nextStatus;
       if (nextStatus == OrderStatus.delivered) {
@@ -607,10 +790,14 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         child: PinVerificationBottomSheet(
           orderNumber: _activeOrder.orderNumber,
           correctPin: _activeOrder.deliveryPin,
+          onBackendVerify: _activeOrder.dbId != null
+              ? (pin) => DriverApiService.instance.verifyDeliveryPin(_activeOrder.dbId!, pin)
+              : null,
           onSuccess: () {
             Navigator.pop(ctx);
             _updateOrderStatus(OrderStatus.delivered);
             _notifyBackendPinVerified();
+            _refreshBackendDriverData(silent: true);
             _showSuccessSnackBar('گەیاندنەکە بە سەرکەوتوویی کۆتایی هات! پیرۆزە.');
           },
         ),
@@ -746,7 +933,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 
           // سویچی ئۆنلاین/ئۆفلاین (Left in RTL - Index 2)
           InkWell(
-            onTap: () => setState(() => _isOnline = !_isOnline),
+            onTap: () {
+              final nextOnline = !_isOnline;
+              setState(() => _isOnline = nextOnline);
+              DriverApiService.instance.updateOnlineStatus(nextOnline);
+            },
             borderRadius: BorderRadius.circular(100),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -992,6 +1183,13 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     );
   }
 
+  Map<String, dynamic>? get _selectedLiveEarnings {
+    final key = _selectedEarningsTimeIndex == 2
+        ? 'today'
+        : (_selectedEarningsTimeIndex == 1 ? 'week' : 'month');
+    return _earningsCache[key];
+  }
+
   Widget _buildMainEarningsCard() {
     String total = '25,000 دینار';
     String bonus = '5,000 دینار';
@@ -1048,7 +1246,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            total,
+            _selectedLiveEarnings != null
+                ? '${_formatMoney((_selectedLiveEarnings!['total_earnings'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
+                : total,
             style: const TextStyle(
               fontSize: 48,
               fontWeight: FontWeight.w900,
@@ -1060,11 +1260,33 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(child: _statItemEarnings(t('total_deliveries'), count)),
+              Expanded(
+                child: _statItemEarnings(
+                  t('total_deliveries'),
+                  _selectedLiveEarnings != null
+                      ? '${_selectedLiveEarnings!['total_deliveries'] ?? 0}'
+                      : count,
+                ),
+              ),
               Container(width: 1, height: 40, color: const Color(0xFFF1F5F9)),
-              Expanded(child: _statItemEarnings(t('avg_delivery'), avg)),
+              Expanded(
+                child: _statItemEarnings(
+                  t('avg_delivery'),
+                  _selectedLiveEarnings != null
+                      ? '${_formatMoney((_selectedLiveEarnings!['avg_per_delivery'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
+                      : avg,
+                ),
+              ),
               Container(width: 1, height: 40, color: const Color(0xFFF1F5F9)),
-              Expanded(child: _statItemEarnings('${t('bonus')} (Bonus)', bonus, isGreen: true)),
+              Expanded(
+                child: _statItemEarnings(
+                  '${t('bonus')} (Bonus)',
+                  _selectedLiveEarnings != null
+                      ? '${_formatMoney((_selectedLiveEarnings!['bonus'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
+                      : bonus,
+                  isGreen: true,
+                ),
+              ),
             ],
           ),
         ],
@@ -1344,7 +1566,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)),
-                child: const Text('RA-884', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                child: Text(
+                  (_driverProfile?['driver_code'] ?? 'RA-884').toString(),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                ),
               ),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 10),
@@ -1360,11 +1585,32 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           // ئامارە خێراکان
           Row(
             children: [
-              Expanded(child: _buildHeaderStat('تەواوکردن', '99.2%', valueColor: const Color(0xFF16A34A))),
+              Expanded(
+                child: _buildHeaderStat(
+                  'تەواوکردن',
+                  '${_driverProfile?['completion_rate'] ?? '99.2'}%',
+                  valueColor: const Color(0xFF16A34A),
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _buildHeaderStat('کۆی گەیاندن', '1482')),
+              Expanded(
+                child: _buildHeaderStat(
+                  'کۆی گەیاندن',
+                  '${_driverProfile?['total_deliveries'] ?? 1482}',
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _buildHeaderStat('هەڵسەنگاندن', '4.94', isRating: true)),
+              Expanded(
+                child: _buildHeaderStat(
+                  'هەڵسەنگاندن',
+                  '${_driverProfile?['rating'] ?? '4.94'}',
+                  isRating: true,
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              const SizedBox(width: 12),
+
             ],
           ),
         ],
@@ -1460,10 +1706,13 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             crossAxisSpacing: 12,
             childAspectRatio: 2.0,
             children: [
-              _buildMotorStatItem(t('motor_type'), 'هۆندا CBR 150R'),
-              _buildMotorStatItem(t('motor_id'), 'B-84729-21'),
-              _buildMotorStatItem(t('motor_model'), '2023'),
-              _buildMotorStatItem(t('motor_color'), 'ڕەش و سەوز'),
+              _buildMotorStatItem(t('motor_type'), (_driverProfile?['motor_type'] ?? 'هۆندا CBR 150R').toString()),
+              _buildMotorStatItem(t('motor_id'), (_driverProfile?['plate_number'] ?? 'B-84729-21').toString()),
+              _buildMotorStatItem(t('motor_model'), (_driverProfile?['model_year'] ?? '2023').toString()),
+              _buildMotorStatItem(t('motor_color'), (_driverProfile?['motor_color'] ?? 'ڕەش و سەوز').toString()),
+
+
+
             ],
           ),
         ],
@@ -2479,6 +2728,30 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
 
           // ٢. بەشی زانیاری فرۆشیار / کڕیار (styled-box)
           _buildEntityInfoBox(),
+          if (_isPickupStage && widget.order.handoverPin.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF86EFAC)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '🔑 کۆدی وەرگرتن بدە بە فرۆشیار:',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF166534)),
+                  ),
+                  Text(
+                    widget.order.handoverPin,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFF15803D)),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
 
           // ٣. بەشی کورتەی بەرهەمەکان (Accordion)
@@ -2826,12 +3099,14 @@ class _StatusConfig {
 class PinVerificationBottomSheet extends StatefulWidget {
   final String orderNumber;
   final String correctPin;
+  final Future<(bool, String?)> Function(String pin)? onBackendVerify;
   final VoidCallback onSuccess;
 
   const PinVerificationBottomSheet({
     super.key,
     required this.orderNumber,
     required this.correctPin,
+    this.onBackendVerify,
     required this.onSuccess,
   });
 
@@ -2874,6 +3149,25 @@ class _PinVerificationBottomSheetState extends State<PinVerificationBottomSheet>
     await Future.delayed(const Duration(milliseconds: 400));
 
     // پەسەندکردنی کۆد (یاخود کۆدی نموونەیی 1234 / 4821)
+    if (widget.onBackendVerify != null) {
+      final (ok, backendMsg) = await widget.onBackendVerify!(pin);
+      if (ok) {
+        setState(() {
+          _isSuccess = true;
+          _isLoading = false;
+        });
+        await Future.delayed(const Duration(milliseconds: 600));
+        widget.onSuccess();
+        return;
+      } else if (backendMsg != null) {
+        setState(() {
+          _errorMessage = backendMsg;
+          _enteredPin = '';
+          _isLoading = false;
+        });
+        return;
+      }
+    }
     if (pin == widget.correctPin || pin == '1234' || pin == '4821') {
       setState(() {
         _isSuccess = true;
@@ -3411,6 +3705,14 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
+  final TextEditingController _authPhoneCtrl = TextEditingController(text: '07501234567');
+  bool _isAuthenticating = false;
+
+  @override
+  void dispose() {
+    _authPhoneCtrl.dispose();
+    super.dispose();
+  }
   String t(String key) => _trans[widget.currentLocale]![key] ?? key;
 
   @override
@@ -3487,7 +3789,8 @@ class _AuthScreenState extends State<AuthScreen> {
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
                       ),
-                      child: const TextField(
+                      child: TextField(
+                        controller: _authPhoneCtrl,
                         textAlign: TextAlign.left,
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1),
                         keyboardType: TextInputType.phone,
@@ -3513,7 +3816,18 @@ class _AuthScreenState extends State<AuthScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 18),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
-                    onPressed: widget.onLogin,
+                    onPressed: _isAuthenticating
+                        ? null
+                        : () async {
+                            setState(() => _isAuthenticating = true);
+                            await DriverApiService.instance.ensureAuthenticated(
+                              phone: _authPhoneCtrl.text,
+                            );
+                            if (mounted) {
+                              setState(() => _isAuthenticating = false);
+                              widget.onLogin();
+                            }
+                          },
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [

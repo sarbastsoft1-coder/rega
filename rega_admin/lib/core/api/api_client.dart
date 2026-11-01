@@ -502,5 +502,26 @@ class ApiClient {
     final res = await _send('PUT', '/admin/settings', body: {'settings': settings});
     return res['data'] as Map<String, dynamic>? ?? {};
   }
+
+  // --- 3 Core Ecosystem Parts (Vendor / Customer / Delivery) ---
+  Future<Map<String, dynamic>> getEcosystemHubs() async {
+    final res = await _send('GET', '/admin/ecosystem-hubs');
+    return res['data'] as Map<String, dynamic>? ?? {};
+  }
+
+  Future<Map<String, dynamic>> createAdminOrder(Map<String, dynamic> payload) async {
+    final res = await _send('POST', '/admin/orders', body: payload);
+    return res['data'] as Map<String, dynamic>? ?? {};
+  }
+
+  Future<Map<String, dynamic>> verifyHandoverPin(int orderId, String pin) async {
+    final res = await _send('POST', '/admin/orders/$orderId/verify-handover', body: {'pin': pin});
+    return res['data'] as Map<String, dynamic>? ?? {};
+  }
+
+  Future<Map<String, dynamic>> verifyDeliveryPin(int orderId, String pin) async {
+    final res = await _send('POST', '/admin/orders/$orderId/verify-delivery', body: {'pin': pin});
+    return res['data'] as Map<String, dynamic>? ?? {};
+  }
 }
 

@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import "package:flutter/foundation.dart";
 import 'package:google_fonts/google_fonts.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'vendor_api_service.dart';
 
 // ==============================================================================
 // 🔔 خزمەتگوزاری دەنگی موزیک و ئاگادارکردنەوە بۆ داواکارییە نوێیەکان (Order Sound Service)
@@ -242,14 +243,16 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _phoneController = TextEditingController();
-    _passwordController = TextEditingController();
+    _phoneController = TextEditingController(text: '07701112233');
+    _passwordController = TextEditingController(text: 'password123');
+
   }
 
   @override
   void dispose() {
     _phoneController.dispose();
     _passwordController.dispose();
+
     super.dispose();
   }
 
@@ -441,7 +444,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: () {
                             Navigator.pushReplacement(
                               context,
-                              MaterialPageRoute(builder: (context) => const MainNavigationScreen(initialIndex: 3)),
+                              MaterialPageRoute(builder: (context) => MainNavigationScreen(initialIndex: 3, loginPhone: _phoneController.text, loginPassword: _passwordController.text)),
                             );
                           },
                           style: ElevatedButton.styleFrom(
@@ -580,6 +583,7 @@ class Order {
   final String deliveryAddress;
   final String handoverPin;
   final String? customerNotes;
+  final int? dbId;
 
   Order({
     required this.id,
@@ -592,12 +596,15 @@ class Order {
     this.deliveryAddress = 'کەلار - گەڕەکی سیروان',
     this.handoverPin = '4821',
     this.customerNotes,
+    this.dbId,
   });
 }
 
 class MainNavigationScreen extends StatefulWidget {
   final int initialIndex;
-  const MainNavigationScreen({super.key, this.initialIndex = 3});
+  final String? loginPhone;
+  final String? loginPassword;
+  const MainNavigationScreen({super.key, this.initialIndex = 3, this.loginPhone, this.loginPassword});
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -610,16 +617,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   String _language = 'ku';
   String _businessName = t('فرۆشگا');
   Timer? _simulationTimer;
+  Timer? _backendPollTimer;
+  final Set<int> _seenBackendOrderIds = {};
   
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
     _startOrderSimulationTimer();
+    _initBackendVendorSync();
   }
 
   void _startOrderSimulationTimer() {
     _simulationTimer?.cancel();
+    _backendPollTimer?.cancel();
     // Simulate periodic incoming orders when the store is online
     _simulationTimer = Timer.periodic(const Duration(seconds: 45), (timer) {
       if (_isOnline && mounted) {
@@ -631,6 +642,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void dispose() {
     _simulationTimer?.cancel();
+    _backendPollTimer?.cancel();
     super.dispose();
   }
   
@@ -739,16 +751,161 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     });
   }
 
+  OrderStatus _mapBackendVendorStatus(String raw) {
+    switch (raw) {
+      case 'preparing':
+        return OrderStatus.preparing;
+      case 'ready':
+        return OrderStatus.ready;
+      case 'completed':
+      case 'picked_up':
+      case 'on_the_way':
+      case 'delivered':
+        return OrderStatus.completed;
+      case 'rejected':
+      case 'cancelled':
+        return OrderStatus.rejected;
+      default:
+        return OrderStatus.pending;
+    }
+  }
+
+  Future<void> _initBackendVendorSync() async {
+    try {
+      if (widget.loginPhone != null && widget.loginPhone!.trim().isNotEmpty) {
+        await VendorApiService.instance.login(
+          widget.loginPhone!,
+          widget.loginPassword ?? 'password123',
+        );
+      } else {
+        await VendorApiService.instance.ensureAuthenticated();
+      }
+
+      final store = await VendorApiService.instance.fetchStoreProfile();
+      final cats = await VendorApiService.instance.fetchCategories();
+      final prods = await VendorApiService.instance.fetchProducts();
+      await _syncVendorOrdersOnly(initialLoad: true);
+
+      if (!mounted) return;
+      setState(() {
+        if (store != null) {
+          _businessName = store['name_ku']?.toString() ?? _businessName;
+          _isOnline = store['is_online'] == true;
+        }
+        if (cats.isNotEmpty) {
+          _categories
+            ..clear()
+            ..addAll(cats.map((c) => (c as Map<String, dynamic>)['name_ku']?.toString() ?? '').where((s) => s.isNotEmpty));
+        }
+        if (prods.isNotEmpty) {
+          _products
+            ..clear()
+            ..addAll(prods.map((raw) {
+              final p = raw as Map<String, dynamic>;
+              return Product(
+                id: '${p['id']}',
+                name: p['name_ku']?.toString() ?? '',
+                category: p['store_category']?['name_ku']?.toString() ?? (_categories.isNotEmpty ? _categories.first : 'گشتی'),
+                price: ((p['price'] as num?) ?? 0).toDouble(),
+                discountPrice: (p['discount_price'] as num?)?.toDouble(),
+                isAvailable: p['is_available'] == true,
+                description: p['description_ku']?.toString(),
+                imageUrl: p['image_url']?.toString(),
+              );
+            }));
+        }
+      });
+
+      _backendPollTimer?.cancel();
+      _backendPollTimer = Timer.periodic(
+        const Duration(seconds: 4),
+        (_) => _syncVendorOrdersOnly(initialLoad: false),
+      );
+    } catch (e) {
+      debugPrint('Vendor backend sync fallback: $e');
+    }
+  }
+
+  Future<void> _syncVendorOrdersOnly({required bool initialLoad}) async {
+    try {
+      final list = await VendorApiService.instance.fetchOrders();
+      if (!mounted || list.isEmpty) return;
+
+      bool hasBrandNewPending = false;
+      final parsed = <Order>[];
+
+      for (final raw in list) {
+        final m = raw as Map<String, dynamic>;
+        final dbId = (m['id'] as num?)?.toInt();
+        final vStatus = m['vendor_status']?.toString() ?? m['status']?.toString() ?? 'pending';
+        if (dbId != null && !_seenBackendOrderIds.contains(dbId)) {
+          _seenBackendOrderIds.add(dbId);
+          if (!initialLoad && vStatus == 'pending') {
+            hasBrandNewPending = true;
+          }
+        }
+
+        final itemsList = (m['items'] as List<dynamic>? ?? [])
+            .map((it) {
+              final im = it as Map<String, dynamic>;
+              return '${im['quantity'] ?? 1}x ${im['product_name'] ?? ''}';
+            })
+            .toList();
+
+        parsed.add(
+          Order(
+            id: '${m['order_number'] ?? 'RA-$dbId'}#',
+            dbId: dbId,
+            items: itemsList.isEmpty ? ['1x داواکاری'] : itemsList,
+            total: ((m['subtotal'] ?? m['total_amount'] ?? 0) as num).toDouble(),
+            status: _mapBackendVendorStatus(vStatus),
+            timestamp: DateTime.tryParse(m['created_at']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
+            customerName: m['customer_name']?.toString() ?? m['customer']?['name']?.toString() ?? 'کڕیار',
+            customerPhone: m['customer_phone']?.toString() ?? m['customer']?['phone']?.toString() ?? '',
+            deliveryAddress: m['delivery_address']?.toString() ?? 'کەلار',
+            handoverPin: '0000',
+            customerNotes: m['customer_notes']?.toString(),
+          ),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _orders
+          ..clear()
+          ..addAll(parsed);
+      });
+
+      if (hasBrandNewPending && _soundEnabled) {
+        OrderSoundService.playNewOrderAlert(soundEnabled: _soundEnabled);
+      }
+    } catch (_) {}
+  }
+
+  void _legacyUnusedHook(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
   void _toggleProductAvailability(String id) {
     setState(() {
       final product = _products.firstWhere((p) => p.id == id);
       product.isAvailable = !product.isAvailable;
+      final pid = int.tryParse(id);
+      if (pid != null) {
+        VendorApiService.instance.toggleProductAvailability(pid);
+      }
     });
   }
 
   void _deleteProduct(String id) {
     setState(() {
       _products.removeWhere((p) => p.id == id);
+      final pid = int.tryParse(id);
+      if (pid != null) {
+        VendorApiService.instance.deleteProduct(pid);
+      }
     });
   }
 
@@ -756,12 +913,33 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     setState(() {
       final order = _orders.firstWhere((o) => o.id == id);
       order.status = newStatus;
+      final dbId = order.dbId;
+      if (dbId != null) {
+        if (newStatus == OrderStatus.preparing) {
+          VendorApiService.instance.acceptOrder(dbId);
+        } else if (newStatus == OrderStatus.ready) {
+          VendorApiService.instance.markReady(dbId);
+        } else if (newStatus == OrderStatus.rejected) {
+          VendorApiService.instance.rejectOrder(dbId);
+        }
+      }
     });
   }
 
   void _addProduct(Product product) {
     setState(() {
       _products.add(product);
+      VendorApiService.instance.addProduct(
+        nameKu: product.name,
+        categoryName: product.category,
+        price: product.price.round(),
+        discountPrice: product.discountPrice?.round(),
+        descriptionKu: product.description,
+        imageUrl: product.imageUrl,
+        isAvailable: product.isAvailable,
+      ).then((saved) {
+        if (saved != null && mounted) _initBackendVendorSync();
+      });
     });
   }
 
@@ -769,6 +947,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     setState(() {
       if (!_categories.contains(category)) {
         _categories.add(category);
+        VendorApiService.instance.addCategory(category);
       }
     });
   }
@@ -776,6 +955,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void _deleteCategory(String category) {
     setState(() {
       _categories.remove(category);
+      VendorApiService.instance.deleteCategoryByName(category);
     });
   }
 
@@ -784,6 +964,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       final index = _products.indexWhere((p) => p.id == product.id);
       if (index != -1) {
         _products[index] = product;
+        final pid = int.tryParse(product.id);
+        if (pid != null) {
+          VendorApiService.instance.updateProduct(
+            productId: pid,
+            nameKu: product.name,
+            categoryName: product.category,
+            price: product.price.round(),
+            discountPrice: product.discountPrice?.round(),
+            descriptionKu: product.description,
+            imageUrl: product.imageUrl,
+            isAvailable: product.isAvailable,
+          );
+        }
       }
     });
   }
@@ -866,7 +1059,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final List<Widget> screens = [
       SettingsScreen(
         businessName: _businessName,
-        onNameChange: (val) => setState(() => _businessName = val),
+        onNameChange: (val) {
+          setState(() => _businessName = val);
+          VendorApiService.instance.updateStoreInfo(nameKu: val);
+        },
         language: Trans.lang.value,
         onLangChange: (val) { Trans.setLang(val); setState(() => _language = val); },
       ),
@@ -1050,6 +1246,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                             onTap: () {
                               setState(() {
                                 _isOnline = !_isOnline;
+                                VendorApiService.instance.updateOnlineStatus(_isOnline);
                               });
                             },
                             child: Container(
@@ -2456,6 +2653,17 @@ class OrdersScreen extends StatelessWidget {
                                       if (enteredPin.isEmpty) {
                                         setDialogState(() {
                                           errorMessage = 'تکایە سەرەتا کۆدی PIN لە شۆفێر وەربگرە';
+                                        });
+                                        return;
+                                      }
+                                      if (order.dbId != null) {
+                                        VendorApiService.instance.verifyHandoverPin(order.dbId!, enteredPin).then((res) {
+                                          if (!res.$1) {
+                                            setDialogState(() => errorMessage = res.$2);
+                                            return;
+                                          }
+                                          Navigator.pop(dialogCtx);
+                                          onUpdateStatus(order.id, OrderStatus.completed);
                                         });
                                         return;
                                       }

@@ -3,8 +3,10 @@ import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/app_theme.dart';
 import 'catalog_zones_screen.dart';
+import 'customer_part_screen.dart';
 import 'customers_screen.dart';
 import 'dashboard_screen.dart';
+import 'delivery_part_screen.dart';
 import 'drivers_screen.dart';
 import 'finance_screen.dart';
 import 'marketing_screen.dart';
@@ -12,6 +14,7 @@ import 'orders_screen.dart';
 import 'products_screen.dart';
 import 'stores_screen.dart';
 import 'support_settings_screen.dart';
+import 'vendor_part_screen.dart';
 
 class AdminShell extends StatefulWidget {
   final ApiClient api;
@@ -40,6 +43,9 @@ class AdminShell extends StatefulWidget {
 class _AdminShellState extends State<AdminShell> {
   int _selectedIndex = 0;
   int _pendingOrdersBadge = 0;
+  int _onlineStoresBadge = 0;
+  int _customersBadge = 0;
+  int _onlineDriversBadge = 0;
   int _openTicketsBadge = 0;
 
   @override
@@ -55,6 +61,9 @@ class _AdminShellState extends State<AdminShell> {
       if (mounted) {
         setState(() {
           _pendingOrdersBadge = (kpis['active_orders_count'] as num?)?.toInt() ?? 0;
+          _onlineStoresBadge = (kpis['online_stores'] as num?)?.toInt() ?? 0;
+          _customersBadge = (kpis['total_customers'] as num?)?.toInt() ?? 0;
+          _onlineDriversBadge = (kpis['online_drivers'] as num?)?.toInt() ?? 0;
           _openTicketsBadge = (kpis['open_tickets_count'] as num?)?.toInt() ?? 0;
         });
       }
@@ -63,10 +72,34 @@ class _AdminShellState extends State<AdminShell> {
 
   List<_NavItemSpec> _buildNavItems() => [
         _NavItemSpec(Icons.dashboard_rounded, AppStrings.tr('nav_dashboard', widget.lang)),
-        _NavItemSpec(Icons.receipt_long_rounded, AppStrings.tr('nav_orders', widget.lang), badge: _pendingOrdersBadge),
-        _NavItemSpec(Icons.storefront_rounded, AppStrings.tr('nav_stores', widget.lang)),
+        _NavItemSpec(
+          Icons.storefront_rounded,
+          AppStrings.tr('part_vendor', widget.lang),
+          badge: _onlineStoresBadge,
+          highlightColor: RegaColors.orange,
+          sectionHeader: '٣ بەشە سەرەکییەکە (3 Core Parts)',
+        ),
+        _NavItemSpec(
+          Icons.shopping_bag_rounded,
+          AppStrings.tr('part_customer', widget.lang),
+          badge: _customersBadge,
+          highlightColor: RegaColors.gold,
+        ),
+        _NavItemSpec(
+          Icons.two_wheeler_rounded,
+          AppStrings.tr('part_delivery', widget.lang),
+          badge: _onlineDriversBadge,
+          highlightColor: RegaColors.emerald,
+        ),
+        _NavItemSpec(
+          Icons.receipt_long_rounded,
+          AppStrings.tr('nav_orders', widget.lang),
+          badge: _pendingOrdersBadge,
+          sectionHeader: 'بەڕێوەبردنی گشتی (Global Ops)',
+        ),
+        _NavItemSpec(Icons.store_mall_directory_rounded, AppStrings.tr('nav_stores', widget.lang)),
         _NavItemSpec(Icons.fastfood_rounded, AppStrings.tr('nav_products', widget.lang)),
-        _NavItemSpec(Icons.two_wheeler_rounded, AppStrings.tr('nav_drivers', widget.lang)),
+        _NavItemSpec(Icons.badge_rounded, AppStrings.tr('nav_drivers', widget.lang)),
         _NavItemSpec(Icons.groups_rounded, AppStrings.tr('nav_customers', widget.lang)),
         _NavItemSpec(Icons.map_rounded, AppStrings.tr('nav_zones', widget.lang)),
         _NavItemSpec(Icons.campaign_rounded, AppStrings.tr('nav_marketing', widget.lang)),
@@ -83,26 +116,44 @@ class _AdminShellState extends State<AdminShell> {
           onNavigateTab: (idx) => setState(() => _selectedIndex = idx),
         );
       case 1:
+        return VendorPartScreen(
+          api: widget.api,
+          lang: widget.lang,
+          onDataChanged: _refreshBadges,
+        );
+      case 2:
+        return CustomerPartScreen(
+          api: widget.api,
+          lang: widget.lang,
+          onDataChanged: _refreshBadges,
+        );
+      case 3:
+        return DeliveryPartScreen(
+          api: widget.api,
+          lang: widget.lang,
+          onDataChanged: _refreshBadges,
+        );
+      case 4:
         return OrdersScreen(
           api: widget.api,
           lang: widget.lang,
           onOrderChanged: _refreshBadges,
         );
-      case 2:
-        return StoresScreen(api: widget.api, lang: widget.lang);
-      case 3:
-        return ProductsScreen(api: widget.api, lang: widget.lang);
-      case 4:
-        return DriversScreen(api: widget.api, lang: widget.lang);
       case 5:
-        return CustomersScreen(api: widget.api, lang: widget.lang);
+        return StoresScreen(api: widget.api, lang: widget.lang);
       case 6:
-        return CatalogZonesScreen(api: widget.api, lang: widget.lang);
+        return ProductsScreen(api: widget.api, lang: widget.lang);
       case 7:
-        return MarketingScreen(api: widget.api, lang: widget.lang);
+        return DriversScreen(api: widget.api, lang: widget.lang);
       case 8:
-        return FinanceScreen(api: widget.api, lang: widget.lang);
+        return CustomersScreen(api: widget.api, lang: widget.lang);
       case 9:
+        return CatalogZonesScreen(api: widget.api, lang: widget.lang);
+      case 10:
+        return MarketingScreen(api: widget.api, lang: widget.lang);
+      case 11:
+        return FinanceScreen(api: widget.api, lang: widget.lang);
+      case 12:
         return SupportSettingsScreen(
           api: widget.api,
           lang: widget.lang,
@@ -117,17 +168,65 @@ class _AdminShellState extends State<AdminShell> {
     }
   }
 
+  Widget _buildTopQuickPartChip({
+    required int index,
+    required IconData icon,
+    required String label,
+    required Color accent,
+  }) {
+    final active = _selectedIndex == index;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() => _selectedIndex = index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: active ? accent : accent.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: accent.withValues(alpha: active ? 1.0 : 0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: active
+                    ? (accent == RegaColors.gold ? const Color(0xFF0F172A) : Colors.white)
+                    : accent,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: active
+                      ? (accent == RegaColors.gold ? const Color(0xFF0F172A) : Colors.white)
+                      : (widget.isDark ? Colors.white : const Color(0xFF0F172A)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSidebar({required bool isDrawer}) {
     final items = _buildNavItems();
     return Container(
-      width: 268,
+      width: 274,
       color: RegaColors.sidebarBg,
       child: SafeArea(
         child: Column(
           children: [
             // Brand Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
               child: Row(
                 children: [
                   Container(
@@ -158,8 +257,8 @@ class _AdminShellState extends State<AdminShell> {
                           ),
                         ),
                         Text(
-                          'PostgreSQL • Kalar',
-                          style: TextStyle(color: Colors.white60, fontSize: 11),
+                          'PostgreSQL • Vendor • Customer • Delivery',
+                          style: TextStyle(color: Colors.white60, fontSize: 10),
                         ),
                       ],
                     ),
@@ -170,63 +269,98 @@ class _AdminShellState extends State<AdminShell> {
             const Divider(color: Colors.white12, height: 1),
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 itemCount: items.length,
                 itemBuilder: (ctx, idx) {
                   final item = items[idx];
                   final active = _selectedIndex == idx;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Material(
-                      color: active ? RegaColors.gold : Colors.transparent,
-                      borderRadius: BorderRadius.circular(14),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(14),
-                        onTap: () {
-                          setState(() => _selectedIndex = idx);
-                          if (isDrawer) Navigator.pop(ctx);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          child: Row(
-                            children: [
-                              Icon(
-                                item.icon,
-                                size: 20,
-                                color: active ? const Color(0xFF0F172A) : Colors.white70,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  item.label,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: active ? FontWeight.w900 : FontWeight.w600,
-                                    color: active ? const Color(0xFF0F172A) : Colors.white,
+                  final activeBg = item.highlightColor ?? RegaColors.gold;
+                  final activeFg = activeBg == RegaColors.gold ? const Color(0xFF0F172A) : Colors.white;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (item.sectionHeader != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+                          child: Text(
+                            item.sectionHeader!,
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 5),
+                        child: Material(
+                          color: active
+                              ? activeBg
+                              : (item.highlightColor != null
+                                  ? item.highlightColor!.withValues(alpha: 0.08)
+                                  : Colors.transparent),
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () {
+                              setState(() => _selectedIndex = idx);
+                              if (isDrawer) Navigator.pop(ctx);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    item.icon,
+                                    size: 20,
+                                    color: active
+                                        ? activeFg
+                                        : (item.highlightColor ?? Colors.white70),
                                   ),
-                                ),
-                              ),
-                              if (item.badge != null && item.badge! > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: active ? const Color(0xFF0F172A) : RegaColors.crimson,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    '${item.badge}',
-                                    style: TextStyle(
-                                      color: active ? RegaColors.gold : Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      item.label,
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: active || item.highlightColor != null
+                                            ? FontWeight.w900
+                                            : FontWeight.w600,
+                                        color: active ? activeFg : Colors.white,
+                                      ),
                                     ),
                                   ),
-                                ),
-                            ],
+                                  if (item.badge != null && item.badge! > 0)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: active
+                                            ? const Color(0xFF0F172A)
+                                            : (item.highlightColor ?? RegaColors.crimson),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        '${item.badge}',
+                                        style: TextStyle(
+                                          color: active
+                                              ? RegaColors.gold
+                                              : (item.highlightColor == RegaColors.gold
+                                                  ? const Color(0xFF0F172A)
+                                                  : Colors.white),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   );
                 },
               ),
@@ -283,6 +417,7 @@ class _AdminShellState extends State<AdminShell> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 1024;
+    final showTopHubChips = MediaQuery.of(context).size.width >= 780;
     final surfaceColor = widget.isDark ? RegaColors.darkSurface : Colors.white;
 
     return Scaffold(
@@ -293,9 +428,9 @@ class _AdminShellState extends State<AdminShell> {
           Expanded(
             child: Column(
               children: [
-                // Top Operational Bar
+                // Top Operational Bar with 3-Part Quick Switcher
                 Container(
-                  height: 66,
+                  height: 68,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
                     color: surfaceColor,
@@ -319,9 +454,30 @@ class _AdminShellState extends State<AdminShell> {
                           AppStrings.tr('kalar_hub', widget.lang),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
                         ),
                       ),
+                      if (showTopHubChips) ...[
+                        _buildTopQuickPartChip(
+                          index: 1,
+                          icon: Icons.storefront_rounded,
+                          label: 'فرۆشیار (Vendor)',
+                          accent: RegaColors.orange,
+                        ),
+                        _buildTopQuickPartChip(
+                          index: 2,
+                          icon: Icons.shopping_bag_rounded,
+                          label: 'کڕیار (Customer)',
+                          accent: RegaColors.gold,
+                        ),
+                        _buildTopQuickPartChip(
+                          index: 3,
+                          icon: Icons.two_wheeler_rounded,
+                          label: 'گەیاندن (Delivery)',
+                          accent: RegaColors.emerald,
+                        ),
+                        const SizedBox(width: 10),
+                      ],
                       // Language switcher
                       SegmentedButton<String>(
                         segments: const [
@@ -332,7 +488,7 @@ class _AdminShellState extends State<AdminShell> {
                         selected: {widget.lang},
                         onSelectionChanged: (v) => widget.onLangChanged(v.first),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       IconButton(
                         tooltip: 'گۆڕینی دۆخی تاریک / ڕووناک',
                         onPressed: () => widget.onThemeChanged(!widget.isDark),
@@ -363,7 +519,14 @@ class _NavItemSpec {
   final IconData icon;
   final String label;
   final int? badge;
+  final Color? highlightColor;
+  final String? sectionHeader;
 
-  _NavItemSpec(this.icon, this.label, {this.badge});
+  _NavItemSpec(
+    this.icon,
+    this.label, {
+    this.badge,
+    this.highlightColor,
+    this.sectionHeader,
+  });
 }
-

@@ -155,6 +155,21 @@ class AppStrings {
       'ar': 'إضافة جديد',
       'en': 'Add New',
     },
+    'part_vendor': {
+      'ku': '١. بەشی فرۆشیار (Vendor)',
+      'ar': '١. قسم البائعين (Vendor)',
+      'en': '1. Vendor Part',
+    },
+    'part_customer': {
+      'ku': '٢. بەشی کڕیار (Customer)',
+      'ar': '٢. قسم العملاء (Customer)',
+      'en': '2. Customer Part',
+    },
+    'part_delivery': {
+      'ku': '٣. بەشی گەیاندن (Delivery)',
+      'ar': '٣. قسم التوصيل (Delivery)',
+      'en': '3. Delivery Part',
+    },
   };
 
   static String tr(String key, String lang) {

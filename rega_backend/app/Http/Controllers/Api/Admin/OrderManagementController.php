@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppNotification;
+use App\Models\LiveTelemetrySession;
 use App\Models\Order;
 use App\Models\OrderStatusLog;
 use App\Models\User;
@@ -216,6 +217,13 @@ class OrderManagementController extends Controller
             'actor_role' => $request->user()->role,
             'note' => $validated['reason'] ?? "بارودۆخ گۆڕدرا بۆ {$newStatus}",
         ]);
+
+        LiveTelemetrySession::where('order_id', $order->id)
+            ->orWhere('order_ref', $order->order_number)
+            ->update([
+                'status' => $newStatus,
+                'driver_status' => $order->driver_status,
+            ]);
 
         return response()->json([
             'success' => true,
