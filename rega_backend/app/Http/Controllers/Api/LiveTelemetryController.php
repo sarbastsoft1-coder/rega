@@ -426,6 +426,8 @@ class LiveTelemetryController extends Controller
     private function formatPayload(LiveTelemetrySession $s): array
     {
         $driverLive = $s->driver_pinged_at && $s->driver_pinged_at->diffInSeconds(now()) <= 5;
+        $waypoints = $s->route_polyline ?? [];
+        $pickupIndex = count($waypoints) >= 4 ? 3 : (int) floor(count($waypoints) / 2);
 
         return [
             'order_ref' => $s->order_ref,
@@ -465,7 +467,10 @@ class LiveTelemetryController extends Controller
                 'speed_kmh' => $s->driver_speed_kmh,
                 'is_live_captain' => $driverLive,
             ],
-            'route_polyline' => $s->route_polyline ?? [],
+            'route_polyline' => $waypoints,
+            'route_pickup' => array_slice($waypoints, 0, $pickupIndex + 1),
+            'route_delivery' => array_slice($waypoints, $pickupIndex),
+            'pickup_index' => $pickupIndex,
             'updated_at' => $s->updated_at?->toIso8601String(),
             'server_time_ms' => (int) round(microtime(true) * 1000),
         ];

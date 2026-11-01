@@ -269,6 +269,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
   String _vehicleLabel = 'ماتۆڕسوار • KLR-402';
 
   late LatLng _dispatchOrigin;
+  List<LatLng> _leg1ToStore = [];
+  List<LatLng> _leg2ToCustomer = [];
   List<LatLng> _fullRoute = [];
   int _storeSplitIndex = 12;
 
@@ -322,6 +324,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
   void _buildInitialRoute() {
     final leg1 = _generateKalarStreetPath(_dispatchOrigin, widget.storeLocation, steps: 20);
     final leg2 = _generateKalarStreetPath(widget.storeLocation, widget.customerLocation, steps: 44);
+    _leg1ToStore = leg1;
+    _leg2ToCustomer = leg2;
     _storeSplitIndex = leg1.length - 1;
     _fullRoute = [...leg1, ...leg2.skip(1)];
 
@@ -395,6 +399,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       final leg2 = _parseOsrm(res[1], minPoints: 52);
       if (leg1.length >= 4 && leg2.length >= 4) {
         setState(() {
+          _leg1ToStore = leg1;
+          _leg2ToCustomer = leg2;
           _storeSplitIndex = leg1.length - 1;
           _fullRoute = [...leg1, ...leg2.skip(1)];
         });
@@ -520,6 +526,19 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       _etaSeconds = (data['eta_seconds'] as num?)?.toInt() ?? _etaSeconds;
       _remainingMeters = (data['distance_remaining_meters'] as num?)?.toInt() ?? _remainingMeters;
       _localProgress = ((data['progress_permille'] as num?)?.toDouble() ?? 500.0) / 1000.0;
+
+      final pLeg = data['route_pickup'] as List<dynamic>?;
+      final dLeg = data['route_delivery'] as List<dynamic>?;
+      if (pLeg != null && pLeg.length >= 2 && dLeg != null && dLeg.length >= 2) {
+        final pPts = pLeg.map((e) => LatLng((e[0] as num).toDouble(), (e[1] as num).toDouble())).toList();
+        final dPts = dLeg.map((e) => LatLng((e[0] as num).toDouble(), (e[1] as num).toDouble())).toList();
+        if (_leg1ToStore.isEmpty || _leg2ToCustomer.isEmpty) {
+          _leg1ToStore = pPts;
+          _leg2ToCustomer = dPts;
+          _storeSplitIndex = pPts.length - 1;
+          _fullRoute = [...pPts, ...dPts.skip(1)];
+        }
+      }
 
       if (remoteStatus != _status) {
         _updateStatus(remoteStatus);
@@ -648,14 +667,82 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       _etaSeconds = 0;
       return;
     }
-    final rem = _remainingPolyline (_fullRoute, _localProgress, _displayDriverPos);
-    double meters = 0;
-    for (var i = 0; i < rem.length - 1; i++) {
-      meters += _haversineMeters(rem[i], rem[i + 1]);
+
+    final storeRatio = _fullRoute.length > 2
+        ? (_storeSplitIndex / (_fullRoute.length - 1))
+        : 0.35;
+
+    final isHeadingToStore = _localProgress < storeRatio;
+
+    if (isHeadingToStore && _leg1ToStore.isNotEmpty) {
+      // Metric is distance & ETA to the store!
+      final leg1Progress = (_localProgress / storeRatio).clamp(0.0, 1.0);
+      final rem1 = _remainingSubPolyline(_leg1ToStore, leg1Progress, _displayDriverPos);
+      double meters = 0;
+      for (var i = 0; i < rem1.length - 1; i++) {
+        meters += _haversineMeters(rem1[i], rem1[i + 1]);
+      }
+      _remainingMeters = meters.round();
+      _etaSeconds = math.max(1, (meters / 8.8).round());
+    } else {
+      // Metric is distance & ETA to the customer door!
+      final leg2Progress = ((_localProgress - storeRatio) / (1.0 - storeRatio)).clamp(0.0, 1.0);
+      final rem2 = _remainingSubPolyline(_leg2ToCustomer, leg2Progress, _displayDriverPos);
+      double meters = 0;
+      for (var i = 0; i < rem2.length - 1; i++) {
+        meters += _haversineMeters(rem2[i], rem2[i + 1]);
+      }
+      _remainingMeters = meters.round();
+      _etaSeconds = math.max(1, (meters / 9.6).round());
     }
-    _remainingMeters = meters.round();
-    // Smooth second-by-second countdown matched to remaining distance (~9.5 m/s)
-    _etaSeconds = math.max(1, (meters / 9.5).round());
+  }
+
+  List<LatLng> _remainingSubPolyline(List<LatLng> pts, double progress, LatLng current) {
+    if (pts.length < 2 || progress >= 1.0) return [];
+    final nextIdx = (progress.clamp(0.0, 1.0) * (pts.length - 1)).ceil().clamp(1, pts.length - 1);
+    return [current, ...pts.sublist(nextIdx)];
+  }
+
+  List<LatLng> _traveledSubPolyline(List<LatLng> pts, double progress, LatLng current) {
+    if (pts.length < 2 || progress <= 0.0) return [];
+    final prevIdx = (progress.clamp(0.0, 1.0) * (pts.length - 1)).floor().clamp(0, pts.length - 1);
+    return [...pts.sublist(0, prevIdx + 1), current];
+  }
+
+  void _focusOnPickupRoute() {
+    if (!_mapReady) return;
+    _followDriver = false;
+    final bounds = LatLngBounds.fromPoints([
+      _displayDriverPos,
+      _dispatchOrigin,
+      widget.storeLocation,
+    ]);
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.only(top: 175, bottom: 280, left: 45, right: 45),
+        maxZoom: 16.8,
+      ),
+    );
+    setState(() {});
+  }
+
+  void _focusOnDeliveryRoute() {
+    if (!_mapReady) return;
+    _followDriver = false;
+    final bounds = LatLngBounds.fromPoints([
+      widget.storeLocation,
+      widget.customerLocation,
+      if (_localProgress >= 0.35) _displayDriverPos,
+    ]);
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.only(top: 175, bottom: 280, left: 45, right: 45),
+        maxZoom: 16.8,
+      ),
+    );
+    setState(() {});
   }
 
   LatLng _pointAlong(List<LatLng> pts, double progress) {
@@ -671,17 +758,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     );
   }
 
-  List<LatLng> _remainingPolyline(List<LatLng> pts, double progress, LatLng current) {
-    if (pts.length < 2 || progress >= 1.0) return [];
-    final nextIdx = (progress.clamp(0.0, 1.0) * (pts.length - 1)).ceil().clamp(1, pts.length - 1);
-    return [current, ...pts.sublist(nextIdx)];
-  }
 
-  List<LatLng> _traveledPolyline(List<LatLng> pts, double progress, LatLng current) {
-    if (pts.length < 2 || progress <= 0.0) return [];
-    final prevIdx = (progress.clamp(0.0, 1.0) * (pts.length - 1)).floor().clamp(0, pts.length - 1);
-    return [...pts.sublist(0, prevIdx + 1), current];
-  }
 
   double _haversineMeters(LatLng a, LatLng b) {
     const r = 6371000.0;
@@ -793,8 +870,100 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
 
   @override
   Widget build(BuildContext context) {
-    final traveled = _traveledPolyline(_fullRoute, _localProgress, _displayDriverPos);
-    final remaining = _remainingPolyline(_fullRoute, _localProgress, _displayDriverPos);
+    final storeRatio = _fullRoute.length > 2
+        ? (_storeSplitIndex / (_fullRoute.length - 1))
+        : 0.35;
+    final isHeadingToStore = _localProgress < storeRatio;
+    final isDelivered = _status == 'delivered';
+
+    final polylines = <Polyline>[];
+
+    if (isHeadingToStore) {
+      // 1. Way to Get Order (Driver -> Store) Active!
+      final leg1Progress = (_localProgress / storeRatio).clamp(0.0, 1.0);
+      final traveled1 = _traveledSubPolyline(_leg1ToStore, leg1Progress, _displayDriverPos);
+      final remain1 = _remainingSubPolyline(_leg1ToStore, leg1Progress, _displayDriverPos);
+
+      // Traveled trail
+      if (traveled1.length >= 2) {
+        polylines.add(
+          Polyline(
+            points: traveled1,
+            strokeWidth: 5,
+            color: const Color(0xFF94A3B8).withValues(alpha: 0.60),
+          ),
+        );
+      }
+      // Glowing Amber Active Pickup Line
+      if (remain1.length >= 2) {
+        polylines.add(
+          Polyline(
+            points: remain1,
+            strokeWidth: 8,
+            color: const Color(0xFFF59E0B),
+            borderStrokeWidth: 2.5,
+            borderColor: const Color(0xFF78350F),
+          ),
+        );
+      }
+      // Dashed Emerald Future Delivery Line (Store -> Customer)
+      if (_leg2ToCustomer.length >= 2) {
+        polylines.add(
+          Polyline(
+            points: _leg2ToCustomer,
+            strokeWidth: 5.5,
+            pattern: StrokePattern.dashed(segments: const [14, 10]),
+            color: const Color(0xFF10B981).withValues(alpha: 0.75),
+          ),
+        );
+      }
+    } else {
+      // 2. Leg 1 is Completed (Historical trail to store)
+      if (_leg1ToStore.length >= 2) {
+        polylines.add(
+          Polyline(
+            points: _leg1ToStore,
+            strokeWidth: 4,
+            color: const Color(0xFF94A3B8).withValues(alpha: 0.45),
+          ),
+        );
+      }
+
+      // Leg 2 Active Delivery Line (Store -> Customer)
+      final leg2Progress = ((_localProgress - storeRatio) / (1.0 - storeRatio)).clamp(0.0, 1.0);
+      final traveled2 = _traveledSubPolyline(_leg2ToCustomer, leg2Progress, _displayDriverPos);
+      final remain2 = _remainingSubPolyline(_leg2ToCustomer, leg2Progress, _displayDriverPos);
+
+      if (traveled2.length >= 2) {
+        polylines.add(
+          Polyline(
+            points: traveled2,
+            strokeWidth: 5,
+            color: const Color(0xFF86EFAC).withValues(alpha: 0.55),
+          ),
+        );
+      }
+      if (remain2.length >= 2 && !isDelivered) {
+        polylines.add(
+          Polyline(
+            points: remain2,
+            strokeWidth: 8.5,
+            color: const Color(0xFF16A34A),
+            borderStrokeWidth: 2.5,
+            borderColor: const Color(0xFF064E3B),
+          ),
+        );
+      }
+      if (isDelivered && _leg2ToCustomer.length >= 2) {
+        polylines.add(
+          Polyline(
+            points: _leg2ToCustomer,
+            strokeWidth: 7,
+            color: const Color(0xFF16A34A),
+          ),
+        );
+      }
+    }
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -824,84 +993,132 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                 children: [
                   TileLayer(
                     urlTemplate: _tileUrl,
-                    subdomains: _mapStyleIndex == 2 ? const [] : const ['a', 'b', 'c', 'd'],
-                    userAgentPackageName: 'iq.rega.customer',
+                    subdomains: _mapStyleIndex == 2 ? const [] : const ["a", "b", "c", "d"],
+                    userAgentPackageName: "iq.rega.customer",
                   ),
-                  PolylineLayer(
-                    polylines: [
-                      if (traveled.length >= 2)
-                        Polyline(
-                          points: traveled,
-                          strokeWidth: 5,
-                          color: const Color(0xFF94A3B8).withValues(alpha: 0.55),
-                        ),
-                      if (remaining.length >= 2)
-                        Polyline(
-                          points: remaining,
-                          strokeWidth: 7.5,
-                          color: const Color(0xFF16A34A),
-                          borderStrokeWidth: 2.5,
-                          borderColor: const Color(0xFF064E3B),
-                        ),
-                    ],
-                  ),
+                  PolylineLayer(polylines: polylines),
                   MarkerLayer(
                     markers: [
-                      // Store Pin
+                      // Store Pin (Pickup)
                       Marker(
                         point: widget.storeLocation,
-                        width: 124,
-                        height: 74,
+                        width: 140,
+                        height: 94,
                         alignment: Alignment.topCenter,
                         child: _CustomerMapPin(
                           icon: Icons.storefront_rounded,
                           color: const Color(0xFFEA580C),
                           label: widget.storeName,
+                          subtitle: "١. وەرگرتن لە فرۆشگا",
+                          badge: isHeadingToStore ? "شۆفێر بەڕێوەیە 🛵" : "داواکاری وەرگیرا ✅",
+                          badgeColor: isHeadingToStore ? const Color(0xFFD97706) : const Color(0xFF16A34A),
+                          isHighlighted: isHeadingToStore,
                         ),
                       ),
 
-                      // Customer Home Pin
+                      // Customer Home Pin (Delivery)
                       Marker(
                         point: widget.customerLocation,
-                        width: 124,
-                        height: 78,
+                        width: 140,
+                        height: 94,
                         alignment: Alignment.topCenter,
-                        child: const _CustomerMapPin(
+                        child: _CustomerMapPin(
                           icon: Icons.home_rounded,
-                          color: Color(0xFFDC2626),
-                          label: 'شوێنی تۆ 📍',
+                          color: const Color(0xFFDC2626),
+                          label: "شوێنی تۆ 📍",
+                          subtitle: "٢. شوێنی گەیاندن",
+                          badge: isDelivered
+                              ? "گەیشت 🎉"
+                              : (!isHeadingToStore ? "شۆفێر بەرەو تۆ دێت 🚀" : "چاوەڕوانی وەرگرتن"),
+                          badgeColor: !isHeadingToStore ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+                          isHighlighted: !isHeadingToStore && !isDelivered,
                         ),
                       ),
 
-                      // Gliding 60fps Driver Motorcycle Marker
+                      // Gliding 60fps Driver Motorcycle Marker with Live Heading & Tooltip
                       if (_status != 'delivered')
                         Marker(
                           point: _displayDriverPos,
-                          width: 98,
-                          height: 98,
+                          width: 170,
+                          height: 110,
+                          alignment: Alignment.center,
                           child: AnimatedBuilder(
                             animation: _pulseController,
                             builder: (context, _) {
                               final p = _pulseController.value;
                               return Stack(
                                 alignment: Alignment.center,
+                                clipBehavior: Clip.none,
                                 children: [
+                                  // Radar Pulse Ring
                                   Container(
                                     width: 36 + (p * 46),
                                     height: 36 + (p * 46),
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: const Color(0xFFFAC800)
+                                      color: (isHeadingToStore
+                                              ? const Color(0xFFF59E0B)
+                                              : const Color(0xFF10B981))
                                           .withValues(alpha: (1 - p) * 0.45),
                                     ),
                                   ),
+                                  // Floating Stage Tooltip above motorcycle
+                                  Positioned(
+                                    top: 0,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF0F172A),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isHeadingToStore
+                                              ? const Color(0xFFFAC800)
+                                              : const Color(0xFF00E676),
+                                          width: 1.2,
+                                        ),
+                                        boxShadow: const [
+                                          BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            isHeadingToStore
+                                                ? Icons.shopping_bag_rounded
+                                                : Icons.two_wheeler_rounded,
+                                            size: 11,
+                                            color: isHeadingToStore
+                                                ? const Color(0xFFFAC800)
+                                                : const Color(0xFF00E676),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            isHeadingToStore
+                                                ? "بەرەو فرۆشگا بۆ وەرگرتن 🛍️"
+                                                : (_status == 'arrived_customer'
+                                                    ? "گەیشتە بەردەم ماڵت 🔔"
+                                                    : "بە خواردنەکەوە بەرەو تۆ دێت 🚀"),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  // Rotating Biker Icon
                                   Transform.rotate(
                                     angle: _headingDeg * math.pi / 180.0,
                                     child: Container(
                                       width: 44,
                                       height: 44,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFFAC800),
+                                        color: isHeadingToStore
+                                            ? const Color(0xFFFAC800)
+                                            : const Color(0xFF00E676),
                                         shape: BoxShape.circle,
                                         border: Border.all(
                                           color: const Color(0xFF0F172A),
@@ -922,8 +1139,9 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                       ),
                                     ),
                                   ),
+                                  // Speed Tag
                                   Positioned(
-                                    bottom: 2,
+                                    bottom: 6,
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 6,
@@ -935,8 +1153,10 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                       ),
                                       child: Text(
                                         '${_speedKmh.toStringAsFixed(0)} کم/ک',
-                                        style: const TextStyle(
-                                          color: Color(0xFFFAC800),
+                                        style: TextStyle(
+                                          color: isHeadingToStore
+                                              ? const Color(0xFFFAC800)
+                                              : const Color(0xFF00E676),
                                           fontSize: 9,
                                           fontWeight: FontWeight.w900,
                                         ),
@@ -954,7 +1174,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
               ),
             ),
 
-            // 2. Top Live Second-by-Second Header Bar
+            // 2. Top Live Second-by-Second Header Bar & Two-Stage Journey Navigator
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
@@ -1018,10 +1238,10 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                     Flexible(
                                       child: Text(
                                         _liveCaptainConnected
-                                            ? 'LIVE GPS • ڕاستەوخۆ لە مۆبایلی شۆفێرەوە'
+                                            ? "LIVE GPS • ڕاستەوخۆ لە مۆبایلی شۆفێرەوە"
                                             : (_serverLiveConnected
-                                                ? 'LIVE 1s • نوێکردنەوەی چرکە بە چرکە'
-                                                : 'LIVE 1s • شوێنپێهەڵگرتنی زیندوو'),
+                                                ? "LIVE 1s • نوێکردنەوەی چرکە بە چرکە"
+                                                : "LIVE 1s • شوێنپێهەڵگرتنی زیندوو"),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
@@ -1059,7 +1279,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                               decoration: BoxDecoration(
                                 color: _status == 'delivered'
                                     ? const Color(0xFF22C55E)
-                                    : const Color(0xFFFAC800),
+                                    : (isHeadingToStore ? const Color(0xFFF59E0B) : const Color(0xFFFAC800)),
                                 borderRadius: BorderRadius.circular(14),
                               ),
                               child: Column(
@@ -1079,10 +1299,12 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                   Text(
                                     _status == 'delivered'
                                         ? 'گەیشت'
-                                        : _formatMeters(_remainingMeters),
+                                        : (isHeadingToStore
+                                            ? '${_formatMeters(_remainingMeters)} بۆ فرۆشگا'
+                                            : '${_formatMeters(_remainingMeters)} بۆ ماڵت'),
                                     style: const TextStyle(
                                       color: Color(0xFF1E293B),
-                                      fontSize: 9.5,
+                                      fontSize: 8.5,
                                       fontWeight: FontWeight.w800,
                                     ),
                                   ),
@@ -1093,14 +1315,17 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                         ],
                       ),
                     ),
+                    const SizedBox(height: 6),
+                    // Visual Two-Stage Journey Header (Pickup from store -> Delivery to you)
+                    _buildJourneyPhaseBar(isHeadingToStore, isDelivered),
                   ],
                 ),
               ),
             ),
 
-            // 3. Map Controls (Follow Driver, Fit Route, Map Style)
+            // 3. Map Controls (Follow Driver, Fit Full, Focus Pickup, Focus Delivery, Map Style)
             Positioned(
-              top: 108,
+              top: 178,
               left: 14,
               child: SafeArea(
                 child: Column(
@@ -1122,6 +1347,18 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                       icon: Icons.route_rounded,
                       active: false,
                       onTap: _fitAllMarkers,
+                    ),
+                    const SizedBox(height: 8),
+                    _TrackerMapBtn(
+                      icon: Icons.storefront_rounded,
+                      active: false,
+                      onTap: _focusOnPickupRoute,
+                    ),
+                    const SizedBox(height: 8),
+                    _TrackerMapBtn(
+                      icon: Icons.home_rounded,
+                      active: false,
+                      onTap: _focusOnDeliveryRoute,
                     ),
                     const SizedBox(height: 8),
                     _TrackerMapBtn(
@@ -1164,6 +1401,193 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildJourneyPhaseBar(bool isHeadingToStore, bool isDelivered) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.15),
+          width: 1,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black38,
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // 1. Pickup Phase (Driver -> Store)
+          Expanded(
+            child: InkWell(
+              onTap: _focusOnPickupRoute,
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isHeadingToStore
+                      ? const Color(0xFFF59E0B).withValues(alpha: 0.22)
+                      : Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isHeadingToStore
+                        ? const Color(0xFFF59E0B)
+                        : const Color(0xFF10B981).withValues(alpha: 0.5),
+                    width: isHeadingToStore ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isHeadingToStore ? Icons.two_wheeler_rounded : Icons.check_circle_rounded,
+                      size: 16,
+                      color: isHeadingToStore ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                '١. وەرگرتن',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: isHeadingToStore ? const Color(0xFFFAC800) : Colors.white,
+                                ),
+                              ),
+                              if (isHeadingToStore) ...[
+                                const SizedBox(width: 4),
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFF59E0B),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          Text(
+                            isHeadingToStore ? 'ڕێگای زەرد بۆ فرۆشگا' : 'لە فرۆشگا وەرگیرا ✓',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w700,
+                              color: isHeadingToStore
+                                  ? const Color(0xFFFDE68A)
+                                  : const Color(0xFF86EFAC),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 5),
+            child: Icon(Icons.arrow_back_rounded, color: Colors.white30, size: 16),
+          ),
+          // 2. Delivery Phase (Store -> Customer)
+          Expanded(
+            child: InkWell(
+              onTap: _focusOnDeliveryRoute,
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: !isHeadingToStore && !isDelivered
+                      ? const Color(0xFF10B981).withValues(alpha: 0.22)
+                      : Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: !isHeadingToStore && !isDelivered
+                        ? const Color(0xFF10B981)
+                        : Colors.white12,
+                    width: !isHeadingToStore && !isDelivered ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isDelivered
+                          ? Icons.verified_rounded
+                          : (!isHeadingToStore ? Icons.local_shipping_rounded : Icons.home_rounded),
+                      size: 16,
+                      color: !isHeadingToStore ? const Color(0xFF10B981) : Colors.white54,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                '٢. گەیاندن بۆ تۆ',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: !isHeadingToStore ? const Color(0xFF34D399) : Colors.white70,
+                                ),
+                              ),
+                              if (!isHeadingToStore && !isDelivered) ...[
+                                const SizedBox(width: 4),
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF10B981),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          Text(
+                            isDelivered
+                                ? 'گەیشت 🎉'
+                                : (!isHeadingToStore
+                                    ? 'ڕێگای سەوز بۆ ماڵت'
+                                    : 'ڕێگای داهاتوو (پچڕپچڕ)'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w700,
+                              color: !isHeadingToStore
+                                  ? const Color(0xFFA7F3D0)
+                                  : Colors.white38,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1455,11 +1879,19 @@ class _CustomerMapPin extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String label;
+  final String? subtitle;
+  final String? badge;
+  final Color? badgeColor;
+  final bool isHighlighted;
 
   const _CustomerMapPin({
     required this.icon,
     required this.color,
     required this.label,
+    this.subtitle,
+    this.badge,
+    this.badgeColor,
+    this.isHighlighted = false,
   });
 
   @override
@@ -1467,25 +1899,69 @@ class _CustomerMapPin extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color, width: 1.5),
-            boxShadow: const [
-              BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isHighlighted ? color : color.withValues(alpha: 0.6),
+              width: isHighlighted ? 2.0 : 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isHighlighted ? color.withValues(alpha: 0.35) : Colors.black26,
+                blurRadius: isHighlighted ? 12 : 6,
+                offset: const Offset(0, 2),
+              ),
             ],
           ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF0F172A),
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 1),
+                Text(
+                  subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w700,
+                    color: isHighlighted ? color : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+              if (badge != null) ...[
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: (badgeColor ?? color).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    badge!,
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      color: badgeColor ?? color,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         const SizedBox(height: 3),
@@ -1498,7 +1974,7 @@ class _CustomerMapPin extends StatelessWidget {
             border: Border.all(color: Colors.white, width: 2.5),
             boxShadow: [
               BoxShadow(
-                color: color.withValues(alpha: 0.4),
+                color: color.withValues(alpha: 0.45),
                 blurRadius: 10,
                 spreadRadius: 1,
               ),
