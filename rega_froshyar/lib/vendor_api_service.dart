@@ -183,12 +183,36 @@ class VendorApiService {
     return res.statusCode >= 200 && res.statusCode < 300;
   }
 
-  Future<bool> markReady(int dbOrderId) async {
-    if (!await ensureAuthenticated()) return false;
-    final res = await http
-        .post(Uri.parse('$baseUrl/vendor/orders/$dbOrderId/ready'), headers: _headers())
-        .timeout(const Duration(seconds: 5));
-    return res.statusCode >= 200 && res.statusCode < 300;
+  Future<(bool, String, Map<String, dynamic>?)> markReady(int dbOrderId) async {
+    if (!await ensureAuthenticated()) return (false, 'پەیوەندی نییە', null);
+    try {
+      final res = await http
+          .post(Uri.parse('$baseUrl/vendor/orders/$dbOrderId/ready'), headers: _headers())
+          .timeout(const Duration(seconds: 5));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final ok = res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true;
+      final msg = body['message']?.toString() ?? (ok ? 'ئامادەکرا و نێردرا بۆ شۆفێر' : 'کێشەیەک ڕوویدا');
+      final data = body['data'] as Map<String, dynamic>?;
+      return (ok, msg, data);
+    } catch (_) {
+      return (false, 'کێشەی پەیوەندی لە کاتی ناردن بۆ شۆفێر', null);
+    }
+  }
+
+  Future<(bool, String, Map<String, dynamic>?)> dispatchNearestDriver(int dbOrderId) async {
+    if (!await ensureAuthenticated()) return (false, 'پەیوەندی نییە', null);
+    try {
+      final res = await http
+          .post(Uri.parse('$baseUrl/vendor/orders/$dbOrderId/dispatch-driver'), headers: _headers())
+          .timeout(const Duration(seconds: 5));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final ok = res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true;
+      final msg = body['message']?.toString() ?? (ok ? 'شۆفێر دیاریکرا' : 'شۆفێر نەدۆزرایەوە');
+      final data = body['data'] as Map<String, dynamic>?;
+      return (ok, msg, data);
+    } catch (_) {
+      return (false, 'کێشەی پەیوەندی لە دۆزینەوەی شۆفێر', null);
+    }
   }
 
   Future<(bool, String)> verifyHandoverPin(int dbOrderId, String pin) async {

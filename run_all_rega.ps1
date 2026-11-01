@@ -27,3 +27,4 @@ foreach ($app in $apps) {
 Start-Sleep -Seconds 2
 Start-Process "http://127.0.0.1:8080"
 Write-Host "All REGA services are live!" -ForegroundColor Green
+

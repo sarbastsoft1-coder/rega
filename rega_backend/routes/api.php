@@ -104,6 +104,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/orders/{order}/accept', [VendorAppController::class, 'acceptOrder']);
         Route::post('/orders/{order}/reject', [VendorAppController::class, 'rejectOrder']);
         Route::post('/orders/{order}/ready', [VendorAppController::class, 'markReady']);
+        Route::post('/orders/{order}/dispatch-driver', [VendorAppController::class, 'dispatchNearestDriver']);
         Route::post('/orders/{order}/handover', [VendorAppController::class, 'handoverToDriver']);
 
         Route::get('/analytics/revenue', [VendorAppController::class, 'revenueAnalytics']);

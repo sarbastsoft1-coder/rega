@@ -390,4 +390,77 @@ class RegaEcosystemApiTest extends TestCase
 
         $this->assertNotEmpty($custOrders->json('data'));
     }
+
+    public function test_vendor_mark_ready_auto_finds_nearest_driver_and_sends_order(): void
+    {
+        $vendorLogin = $this->postJson('/api/v1/auth/login', [
+            'phone' => '07701112233', // Mam Rashid store owner
+            'password' => 'password123',
+        ])->assertOk();
+        $vendorToken = $vendorLogin->json('data.token');
+
+        // Ensure driver RA-884 is online with location
+        $driverLogin = $this->postJson('/api/v1/auth/login', [
+            'phone' => '07501234567', // Rawand Karim
+            'password' => 'password123',
+        ])->assertOk();
+        $driverToken = $driverLogin->json('data.token');
+
+        $this->withToken($driverToken)->patchJson('/api/v1/driver/status', ['is_online' => true])->assertOk();
+        $this->withToken($driverToken)->patchJson('/api/v1/driver/location', [
+            'lat' => 34.6840,
+            'lng' => 45.3195,
+        ])->assertOk();
+
+        // Customer places order without pre-assigned driver
+        $custLogin = $this->postJson('/api/v1/auth/login', [
+            'phone' => '07703331122',
+            'password' => 'password123',
+        ])->assertOk();
+        $custToken = $custLogin->json('data.token');
+
+        $store = Store::where('slug', 'mam-rashid')->with('products')->firstOrFail();
+        $product = $store->products->firstOrFail();
+
+        $orderRes = $this->asBearer($custToken)->postJson('/api/v1/customer/orders', [
+            'store_id' => $store->id,
+            'delivery_address' => 'گەڕەکی زانکۆ - کەلار',
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1],
+            ],
+        ])->assertCreated();
+
+        $orderId = $orderRes->json('data.id');
+
+        // Unset driver if any to test automatic nearest driver matching
+        Order::where('id', $orderId)->update(['driver_id' => null, 'driver_status' => 'unassigned']);
+
+        // Vendor accepts order
+        $this->asBearer($vendorToken)->postJson("/api/v1/vendor/orders/{$orderId}/accept")->assertOk();
+
+        // Vendor marks order ready / clicks ready for driver -> auto finds nearest driver & sends order
+        $readyRes = $this->asBearer($vendorToken)
+            ->postJson("/api/v1/vendor/orders/{$orderId}/ready")
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertNotNull($readyRes->json('data.driver_id'));
+        $this->assertEquals('ready', $readyRes->json('data.status'));
+        $this->assertEquals('driver_assigned', $readyRes->json('data.driver_status'));
+
+        // Verify driver now sees this order in driver active-order endpoint
+        $driverActiveRes = $this->asBearer($driverToken)
+            ->getJson('/api/v1/driver/orders/active')
+            ->assertOk();
+
+        $this->assertEquals($orderId, $driverActiveRes->json('data.id'));
+
+        // Test explicit vendor dispatch endpoint as well
+        $dispatchRes = $this->asBearer($vendorToken)
+            ->postJson("/api/v1/vendor/orders/{$orderId}/dispatch-driver")
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertNotNull($dispatchRes->json('data.driver.id'));
+    }
 }

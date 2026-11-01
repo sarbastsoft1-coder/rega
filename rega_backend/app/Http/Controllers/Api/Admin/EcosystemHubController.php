@@ -498,3 +498,4 @@ class EcosystemHubController extends Controller
         ]);
     }
 }
+

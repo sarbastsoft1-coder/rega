@@ -9,6 +9,7 @@ use App\Models\OrderStatusLog;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreCategory;
+use App\Services\DriverDispatchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -275,7 +276,7 @@ class VendorAppController extends Controller
         return response()->json(['success' => true, 'data' => $order]);
     }
 
-    public function markReady(Request $request, Order $order): JsonResponse
+    public function markReady(Request $request, Order $order, DriverDispatchService $dispatchService): JsonResponse
     {
         $store = $this->resolveStore($request);
         if ($order->store_id !== $store->id) {
@@ -302,7 +303,38 @@ class VendorAppController extends Controller
             ->orWhere('order_ref', $order->order_number)
             ->update(['status' => 'ready']);
 
-        return response()->json(['success' => true, 'data' => $order->fresh('items')->makeHidden(['handover_pin', 'delivery_pin'])]);
+        // Auto-assign nearest driver if order does not already have a driver
+        $dispatchResult = null;
+        if (! $order->driver_id) {
+            $dispatchResult = $dispatchService->autoAssignNearestDriver($order, $request->user());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $dispatchResult['message'] ?? 'داواکاری ئامادەکرا و نێردرا بۆ شۆفێر.',
+            'dispatch' => $dispatchResult,
+            'data' => $order->fresh(['items', 'driver.driverProfile'])->makeHidden(['handover_pin', 'delivery_pin']),
+        ]);
+    }
+
+    public function dispatchNearestDriver(Request $request, Order $order, DriverDispatchService $dispatchService): JsonResponse
+    {
+        $store = $this->resolveStore($request);
+        if ($order->store_id !== $store->id) {
+            abort(403);
+        }
+
+        $result = $dispatchService->autoAssignNearestDriver($order, $request->user());
+
+        return response()->json([
+            'success' => $result['success'],
+            'message' => $result['message'],
+            'data' => [
+                'order' => $order->fresh(['items', 'driver.driverProfile'])->makeHidden(['handover_pin', 'delivery_pin']),
+                'driver' => $result['driver'],
+                'distance_meters' => $result['distance_meters'],
+            ],
+        ], $result['success'] ? 200 : 422);
     }
 
     public function handoverToDriver(Request $request, Order $order): JsonResponse

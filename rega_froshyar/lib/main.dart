@@ -584,6 +584,9 @@ class Order {
   final String handoverPin;
   final String? customerNotes;
   final int? dbId;
+  String? driverName;
+  String? driverPhone;
+  String? driverVehicle;
 
   Order({
     required this.id,
@@ -597,6 +600,9 @@ class Order {
     this.handoverPin = '4821',
     this.customerNotes,
     this.dbId,
+    this.driverName,
+    this.driverPhone,
+    this.driverVehicle,
   });
 }
 
@@ -865,6 +871,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             deliveryAddress: m['delivery_address']?.toString() ?? 'کەلار',
             handoverPin: '0000',
             customerNotes: m['customer_notes']?.toString(),
+            driverName: m['driver']?['name']?.toString(),
+            driverPhone: m['driver']?['phone']?.toString(),
+            driverVehicle: m['driver']?['driver_profile']?['plate_number']?.toString() ??
+                m['driver']?['driver_profile']?['motor_type']?.toString(),
           ),
         );
       }
@@ -918,7 +928,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         if (newStatus == OrderStatus.preparing) {
           VendorApiService.instance.acceptOrder(dbId);
         } else if (newStatus == OrderStatus.ready) {
-          VendorApiService.instance.markReady(dbId);
+          VendorApiService.instance.markReady(dbId).then((res) {
+            final (ok, msg, data) = res;
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(msg),
+                  backgroundColor: ok ? const Color(0xFF00894C) : const Color(0xFFEA580C),
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+              _syncVendorOrdersOnly(initialLoad: false);
+            }
+          });
         } else if (newStatus == OrderStatus.rejected) {
           VendorApiService.instance.rejectOrder(dbId);
         }
@@ -1917,6 +1939,34 @@ class OrdersScreen extends StatelessWidget {
 
           // Items
           ...order.items.map((item) => _buildOrderItem(item)),
+          if (order.driverName != null && order.driverName!.trim().isNotEmpty)
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFBBF7D0)),
+              ),
+              child: Row(
+                textDirection: TextDirection.rtl,
+                children: [
+                  const Icon(Icons.two_wheeler_rounded, size: 20, color: Color(0xFF16A34A)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'شۆفێری گەیاندن: ${order.driverName} (${order.driverPhone ?? ""})',
+                      textDirection: TextDirection.rtl,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF166534),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Customer Notes Box (بۆکسی تێبینی - Cyber Cyan لە وێنەکەدا)
           if (order.customerNotes != null && order.customerNotes!.trim().isNotEmpty) ...[
@@ -2311,7 +2361,12 @@ class OrdersScreen extends StatelessWidget {
           child: _buildGreenButton(
             label: 'ڕادەستکردن بە شۆفێر',
             icon: Icons.delivery_dining_outlined,
-            onTap: () => _showPinDialog(context, order),
+            onTap: () {
+              if (order.dbId != null && (order.driverName == null || order.driverName!.isEmpty)) {
+                VendorApiService.instance.dispatchNearestDriver(order.dbId!);
+              }
+              _showPinDialog(context, order);
+            },
           ),
         ),
       ];

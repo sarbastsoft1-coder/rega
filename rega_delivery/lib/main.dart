@@ -390,6 +390,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   final Map<String, Map<String, dynamic>> _earningsCache = {};
   Timer? _driverSyncTimer;
   bool _didStartBackendSync = false;
+  String? _lastNotifiedOrderNum;
 
   // لیستی ئاگادارکردنەوەکان
   final List<Map<String, String>> _notifications = [
@@ -597,6 +598,16 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           customerLat: (active['delivery_lat'] as num?)?.toDouble() ?? 34.6912,
           customerLng: (active['delivery_lng'] as num?)?.toDouble() ?? 45.3264,
         );
+        if (_lastNotifiedOrderNum != orderNum) {
+          _lastNotifiedOrderNum = orderNum;
+          _hasNewNotifications = true;
+          _notifications.insert(0, {
+            'id': orderNum.replaceAll('#', ''),
+            'time': 'ئێستا',
+            'type': 'order',
+          });
+          _isOrderCardVisible = true;
+        }
       }
 
       if (history.isNotEmpty) {
