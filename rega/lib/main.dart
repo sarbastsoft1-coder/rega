@@ -3490,42 +3490,36 @@ class _MainScreenState extends State<MainScreen> {
       bottomNavigationBar: _isOffline
           ? null
           : Container(
-              margin: EdgeInsets.only(
-                left: 14,
-                right: 14,
-                bottom: MediaQuery.of(context).padding.bottom > 0 ? MediaQuery.of(context).padding.bottom + 6 : 14,
-                top: 2,
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: const Color(0xFFF1F5F9),
-                  width: 1.2,
+                border: const Border(
+                  top: BorderSide(
+                    color: Color(0xFFF1F5F9),
+                    width: 1.0,
+                  ),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF0F172A).withOpacity(0.08),
-                    blurRadius: 26,
-                    offset: const Offset(0, 10),
-                    spreadRadius: -2,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFFFAC800).withOpacity(0.06),
-                    blurRadius: 14,
-                    offset: const Offset(0, 2),
+                    color: const Color(0xFF0F172A).withOpacity(0.04),
+                    blurRadius: 16,
+                    offset: const Offset(0, -4),
                   ),
                 ],
               ),
-              child: Row(
-                children: [
-                  _buildBottomNavItem(0, _t('سەرەکی'), Icons.home_rounded, Icons.home_outlined),
-                  _buildBottomNavItem(1, _t('داشکاندن'), Icons.local_offer_rounded, Icons.local_offer_outlined),
-                  _buildBottomNavItem(2, _t('سەبەتە'), Icons.shopping_bag_rounded, Icons.shopping_bag_outlined, isCart: true),
-                  _buildBottomNavItem(3, _t('داواکاری'), Icons.receipt_long_rounded, Icons.receipt_long_outlined),
-                  _buildBottomNavItem(4, _t('پڕۆفایل'), Icons.person_rounded, Icons.person_outline_rounded),
-                ],
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  child: Row(
+                    children: [
+                      _buildBottomNavItem(0, _t('سەرەکی'), Icons.home_rounded, Icons.home_outlined),
+                      _buildBottomNavItem(1, _t('داشکاندن'), Icons.local_offer_rounded, Icons.local_offer_outlined),
+                      _buildBottomNavItem(2, _t('سەبەتە'), Icons.shopping_bag_rounded, Icons.shopping_bag_outlined, isCart: true),
+                      _buildBottomNavItem(3, _t('داواکاری'), Icons.receipt_long_rounded, Icons.receipt_long_outlined),
+                      _buildBottomNavItem(4, _t('پڕۆفایل'), Icons.person_rounded, Icons.person_outline_rounded),
+                    ],
+                  ),
+                ),
               ),
             ),
     );
@@ -3533,6 +3527,9 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildBottomNavItem(int index, String label, IconData activeIcon, IconData inactiveIcon, {bool isCart = false}) {
     final bool isSelected = _currentIndex == index;
+    const activeColor = Color(0xFFD97706); // Rich warm amber/gold for crisp high contrast
+    const inactiveColor = Color(0xFF94A3B8);
+
     return Expanded(
       child: InkWell(
         onTap: () {
@@ -3542,13 +3539,10 @@ class _MainScreenState extends State<MainScreen> {
             _selectedStore = null;
           });
         },
-        borderRadius: BorderRadius.circular(22),
-        splashColor: const Color(0xFFFAC800).withOpacity(0.2),
+        splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -3556,95 +3550,66 @@ class _MainScreenState extends State<MainScreen> {
                 clipBehavior: Clip.none,
                 alignment: Alignment.center,
                 children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 260),
-                    curve: Curves.easeOutBack,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSelected ? 16 : 8,
-                      vertical: isSelected ? 7 : 5,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: isSelected
-                          ? const LinearGradient(
-                              colors: [Color(0xFFFAC800), Color(0xFFF59E0B)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            )
-                          : null,
-                      color: isSelected ? null : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: const Color(0xFFF59E0B).withOpacity(0.35),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ]
-                          : null,
-                    ),
+                  AnimatedScale(
+                    scale: isSelected ? 1.15 : 1.0,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
                     child: Icon(
                       isSelected ? activeIcon : inactiveIcon,
-                      color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
-                      size: 21,
+                      color: isSelected ? activeColor : inactiveColor,
+                      size: 24,
                     ),
                   ),
                   if (isCart && _cart.isNotEmpty)
                     Positioned(
-                      top: -2,
-                      right: isSelected ? 4 : -2,
+                      top: -4,
+                      right: -6,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-                          ),
+                          color: const Color(0xFFEF4444),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: Colors.white, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFEF4444).withOpacity(0.4),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
                         ),
                         constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                         child: Text(
                           '',
+                          textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 10,
+                            fontSize: 9.5,
                             fontWeight: FontWeight.w900,
-                            height: 1.1,
+                            height: 1,
                           ),
-                          textAlign: TextAlign.center,
                         ),
                       ),
                     ),
                 ],
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 5),
               AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 180),
                 style: TextStyle(
-                  fontSize: isSelected ? 11 : 10.5,
-                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                  color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                  color: isSelected ? activeColor : inactiveColor,
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
                   letterSpacing: -0.2,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                child: Text(label),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                height: 3,
-                width: isSelected ? 14 : 0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                width: isSelected ? 4 : 0,
+                height: 4,
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFFFAC800) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(99),
+                  color: isSelected ? activeColor : Colors.transparent,
+                  shape: BoxShape.circle,
                 ),
               ),
             ],

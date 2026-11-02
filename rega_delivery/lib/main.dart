@@ -2541,61 +2541,55 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   // شریتی خوارەوەی ئەپ (Bottom Navigation Bar) ڕێک وەک وێنەکە
   Widget _buildBottomNav() {
     return Container(
-      margin: EdgeInsets.only(
-        left: 14,
-        right: 14,
-        bottom: MediaQuery.of(context).padding.bottom > 0 ? MediaQuery.of(context).padding.bottom + 6 : 14,
-        top: 2,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: const Color(0xFFF1F5F9),
-          width: 1.2,
+        border: const Border(
+          top: BorderSide(
+            color: Color(0xFFF1F5F9),
+            width: 1.0,
+          ),
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.08),
-            blurRadius: 26,
-            offset: const Offset(0, 10),
-            spreadRadius: -2,
-          ),
-          BoxShadow(
-            color: const Color(0xFF16A34A).withOpacity(0.05),
-            blurRadius: 14,
-            offset: const Offset(0, 2),
+            color: const Color(0xFF0F172A).withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          _buildBottomNavItem(
-            index: 0,
-            icon: Icons.map_outlined,
-            activeIcon: Icons.map_rounded,
-            label: t('home'),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Row(
+            children: [
+              _buildBottomNavItem(
+                index: 0,
+                icon: Icons.map_outlined,
+                activeIcon: Icons.map_rounded,
+                label: t('home'),
+              ),
+              _buildBottomNavItem(
+                index: 1,
+                icon: Icons.format_list_numbered_rounded,
+                activeIcon: Icons.receipt_long_rounded,
+                label: t('orders'),
+              ),
+              _buildBottomNavItem(
+                index: 2,
+                icon: Icons.account_balance_wallet_outlined,
+                activeIcon: Icons.account_balance_wallet_rounded,
+                label: t('earnings'),
+              ),
+              _buildBottomNavItem(
+                index: 3,
+                icon: Icons.person_outline_rounded,
+                activeIcon: Icons.person_rounded,
+                label: t('profile'),
+              ),
+            ],
           ),
-          _buildBottomNavItem(
-            index: 1,
-            icon: Icons.format_list_numbered_rounded,
-            activeIcon: Icons.receipt_long_rounded,
-            label: t('orders'),
-          ),
-          _buildBottomNavItem(
-            index: 2,
-            icon: Icons.account_balance_wallet_outlined,
-            activeIcon: Icons.account_balance_wallet_rounded,
-            label: t('earnings'),
-          ),
-          _buildBottomNavItem(
-            index: 3,
-            icon: Icons.person_outline,
-            activeIcon: Icons.person_rounded,
-            label: t('profile'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2608,6 +2602,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   }) {
     final isSelected = _currentTabIndex == index;
     const activeColor = Color(0xFF16A34A);
+    const inactiveColor = Color(0xFF94A3B8);
 
     return Expanded(
       child: InkWell(
@@ -2615,56 +2610,30 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           HapticFeedback.selectionClick();
           setState(() => _currentTabIndex = index);
         },
-        borderRadius: BorderRadius.circular(22),
-        splashColor: const Color(0xFFBBF7D0).withOpacity(0.2),
+        splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutBack,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isSelected ? 16 : 10,
-                  vertical: isSelected ? 7 : 5,
-                ),
-                decoration: BoxDecoration(
-                  gradient: isSelected
-                      ? const LinearGradient(
-                          colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : null,
-                  color: isSelected ? null : Colors.transparent,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: const Color(0xFF16A34A).withOpacity(0.35),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : null,
-                ),
+              AnimatedScale(
+                scale: isSelected ? 1.15 : 1.0,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
                 child: Icon(
                   isSelected ? activeIcon : icon,
-                  color: isSelected ? Colors.white : const Color(0xFF94A3B8),
-                  size: 21,
+                  color: isSelected ? activeColor : inactiveColor,
+                  size: 24,
                 ),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 5),
               AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 180),
                 style: TextStyle(
-                  color: isSelected ? activeColor : const Color(0xFF64748B),
+                  color: isSelected ? activeColor : inactiveColor,
                   fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
                   letterSpacing: -0.2,
                 ),
                 child: Text(
@@ -2675,22 +2644,13 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               ),
               const SizedBox(height: 3),
               AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
+                duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOutCubic,
-                width: isSelected ? 16 : 0,
-                height: 3,
+                width: isSelected ? 4 : 0,
+                height: 4,
                 decoration: BoxDecoration(
                   color: isSelected ? activeColor : Colors.transparent,
-                  borderRadius: BorderRadius.circular(3),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: activeColor.withOpacity(0.4),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ]
-                      : null,
+                  shape: BoxShape.circle,
                 ),
               ),
             ],
