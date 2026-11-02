@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'dart:io';
@@ -3485,34 +3486,45 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ),
 
-      // 📍 Bottom Navigation Bar (Hidden when offline)
+      // 📍 Bottom Navigation Bar (Hidden when offline) - Floating Modern Dock Island
       bottomNavigationBar: _isOffline
           ? null
           : Container(
-              padding: EdgeInsets.only(
-                top: 10,
-                bottom: 10 + MediaQuery.of(context).padding.bottom,
-                left: 16,
-                right: 16,
+              margin: EdgeInsets.only(
+                left: 14,
+                right: 14,
+                bottom: MediaQuery.of(context).padding.bottom > 0 ? MediaQuery.of(context).padding.bottom + 6 : 14,
+                top: 2,
               ),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
               decoration: BoxDecoration(
                 color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: const Color(0xFFF1F5F9),
+                  width: 1.2,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 16,
-                    offset: const Offset(0, -4),
+                    color: const Color(0xFF0F172A).withOpacity(0.08),
+                    blurRadius: 26,
+                    offset: const Offset(0, 10),
+                    spreadRadius: -2,
+                  ),
+                  BoxShadow(
+                    color: const Color(0xFFFAC800).withOpacity(0.06),
+                    blurRadius: 14,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildBottomNavItem(0, _t('سەرەکی'), Icons.home_rounded, Icons.home_outlined),
-                  _buildBottomNavItem(1, _t('داشکاندن'), Icons.discount_rounded, Icons.discount_outlined),
-                  _buildBottomNavItem(2, _t('سەبەتە'), Icons.shopping_cart_rounded, Icons.shopping_cart_outlined, isCart: true),
+                  _buildBottomNavItem(1, _t('داشکاندن'), Icons.local_offer_rounded, Icons.local_offer_outlined),
+                  _buildBottomNavItem(2, _t('سەبەتە'), Icons.shopping_bag_rounded, Icons.shopping_bag_outlined, isCart: true),
                   _buildBottomNavItem(3, _t('داواکاری'), Icons.receipt_long_rounded, Icons.receipt_long_outlined),
-                  _buildBottomNavItem(4, _t('پڕۆفایل'), Icons.account_circle_rounded, Icons.account_circle_outlined),
+                  _buildBottomNavItem(4, _t('پڕۆفایل'), Icons.person_rounded, Icons.person_outline_rounded),
                 ],
               ),
             ),
@@ -3520,74 +3532,128 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildBottomNavItem(int index, String label, IconData activeIcon, IconData inactiveIcon, {bool isCart = false}) {
-    final bool isActive = _currentIndex == index;
-    return InkWell(
-      onTap: () => setState(() {
-        _currentIndex = index;
-        _selectedStore = null;
-      }),
-      borderRadius: BorderRadius.circular(30),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          horizontal: isActive ? 18 : 10,
-          vertical: isActive ? 10 : 8,
-        ),
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFFFAC800) : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isActive) ...[
-              Text(
-                label,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13.5,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(
-                  isActive ? activeIcon : inactiveIcon,
-                  size: 22,
-                  color: Colors.black87,
-                ),
-                if (isCart && _cart.isNotEmpty)
-                  Positioned(
-                    right: -6,
-                    top: -6,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
-                      child: Text(
-                        '${_cart.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+    final bool isSelected = _currentIndex == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() {
+            _currentIndex = index;
+            _selectedStore = null;
+          });
+        },
+        borderRadius: BorderRadius.circular(22),
+        splashColor: const Color(0xFFFAC800).withOpacity(0.2),
+        highlightColor: Colors.transparent,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutBack,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSelected ? 16 : 8,
+                      vertical: isSelected ? 7 : 5,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: isSelected
+                          ? const LinearGradient(
+                              colors: [Color(0xFFFAC800), Color(0xFFF59E0B)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: isSelected ? null : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFFF59E0B).withOpacity(0.35),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Icon(
+                      isSelected ? activeIcon : inactiveIcon,
+                      color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                      size: 21,
                     ),
                   ),
-              ],
-            ),
-          ],
+                  if (isCart && _cart.isNotEmpty)
+                    Positioned(
+                      top: -2,
+                      right: isSelected ? 4 : -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFEF4444).withOpacity(0.4),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                        child: Text(
+                          '',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(
+                  fontSize: isSelected ? 11 : 10.5,
+                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                  color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                  letterSpacing: -0.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                child: Text(label),
+              ),
+              const SizedBox(height: 2),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                height: 3,
+                width: isSelected ? 14 : 0,
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFFFAC800) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+
 
   Widget _buildDefaultTextLogo() {
     return Row(

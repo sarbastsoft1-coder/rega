@@ -1328,39 +1328,72 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ),
         body: screens[_selectedIndex],
         bottomNavigationBar: Container(
-          padding: EdgeInsets.only(
-            top: 8,
-            bottom: MediaQuery.of(context).padding.bottom > 0 ? MediaQuery.of(context).padding.bottom + 8 : 16,
-            left: 8,
-            right: 8,
+          margin: EdgeInsets.only(
+            left: 14,
+            right: 14,
+            bottom: MediaQuery.of(context).padding.bottom > 0 ? MediaQuery.of(context).padding.bottom + 6 : 14,
+            top: 2,
           ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF7ED), // Warm light orange tint matching bg-orange-50/95
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border(
-              top: BorderSide(
-                color: const Color(0xFFFED7AA).withOpacity(0.8), // border-orange-200/80
-                width: 1,
-              ),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: const Color(0xFFF1F5F9),
+              width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFB923C).withOpacity(0.12),
-                blurRadius: 20,
-                offset: const Offset(0, -4),
+                color: const Color(0xFF0F172A).withOpacity(0.08),
+                blurRadius: 26,
+                offset: const Offset(0, 10),
+                spreadRadius: -2,
+              ),
+              BoxShadow(
+                color: const Color(0xFFEA580C).withOpacity(0.05),
+                blurRadius: 14,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
           child: Row(
             children: [
               // 1. Far Right in RTL: داواکارییەکان (Orders) - index 3
-              Expanded(child: _buildNavItem(3, Icons.shopping_basket_outlined, t('داواکارییەکان'))),
-              // 2. Next in RTL: مێنۆ و بەرهەم (Menu & Products) - Chef hat - index 2
-              Expanded(child: _buildNavItem(2, Icons.soup_kitchen_outlined, t('مێنۆ و بەرهەم'))),
-              // 3. Next in RTL: داهاتی فرۆشیار (Seller Revenue) - Trending up line - index 1
-              Expanded(child: _buildNavItem(1, Icons.trending_up_rounded, t('داهاتی فرۆشیار'))),
-              // 4. Far Left in RTL: ڕێکخستن (Settings) - Sliders / Tune - index 0
-              Expanded(child: _buildNavItem(0, Icons.tune_rounded, t('ڕێکخستن'))),
+              Expanded(
+                child: _buildNavItem(
+                  3,
+                  Icons.local_mall_rounded,
+                  Icons.local_mall_outlined,
+                  t('داواکارییەکان'),
+                ),
+              ),
+              // 2. Next in RTL: مێنۆ و بەرهەم (Menu & Products) - index 2
+              Expanded(
+                child: _buildNavItem(
+                  2,
+                  Icons.restaurant_menu_rounded,
+                  Icons.restaurant_menu_outlined,
+                  t('مێنۆ و بەرهەم'),
+                ),
+              ),
+              // 3. Next in RTL: داهاتی فرۆشیار (Seller Revenue) - index 1
+              Expanded(
+                child: _buildNavItem(
+                  1,
+                  Icons.auto_graph_rounded,
+                  Icons.auto_graph_outlined,
+                  t('داهاتی فرۆشیار'),
+                ),
+              ),
+              // 4. Far Left in RTL: ڕێکخستن (Settings) - index 0
+              Expanded(
+                child: _buildNavItem(
+                  0,
+                  Icons.tune_rounded,
+                  Icons.tune_outlined,
+                  t('ڕێکخستن'),
+                ),
+              ),
             ],
           ),
         ),
@@ -1368,80 +1401,92 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
-    bool isSelected = _selectedIndex == index;
+  Widget _buildNavItem(int index, IconData activeIcon, IconData inactiveIcon, String label) {
+    final bool isSelected = _selectedIndex == index;
     // Notification badge on orders (index 3) when there are pending orders
     final pendingCount = _orders.where((o) => o.status == OrderStatus.pending).length;
-    bool hasNotification = (index == 3 && pendingCount > 0);
+    final bool hasNotification = (index == 3 && pendingCount > 0);
 
-    return GestureDetector(
-      onTap: () => _onItemTapped(index),
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        _onItemTapped(index);
+      },
+      borderRadius: BorderRadius.circular(22),
+      splashColor: const Color(0xFFFED7AA).withOpacity(0.2),
+      highlightColor: Colors.transparent,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Stack(
               clipBehavior: Clip.none,
+              alignment: Alignment.center,
               children: [
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutBack,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSelected ? 16 : 10,
+                    vertical: isSelected ? 7 : 5,
+                  ),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFF97316) : Colors.transparent, // orange-500
-                    borderRadius: BorderRadius.circular(14),
+                    gradient: isSelected
+                        ? const LinearGradient(
+                            colors: [Color(0xFFFF9E2C), Color(0xFFEA580C)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: isSelected ? null : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: isSelected
                         ? [
                             BoxShadow(
-                              color: const Color(0xFFF97316).withOpacity(0.4),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
+                              color: const Color(0xFFEA580C).withOpacity(0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
                           ]
-                        : [],
+                        : null,
                   ),
-                  child: index == 1
-                      ? Transform.flip(
-                          flipX: true,
-                          child: Icon(
-                            icon,
-                            color: isSelected ? Colors.white : const Color(0xFF6B7280), // gray-500
-                            size: 22,
-                          ),
-                        )
-                      : Icon(
-                          icon,
-                          color: isSelected ? Colors.white : const Color(0xFF6B7280), // gray-500
-                          size: 22,
-                        ),
+                  child: Icon(
+                    isSelected ? activeIcon : inactiveIcon,
+                    color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                    size: 21,
+                  ),
                 ),
                 if (hasNotification)
                   Positioned(
-                    top: -3,
-                    right: -3,
+                    top: -2,
+                    right: isSelected ? 2 : -2,
                     child: Container(
-                      padding: const EdgeInsets.all(2),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF43F5E), // rose-500
-                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: const [
+                        boxShadow: [
                           BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 3,
-                            offset: Offset(0, 1),
+                            color: const Color(0xFFDC2626).withOpacity(0.4),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
                       constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                       child: Center(
                         child: Text(
-                          '$pendingCount',
+                          '',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 10,
+                            fontSize: 9.5,
                             fontWeight: FontWeight.w900,
                             height: 1,
                           ),
@@ -1451,26 +1496,41 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   ),
               ],
             ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
+            const SizedBox(height: 3),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                letterSpacing: -0.2,
+                fontFamily: kAppFontFamily,
+              ),
               child: Text(
                 label,
-                style: TextStyle(
-                  color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF6B7280), // orange-600 vs gray-500
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.bold,
-                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(height: 2),
-            // Tiny indicator dot underneath active tab matching screenshot
-            Container(
-              width: 5,
-              height: 5,
+            const SizedBox(height: 3),
+            // Sleek animated micro-capsule indicator bar
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              width: isSelected ? 16 : 0,
+              height: 3,
               decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFFF97316) : Colors.transparent,
-                shape: BoxShape.circle,
+                color: isSelected ? const Color(0xFFEA580C) : Colors.transparent,
+                borderRadius: BorderRadius.circular(3),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFEA580C).withOpacity(0.4),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ]
+                    : null,
               ),
             ),
           ],
