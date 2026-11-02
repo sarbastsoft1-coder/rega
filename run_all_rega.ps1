@@ -21,7 +21,7 @@ foreach ($app in $apps) {
         Pop-Location
     }
     Write-Host "Serving $($app.Name) on http://127.0.0.1:$($app.Port) ..." -ForegroundColor Green
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$webDir'; python -m http.server $($app.Port) --bind 127.0.0.1"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "python '$root\serve_web.py' '$webDir' $($app.Port)"
 }
 
 Start-Sleep -Seconds 2
