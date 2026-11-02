@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import socket
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -38,6 +39,10 @@ class FlutterHandler(SimpleHTTPRequestHandler):
         except Exception:
             pass
 
+def is_port_in_use(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('127.0.0.1', port)) == 0
+
 def make_handler_for_directory(directory):
     class CustomFlutterHandler(FlutterHandler):
         def __init__(self, *args, **kwargs):
@@ -46,6 +51,11 @@ def make_handler_for_directory(directory):
 
 def start_server_thread(name, port, directory):
     while True:
+        if is_port_in_use(port):
+            # Port is actively being served (e.g. by user flutter run)
+            time.sleep(30)
+            continue
+
         try:
             ThreadingHTTPServer.allow_reuse_address = True
             handler = make_handler_for_directory(directory)
@@ -53,8 +63,8 @@ def start_server_thread(name, port, directory):
             print(f"[ONLINE] {name} serving on http://127.0.0.1:{port} from {directory}")
             server.serve_forever()
         except Exception as e:
-            print(f"[RETRY] {name} on port {port} error: {e}. Restarting in 2s...")
-            time.sleep(2)
+            # If occupied or in TIME_WAIT, sleep and recheck peacefully
+            time.sleep(30)
 
 def main():
     base_dir = r"c:\Users\sarba\OneDrive\Desktop\projekt rega"
@@ -71,9 +81,9 @@ def main():
         t.start()
         threads.append(t)
 
-    print("All 4 REGA web servers launched successfully.")
+    print("REGA smart port manager started.")
     while True:
-        time.sleep(10)
+        time.sleep(60)
 
 if __name__ == '__main__':
     try:
