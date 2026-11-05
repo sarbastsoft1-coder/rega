@@ -259,6 +259,14 @@ class ApiClient {
     });
   }
 
+  Future<Map<String, dynamic>> updateOrder(int orderId, Map<String, dynamic> payload) async {
+    return _send('PUT', '/admin/orders/$orderId', body: payload);
+  }
+
+  Future<void> deleteOrder(int orderId) async {
+    await _send('DELETE', '/admin/orders/$orderId');
+  }
+
   // --- Stores / Vendors ---
   Future<List<dynamic>> getStores({String? search, int? categoryId, bool? isOnline, bool? isApproved}) async {
     final res = await _send('GET', '/admin/stores', query: {
@@ -370,6 +378,14 @@ class ApiClient {
 
   Future<void> createCustomer(Map<String, dynamic> payload) async {
     await _send('POST', '/admin/customers', body: payload);
+  }
+
+  Future<void> updateCustomer(int customerId, Map<String, dynamic> payload) async {
+    await _send('PUT', '/admin/customers/$customerId', body: payload);
+  }
+
+  Future<void> deleteCustomer(int customerId) async {
+    await _send('DELETE', '/admin/customers/$customerId');
   }
 
   Future<void> toggleCustomerActive(int customerId) async {
@@ -487,6 +503,11 @@ class ApiClient {
   Future<List<dynamic>> getTickets({String status = 'all'}) async {
     final res = await _send('GET', '/admin/tickets', query: {'status': status});
     return res['data'] as List<dynamic>? ?? [];
+  }
+
+  Future<Map<String, dynamic>> createTicket(Map<String, dynamic> payload) async {
+    final res = await _send('POST', '/admin/tickets', body: payload);
+    return res['data'] as Map<String, dynamic>? ?? {};
   }
 
   Future<void> updateTicket(int ticketId, Map<String, dynamic> payload) async {

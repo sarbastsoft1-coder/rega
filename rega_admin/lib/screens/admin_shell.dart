@@ -461,7 +461,7 @@ class _AdminShellState extends State<AdminShell> {
                         _buildTopQuickPartChip(
                           index: 1,
                           icon: Icons.storefront_rounded,
-                          label: 'فرۆشیار (Vendor)',
+                          label: 'فرۆشیار (Froshyar)',
                           accent: RegaColors.orange,
                         ),
                         _buildTopQuickPartChip(

@@ -115,5 +115,26 @@ class CustomerManagementController extends Controller
             'data' => $customer,
         ]);
     }
+
+    public function destroy(User $customer): JsonResponse
+    {
+        if ($customer->customerOrders()->exists()) {
+            $customer->update(['is_active' => false]);
+            $customer->tokens()->delete();
+            return response()->json([
+                'success' => true,
+                'message' => 'کڕیارەکە داواکاری پێشووی هەیە، بۆ پاراستنی تۆماری دارایی هەژمارەکەی ڕاگیرا لە جیاتی سڕینەوە.',
+            ]);
+        }
+
+        $customer->addresses()->delete();
+        $customer->tokens()->delete();
+        $customer->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'کڕیار بە سەرکەوتوویی سڕایەوە.',
+        ]);
+    }
 }
 

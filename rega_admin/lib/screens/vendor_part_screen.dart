@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/api/api_client.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
@@ -39,6 +40,9 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _load();
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) => _load(silent: true));
   }
@@ -216,100 +220,123 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeKitchenCount = (_kpis['active_kitchen_orders'] as num?)?.toInt() ?? 0;
+
     return Column(
       children: [
-        // Top Vendor Hub Banner
+        // Top Vendor Hub Brand Header (Froshyar Style)
         Container(
           width: double.infinity,
-          margin: const EdgeInsets.fromLTRB(24, 18, 24, 0),
-          padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
+          margin: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+          padding: const EdgeInsets.fromLTRB(22, 16, 22, 16),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFFEA580C), Color(0xFFD97706)],
+              colors: [Color(0xFFEA580C), Color(0xFFC2410C)],
               begin: Alignment.centerRight,
               end: Alignment.centerLeft,
             ),
             borderRadius: BorderRadius.circular(22),
             boxShadow: [
               BoxShadow(
-                color: RegaColors.orange.withValues(alpha: 0.25),
-                blurRadius: 16,
+                color: const Color(0xFFEA580C).withValues(alpha: 0.28),
+                blurRadius: 18,
                 offset: const Offset(0, 6),
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Wrap(
+            spacing: 14,
+            runSpacing: 10,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Wrap(
-                spacing: 14,
-                runSpacing: 10,
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.2),
+                    ),
+                    child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 26),
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 26),
-                      ),
-                      const SizedBox(width: 14),
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            'بەشی فرۆشیاران و چێشتخانەکان (REGA Vendor Hub)',
-                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                          const Text(
+                            'REGA FROSHYAR',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                            ),
                           ),
-                          Text(
-                            'بەستراوەتەوە بە ئەپی فرۆشیاران (rega_froshyar) و PostgreSQL بە شێوەی ڕاستەوخۆ',
-                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  '${_kpis['online_stores'] ?? 0} ئۆنلاین',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'بەشی بەڕێوەبردنی فرۆشیاران و چێشتخانەکان — هاوکات لەگەڵ rega_froshyar',
+                        style: TextStyle(color: Colors.white70, fontSize: 11.5),
+                      ),
                     ],
-                  ),
-                  FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.2),
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () => _load(),
-                    icon: const Icon(Icons.sync_rounded, size: 18),
-                    label: Text('هاوکاتکردن (${_kpis['online_stores'] ?? 0}/${_kpis['total_stores'] ?? 0} ئۆنلاین)'),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                indicatorColor: Colors.white,
-                indicatorWeight: 3.5,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white70,
-                labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-                dividerColor: Colors.transparent,
-                tabs: [
-                  const Tab(icon: Icon(Icons.analytics_rounded, size: 18), text: 'پوختە و داهات'),
-                  Tab(
-                    icon: const Icon(Icons.soup_kitchen_rounded, size: 18),
-                    text: 'چێشتخانەی زیندوو (${_kpis['active_kitchen_orders'] ?? 0})',
-                  ),
-                  const Tab(icon: Icon(Icons.store_mall_directory_rounded, size: 18), text: 'فرۆشگا و هەژمارەکان'),
-                  const Tab(icon: Icon(Icons.restaurant_menu_rounded, size: 18), text: 'مێنۆ و بەرهەمەکان'),
-                  const Tab(icon: Icon(Icons.account_balance_wallet_rounded, size: 18), text: 'حەواڵە و پاکتاو'),
-                ],
+              FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+                onPressed: () => _load(),
+                icon: const Icon(Icons.sync_rounded, size: 17),
+                label: const Text('هاوکاتکردنی داتا', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
+
+        // Modern Froshyar Dock Navigation Bar
+        _buildFroshyarNavBar(isDark: isDark, activeKitchenCount: activeKitchenCount),
+
+        const SizedBox(height: 8),
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
@@ -318,15 +345,201 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
                   : TabBarView(
                       controller: _tabController,
                       children: [
-                        _buildOverviewTab(isDark),
                         _buildKitchenQueueTab(isDark),
-                        StoresScreen(api: widget.api, lang: widget.lang),
                         ProductsScreen(api: widget.api, lang: widget.lang),
+                        _buildOverviewTab(isDark),
+                        StoresScreen(api: widget.api, lang: widget.lang),
                         _buildVendorPayoutsTab(),
                       ],
                     ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFroshyarNavBar({required bool isDark, required int activeKitchenCount}) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(24, 12, 24, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.25 : 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildFroshyarNavItem(
+              index: 0,
+              activeIcon: Icons.local_mall_rounded,
+              inactiveIcon: Icons.local_mall_outlined,
+              label: 'داواکارییەکان',
+              subtitle: 'چێشتخانەی زیندوو',
+              badgeCount: activeKitchenCount,
+              isDark: isDark,
+            ),
+            const SizedBox(width: 6),
+            _buildFroshyarNavItem(
+              index: 1,
+              activeIcon: Icons.restaurant_menu_rounded,
+              inactiveIcon: Icons.restaurant_menu_outlined,
+              label: 'مێنۆ و بەرهەم',
+              subtitle: '${_kpis['total_products'] ?? 0} کاڵا',
+              isDark: isDark,
+            ),
+            const SizedBox(width: 6),
+            _buildFroshyarNavItem(
+              index: 2,
+              activeIcon: Icons.auto_graph_rounded,
+              inactiveIcon: Icons.auto_graph_outlined,
+              label: 'داهاتی فرۆشیار',
+              subtitle: 'پوختە و ئامار',
+              isDark: isDark,
+            ),
+            const SizedBox(width: 6),
+            _buildFroshyarNavItem(
+              index: 3,
+              activeIcon: Icons.tune_rounded,
+              inactiveIcon: Icons.tune_outlined,
+              label: 'فرۆشگاکان و هەژمار',
+              subtitle: '${_kpis['total_stores'] ?? 0} فرۆشگا',
+              isDark: isDark,
+            ),
+            const SizedBox(width: 6),
+            _buildFroshyarNavItem(
+              index: 4,
+              activeIcon: Icons.account_balance_wallet_rounded,
+              inactiveIcon: Icons.account_balance_wallet_outlined,
+              label: 'حەواڵە و پاکتاو',
+              subtitle: 'باڵانسی فرۆشیاران',
+              isDark: isDark,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFroshyarNavItem({
+    required int index,
+    required IconData activeIcon,
+    required IconData inactiveIcon,
+    required String label,
+    String? subtitle,
+    int badgeCount = 0,
+    required bool isDark,
+  }) {
+    final bool isSelected = _tabController.index == index;
+    const activeColor = Color(0xFFEA580C);
+    final inactiveColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        _tabController.animateTo(index);
+        setState(() {});
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (isDark ? const Color(0xFFEA580C).withValues(alpha: 0.2) : const Color(0xFFFFF7ED))
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFEA580C).withValues(alpha: 0.35) : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                AnimatedScale(
+                  scale: isSelected ? 1.15 : 1.0,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  child: Icon(
+                    isSelected ? activeIcon : inactiveIcon,
+                    color: isSelected ? activeColor : inactiveColor,
+                    size: 22,
+                  ),
+                ),
+                if (badgeCount > 0)
+                  Positioned(
+                    top: -6,
+                    right: -10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                        boxShadow: const [
+                          BoxShadow(color: Color(0x33EF4444), blurRadius: 4, offset: Offset(0, 2)),
+                        ],
+                      ),
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      child: Text(
+                        '$badgeCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 180),
+                  style: TextStyle(
+                    color: isSelected ? activeColor : (isDark ? Colors.white : const Color(0xFF1E293B)),
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                    letterSpacing: -0.2,
+                  ),
+                  child: Text(label),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: isSelected ? activeColor.withValues(alpha: 0.8) : inactiveColor,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -393,9 +606,23 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'لیستی فرۆشگاکان، هەژماری فرۆشیار و داهاتی ڕاستەوخۆ',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'لیستی فرۆشگاکان، هەژماری فرۆشیار و داهاتی ڕاستەوخۆ',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: RegaColors.orange,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () => _tabController.animateTo(3),
+                      icon: const Icon(Icons.add_business_rounded, size: 17),
+                      label: const Text('زیادکردنی فرۆشگا'),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 ..._stores.map((raw) {
@@ -460,6 +687,11 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
                                   style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                                 ),
                               ],
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () => _tabController.animateTo(3),
+                              icon: const Icon(Icons.edit_rounded, size: 16),
+                              label: const Text('دەستکاریکردن'),
                             ),
                             OutlinedButton.icon(
                               onPressed: () => _showVendorPayoutDialog(s),
@@ -611,7 +843,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
                               icon: const Icon(Icons.done_all_rounded, size: 17),
                               label: const Text('ئامادەیە بۆ شۆفێر'),
                             ),
-                          if (status == 'ready' || status == 'preparing')
+                          if (status == 'ready' || status == 'preparing') ...[
                             ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: RegaColors.orange,
@@ -621,6 +853,12 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
                               icon: const Icon(Icons.pin_rounded, size: 17),
                               label: const Text('ڕادەستکردن بە شۆفێر (PIN)'),
                             ),
+                            OutlinedButton.icon(
+                              onPressed: () => _updateVendorOrderStatus(o['id'] as int, 'picked_up'),
+                              icon: const Icon(Icons.check_rounded, size: 17),
+                              label: const Text('ڕادەستکردنی دەستبەجێ'),
+                            ),
+                          ],
                           if (status == 'pending')
                             OutlinedButton.icon(
                               onPressed: () => _updateVendorOrderStatus(o['id'] as int, 'rejected'),

@@ -192,6 +192,8 @@ class StoreItem {
   final bool isOpen;
   final String phone;
   final String? discountBadge;
+  final double lat;
+  final double lng;
 
   StoreItem({
     required this.id,
@@ -205,6 +207,8 @@ class StoreItem {
     this.isOpen = true,
     required this.phone,
     this.discountBadge,
+    this.lat = 34.6836,
+    this.lng = 45.3189,
   });
 }
 
@@ -260,8 +264,10 @@ class OrderItem {
   final String id;
   final String storeName;
   final int totalAmount;
-  String status; // 'pending' | 'preparing' | 'on_the_way' | 'delivered'
+  String status; // 'pending' | 'preparing' | 'heading_to_store' | 'picked_up' | 'on_the_way' | 'delivered'
   final String deliveryPin;
+  final double storeLat;
+  final double storeLng;
   final double customerLat;
   final double customerLng;
   final DateTime date;
@@ -281,6 +287,8 @@ class OrderItem {
     required this.driverPhone,
     this.address = 'گەڕەکی شەهیدان - کۆڵانی ١٤، تەنیشت قوتابخانەی کەلار',
     this.deliveryPin = '4821',
+    this.storeLat = 34.6836,
+    this.storeLng = 45.3189,
     this.customerLat = 34.6912,
     this.customerLng = 45.3264,
   });
@@ -792,6 +800,23 @@ class _MainScreenState extends State<MainScreen> {
   StoreItem? _selectedStore;
   String? _selectedSubCategory;
 
+  // Dynamic Marketplace Data from Backend (Categories, Banners)
+  List<Map<String, dynamic>> _dynamicCategories = [];
+  List<Map<String, dynamic>> _dynamicBanners = [];
+
+  IconData _getCategoryIcon(String catName) {
+    if (catName.contains('خواردن') || catName.contains('ڕێستۆرانت')) return Icons.restaurant_rounded;
+    if (catName.contains('مارکێت') || catName.contains('سوپەرمارکێت')) return Icons.store_rounded;
+    if (catName.contains('میوە') || catName.contains('سەوزە')) return Icons.eco_rounded;
+    if (catName.contains('فاست') || catName.contains('بەرگر') || catName.contains('پیتزا')) return Icons.fastfood_rounded;
+    if (catName.contains('شیرینی') || catName.contains('کێک') || catName.contains('باقلاوە')) return Icons.bakery_dining_rounded;
+    if (catName.contains('کافێ') || catName.contains('قاوە')) return Icons.coffee_rounded;
+    if (catName.contains('گۆشت') || catName.contains('مریشک') || catName.contains('قەساب')) return Icons.set_meal_outlined;
+    if (catName.contains('نان') || catName.contains('سەموون')) return Icons.bakery_dining_outlined;
+    if (catName.contains('کۆسمەتیک') || catName.contains('جوانکاری')) return Icons.face_retouching_natural_rounded;
+    return Icons.category_rounded;
+  }
+
   // Internet Connectivity Guard State
   bool _isOffline = false;
   bool _isCheckingConnection = false;
@@ -1166,6 +1191,30 @@ class _MainScreenState extends State<MainScreen> {
           _selectedNeighborhood = kalarNeighborhoods.first;
         }
 
+        final rawCategories = boot['categories'] as List<dynamic>? ?? [];
+        if (rawCategories.isNotEmpty) {
+          _dynamicCategories = rawCategories.map((c) {
+            final m = c as Map<String, dynamic>;
+            final nameKu = m['name_ku']?.toString() ?? '';
+            final imgUrl = m['image_url']?.toString();
+            return {
+              'id': m['id'],
+              'title': _t(nameKu),
+              'image': (imgUrl != null && imgUrl.isNotEmpty)
+                  ? imgUrl
+                  : 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600',
+              'icon': _getCategoryIcon(nameKu),
+              'catName': nameKu,
+              'slug': m['slug']?.toString() ?? '',
+            };
+          }).toList();
+        }
+
+        final rawBanners = boot['banners'] as List<dynamic>? ?? [];
+        if (rawBanners.isNotEmpty) {
+          _dynamicBanners = rawBanners.cast<Map<String, dynamic>>();
+        }
+
         final rawStores = boot['stores'] as List<dynamic>? ?? [];
         for (final rs in rawStores) {
           final sm = rs as Map<String, dynamic>;
@@ -1219,14 +1268,19 @@ class _MainScreenState extends State<MainScreen> {
             }
           }
         }
+        final currentDbStoreKeys = rawStores.map((rs) => 'db_store_').toSet();
+        allStores.removeWhere((s) => s.id.startsWith('db_store_') && !currentDbStoreKeys.contains(s.id));
         if (mounted) setState(() {});
       }
 
       await _syncCustomerOrdersFromBackend();
       _backendOrdersTimer?.cancel();
       _backendOrdersTimer = Timer.periodic(
-        const Duration(seconds: 5),
-        (_) => _syncCustomerOrdersFromBackend(),
+        const Duration(seconds: 4),
+        (_) {
+          _syncMarketplaceFromBackend();
+          _syncCustomerOrdersFromBackend();
+        },
       );
     } catch (_) {}
   }
@@ -1262,13 +1316,15 @@ class _MainScreenState extends State<MainScreen> {
             id: m['order_number']?.toString() ?? 'RA-${m['id']}',
             storeName: m['store']?['name_ku']?.toString() ?? 'فرۆشگا',
             totalAmount: ((m['total_amount'] ?? 0) as num).toInt(),
-            status: m['status']?.toString() ?? 'pending',
+            status: m['status']?.toString() ?? 'heading_to_store',
             date: DateTime.tryParse(m['created_at']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
             items: cartEntries,
             driverName: m['driver']?['name']?.toString() ?? 'کاروان محەمەد',
             driverPhone: m['driver']?['phone']?.toString() ?? '07702001001',
             address: m['delivery_address']?.toString() ?? 'کەلار',
             deliveryPin: m['delivery_pin']?.toString() ?? '4821',
+            storeLat: ((m['store']?['lat'] ?? 34.6836) as num).toDouble(),
+            storeLng: ((m['store']?['lng'] ?? 45.3189) as num).toDouble(),
             customerLat: ((m['delivery_lat'] ?? 34.6912) as num).toDouble(),
             customerLng: ((m['delivery_lng'] ?? 45.3264) as num).toDouble(),
           ),
@@ -1768,7 +1824,7 @@ class _MainScreenState extends State<MainScreen> {
                       id: orderCode,
                       storeName: storeName,
                       totalAmount: grandTotal,
-                      status: 'on_the_way',
+                      status: 'heading_to_store', // Driver starts on the road to vendor store!
                       date: DateTime.now(),
                       items: List.from(cartItems),
                       driverName: 'ئاراس ئەحمەد (ماتۆڕسوار)',
@@ -1777,6 +1833,8 @@ class _MainScreenState extends State<MainScreen> {
                       deliveryPin: orderCode.length >= 4
                           ? orderCode.substring(orderCode.length - 4)
                           : '4821',
+                      storeLat: matchedStore?.lat ?? 34.6836,
+                      storeLng: matchedStore?.lng ?? 45.3189,
                       customerLat: _pinnedCustomerLat ??
                           KalarGeoCatalog.forNeighborhoodId(_selectedNeighborhood.id).latitude,
                       customerLng: _pinnedCustomerLng ??
@@ -1852,17 +1910,22 @@ class _MainScreenState extends State<MainScreen> {
       final realOrderNum = (created['order_number'] ?? fallbackCode).toString();
       final realPin = (created['delivery_pin'] ?? localOrder.deliveryPin).toString();
       final realStatus = (created['status'] ?? 'pending').toString();
+      final effectiveStatus = (realStatus == 'pending' || realStatus == 'accepted' || realStatus == 'preparing')
+          ? 'heading_to_store'
+          : realStatus;
       final syncedOrder = OrderItem(
         id: realOrderNum,
         storeName: localOrder.storeName,
         totalAmount: (created['grand_total'] as num?)?.toInt() ?? grandTotal,
-        status: realStatus == 'pending' ? 'preparing' : realStatus,
+        status: effectiveStatus,
         date: DateTime.now(),
         items: localOrder.items,
         driverName: localOrder.driverName,
         driverPhone: localOrder.driverPhone,
         address: localOrder.address,
         deliveryPin: realPin,
+        storeLat: localOrder.storeLat,
+        storeLng: localOrder.storeLng,
         customerLat: localOrder.customerLat,
         customerLng: localOrder.customerLng,
       );
@@ -2427,28 +2490,64 @@ class _MainScreenState extends State<MainScreen> {
                                           ),
                                           onPressed: isGpsLocating
                                               ? null
-                                              : () {
+                                              : () async {
                                                   setModalState(() {
                                                     isGpsLocating = true;
                                                   });
 
-                                                  Future.delayed(const Duration(milliseconds: 700), () {
-                                                    setModalState(() {
-                                                      // Auto GPS pinpoint position in Kalar (Zanko district)
-                                                      tempSelected = kalarNeighborhoods[1];
-                                                      pinPosition = const Offset(0.50, 0.38);
-                                                      isGpsLocating = false;
-                                                      gpsAccuracyText = '📍 شوێنی زۆر دەقیقی GPS (کەلار)';
-                                                    });
+                                                  try {
+                                                    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                                                    LocationPermission perm = await Geolocator.checkPermission();
+                                                    if (perm == LocationPermission.denied) {
+                                                      perm = await Geolocator.requestPermission();
+                                                    }
 
+                                                    Position? pos;
+                                                    if (serviceEnabled && (perm == LocationPermission.always || perm == LocationPermission.whileInUse)) {
+                                                      pos = await Geolocator.getCurrentPosition(
+                                                        desiredAccuracy: LocationAccuracy.medium,
+                                                        timeLimit: const Duration(seconds: 5),
+                                                      );
+                                                    }
+
+                                                    if (pos != null) {
+                                                      Neighborhood closest = kalarNeighborhoods.first;
+                                                      double minDistance = double.infinity;
+                                                      for (final n in kalarNeighborhoods) {
+                                                        final geo = KalarGeoCatalog.forNeighborhoodId(n.id);
+                                                        final dist = Geolocator.distanceBetween(pos.latitude, pos.longitude, geo.latitude, geo.longitude);
+                                                        if (dist < minDistance) {
+                                                          minDistance = dist;
+                                                          closest = n;
+                                                        }
+                                                      }
+                                                      tempSelected = closest;
+                                                      _pinnedCustomerLat = pos.latitude;
+                                                      _pinnedCustomerLng = pos.longitude;
+                                                      gpsAccuracyText = '🎯 شوێنی ڕاستەقینەی GPS ()';
+                                                    } else {
+                                                      tempSelected = kalarNeighborhoods[1];
+                                                      gpsAccuracyText = '📍 شوێنی زۆر دەقیقی GPS (کەلار)';
+                                                    }
+                                                  } catch (_) {
+                                                    tempSelected = kalarNeighborhoods[1];
+                                                    gpsAccuracyText = '📍 شوێنی زۆر دەقیقی GPS (کەلار)';
+                                                  }
+
+                                                  setModalState(() {
+                                                    pinPosition = const Offset(0.50, 0.38);
+                                                    isGpsLocating = false;
+                                                  });
+
+                                                  if (context.mounted) {
                                                     ScaffoldMessenger.of(context).showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text('🎯 شوێنەکەت لەسەر نەخشەی کەلار بە دەقیقی دیاریکرا!'),
-                                                        backgroundColor: Color(0xFF059669),
-                                                        duration: Duration(seconds: 2),
+                                                      SnackBar(
+                                                        content: Text('🎯 شوێنەکەت لەسەر نەخشەی کەلار دیاریکرا: '),
+                                                        backgroundColor: const Color(0xFF059669),
+                                                        duration: const Duration(seconds: 2),
                                                       ),
                                                     );
-                                                  });
+                                                  }
                                                 },
                                           icon: isGpsLocating
                                               ? const SizedBox(
@@ -2609,7 +2708,9 @@ class _MainScreenState extends State<MainScreen> {
         String displayedQ = ''; // Debounced query
         final TextEditingController searchCtrl = TextEditingController();
 
-        final List<Map<String, dynamic>> searchCategories = [
+        final List<Map<String, dynamic>> searchCategories = _dynamicCategories.isNotEmpty
+            ? _dynamicCategories
+            : [
           {'title': 'خواردنگە و ڕێستۆرانتەکان', 'icon': Icons.restaurant_outlined, 'catName': 'خواردنگە'},
           {'title': 'مارکێت و سوپەرمارکێتەکان', 'icon': Icons.shopping_bag_outlined, 'catName': 'سوپەرمارکێت'},
           {'title': 'میوە و سەوزەی فرێش', 'icon': Icons.apple_outlined, 'catName': 'سەوزە و میوە'},
@@ -3538,6 +3639,9 @@ class _MainScreenState extends State<MainScreen> {
             _currentIndex = index;
             _selectedStore = null;
           });
+          if (index == 3) {
+            _syncCustomerOrdersFromBackend();
+          }
         },
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
@@ -3757,38 +3861,30 @@ class _MainScreenState extends State<MainScreen> {
             ),
 
             // Notification Bell Icon with Badge (RTL: Third child renders on the Left)
-            InkWell(
-              onTap: _openNotificationsModal,
-              borderRadius: BorderRadius.circular(25),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Colors.black,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.notifications_rounded, color: Colors.amber, size: 20),
-                  ),
-                  if (_unreadNotificationCount > 0)
-                    Positioned(
-                      top: -2,
-                      right: -2,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Text(
-                          '$_unreadNotificationCount',
-                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                        ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  onPressed: _openNotificationsModal,
+                  icon: const Icon(Icons.notifications_rounded, color: Colors.black, size: 26),
+                ),
+                if (_unreadNotificationCount > 0)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '$_unreadNotificationCount',
+                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ],
         ),
@@ -3865,7 +3961,7 @@ class _MainScreenState extends State<MainScreen> {
   // 🏠 TAB 1: HOME VIEW (EXACT MATCH FOR SCREENSHOT CATEGORIES GRID)
   // ============================================================================
   Widget _buildHomeTab() {
-    final List<Map<String, dynamic>> categoriesList = [
+    final List<Map<String, dynamic>> fallbackCategories = [
       {
         'title': _t('خواردنگە و ڕێستۆرانتەکان'),
         'image': 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600',
@@ -3915,6 +4011,9 @@ class _MainScreenState extends State<MainScreen> {
         'catName': 'نانەواخانە',
       },
     ];
+
+    final List<Map<String, dynamic>> categoriesList =
+        _dynamicCategories.isNotEmpty ? _dynamicCategories : fallbackCategories;
 
     // 1-Column List of Vertical Store Cards for Category View
     if (_selectedCategory != 'گشتی') {
@@ -4037,102 +4136,141 @@ class _MainScreenState extends State<MainScreen> {
       children: [
         _buildLocationBar(),
         const SizedBox(height: 12),
-        // Promo Banner Slider (Daily Fruit & Veggies Market)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-            child: Stack(
-              children: [
-                Image.network(
-                  'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=800',
-                  height: 170,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
-                Container(
-                  height: 170,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.black.withOpacity(0.7), Colors.transparent],
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
+        // Dynamic Promo Banner Slider
+        Builder(
+          builder: (context) {
+            final hasDynamic = _dynamicBanners.isNotEmpty;
+            final topBanner = hasDynamic ? _dynamicBanners.first : null;
+            final bannerImg = (hasDynamic && topBanner?['image_url'] != null && topBanner!['image_url'].toString().isNotEmpty)
+                ? topBanner['image_url'].toString()
+                : 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=800';
+            final bannerBadge = (hasDynamic && topBanner?['badge_text'] != null)
+                ? topBanner!['badge_text'].toString()
+                : 'تەواو تازه';
+            final bannerTitle = (hasDynamic && topBanner?['title_ku'] != null)
+                ? topBanner!['title_ku'].toString()
+                : 'بازاڕی میوە و سەوزەی ڕۆژانە';
+            final bannerSub = (hasDynamic && topBanner?['subtitle_ku'] != null)
+                ? topBanner!['subtitle_ku'].toString()
+                : 'هەموو ڕۆژێک میوە و سەوزەی تازەی خۆماڵی بە نرخی بازاڕ لە کەلار';
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+                child: Stack(
+                  children: [
+                    Image.network(
+                      bannerImg,
+                      height: 170,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(height: 170, color: const Color(0xFF1E293B)),
                     ),
-                  ),
-                ),
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFAC800),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.local_offer, size: 12, color: Colors.black),
-                        SizedBox(width: 4),
-                        Text('تەواو تازه', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black)),
-                      ],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text('داشكاندنی REGA', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-                Positioned(
-                  bottom: 12,
-                  right: 16,
-                  left: 16,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'بازاڕی میوە و سەوزەی ڕۆژانە',
-                        style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'هەموو ڕۆژێک میوە و سەوزەی تازەی خۆماڵی بە نرخی بازاڕ لە کەلار',
-                        style: TextStyle(color: Colors.white70, fontSize: 11),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF422006),
-                          foregroundColor: const Color(0xFFFAC800),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    Container(
+                      height: 170,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
                         ),
-                        onPressed: () => setState(() => _selectedCategory = 'سەوزە و میوە'),
+                      ),
+                    ),
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFAC800),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Text('داواکردنی ئێستا', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                            SizedBox(width: 4),
-                            Icon(Icons.arrow_forward, textDirection: TextDirection.ltr, size: 12),
+                          children: [
+                            const Icon(Icons.local_offer, size: 12, color: Colors.black),
+                            const SizedBox(width: 4),
+                            Text(bannerBadge, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black)),
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text('داشكاندنی REGA', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 12,
+                      right: 16,
+                      left: 16,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            bannerTitle,
+                            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            bannerSub,
+                            style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF422006),
+                              foregroundColor: const Color(0xFFFAC800),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () {
+                              if (hasDynamic && topBanner != null) {
+                                if (topBanner['target_type'] == 'store' && topBanner['store_id'] != null) {
+                                  final matchStore = allStores.firstWhere(
+                                    (st) => st.id == 'db_store_',
+                                    orElse: () => allStores.first,
+                                  );
+                                  setState(() => _selectedStore = matchStore);
+                                  return;
+                                } else if (topBanner['target_type'] == 'category' && topBanner['category'] != null) {
+                                  final cat = topBanner['category'];
+                                  final cName = cat is Map ? cat['name_ku'] : null;
+                                  if (cName != null) {
+                                    setState(() => _selectedCategory = cName.toString());
+                                    return;
+                                  }
+                                }
+                              }
+                              setState(() => _selectedCategory = 'سەوزە و میوە');
+                            },
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Text('داواکردنی ئێستا', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                SizedBox(width: 4),
+                                Icon(Icons.arrow_forward, textDirection: TextDirection.ltr, size: 12),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
 
         const SizedBox(height: 8),
@@ -5778,13 +5916,15 @@ class _MainScreenState extends State<MainScreen> {
                             id: '#10245',
                             storeName: 'چێشتخانەی دیوان - کەلار',
                             totalAmount: 18000,
-                            status: 'preparing',
+                            status: 'heading_to_store',
                             date: DateTime.now(),
                             items: const [],
                             driverName: 'کاروان محەمەد (ماتۆڕسوار)',
                             driverPhone: '07702001001',
                             address: '${_selectedNeighborhood.name} - شاری کەلار',
                             deliveryPin: '4821',
+                            storeLat: 34.6836,
+                            storeLng: 45.3189,
                             customerLat: _pinnedCustomerLat ?? demoCoords.latitude,
                             customerLng: _pinnedCustomerLng ?? demoCoords.longitude,
                           );
@@ -5800,19 +5940,27 @@ class _MainScreenState extends State<MainScreen> {
                     ],
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: _orders.length,
-                  itemBuilder: (context, idx) {
-                    final order = _orders[idx];
-                    // Apply filter logic
-                    if (_selectedOrderFilter != 'هەموو') {
-                      if (_selectedOrderFilter == 'بەردەوام' && (order.status == 'delivered' || order.status == 'cancelled')) return const SizedBox.shrink();
-                      if (_selectedOrderFilter == 'تەواوبوو' && order.status != 'delivered') return const SizedBox.shrink();
-                      if (_selectedOrderFilter == 'هەڵوەشایەوە' && order.status != 'cancelled') return const SizedBox.shrink();
-                    }
-                    return _buildOrderCard(order);
-                  },
+              : RefreshIndicator(
+                  color: const Color(0xFFF59E0B),
+                  onRefresh: _syncCustomerOrdersFromBackend,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    itemCount: _orders.length,
+                    itemBuilder: (context, idx) {
+                      final order = _orders[idx];
+                      final isDelivered = order.status == 'delivered' || order.status == 'completed';
+                      final isCancelled = order.status == 'cancelled' || order.status == 'rejected';
+                      final isActive = !isDelivered && !isCancelled;
+
+                      // Apply filter logic
+                      if (_selectedOrderFilter != 'هەموو') {
+                        if (_selectedOrderFilter == 'بەردەوام' && !isActive) return const SizedBox.shrink();
+                        if (_selectedOrderFilter == 'تەواوبوو' && !isDelivered) return const SizedBox.shrink();
+                        if (_selectedOrderFilter == 'هەڵوەشایەوە' && !isCancelled) return const SizedBox.shrink();
+                      }
+                      return _buildOrderCard(order);
+                    },
+                  ),
                 ),
         ),
       ],
@@ -6054,6 +6202,7 @@ class _MainScreenState extends State<MainScreen> {
             deliveryPin: order.deliveryPin,
             totalAmount: order.totalAmount,
             initialStatus: order.status,
+            storeLocation: LatLng(order.storeLat, order.storeLng),
             customerLocation: LatLng(order.customerLat, order.customerLng),
             onOrderStatusChanged: (nextStatus) {
               if (mounted) {
@@ -6317,11 +6466,34 @@ class _MainScreenState extends State<MainScreen> {
     ];
 
     int currentStep = 0;
-    if (order.status == 'pending') currentStep = 0;
-    else if (order.status == 'preparing') currentStep = 2;
-    else if (order.status == 'on_the_way') currentStep = 3;
-    else if (order.status == 'delivered') currentStep = 4;
-    else if (order.status == 'cancelled') currentStep = -1;
+    switch (order.status) {
+      case 'pending':
+      case 'accepted':
+        currentStep = 0;
+        break;
+      case 'preparing':
+      case 'ready':
+        currentStep = 1;
+        break;
+      case 'picked_up':
+      case 'arrived_pickup':
+        currentStep = 2;
+        break;
+      case 'on_the_way':
+      case 'arrived_customer':
+        currentStep = 3;
+        break;
+      case 'delivered':
+      case 'completed':
+        currentStep = 4;
+        break;
+      case 'cancelled':
+      case 'rejected':
+        currentStep = -1;
+        break;
+      default:
+        currentStep = 0;
+    }
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
@@ -6412,14 +6584,51 @@ class _MainScreenState extends State<MainScreen> {
     Color statusText = const Color(0xFF065F46);
     String statusStr = _t('تەواوبوو');
     
-    if (order.status == 'pending' || order.status == 'preparing' || order.status == 'on_the_way') {
-      statusBg = Colors.amber.shade100;
-      statusText = Colors.amber.shade900;
-      statusStr = _t('بەڕێوەیە (زیندوو)');
-    } else if (order.status == 'cancelled') {
-      statusBg = Colors.red.shade100;
-      statusText = Colors.red.shade900;
-      statusStr = _t('هەڵوەشایەوە');
+    switch (order.status) {
+      case 'pending':
+      case 'accepted':
+        statusBg = const Color(0xFFFEF3C7);
+        statusText = const Color(0xFFB45309);
+        statusStr = _t('وەرگیرا');
+        break;
+      case 'preparing':
+        statusBg = const Color(0xFFDBEAFE);
+        statusText = const Color(0xFF1D4ED8);
+        statusStr = _t('لە ئامادەکردن');
+        break;
+      case 'ready':
+        statusBg = const Color(0xFFE0E7FF);
+        statusText = const Color(0xFF4338CA);
+        statusStr = _t('ئامادەیە بۆ شۆفێر');
+        break;
+      case 'picked_up':
+      case 'arrived_pickup':
+        statusBg = const Color(0xFFF3E8FF);
+        statusText = const Color(0xFF7E22CE);
+        statusStr = _t('وەرگیرا لە فرۆشگا');
+        break;
+      case 'on_the_way':
+      case 'arrived_customer':
+        statusBg = const Color(0xFFFEF9C3);
+        statusText = const Color(0xFFA16207);
+        statusStr = _t('لە ڕێگایە (بەڕێوەیە)');
+        break;
+      case 'delivered':
+      case 'completed':
+        statusBg = const Color(0xFFD1FAE5);
+        statusText = const Color(0xFF065F46);
+        statusStr = _t('تەواوبوو');
+        break;
+      case 'cancelled':
+      case 'rejected':
+        statusBg = const Color(0xFFFEE2E2);
+        statusText = const Color(0xFFB91C1C);
+        statusStr = _t('هەڵوەشایەوە');
+        break;
+      default:
+        statusBg = Colors.grey.shade100;
+        statusText = Colors.grey.shade800;
+        statusStr = order.status;
     }
 
     return Container(
@@ -7184,7 +7393,7 @@ class _MainScreenState extends State<MainScreen> {
 
         const SizedBox(height: 12),
 
-        // 4. ADDRESS SECTION
+        // 4. ADDRESS SECTION (Interactive Location Card)
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -7192,25 +7401,37 @@ class _MainScreenState extends State<MainScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: Colors.grey.shade100),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  GestureDetector(
-                    onTap: () {},
+                  InkWell(
+                    onTap: _showLocationPicker,
+                    borderRadius: BorderRadius.circular(10),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.amber.shade50,
                         borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.amber.shade200, width: 0.8),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.near_me_outlined, size: 14, color: Color(0xFFB45309)),
+                          const Icon(Icons.near_me_rounded, size: 14, color: Color(0xFFB45309)),
                           const SizedBox(width: 4),
-                          Text(_t('دۆزینەوەی لۆکەیشن'), style: GoogleFonts.notoKufiArabic(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFB45309))),
+                          Text(
+                            _t('دۆزینەوەی لۆکەیشن'),
+                            style: GoogleFonts.notoKufiArabic(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFB45309)),
+                          ),
                         ],
                       ),
                     ),
@@ -7219,32 +7440,96 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       Text(_t('ناونیشانی تۆ'), style: GoogleFonts.notoKufiArabic(fontSize: 14, fontWeight: FontWeight.bold)),
                       const SizedBox(width: 6),
-                      const Icon(Icons.location_on_outlined, color: Color(0xFFB45309), size: 20),
+                      const Icon(Icons.location_on_rounded, color: Color(0xFFB45309), size: 20),
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  shape: BoxShape.circle,
+              const SizedBox(height: 14),
+              InkWell(
+                onTap: _showLocationPicker,
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFAC800),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.location_on_rounded, size: 22, color: Color(0xFF422006)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  _selectedNeighborhood.name,
+                                  style: GoogleFonts.notoKufiArabic(fontSize: 14.5, fontWeight: FontWeight.w900, color: const Color(0xFF1E293B)),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF10B981).withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'GPS چالاکە',
+                                    style: GoogleFonts.notoKufiArabic(fontSize: 9.5, fontWeight: FontWeight.w800, color: const Color(0xFF059669)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'شاری کەلار • گەیاندن:  د.ع',
+                              style: GoogleFonts.notoKufiArabic(fontSize: 11.5, color: Colors.grey.shade700),
+                            ),
+                            if (_pinnedCustomerLat != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  '📍 GPS: (, )',
+                                  style: GoogleFonts.notoKufiArabic(fontSize: 10, color: const Color(0xFFB45309), fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFFB45309)),
+                    ],
+                  ),
                 ),
-                child: Icon(Icons.location_on_rounded, size: 30, color: Colors.grey.shade200),
               ),
-              const SizedBox(height: 12),
-              Text(_t('هیچ ناونیشانێک تۆمار نەکراوە'), style: GoogleFonts.notoKufiArabic(fontSize: 13, color: Colors.grey.shade400, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 6),
+              const SizedBox(height: 10),
               GestureDetector(
-                onTap: () {},
-                child: Text(_t('دۆزینەوەی لۆکەیشن'), style: GoogleFonts.notoKufiArabic(fontSize: 13, color: const Color(0xFFB45309), fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
+                onTap: _showLocationPicker,
+                child: Text(
+                  _t('کردنەوەی نەخشەی کەلار بۆ دیاریکردنی ماڵەکەت'),
+                  style: GoogleFonts.notoKufiArabic(
+                    fontSize: 12,
+                    color: const Color(0xFFB45309),
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
             ],
           ),
         ),
-
         const SizedBox(height: 12),
 
         // 5. SUPPORT & POLICIES MENU
@@ -7468,6 +7753,11 @@ class _MainScreenState extends State<MainScreen> {
     'هەڵگیرا': {'کوردی': 'هەڵگیرا', 'العربية': 'تم الاستلام للتوصيل', 'English': 'Picked up'},
     'لە ڕێگایە': {'کوردی': 'لە ڕێگایە', 'العربية': 'في الطريق', 'English': 'On the way'},
     'ڕادەست کرا': {'کوردی': 'ڕادەست کرا', 'العربية': 'تم التسليم', 'English': 'Delivered'},
+    'لە ئامادەکردن': {'کوردی': 'لە ئامادەکردن', 'العربية': 'قيد التحضير', 'English': 'Preparing'},
+    'ئامادەیە بۆ شۆفێر': {'کوردی': 'ئامادەیە بۆ شۆفێر', 'العربية': 'جاهز للسائق', 'English': 'Ready for Driver'},
+    'وەرگیرا لە فرۆشگا': {'کوردی': 'وەرگیرا لە فرۆشگا', 'العربية': 'تم الاستلام من المتجر', 'English': 'Picked up from Store'},
+    'لە ڕێگایە (بەڕێوەیە)': {'کوردی': 'لە ڕێگایە (بەڕێوەیە)', 'العربية': 'في الطريق إليك', 'English': 'On the way'},
+    'شۆفێر گەیشتە ناونیشان': {'کوردی': 'شۆفێر گەیشتە ناونیشان', 'العربية': 'وصل السائق إلى العنوان', 'English': 'Driver Arrived'},
     'Jan': {'کوردی': 'کانونی ٢', 'العربية': 'يناير', 'English': 'Jan'},
     'Feb': {'کوردی': 'شوبات', 'العربية': 'فبراير', 'English': 'Feb'},
     'Mar': {'کوردی': 'ئازار', 'العربية': 'مارس', 'English': 'Mar'},

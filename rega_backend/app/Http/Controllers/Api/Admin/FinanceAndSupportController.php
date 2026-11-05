@@ -244,6 +244,35 @@ class FinanceAndSupportController extends Controller
         ]);
     }
 
+    public function ticketsStore(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'subject' => ['required', 'string', 'max:200'],
+            'description' => ['required', 'string'],
+            'priority' => ['nullable', 'string', 'in:low,medium,high,urgent'],
+            'category' => ['nullable', 'string'],
+            'order_id' => ['nullable', 'exists:orders,id'],
+            'user_id' => ['nullable', 'exists:users,id'],
+        ]);
+
+        $ticket = SupportTicket::create([
+            'ticket_number' => 'TCK-' . strtoupper(Str::random(6)),
+            'user_id' => $validated['user_id'] ?? $request->user()->id,
+            'order_id' => $validated['order_id'] ?? null,
+            'subject' => $validated['subject'],
+            'description' => $validated['description'],
+            'category' => $validated['category'] ?? 'general',
+            'priority' => $validated['priority'] ?? 'medium',
+            'status' => 'open',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تیکت بە سەرکەوتوویی دروستکرا.',
+            'data' => $ticket->load(['user:id,name,phone,role', 'order:id,order_number,status']),
+        ], 201);
+    }
+
     public function ticketsUpdate(Request $request, SupportTicket $ticket): JsonResponse
     {
         $validated = $request->validate([

@@ -133,6 +133,518 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
+  Future<void> _showCreateOrderDialog() async {
+    try {
+      final results = await Future.wait([
+        widget.api.getStores(),
+        widget.api.getNeighborhoods(),
+        widget.api.getCustomers(),
+        widget.api.getProducts(),
+      ]);
+      final stores = results[0];
+      final zones = results[1];
+      final customers = results[2];
+      final products = results[3];
+
+      if (stores.isEmpty) {
+        _showSnack('هیچ فرۆشگایەک بەردەست نییە', error: true);
+        return;
+      }
+
+      int? selectedCustomerId = customers.isNotEmpty ? ((customers.first as Map<String, dynamic>)['id'] as int) : null;
+      int selectedStoreId = ((stores.first as Map<String, dynamic>)['id'] as int);
+      int? selectedZoneId = zones.isNotEmpty ? ((zones.first as Map<String, dynamic>)['id'] as int) : null;
+
+      final addrCtrl = TextEditingController(text: 'کەلار - ناوەندی بازاڕ');
+      final notesCtrl = TextEditingController();
+      String paymentMethod = 'cash';
+      final Map<int, int> cartQty = {};
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final storeProducts = products
+                .where((p) => (p as Map<String, dynamic>)['store_id'] == selectedStoreId)
+                .toList();
+
+            return AlertDialog(
+              title: const Text('تۆمارکردنی داواکاری نوێ (Admin Order Creator)'),
+              content: SizedBox(
+                width: 580,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<int?>(
+                        initialValue: selectedCustomerId,
+                        decoration: const InputDecoration(labelText: 'کڕیار *'),
+                        items: customers.map((c) {
+                          final m = c as Map<String, dynamic>;
+                          return DropdownMenuItem<int?>(
+                            value: m['id'] as int,
+                            child: Text('${m['name']} (${m['phone']})'),
+                          );
+                        }).toList(),
+                        onChanged: (v) => setDialogState(() => selectedCustomerId = v),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<int>(
+                              initialValue: selectedStoreId,
+                              decoration: const InputDecoration(labelText: 'فرۆشگا *'),
+                              items: stores.map((s) {
+                                final m = s as Map<String, dynamic>;
+                                return DropdownMenuItem<int>(
+                                  value: m['id'] as int,
+                                  child: Text(m['name_ku']?.toString() ?? ''),
+                                );
+                              }).toList(),
+                              onChanged: (v) {
+                                if (v == null) return;
+                                setDialogState(() {
+                                  selectedStoreId = v;
+                                  cartQty.clear();
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<int?>(
+                              initialValue: selectedZoneId,
+                              decoration: const InputDecoration(labelText: 'گەڕەکی کەلار'),
+                              items: zones.map((z) {
+                                final m = z as Map<String, dynamic>;
+                                return DropdownMenuItem<int?>(
+                                  value: m['id'] as int,
+                                  child: Text('${m['name_ku']} (${m['delivery_fee']} د.ع)'),
+                                );
+                              }).toList(),
+                              onChanged: (v) => setDialogState(() => selectedZoneId = v),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: addrCtrl,
+                        decoration: const InputDecoration(labelText: 'ناونیشانی گەیاندن *'),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text('🍱 هەڵبژاردنی بەرهەمەکان:', style: TextStyle(fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 8),
+                      if (storeProducts.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text('ئەم فرۆشگایە هیچ بەرهەمێکی بەردەستی نییە'),
+                        )
+                      else
+                        ...storeProducts.map((raw) {
+                          final p = raw as Map<String, dynamic>;
+                          final pid = p['id'] as int;
+                          final qty = cartQty[pid] ?? 0;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.withValues(alpha: 0.25)),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${p['name_ku']} — ${formatIqd(p['discount_price'] ?? p['price'], lang: widget.lang)}',
+                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: qty > 0
+                                      ? () => setDialogState(() {
+                                            if (qty == 1) {
+                                              cartQty.remove(pid);
+                                            } else {
+                                              cartQty[pid] = qty - 1;
+                                            }
+                                          })
+                                      : null,
+                                  icon: const Icon(Icons.remove_circle_outline_rounded),
+                                ),
+                                Text('$qty', style: const TextStyle(fontWeight: FontWeight.w900)),
+                                IconButton(
+                                  onPressed: () => setDialogState(() => cartQty[pid] = qty + 1),
+                                  icon: const Icon(Icons.add_circle_rounded, color: RegaColors.emeraldDark),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: notesCtrl,
+                        decoration: const InputDecoration(labelText: 'تێبینی داواکاری'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (cartQty.isEmpty) {
+                      _showSnack('تکایە لانیکەم یەک بەرهەم دیاریبکە', error: true);
+                      return;
+                    }
+                    Navigator.pop(ctx);
+                    try {
+                      final created = await widget.api.createAdminOrder({
+                        'customer_id': selectedCustomerId,
+                        'store_id': selectedStoreId,
+                        'neighborhood_id': selectedZoneId,
+                        'delivery_address': addrCtrl.text.trim(),
+                        'payment_method': paymentMethod,
+                        'customer_notes': notesCtrl.text.trim(),
+                        'items': cartQty.entries
+                            .map((e) => {'product_id': e.key, 'quantity': e.value})
+                            .toList(),
+                      });
+                      _showSnack('داواکاری ${created['order_number']} دروستکرا! PIN: ${created['delivery_pin']} ✅');
+                      widget.onOrderChanged?.call();
+                      _load();
+                    } catch (e) {
+                      _showSnack(e.toString(), error: true);
+                    }
+                  },
+                  child: const Text('دروستکردن'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      _showSnack(e.toString(), error: true);
+    }
+  }
+
+  void _showEditOrderDialog(Map<String, dynamic> o) {
+    final nameCtrl = TextEditingController(text: o['customer_name']?.toString() ?? '');
+    final phoneCtrl = TextEditingController(text: o['customer_phone']?.toString() ?? '');
+    final addrCtrl = TextEditingController(text: o['delivery_address']?.toString() ?? '');
+    final feeCtrl = TextEditingController(text: (o['delivery_fee'] ?? 1500).toString());
+    final notesCtrl = TextEditingController(text: o['customer_notes']?.toString() ?? '');
+    String status = o['status']?.toString() ?? 'pending';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text('دەستکاریکردنی داواکاری ${o['order_number']}'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: nameCtrl,
+                          decoration: const InputDecoration(labelText: 'ناوی کڕیار *'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: phoneCtrl,
+                          decoration: const InputDecoration(labelText: 'ژمارەی مۆبایل *'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: addrCtrl,
+                    decoration: const InputDecoration(labelText: 'ناونیشانی گەیاندن *'),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: feeCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'کرێی گەیاندن (د.ع)'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: status,
+                          decoration: const InputDecoration(labelText: 'دۆخی داواکاری'),
+                          items: const [
+                            DropdownMenuItem(value: 'pending', child: Text('چاوەڕوان')),
+                            DropdownMenuItem(value: 'preparing', child: Text('لە ئامادەکردن')),
+                            DropdownMenuItem(value: 'ready', child: Text('ئامادەیە بۆ شۆفێر')),
+                            DropdownMenuItem(value: 'picked_up', child: Text('وەرگیراوە لە فرۆشگا')),
+                            DropdownMenuItem(value: 'on_the_way', child: Text('لە ڕێگایە بۆ کڕیار')),
+                            DropdownMenuItem(value: 'arrived_customer', child: Text('گەیشتە بەردەم ماڵ')),
+                            DropdownMenuItem(value: 'delivered', child: Text('گەیەندرا بە سەرکەوتوویی')),
+                            DropdownMenuItem(value: 'cancelled', child: Text('هەڵوەشاوەتەوە')),
+                          ],
+                          onChanged: (v) => setDialogState(() => status = v ?? status),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: notesCtrl,
+                    decoration: const InputDecoration(labelText: 'تێبینی کڕیار'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  await widget.api.updateOrder(o['id'] as int, {
+                    'customer_name': nameCtrl.text.trim(),
+                    'customer_phone': phoneCtrl.text.trim(),
+                    'delivery_address': addrCtrl.text.trim(),
+                    'delivery_fee': int.tryParse(feeCtrl.text) ?? o['delivery_fee'],
+                    'status': status,
+                    'customer_notes': notesCtrl.text.trim(),
+                  });
+                  _showSnack('داواکاری نوێکرایەوە ✅');
+                  widget.onOrderChanged?.call();
+                  _load();
+                } catch (e) {
+                  _showSnack(e.toString(), error: true);
+                }
+              },
+              child: Text(AppStrings.tr('save', widget.lang)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteOrder(Map<String, dynamic> o) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('سڕینەوەی داواکاری ${o['order_number']}'),
+        content: const Text('ئایا دڵنیایت لە سڕینەوەی ئەم داواکارییە بە تەواوی لە سیستەم؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await widget.api.deleteOrder(o['id'] as int);
+                _showSnack('داواکاری سڕایەوە ✅');
+                widget.onOrderChanged?.call();
+                _load();
+              } catch (e) {
+                _showSnack(e.toString(), error: true);
+              }
+            },
+            child: const Text('سڕینەوە'),
+          ),
+        ],
+      ),
+    );
+  }
+
+    Widget _buildAdminOrderStepper(String currentStatus, int orderId, BuildContext dialogCtx) {
+    final steps = [
+      ('pending', 'وەرگیرا'),
+      ('ready', 'ئامادەیە'),
+      ('picked_up', 'هەڵگیرا'),
+      ('on_the_way', 'لە ڕێگایە'),
+      ('delivered', 'ڕادەست کرا'),
+    ];
+
+    int currentStep = 0;
+    switch (currentStatus) {
+      case 'pending':
+      case 'accepted':
+        currentStep = 0;
+        break;
+      case 'preparing':
+      case 'ready':
+        currentStep = 1;
+        break;
+      case 'picked_up':
+      case 'arrived_pickup':
+        currentStep = 2;
+        break;
+      case 'on_the_way':
+      case 'arrived_customer':
+        currentStep = 3;
+        break;
+      case 'delivered':
+      case 'completed':
+        currentStep = 4;
+        break;
+      case 'cancelled':
+      case 'rejected':
+        currentStep = -1;
+        break;
+      default:
+        currentStep = 0;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'هێڵی قۆناغەکانی داواکاری (Order Stepper):',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: currentStep == -1 ? Colors.red.shade50 : const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: currentStep == -1 ? Colors.red.shade200 : const Color(0xFFFDE68A)),
+                ),
+                child: Text(
+                  currentStep == -1 ? 'هەڵوەشاوەتەوە' : 'قۆناغی ${currentStep + 1} لە ٥',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    color: currentStep == -1 ? Colors.red.shade700 : const Color(0xFFB45309),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: List.generate(steps.length, (index) {
+              final isCompleted = index <= currentStep && currentStep != -1;
+              final isCurrent = index == currentStep;
+              final isLast = index == steps.length - 1;
+              final stepTargetStatus = steps[index].$1;
+
+              return Expanded(
+                flex: isLast ? 0 : 1,
+                child: Row(
+                  children: [
+                    Tooltip(
+                      message: 'کلیک بکە بۆ گۆڕین بۆ ${steps[index].$2}',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () async {
+                          Navigator.pop(dialogCtx);
+                          try {
+                            await widget.api.updateOrderStatus(orderId, stepTargetStatus);
+                            _showSnack('بارودۆخ گۆڕدرا بۆ ${steps[index].$2} ✅');
+                            widget.onOrderChanged?.call();
+                            _load();
+                          } catch (e) {
+                            _showSnack(e.toString(), error: true);
+                          }
+                        },
+                        child: Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: isCompleted ? const Color(0xFFF59E0B) : Colors.grey.shade200,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isCurrent ? const Color(0xFFB45309) : (isCompleted ? const Color(0xFFF59E0B) : Colors.grey.shade300),
+                              width: isCurrent ? 2.5 : 1.5,
+                            ),
+                            boxShadow: isCompleted
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                                      blurRadius: 5,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: isCompleted
+                              ? const Icon(Icons.check, size: 12, color: Colors.white)
+                              : Center(
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                    if (!isLast)
+                      Expanded(
+                        child: Container(
+                          height: 3,
+                          color: (index < currentStep && currentStep != -1)
+                              ? const Color(0xFFF59E0B)
+                              : Colors.grey.shade200,
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(steps.length, (index) {
+              final isCompleted = index <= currentStep && currentStep != -1;
+              final isCurrent = index == currentStep;
+              return Expanded(
+                child: Text(
+                  steps[index].$2,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: isCurrent ? FontWeight.w900 : (isCompleted ? FontWeight.bold : FontWeight.normal),
+                    color: isCurrent ? const Color(0xFFB45309) : (isCompleted ? Colors.black87 : Colors.grey.shade400),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showOrderDetailsModal(int orderId) async {
     try {
       final detail = await widget.api.getOrderDetails(orderId);
@@ -159,6 +671,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildAdminOrderStepper(detail['status']?.toString() ?? 'pending', orderId, ctx),
                   // Dual Security PIN Banner
                   Container(
                     padding: const EdgeInsets.all(14),
@@ -287,7 +800,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final st in ['preparing', 'ready', 'picked_up', 'on_the_way', 'delivered', 'cancelled'])
+                      for (final st in ['pending', 'preparing', 'ready', 'picked_up', 'on_the_way', 'delivered', 'cancelled'])
                         OutlinedButton(
                           onPressed: () async {
                             Navigator.pop(ctx);
@@ -378,6 +891,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: RegaColors.gold,
+                        foregroundColor: const Color(0xFF0F172A),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      ),
+                      onPressed: _showCreateOrderDialog,
+                      icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
+                      label: const Text('داواکاری نوێ', style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: RegaColors.emerald,
@@ -525,7 +1048,18 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                                             ),
                                           ),
-                                          const SizedBox(width: 8),
+                                          const SizedBox(width: 6),
+                                          IconButton(
+                                            icon: const Icon(Icons.edit_rounded, color: RegaColors.blue, size: 19),
+                                            tooltip: 'دەستکاریکردنی داواکاری',
+                                            onPressed: () => _showEditOrderDialog(o),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.delete_outline_rounded, color: RegaColors.crimson, size: 19),
+                                            tooltip: 'سڕینەوەی داواکاری',
+                                            onPressed: () => _confirmDeleteOrder(o),
+                                          ),
+                                          const SizedBox(width: 6),
                                           ElevatedButton(
                                             onPressed: () => _showOrderDetailsModal(o['id'] as int),
                                             child: const Text('وردەکاری و کۆنترۆڵ'),

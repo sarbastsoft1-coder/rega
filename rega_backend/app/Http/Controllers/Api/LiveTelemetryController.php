@@ -45,7 +45,6 @@ class LiveTelemetryController extends Controller
         }
 
         $order = Order::with(['store', 'driver.driverProfile', 'items'])
-            ->whereNotIn('status', ['delivered', 'cancelled', 'rejected'])
             ->where(function ($q) use ($ref) {
                 $q->where('order_number', $ref)
                     ->orWhere('order_number', 'RA-' . $ref)
@@ -400,7 +399,7 @@ class LiveTelemetryController extends Controller
             $driverStatus = 'picked_up';
             $speed = 12.0;
         } else {
-            $status = 'preparing';
+            $status = 'heading_to_store';
             $driverStatus = 'driver_arriving_pickup';
             $speed = 29.0;
         }

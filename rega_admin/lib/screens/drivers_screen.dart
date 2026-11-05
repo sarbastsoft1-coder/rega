@@ -128,21 +128,24 @@ class _DriversScreenState extends State<DriversScreen> {
     );
   }
 
-  void _showAddDriverDialog() {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final passCtrl = TextEditingController(text: 'password123');
-    final motorCtrl = TextEditingController(text: 'هۆندا CBR 150R');
-    final plateCtrl = TextEditingController();
-    final yearCtrl = TextEditingController(text: '2024');
-    final colorCtrl = TextEditingController(text: 'ڕەش و سەوز');
-    bool verifiedNow = true;
+  void _showDriverFormDialog({Map<String, dynamic>? existing}) {
+    final isEdit = existing != null;
+    final u = existing?['user'] as Map<String, dynamic>? ?? {};
+    final nameCtrl = TextEditingController(text: u['name']?.toString() ?? '');
+    final phoneCtrl = TextEditingController(text: u['phone']?.toString() ?? '');
+    final passCtrl = TextEditingController(text: isEdit ? '' : 'password123');
+    final motorCtrl = TextEditingController(text: existing?['motor_type']?.toString() ?? 'هۆندا CBR 150R');
+    final plateCtrl = TextEditingController(text: existing?['plate_number']?.toString() ?? '');
+    final yearCtrl = TextEditingController(text: existing?['model_year']?.toString() ?? '2024');
+    final colorCtrl = TextEditingController(text: existing?['motor_color']?.toString() ?? 'ڕەش و سەوز');
+    bool verifiedNow = existing?['is_verified'] ?? true;
+    bool onlineNow = existing?['is_online'] ?? false;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('تۆمارکردنی شۆفێری نوێ لە سیستەمی REGA'),
+          title: Text(isEdit ? 'دەستکاریکردنی زانیاری شۆفێر (${existing['driver_code']})' : 'تۆمارکردنی شۆفێری نوێ لە سیستەمی REGA'),
           content: SizedBox(
             width: 480,
             child: SingleChildScrollView(
@@ -166,7 +169,10 @@ class _DriversScreenState extends State<DriversScreen> {
                       Expanded(
                         child: TextField(
                           controller: passCtrl,
-                          decoration: const InputDecoration(labelText: 'وشەی نهێنی'),
+                          obscureText: true,
+                          decoration: InputDecoration(
+                            labelText: isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *',
+                          ),
                         ),
                       ),
                     ],
@@ -203,8 +209,14 @@ class _DriversScreenState extends State<DriversScreen> {
                   CheckboxListTile(
                     value: verifiedNow,
                     onChanged: (v) => setDialogState(() => verifiedNow = v ?? false),
-                    title: const Text('پشتڕاستکردنەوەی دەستبەجێی هەر ٣ بەڵگەنامە یاساییەکان (KYC)'),
+                    title: const Text('پشتڕاستکردنی یاسایی KYC'),
                   ),
+                  if (isEdit)
+                    CheckboxListTile(
+                      value: onlineNow,
+                      onChanged: (v) => setDialogState(() => onlineNow = v ?? false),
+                      title: const Text('دۆخی ئۆنلاین / ئۆفلاین'),
+                    ),
                 ],
               ),
             ),
@@ -219,17 +231,26 @@ class _DriversScreenState extends State<DriversScreen> {
                 }
                 Navigator.pop(ctx);
                 try {
-                  await widget.api.createDriver({
+                  final payload = <String, dynamic>{
                     'name': nameCtrl.text.trim(),
                     'phone': phoneCtrl.text.trim(),
-                    'password': passCtrl.text.trim(),
                     'motor_type': motorCtrl.text.trim(),
                     'plate_number': plateCtrl.text.trim(),
                     'model_year': yearCtrl.text.trim(),
                     'motor_color': colorCtrl.text.trim(),
                     'is_verified': verifiedNow,
-                  });
-                  _showSnack('شۆفێری نوێ بە سەرکەوتوویی تۆمارکرا');
+                  };
+                  if (passCtrl.text.trim().isNotEmpty) {
+                    payload['password'] = passCtrl.text.trim();
+                  }
+                  if (isEdit) {
+                    payload['is_online'] = onlineNow;
+                    await widget.api.updateDriver(existing['id'] as int, payload);
+                    _showSnack('زانیاری شۆفێر نوێکرایەوە ✅');
+                  } else {
+                    await widget.api.createDriver(payload);
+                    _showSnack('شۆفێری نوێ بە سەرکەوتوویی تۆمارکرا ✅');
+                  }
                   _load();
                 } catch (e) {
                   _showSnack(e.toString(), error: true);
@@ -253,7 +274,7 @@ class _DriversScreenState extends State<DriversScreen> {
             title: AppStrings.tr('nav_drivers', widget.lang),
             subtitle: 'بەڕێوەبردنی ماتۆڕسوارەکان، پشکنینی ٣ بەڵگەنامە یاساییەکە (KYC) و پارەی کاشی کۆکراوە',
             trailing: ElevatedButton.icon(
-              onPressed: _showAddDriverDialog,
+              onPressed: () => _showDriverFormDialog(),
               icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
               label: const Text('تۆمارکردنی شۆفێری نوێ'),
             ),
@@ -416,6 +437,11 @@ class _DriversScreenState extends State<DriversScreen> {
                                             await widget.api.toggleDriverField(dp['id'] as int, 'is_online');
                                             _load();
                                           },
+                                        ),
+                                        OutlinedButton.icon(
+                                          onPressed: () => _showDriverFormDialog(existing: dp),
+                                          icon: const Icon(Icons.edit_rounded, size: 16),
+                                          label: const Text('دەستکاریکردن'),
                                         ),
                                         if (!verified)
                                           ElevatedButton.icon(

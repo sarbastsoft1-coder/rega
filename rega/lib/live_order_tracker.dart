@@ -335,9 +335,12 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       _remainingMeters = 0;
       _speedKmh = 0;
     } else if (_status == 'on_the_way') {
-      _localProgress = (_storeSplitIndex / (_fullRoute.length - 1)) + 0.06;
+      _localProgress = (_storeSplitIndex / (_fullRoute.length - 1)) + 0.05;
+    } else if (_status == 'picked_up' || _status == 'at_store') {
+      _localProgress = (_storeSplitIndex / (_fullRoute.length - 1));
     } else {
-      _localProgress = 0.06;
+      // Driver starting journey heading to store to pick up order
+      _localProgress = 0.02;
     }
 
     final startPos = _pointAlong(_fullRoute, _localProgress);
@@ -573,7 +576,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     final nextPos = _pointAlong(_fullRoute, _localProgress);
 
     if (_localProgress < storeRatio - 0.02) {
-      if (_status != 'preparing') _updateStatus('preparing');
+      if (_status != 'heading_to_store') _updateStatus('heading_to_store');
       _speedKmh = 29.0 + ((_secondsSinceOpen % 4) * 1.5);
     } else if (_localProgress < storeRatio + 0.03) {
       if (_status != 'picked_up') _updateStatus('picked_up');
@@ -597,14 +600,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       _status = next;
     });
     if (widget.onOrderStatusChanged != null) {
-      // Map granular statuses cleanly for parent Orders list compatibility
-      if (next == 'delivered') {
-        widget.onOrderStatusChanged!('delivered');
-      } else if (next == 'on_the_way' || next == 'picked_up' || next == 'arrived_customer') {
-        widget.onOrderStatusChanged!('on_the_way');
-      } else {
-        widget.onOrderStatusChanged!('preparing');
-      }
+      widget.onOrderStatusChanged!(next);
     }
   }
 
@@ -823,18 +819,26 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
   int get _activeStepIndex {
     switch (_status) {
       case 'pending':
+      case 'accepted':
         return 0;
+      case 'heading_to_store':
+      case 'driver_assigned':
+      case 'arriving_pickup':
       case 'preparing':
+      case 'ready':
         return 1;
       case 'picked_up':
+      case 'at_store':
+      case 'arrived_pickup':
         return 2;
       case 'on_the_way':
-        return 3;
       case 'arrived_customer':
+        return 3;
       case 'delivered':
+      case 'completed':
         return 4;
       default:
-        return 2;
+        return 1;
     }
   }
 
@@ -842,18 +846,25 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     switch (_status) {
       case 'pending':
         return 'داواکارییەکەت نێردرا بۆ فرۆشگا...';
+      case 'heading_to_store':
+      case 'driver_assigned':
+      case 'arriving_pickup':
+        return 'شۆفێر بەڕێکەوت بەرەو فرۆشگا بۆ وەرگرتن 🛵';
       case 'preparing':
-        return 'ئامادە دەکرێت و شۆفێر بەرەو فرۆشگایە';
+        return 'ئامادە دەکرێت و شۆفێر بەرەو فرۆشگایە 🛵';
       case 'picked_up':
-        return 'شۆفێر داواکارییەکەتی لە فرۆشگا وەرگرت!';
+      case 'at_store':
+      case 'arrived_pickup':
+        return 'شۆفێر داواکارییەکەتی لە فرۆشگا وەرگرت! 🛍️';
       case 'on_the_way':
-        return 'شۆفێر لە ڕێگایە بۆ لات (چرکە بە چرکە)';
+        return 'شۆفێر لە ڕێگایە بۆ لات (چرکە بە چرکە) 🚀';
       case 'arrived_customer':
         return 'شۆفێر گەیشتە بەردەم ماڵەکەت! 🔔';
       case 'delivered':
+      case 'completed':
         return 'داواکارییەکەت گەیشت! نۆشی گیانت بێت 🎉';
       default:
-        return 'لە ڕێگایە بۆ لات';
+        return 'شۆفێر لە ڕێگایە بۆ لات 🛵';
     }
   }
 
@@ -1593,7 +1604,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
   }
 
   Widget _buildActiveLiveBottomPanel() {
-    const stepLabels = ['وەرگیرا', 'ئامادەکردن', 'هەڵگیرا', 'لە ڕێگایە', 'گەیشت'];
+    const stepLabels = ['وەرگیرا', 'ئامادەیە', 'هەڵگیرا', 'لە ڕێگایە', 'ڕادەست کرا'];
     final activeIdx = _activeStepIndex;
     final isArrivedAtDoor = _status == 'arrived_customer';
 

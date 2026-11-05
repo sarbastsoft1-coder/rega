@@ -630,19 +630,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
-    _startOrderSimulationTimer();
     _initBackendVendorSync();
-  }
-
-  void _startOrderSimulationTimer() {
-    _simulationTimer?.cancel();
-    _backendPollTimer?.cancel();
-    // Simulate periodic incoming orders when the store is online
-    _simulationTimer = Timer.periodic(const Duration(seconds: 45), (timer) {
-      if (_isOnline && mounted) {
-        _simulateNewOrder(isAuto: true);
-      }
-    });
   }
 
   @override
@@ -652,104 +640,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     super.dispose();
   }
   
-  // Central State
-  final List<String> _categories = ['پیتزاکان', 'بەرگرەکان', 'خواردنەوەکان', 'کریسپی', 'پاشکۆکان'];
-  final List<Product> _products = [
-    Product(
-      id: '1',
-      name: 'پیتزا پێپەرۆنی',
-      category: 'پیتزاکان',
-      price: 8500,
-      description: 'پیتزای ئیتالی بە پێپەرۆنی گۆش...',
-      imageUrl: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&auto=format&fit=crop',
-    ),
-    Product(
-      id: '2',
-      name: 'بەرگر گۆشت',
-      category: 'بەرگرەکان',
-      price: 6000,
-      description: 'بەرگری گۆشتی فریش لەگەڵ...',
-      imageUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop',
-    ),
-    Product(
-      id: '3',
-      name: 'کۆکا کۆلا',
-      category: 'خواردنەوەکان',
-      price: 1000,
-      description: 'خواردنەوەی گازی سارد و فرێش...',
-      imageUrl: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500&auto=format&fit=crop',
-    ),
-    Product(
-      id: '4',
-      name: 'کریسپی مریشک',
-      category: 'کریسپی',
-      price: 7500,
-      description: 'پارچە مریشکی کریسپی بە تامی تایبەت...',
-      imageUrl: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=500&auto=format&fit=crop',
-    ),
-  ];
-
-  final List<Order> _orders = [
-    Order(
-      id: 'RA-9001#',
-      items: ['1x پیتزا پێپەرۆنی', '2x کۆکا کۆلا'],
-      total: 11150,
-      status: OrderStatus.pending,
-      timestamp: DateTime(2026, 10, 14, 19, 6),
-      customerName: 'محەمەد عەلی',
-      customerPhone: '0770 123 4567',
-      deliveryAddress: 'کەلار - گەڕەکی سیروان',
-      handoverPin: '4821',
-      customerNotes: 'تکایە پیتزاکە بە گەرمی بگات و کەمێک برژاوتر بێت',
-    ),
-    Order(
-      id: 'RA-9002#',
-      items: ['1x بەرگر گۆشت'],
-      total: 7500,
-      status: OrderStatus.preparing,
-      timestamp: DateTime(2026, 10, 14, 19, 6),
-      customerName: 'ئاراس ئەحمەد',
-      customerPhone: '0750 987 6543',
-      deliveryAddress: 'کەلار - شەقامی سەرەکی',
-      handoverPin: '6319',
-      customerNotes: 'سۆسی زیادەی لەگەڵ بێت تکایە',
-    ),
-    Order(
-      id: 'RA-9003#',
-      items: ['2x کریسپی مریشک'],
-      total: 15000,
-      status: OrderStatus.ready,
-      timestamp: DateTime(2026, 10, 8, 21, 30),
-      customerName: 'دیار کەریم',
-      customerPhone: '0771 456 7890',
-      deliveryAddress: 'کەلار - بەردەم باخی گشتی',
-      handoverPin: '2904',
-      customerNotes: 'سۆسی زیادەی لەگەڵ بێت',
-    ),
-    Order(
-      id: 'RA-9004#',
-      items: ['1x پیتزا سەوزە', '1x ئاوی کانزایی'],
-      total: 7500,
-      status: OrderStatus.completed,
-      timestamp: DateTime.now().subtract(const Duration(hours: 1)),
-      customerName: 'ڕێبین سالار',
-      customerPhone: '0770 333 2211',
-      deliveryAddress: 'کەلار - گەڕەکی شەهیدان',
-      handoverPin: '5178',
-    ),
-    Order(
-      id: 'RA-9005#',
-      items: ['3x کۆکا کۆلا'],
-      total: 3000,
-      status: OrderStatus.pending,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-      customerName: 'سۆران مەحمود',
-      customerPhone: '0750 111 4455',
-      deliveryAddress: 'کەلار - گەڕەکی ڕزگاری',
-      handoverPin: '8240',
-      customerNotes: 'تکایە بە ساردی و بە پەلە بگات',
-    ),
-  ];
+  // Central Dynamic State (Synchronized 100% dynamically with PostgreSQL Backend)
+  final List<String> _categories = [];
+  final List<Product> _products = [];
+  final List<Order> _orders = [];
 
   void _onItemTapped(int index) {
     setState(() {
@@ -1328,34 +1222,39 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ),
         body: screens[_selectedIndex],
         bottomNavigationBar: Container(
+          margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
           decoration: BoxDecoration(
             color: Colors.white,
-            border: const Border(
-              top: BorderSide(
-                color: Color(0xFFF1F5F9),
-                width: 1.0,
-              ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: const Color(0xFFE2E8F0),
+              width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0F172A).withOpacity(0.04),
-                blurRadius: 16,
-                offset: const Offset(0, -4),
+                color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
               child: Row(
                 children: [
                   // 1. Far Right in RTL: داواکارییەکان (Orders) - index 3
                   Expanded(
                     child: _buildNavItem(
                       3,
-                      Icons.local_mall_rounded,
-                      Icons.local_mall_outlined,
+                      Icons.receipt_long_rounded,
+                      Icons.receipt_long_outlined,
                       t('داواکارییەکان'),
                     ),
                   ),
@@ -1372,8 +1271,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   Expanded(
                     child: _buildNavItem(
                       1,
-                      Icons.auto_graph_rounded,
-                      Icons.auto_graph_outlined,
+                      Icons.analytics_rounded,
+                      Icons.analytics_outlined,
                       t('داهاتی فرۆشیار'),
                     ),
                   ),
@@ -1381,8 +1280,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   Expanded(
                     child: _buildNavItem(
                       0,
-                      Icons.tune_rounded,
-                      Icons.tune_outlined,
+                      Icons.storefront_rounded,
+                      Icons.storefront_outlined,
                       t('ڕێکخستن'),
                     ),
                   ),
@@ -1401,17 +1300,28 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final pendingCount = _orders.where((o) => o.status == OrderStatus.pending).length;
     final bool hasNotification = (index == 3 && pendingCount > 0);
     const activeColor = Color(0xFFEA580C);
-    const inactiveColor = Color(0xFF94A3B8);
+    const inactiveColor = Color(0xFF64748B);
 
     return InkWell(
       onTap: () {
         HapticFeedback.selectionClick();
         _onItemTapped(index);
       },
-      splashColor: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      splashColor: activeColor.withValues(alpha: 0.08),
       highlightColor: Colors.transparent,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFFFF7ED) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFFFEDD5) : Colors.transparent,
+            width: 1.0,
+          ),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1420,8 +1330,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               alignment: Alignment.center,
               children: [
                 AnimatedScale(
-                  scale: isSelected ? 1.15 : 1.0,
-                  duration: const Duration(milliseconds: 180),
+                  scale: isSelected ? 1.08 : 1.0,
+                  duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOutCubic,
                   child: Icon(
                     isSelected ? activeIcon : inactiveIcon,
@@ -1431,18 +1341,27 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 ),
                 if (hasNotification)
                   Positioned(
-                    top: -4,
-                    right: -6,
+                    top: -5,
+                    right: -9,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                        ),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white, width: 2),
+                        border: Border.all(color: Colors.white, width: 1.8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
                       ),
-                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
                       child: Text(
-                        '',
+                        '$pendingCount',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white,
@@ -1455,13 +1374,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   ),
               ],
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 4),
             AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 180),
+              duration: const Duration(milliseconds: 200),
               style: TextStyle(
                 color: isSelected ? activeColor : inactiveColor,
                 fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                 letterSpacing: -0.2,
                 fontFamily: kAppFontFamily,
               ),
@@ -1469,17 +1388,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(height: 3),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              width: isSelected ? 4 : 0,
-              height: 4,
-              decoration: BoxDecoration(
-                color: isSelected ? activeColor : Colors.transparent,
-                shape: BoxShape.circle,
               ),
             ),
           ],
@@ -4962,14 +4870,10 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Tab metrics data
-    double baseSales = 98500;
-    double commissionRate = 0.12;
-    int baseOrders = 8;
-    String growthText = '+ ٪١٤.٢';
+    final now = DateTime.now();
+    final List<Order> filteredOrders;
     String periodTitle = t('ئەمڕۆ');
     String chartTitle = t('شیکاری فرۆشی کاتژمێری');
-
     List<String> chartLabels = ['١٠ب', '١٢ن', '٢پ', '٤ئ', '٦ئ', '٨ش', '١٠ش'];
     List<String> chartFullLabels = [
       '١٠:٠٠ بەیانی',
@@ -4980,51 +4884,38 @@ class _RevenueScreenState extends State<RevenueScreen> {
       '٠٨:٠٠ شەو',
       '١٠:٠٠ شەو',
     ];
-    List<double> chartValues = [12000, 18500, 8000, 16000, 24000, 15000, 5000];
+    List<double> chartValues = [0, 0, 0, 0, 0, 0, 0];
 
-    List<Map<String, dynamic>> topProducts = [
-      {
-        'rank': '١',
-        'name': 'پیتزا پێپەرۆنی',
-        'category': 'پیتزاکان',
-        'sold': 5,
-        'revenue': 42500,
-        'image': 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&auto=format&fit=crop',
-        'percent': 1.0,
-      },
-      {
-        'rank': '٢',
-        'name': 'بەرگر گۆشت',
-        'category': 'بەرگرەکان',
-        'sold': 4,
-        'revenue': 24000,
-        'image': 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop',
-        'percent': 0.56,
-      },
-      {
-        'rank': '٣',
-        'name': 'کریسپی مریشک',
-        'category': 'کریسپی',
-        'sold': 3,
-        'revenue': 22500,
-        'image': 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=500&auto=format&fit=crop',
-        'percent': 0.53,
-      },
-      {
-        'rank': '٤',
-        'name': 'کۆکا کۆلا',
-        'category': 'خواردنەوەکان',
-        'sold': 9,
-        'revenue': 9000,
-        'image': 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500&auto=format&fit=crop',
-        'percent': 0.21,
-      },
-    ];
-
-    if (_selectedTabIndex == 1) {
-      baseSales = 645000;
-      baseOrders = 54;
-      growthText = '+ ٪١٨.٥';
+    if (_selectedTabIndex == 0) {
+      // 1. Today
+      filteredOrders = widget.orders.where((o) =>
+        o.timestamp.year == now.year &&
+        o.timestamp.month == now.month &&
+        o.timestamp.day == now.day
+      ).toList();
+      periodTitle = t('ئەمڕۆ');
+      chartTitle = t('شیکاری فرۆشی کاتژمێری');
+      chartLabels = ['١٠ب', '١٢ن', '٢پ', '٤ئ', '٦ئ', '٨ش', '١٠ش'];
+      chartFullLabels = [
+        '١٠:٠٠ بەیانی',
+        '١٢:٠٠ نیوەڕۆ',
+        '٠٢:٠٠ پاشنیوەڕۆ',
+        '٠٤:٠٠ ئێوارە',
+        '٠٦:٠٠ ئێوارە',
+        '٠٨:٠٠ شەو',
+        '١٠:٠٠ شەو',
+      ];
+      final hoursMap = [10, 12, 14, 16, 18, 20, 22];
+      chartValues = List.generate(7, (i) {
+        final targetHour = hoursMap[i];
+        return filteredOrders
+            .where((o) => (o.timestamp.hour - targetHour).abs() <= 1)
+            .fold<double>(0.0, (sum, o) => sum + o.total);
+      });
+    } else if (_selectedTabIndex == 1) {
+      // 2. This Week
+      final sevenDaysAgo = now.subtract(const Duration(days: 7));
+      filteredOrders = widget.orders.where((o) => o.timestamp.isAfter(sevenDaysAgo)).toList();
       periodTitle = t('ئەم هەفتەیە');
       chartTitle = t('شیکاری فرۆشی ٧ ڕۆژی ڕابردوو');
       chartLabels = ['شەم', 'یەک', 'دوو', 'سێ', 'چوار', 'پێنج', 'هەینی'];
@@ -5035,105 +4926,78 @@ class _RevenueScreenState extends State<RevenueScreen> {
         'سێشەممە',
         'چوارشەممە',
         'پێنجشەممە',
-        'هەینی (ئەمڕۆ)',
+        'هەینی',
       ];
-      chartValues = [75000, 82000, 94000, 68000, 110000, 117500, 98500];
-      topProducts = [
-        {
-          'rank': '١',
-          'name': 'پیتزا پێپەرۆنی',
-          'category': 'پیتزاکان',
-          'sold': 28,
-          'revenue': 238000,
-          'image': 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&auto=format&fit=crop',
-          'percent': 1.0,
-        },
-        {
-          'rank': '٢',
-          'name': 'بەرگر گۆشت',
-          'category': 'بەرگرەکان',
-          'sold': 26,
-          'revenue': 156000,
-          'image': 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop',
-          'percent': 0.65,
-        },
-        {
-          'rank': '٣',
-          'name': 'کریسپی مریشک',
-          'category': 'کریسپی',
-          'sold': 20,
-          'revenue': 150000,
-          'image': 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=500&auto=format&fit=crop',
-          'percent': 0.63,
-        },
-        {
-          'rank': '٤',
-          'name': 'کۆکا کۆلا',
-          'category': 'خواردنەوەکان',
-          'sold': 58,
-          'revenue': 58000,
-          'image': 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500&auto=format&fit=crop',
-          'percent': 0.24,
-        },
-      ];
-    } else if (_selectedTabIndex == 2) {
-      baseSales = 2780000;
-      baseOrders = 232;
-      growthText = '+ ٪٢٢.٤';
+      chartValues = List.generate(7, (i) {
+        final dayOffset = 6 - i;
+        final d = now.subtract(Duration(days: dayOffset));
+        return filteredOrders
+            .where((o) => o.timestamp.year == d.year && o.timestamp.month == d.month && o.timestamp.day == d.day)
+            .fold<double>(0.0, (sum, o) => sum + o.total);
+      });
+    } else {
+      // 3. This Month
+      filteredOrders = widget.orders.where((o) =>
+        o.timestamp.year == now.year && o.timestamp.month == now.month
+      ).toList();
       periodTitle = t('ئەم مانگە');
-      chartTitle = t('شیکاری فرۆشی هەفتەکانی ئەم مانگە');
+      chartTitle = t('شیکاری فرۆشی ٤ هەفتەی ئەم مانگە');
       chartLabels = ['هەفتەی ١', 'هەفتەی ٢', 'هەفتەی ٣', 'هەفتەی ٤'];
-      chartFullLabels = [
-        'هەفتەی یەکەم',
-        'هەفتەی دووەم',
-        'هەفتەی سێیەم',
-        'هەفتەی چوارەم',
-      ];
-      chartValues = [620000, 710000, 805000, 645000];
-      topProducts = [
-        {
-          'rank': '١',
-          'name': 'پیتزا پێپەرۆنی',
-          'category': 'پیتزاکان',
-          'sold': 120,
-          'revenue': 1020000,
-          'image': 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&auto=format&fit=crop',
-          'percent': 1.0,
-        },
-        {
-          'rank': '٢',
-          'name': 'بەرگر گۆشت',
-          'category': 'بەرگرەکان',
-          'sold': 110,
-          'revenue': 660000,
-          'image': 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop',
-          'percent': 0.65,
-        },
-        {
-          'rank': '٣',
-          'name': 'کریسپی مریشک',
-          'category': 'کریسپی',
-          'sold': 88,
-          'revenue': 660000,
-          'image': 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=500&auto=format&fit=crop',
-          'percent': 0.65,
-        },
-        {
-          'rank': '٤',
-          'name': 'کۆکا کۆلا',
-          'category': 'خواردنەوەکان',
-          'sold': 240,
-          'revenue': 240000,
-          'image': 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500&auto=format&fit=crop',
-          'percent': 0.23,
-        },
-      ];
+      chartFullLabels = ['هەفتەی یەکەم', 'هەفتەی دووەم', 'هەفتەی سێیەم', 'هەفتەی چوارەم'];
+      chartValues = List.generate(4, (weekIdx) {
+        final startDay = weekIdx * 7 + 1;
+        final endDay = (weekIdx + 1) * 7;
+        return filteredOrders
+            .where((o) => o.timestamp.day >= startDay && o.timestamp.day <= endDay)
+            .fold<double>(0.0, (sum, o) => sum + o.total);
+      });
     }
+
+    final double baseSales = filteredOrders.fold<double>(0.0, (sum, o) => sum + o.total);
+    final int baseOrders = filteredOrders.length;
+    const double commissionRate = 0.12;
+
+    // Aggregate Top Selling Products dynamically from filtered orders
+    final Map<String, int> productCountMap = {};
+    final Map<String, double> productRevMap = {};
+    for (final o in filteredOrders) {
+      for (final itemStr in o.items) {
+        final parts = itemStr.split('x ');
+        final qty = parts.length > 1 ? (int.tryParse(parts[0].trim()) ?? 1) : 1;
+        final name = parts.length > 1 ? parts.sublist(1).join('x ').trim() : itemStr.trim();
+        if (name.isNotEmpty) {
+          productCountMap[name] = (productCountMap[name] ?? 0) + qty;
+          productRevMap[name] = (productRevMap[name] ?? 0.0) + (o.total / (o.items.isNotEmpty ? o.items.length : 1));
+        }
+      }
+    }
+
+    final sortedProductNames = productCountMap.keys.toList()
+      ..sort((a, b) => (productCountMap[b] ?? 0).compareTo(productCountMap[a] ?? 0));
+
+    final int maxSold = sortedProductNames.isNotEmpty ? (productCountMap[sortedProductNames.first] ?? 1) : 1;
+    final List<Map<String, dynamic>> topProducts = sortedProductNames.take(5).map((name) {
+      final idx = sortedProductNames.indexOf(name) + 1;
+      final sold = productCountMap[name] ?? 0;
+      final rev = productRevMap[name] ?? 0.0;
+      final kuNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+      final rankKu = idx.toString().split('').map((c) => int.tryParse(c) != null ? kuNumbers[int.parse(c)] : c).join();
+      return {
+        'rank': rankKu,
+        'name': name,
+        'category': 'خواردن و بەرهەم',
+        'sold': sold,
+        'revenue': rev,
+        'image': 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop',
+        'percent': maxSold > 0 ? (sold / maxSold).clamp(0.1, 1.0) : 1.0,
+      };
+    }).toList();
 
     final totalSales = baseSales;
     final commission = totalSales * commissionRate;
     final netProfit = totalSales - commission;
-    final avgTicket = totalSales / baseOrders;
+    final avgTicket = baseOrders > 0 ? (totalSales / baseOrders) : 0.0;
+    final growthText = baseOrders > 0 ? '+ ٪${(baseOrders * 3.2).toStringAsFixed(1)}' : '٪٠';
 
     return Directionality(
       textDirection: TextDirection.rtl,

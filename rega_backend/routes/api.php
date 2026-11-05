@@ -137,6 +137,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/orders', [OrderManagementController::class, 'index']);
         Route::post('/orders', [EcosystemHubController::class, 'createOrder']);
         Route::get('/orders/{order}', [OrderManagementController::class, 'show']);
+        Route::put('/orders/{order}', [OrderManagementController::class, 'update']);
+        Route::delete('/orders/{order}', [OrderManagementController::class, 'destroy']);
         Route::post('/orders/{order}/assign-driver', [OrderManagementController::class, 'assignDriver']);
         Route::patch('/orders/{order}/status', [OrderManagementController::class, 'updateStatus']);
         Route::post('/orders/{order}/waiting-bonus', [OrderManagementController::class, 'addWaitingBonus']);
@@ -174,6 +176,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/customers/{customer}', [CustomerManagementController::class, 'show']);
         Route::put('/customers/{customer}', [CustomerManagementController::class, 'update']);
         Route::patch('/customers/{customer}/toggle-active', [CustomerManagementController::class, 'toggleActive']);
+        Route::delete('/customers/{customer}', [CustomerManagementController::class, 'destroy']);
 
         // Categories & Kalar Neighborhoods
         Route::get('/categories', [CatalogAndZonesController::class, 'categoriesIndex']);
@@ -208,6 +211,7 @@ Route::prefix('v1')->group(function () {
         Route::patch('/payouts/{payout}/status', [FinanceAndSupportController::class, 'payoutsUpdateStatus']);
 
         Route::get('/tickets', [FinanceAndSupportController::class, 'ticketsIndex']);
+        Route::post('/tickets', [FinanceAndSupportController::class, 'ticketsStore']);
         Route::patch('/tickets/{ticket}', [FinanceAndSupportController::class, 'ticketsUpdate']);
 
         Route::get('/settings', [FinanceAndSupportController::class, 'settingsIndex']);

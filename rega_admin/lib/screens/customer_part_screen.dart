@@ -566,9 +566,23 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'پڕخەرجترین کڕیاران (VIP Customers) و ناونیشانەکانیان',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'پڕخەرجترین کڕیاران (VIP Customers) و ناونیشانەکانیان',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: RegaColors.gold,
+                        foregroundColor: const Color(0xFF0F172A),
+                      ),
+                      onPressed: () => _tabController.animateTo(2),
+                      icon: const Icon(Icons.person_add_rounded, size: 17),
+                      label: const Text('زیادکردنی کڕیار'),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 ..._vipCustomers.map((raw) {
@@ -598,6 +612,11 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                         Text(
                           formatIqd(c['total_spent'] as num?, lang: widget.lang),
                           style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _tabController.animateTo(2),
+                          icon: const Icon(Icons.edit_rounded, size: 16),
+                          label: const Text('دەستکاری'),
                         ),
                         OutlinedButton.icon(
                           onPressed: () => _showCustomerDetailsDialog(c),

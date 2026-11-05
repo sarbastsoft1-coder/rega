@@ -30,6 +30,7 @@ def run():
     port = int(sys.argv[2])
     os.chdir(directory)
 
+    ThreadingHTTPServer.allow_reuse_address = True
     server = ThreadingHTTPServer(('127.0.0.1', port), MultiThreadedFlutterHandler)
     print(f"Serving {directory} on http://127.0.0.1:{port} (Multi-Threaded)")
     try:

@@ -150,6 +150,73 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen>
     );
   }
 
+  void _showCreateTicketDialog() {
+    final subCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    String priority = 'medium';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('تۆمارکردنی تیکت یان سکاڵای نوێ'),
+          content: SizedBox(
+            width: 440,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: subCtrl,
+                  decoration: const InputDecoration(labelText: 'سەردێڕی بابەت *'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: priority,
+                  decoration: const InputDecoration(labelText: 'ئاستی گرنگی'),
+                  items: const [
+                    DropdownMenuItem(value: 'low', child: Text('ئاسایی (Low)')),
+                    DropdownMenuItem(value: 'medium', child: Text('مامناوەند (Medium)')),
+                    DropdownMenuItem(value: 'high', child: Text('بەرز (High)')),
+                    DropdownMenuItem(value: 'urgent', child: Text('بەپەلە (Urgent)')),
+                  ],
+                  onChanged: (v) => setDialogState(() => priority = v ?? 'medium'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descCtrl,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'ڕوونکردنەوەی کێشەکە *'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
+            ElevatedButton(
+              onPressed: () async {
+                if (subCtrl.text.trim().isEmpty || descCtrl.text.trim().isEmpty) return;
+                Navigator.pop(ctx);
+                try {
+                  await widget.api.createTicket({
+                    'subject': subCtrl.text.trim(),
+                    'description': descCtrl.text.trim(),
+                    'priority': priority,
+                    'category': 'support',
+                  });
+                  _showSnack('تیکت تۆمارکرا ✅');
+                  _load();
+                } catch (e) {
+                  _showSnack(e.toString(), error: true);
+                }
+              },
+              child: const Text('تۆمارکردن'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveSettings() async {
     try {
       await widget.api.updateSettings({
@@ -180,6 +247,11 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen>
           child: SectionHeader(
             title: AppStrings.tr('nav_support', widget.lang),
             subtitle: 'چارەسەرکردنی سکاڵای بەپەلەی شۆفێران و کڕیاران + ڕێکخستنی گشتی سیستەمی REGA',
+            trailing: ElevatedButton.icon(
+              onPressed: _showCreateTicketDialog,
+              icon: const Icon(Icons.add_comment_rounded, size: 18),
+              label: const Text('تۆمارکردنی سکاڵا / تیکت'),
+            ),
           ),
         ),
         TabBar(

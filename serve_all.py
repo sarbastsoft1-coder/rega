@@ -3,6 +3,7 @@ import sys
 import time
 import socket
 import threading
+import subprocess
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 class FlutterHandler(SimpleHTTPRequestHandler):
@@ -52,8 +53,7 @@ def make_handler_for_directory(directory):
 def start_server_thread(name, port, directory):
     while True:
         if is_port_in_use(port):
-            # Port is actively being served (e.g. by user flutter run)
-            time.sleep(30)
+            time.sleep(15)
             continue
 
         try:
@@ -63,11 +63,36 @@ def start_server_thread(name, port, directory):
             print(f"[ONLINE] {name} serving on http://127.0.0.1:{port} from {directory}")
             server.serve_forever()
         except Exception as e:
-            # If occupied or in TIME_WAIT, sleep and recheck peacefully
-            time.sleep(30)
+            time.sleep(15)
+
+def start_backend_thread(base_dir):
+    backend_dir = os.path.join(base_dir, "rega_backend")
+    while True:
+        if is_port_in_use(8001):
+            time.sleep(15)
+            continue
+        try:
+            print("[ONLINE] REGA Backend starting on http://127.0.0.1:8001 ...")
+            proc = subprocess.Popen(
+                ["php", "artisan", "serve", "--port=8001", "--host=127.0.0.1"],
+                cwd=backend_dir,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            while proc.poll() is None:
+                time.sleep(5)
+        except Exception as e:
+            print(f"[ERROR] Backend error: {e}")
+            time.sleep(10)
 
 def main():
     base_dir = r"c:\Users\sarba\OneDrive\Desktop\projekt rega"
+    
+    # 1. Start Laravel Backend Thread (Port 8001)
+    backend_thread = threading.Thread(target=start_backend_thread, args=(base_dir,), daemon=True)
+    backend_thread.start()
+
+    # 2. Start Web Frontend Servers
     apps = [
         ("REGA Admin", 8080, os.path.join(base_dir, "rega_admin", "build", "web")),
         ("REGA Froshyar (Vendor)", 8081, os.path.join(base_dir, "rega_froshyar", "build", "web")),
@@ -75,13 +100,13 @@ def main():
         ("REGA Delivery (Captain)", 8083, os.path.join(base_dir, "rega_delivery", "build", "web")),
     ]
 
-    threads = []
+    threads = [backend_thread]
     for name, port, directory in apps:
         t = threading.Thread(target=start_server_thread, args=(name, port, directory), daemon=True)
         t.start()
         threads.append(t)
 
-    print("REGA smart port manager started.")
+    print("REGA Unified Ecosystem online and serving on all ports (8001, 8080, 8081, 8082, 8083).")
     while True:
         time.sleep(60)
 

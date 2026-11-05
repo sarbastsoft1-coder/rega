@@ -340,17 +340,31 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                       ),
                     ],
                   ),
-                  FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.2),
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () {
-                      _load();
-                      _fetchLiveRadarTick();
-                    },
-                    icon: const Icon(Icons.radar_rounded, size: 18),
-                    label: Text('LIVE 1s • تیک #$_radarTicks (${_kpis['online_drivers'] ?? 0} شۆفێری ئۆنلاین)'),
+                  Wrap(
+                    spacing: 10,
+                    children: [
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF047857),
+                        ),
+                        onPressed: () => _tabController.animateTo(1),
+                        icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                        label: const Text('زیادکردنی شۆفێر'),
+                      ),
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () {
+                          _load();
+                          _fetchLiveRadarTick();
+                        },
+                        icon: const Icon(Icons.radar_rounded, size: 18),
+                        label: Text('LIVE 1s • تیک #$_radarTicks (${_kpis['online_drivers'] ?? 0} شۆفێری ئۆنلاین)'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -615,7 +629,15 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                                   icon: const Icon(Icons.two_wheeler_rounded, size: 15),
                                   label: Text(hasDriver ? 'گۆڕینی شۆفێر' : 'ناردنی شۆفێر'),
                                 ),
-                                if (hasDriver && status != 'on_the_way' && status != 'arrived_customer')
+                                if (hasDriver && (status == 'preparing' || status == 'ready'))
+                                  OutlinedButton(
+                                    onPressed: () async {
+                                      await widget.api.updateOrderStatus(o['id'] as int, 'picked_up');
+                                      _load(silent: true);
+                                    },
+                                    child: const Text('کاڵا هەڵگیرا (Picked up)'),
+                                  ),
+                                if (hasDriver && status != 'on_the_way' && status != 'arrived_customer' && status != 'delivered')
                                   OutlinedButton(
                                     onPressed: () async {
                                       await widget.api.updateOrderStatus(o['id'] as int, 'on_the_way');

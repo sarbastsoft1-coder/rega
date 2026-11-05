@@ -47,41 +47,198 @@ class _CustomersScreenState extends State<CustomersScreen> {
     }
   }
 
-  void _showAddCustomerDialog() {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final passCtrl = TextEditingController(text: 'password123');
+  void _showSnack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: error ? RegaColors.crimson : RegaColors.emeraldDark,
+      ),
+    );
+  }
+
+  void _showCustomerFormDialog({Map<String, dynamic>? existing}) {
+    final isEdit = existing != null;
+    final nameCtrl = TextEditingController(text: existing?['name']?.toString() ?? '');
+    final phoneCtrl = TextEditingController(text: existing?['phone']?.toString() ?? '');
+    final emailCtrl = TextEditingController(text: existing?['email']?.toString() ?? '');
+    final passCtrl = TextEditingController(text: isEdit ? '' : 'password123');
+    bool isActive = existing?['is_active'] ?? true;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(isEdit ? 'دەستکاریکردنی کڕیار' : 'زیادکردنی کڕیاری نوێ'),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(labelText: 'ناوی تەواو *'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: phoneCtrl,
+                    decoration: const InputDecoration(labelText: 'ژمارەی مۆبایل *'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emailCtrl,
+                    decoration: const InputDecoration(labelText: 'ئیمەیڵ (ئارەزوومەندانە)'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passCtrl,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: isEdit ? 'وشەی نهێنی نوێ (ئەگەر دەتەوێت بیگۆڕیت)' : 'وشەی نهێنی *',
+                    ),
+                  ),
+                  if (isEdit) ...[
+                    const SizedBox(height: 10),
+                    SwitchListTile(
+                      value: isActive,
+                      onChanged: (v) => setDialogState(() => isActive = v),
+                      title: const Text('هەژماری چالاکە'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(AppStrings.tr('cancel', widget.lang)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = nameCtrl.text.trim();
+                final phone = phoneCtrl.text.trim();
+                if (name.isEmpty || phone.isEmpty) {
+                  _showSnack('تکایە ناو و مۆبایل پڕبکەرەوە', error: true);
+                  return;
+                }
+                Navigator.pop(ctx);
+                try {
+                  final payload = <String, dynamic>{
+                    'name': name,
+                    'phone': phone,
+                    'email': emailCtrl.text.trim().isEmpty ? null : emailCtrl.text.trim(),
+                  };
+                  if (passCtrl.text.trim().isNotEmpty) {
+                    payload['password'] = passCtrl.text.trim();
+                  }
+                  if (isEdit) {
+                    payload['is_active'] = isActive;
+                    await widget.api.updateCustomer(existing['id'] as int, payload);
+                    _showSnack('زانیاری کڕیار بە سەرکەوتوویی نوێکرایەوە ✅');
+                  } else {
+                    await widget.api.createCustomer(payload);
+                    _showSnack('کڕیاری نوێ زیادکرا ✅');
+                  }
+                  _load();
+                } catch (e) {
+                  _showSnack(e.toString(), error: true);
+                }
+              },
+              child: Text(AppStrings.tr('save', widget.lang)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCustomerDetailsDialog(Map<String, dynamic> c) async {
+    try {
+      final detail = await widget.api.getCustomerDetails(c['id'] as int);
+      if (!mounted) return;
+      final addresses = detail['addresses'] as List<dynamic>? ?? [];
+      final orders = detail['customer_orders'] as List<dynamic>? ?? [];
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('پڕۆفایلی کڕیار — ${detail['name'] ?? ''}'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('📞 مۆبایل: ${detail['phone'] ?? '-'}'),
+                  Text('✉️ ئیمەیڵ: ${detail['email'] ?? '-'}'),
+                  const Divider(height: 20),
+                  const Text('📍 ناونیشانە تۆمارکراوەکان لە کەلار:', style: TextStyle(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 6),
+                  if (addresses.isEmpty)
+                    const Text('هیچ ناونیشانێک تۆمار نەکراوە')
+                  else
+                    ...addresses.map((a) {
+                      final m = a as Map<String, dynamic>;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text('• [${m['label'] ?? 'ماڵەوە'}] ${m['address_line'] ?? ''} (${m['neighborhood']?['name_ku'] ?? ''})'),
+                      );
+                    }),
+                  const Divider(height: 20),
+                  Text('🛍️ داواکارییەکان (${orders.length}):', style: const TextStyle(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 6),
+                  if (orders.isEmpty)
+                    const Text('هیچ داواکارییەک نییە')
+                  else
+                    ...orders.map((o) {
+                      final m = o as Map<String, dynamic>;
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('${m['order_number']} • 🏪 ${m['store']?['name_ku'] ?? '-'}',
+                            style: const TextStyle(fontWeight: FontWeight.w800)),
+                        trailing: Text(formatIqd(m['total_amount'] as num?, lang: widget.lang),
+                            style: const TextStyle(fontWeight: FontWeight.w900)),
+                      );
+                    }),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('داخستن')),
+          ],
+        ),
+      );
+    } catch (e) {
+      _showSnack(e.toString(), error: true);
+    }
+  }
+
+  void _confirmDeleteCustomer(Map<String, dynamic> c) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('زیادکردنی کڕیاری نوێ'),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'ناوی تەواو *')),
-              const SizedBox(height: 12),
-              TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'ژمارەی مۆبایل *')),
-              const SizedBox(height: 12),
-              TextField(controller: passCtrl, decoration: const InputDecoration(labelText: 'وشەی نهێنی')),
-            ],
-          ),
-        ),
+        title: Text('سڕینەوەی کڕیار — ${c['name']}'),
+        content: const Text('ئایا دڵنیایت لە سڕینەوە یان ڕاگرتنی ئەم کڕیارە؟'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: Colors.white),
             onPressed: () async {
-              if (nameCtrl.text.trim().isEmpty || phoneCtrl.text.trim().isEmpty) return;
               Navigator.pop(ctx);
-              await widget.api.createCustomer({
-                'name': nameCtrl.text.trim(),
-                'phone': phoneCtrl.text.trim(),
-                'password': passCtrl.text.trim(),
-              });
-              _load();
+              try {
+                await widget.api.deleteCustomer(c['id'] as int);
+                _showSnack('کڕیارەکە بە سەرکەوتوویی سڕایەوە یان ڕاگیرا ✅');
+                _load();
+              } catch (e) {
+                _showSnack(e.toString(), error: true);
+              }
             },
-            child: Text(AppStrings.tr('save', widget.lang)),
+            child: const Text('سڕینەوە'),
           ),
         ],
       ),
@@ -96,9 +253,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 14),
           child: SectionHeader(
             title: AppStrings.tr('nav_customers', widget.lang),
-            subtitle: 'بەڕێوەبردنی کڕیارانی ئەپی REGA، ناونیشانەکان و کۆی خەرجی هەر کڕیارێک',
+            subtitle: 'بەڕێوەبردن، دەستکاریکردن و زیادکردنی کڕیارانی ئەپی REGA، ناونیشان و خەرجی کڕیار',
             trailing: ElevatedButton.icon(
-              onPressed: _showAddCustomerDialog,
+              onPressed: () => _showCustomerFormDialog(),
               icon: const Icon(Icons.person_add_rounded, size: 18),
               label: const Text('زیادکردنی کڕیار'),
             ),
@@ -155,8 +312,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
                               style: const TextStyle(fontWeight: FontWeight.w800),
                             ),
                             subtitle: Text('📍 $firstAddr  •  🛍️ ${c['customer_orders_count'] ?? 0} داواکاری'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
+                            trailing: Wrap(
+                              spacing: 8,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 Text(
                                   formatIqd(c['total_spent'] as num?, lang: widget.lang),
@@ -166,7 +324,21 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                     fontSize: 14,
                                   ),
                                 ),
-                                const SizedBox(width: 14),
+                                IconButton(
+                                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                                  tooltip: 'بینینی زانیاری',
+                                  onPressed: () => _showCustomerDetailsDialog(c),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit_rounded, size: 18, color: RegaColors.blue),
+                                  tooltip: 'دەستکاریکردنی کڕیار',
+                                  onPressed: () => _showCustomerFormDialog(existing: c),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline_rounded, size: 18, color: RegaColors.crimson),
+                                  tooltip: 'سڕینەوە',
+                                  onPressed: () => _confirmDeleteCustomer(c),
+                                ),
                                 FilterChip(
                                   selected: active,
                                   selectedColor: RegaColors.emerald.withValues(alpha: 0.2),
@@ -187,4 +359,3 @@ class _CustomersScreenState extends State<CustomersScreen> {
     );
   }
 }
-

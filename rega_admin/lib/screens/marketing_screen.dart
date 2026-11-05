@@ -71,18 +71,20 @@ class _MarketingScreenState extends State<MarketingScreen>
     );
   }
 
-  void _showAddCouponDialog() {
-    final codeCtrl = TextEditingController();
-    final titleCtrl = TextEditingController();
-    final valCtrl = TextEditingController(text: '2000');
-    final minCtrl = TextEditingController(text: '10000');
-    String type = 'fixed';
+  void _showCouponDialog({Map<String, dynamic>? existing}) {
+    final isEdit = existing != null;
+    final codeCtrl = TextEditingController(text: existing?['code']?.toString() ?? '');
+    final titleCtrl = TextEditingController(text: existing?['title_ku']?.toString() ?? '');
+    final valCtrl = TextEditingController(text: (existing?['discount_value'] ?? 2000).toString());
+    final minCtrl = TextEditingController(text: (existing?['min_order_amount'] ?? 10000).toString());
+    String type = existing?['discount_type']?.toString() ?? 'fixed';
+    bool isActive = existing?['is_active'] ?? true;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('دروستکردنی کۆدی داشکاندنی نوێ (Coupon)'),
+          title: Text(isEdit ? 'دەستکاریکردنی کۆدی داشکاندن' : 'دروستکردنی کۆدی داشکاندنی نوێ (Coupon)'),
           content: SizedBox(
             width: 440,
             child: Column(
@@ -128,6 +130,14 @@ class _MarketingScreenState extends State<MarketingScreen>
                     ),
                   ],
                 ),
+                if (isEdit) ...[
+                  const SizedBox(height: 10),
+                  SwitchListTile(
+                    value: isActive,
+                    onChanged: (v) => setDialogState(() => isActive = v),
+                    title: const Text('چالاکە'),
+                  ),
+                ],
               ],
             ),
           ),
@@ -138,14 +148,21 @@ class _MarketingScreenState extends State<MarketingScreen>
                 if (codeCtrl.text.trim().isEmpty || titleCtrl.text.trim().isEmpty) return;
                 Navigator.pop(ctx);
                 try {
-                  await widget.api.createCoupon({
+                  final payload = {
                     'code': codeCtrl.text.trim(),
                     'title_ku': titleCtrl.text.trim(),
                     'discount_type': type,
                     'discount_value': int.tryParse(valCtrl.text) ?? 0,
                     'min_order_amount': int.tryParse(minCtrl.text) ?? 0,
-                  });
-                  _showSnack('کۆدی داشکاندن دروستکرا');
+                    'is_active': isActive,
+                  };
+                  if (isEdit) {
+                    await widget.api.updateCoupon(existing['id'] as int, payload);
+                    _showSnack('کۆدی داشکاندن نوێکرایەوە ✅');
+                  } else {
+                    await widget.api.createCoupon(payload);
+                    _showSnack('کۆدی داشکاندن دروستکرا ✅');
+                  }
                   _load();
                 } catch (e) {
                   _showSnack(e.toString(), error: true);
@@ -159,51 +176,77 @@ class _MarketingScreenState extends State<MarketingScreen>
     );
   }
 
-  void _showAddBannerDialog() {
-    final titleCtrl = TextEditingController();
-    final subCtrl = TextEditingController();
-    final badgeCtrl = TextEditingController(text: 'تایبەت');
+  void _showBannerDialog({Map<String, dynamic>? existing}) {
+    final isEdit = existing != null;
+    final titleCtrl = TextEditingController(text: existing?['title_ku']?.toString() ?? '');
+    final subCtrl = TextEditingController(text: existing?['subtitle_ku']?.toString() ?? '');
+    final badgeCtrl = TextEditingController(text: existing?['badge_text']?.toString() ?? 'تایبەت');
     final imgCtrl = TextEditingController(
-      text: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1000&q=80',
+      text: existing?['image_url']?.toString() ??
+          'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1000&q=80',
     );
+    bool isActive = existing?['is_active'] ?? true;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('زیادکردنی بانەری ڕێکلام بۆ ئەپی کڕیار'),
-        content: SizedBox(
-          width: 440,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'سەردێڕی بانەر *')),
-              const SizedBox(height: 12),
-              TextField(controller: subCtrl, decoration: const InputDecoration(labelText: 'ژێرنووس')),
-              const SizedBox(height: 12),
-              TextField(controller: badgeCtrl, decoration: const InputDecoration(labelText: 'تاگی سەر بانەر')),
-              const SizedBox(height: 12),
-              TextField(controller: imgCtrl, decoration: const InputDecoration(labelText: 'بەستەری وێنە (Image URL) *')),
-            ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(isEdit ? 'دەستکاریکردنی بانەری ڕێکلام' : 'زیادکردنی بانەری نوێ بۆ ئەپی کڕیار'),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'سەردێڕی بانەر *')),
+                  const SizedBox(height: 12),
+                  TextField(controller: subCtrl, decoration: const InputDecoration(labelText: 'ژێرنووس')),
+                  const SizedBox(height: 12),
+                  TextField(controller: badgeCtrl, decoration: const InputDecoration(labelText: 'تاگی سەر بانەر')),
+                  const SizedBox(height: 12),
+                  TextField(controller: imgCtrl, decoration: const InputDecoration(labelText: 'بەستەری وێنە (Image URL) *')),
+                  if (isEdit) ...[
+                    const SizedBox(height: 10),
+                    SwitchListTile(
+                      value: isActive,
+                      onChanged: (v) => setDialogState(() => isActive = v),
+                      title: const Text('چالاکە'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
+            ElevatedButton(
+              onPressed: () async {
+                if (titleCtrl.text.trim().isEmpty || imgCtrl.text.trim().isEmpty) return;
+                Navigator.pop(ctx);
+                try {
+                  final payload = {
+                    'title_ku': titleCtrl.text.trim(),
+                    'subtitle_ku': subCtrl.text.trim(),
+                    'badge_text': badgeCtrl.text.trim(),
+                    'image_url': imgCtrl.text.trim(),
+                    'is_active': isActive,
+                  };
+                  if (isEdit) {
+                    await widget.api.updateBanner(existing['id'] as int, payload);
+                    _showSnack('بانەری ڕێکلام نوێکرایەوە ✅');
+                  } else {
+                    await widget.api.createBanner(payload);
+                    _showSnack('بانەری نوێ زیادکرا ✅');
+                  }
+                  _load();
+                } catch (e) {
+                  _showSnack(e.toString(), error: true);
+                }
+              },
+              child: Text(AppStrings.tr('save', widget.lang)),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
-          ElevatedButton(
-            onPressed: () async {
-              if (titleCtrl.text.trim().isEmpty || imgCtrl.text.trim().isEmpty) return;
-              Navigator.pop(ctx);
-              await widget.api.createBanner({
-                'title_ku': titleCtrl.text.trim(),
-                'subtitle_ku': subCtrl.text.trim(),
-                'badge_text': badgeCtrl.text.trim(),
-                'image_url': imgCtrl.text.trim(),
-              });
-              _showSnack('بانەری نوێ زیادکرا');
-              _load();
-            },
-            child: Text(AppStrings.tr('save', widget.lang)),
-          ),
-        ],
       ),
     );
   }
@@ -302,7 +345,7 @@ class _MarketingScreenState extends State<MarketingScreen>
                             Align(
                               alignment: AlignmentDirectional.centerEnd,
                               child: ElevatedButton.icon(
-                                onPressed: _showAddCouponDialog,
+                                onPressed: () => _showCouponDialog(),
                                 icon: const Icon(Icons.local_offer_rounded, size: 18),
                                 label: const Text('دروستکردنی کۆدی نوێ'),
                               ),
@@ -339,6 +382,11 @@ class _MarketingScreenState extends State<MarketingScreen>
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.edit_rounded, color: RegaColors.blue, size: 20),
+                                          tooltip: 'دەستکاریکردن',
+                                          onPressed: () => _showCouponDialog(existing: c),
+                                        ),
                                         Switch(
                                           value: active,
                                           onChanged: (v) async {
@@ -369,7 +417,7 @@ class _MarketingScreenState extends State<MarketingScreen>
                             Align(
                               alignment: AlignmentDirectional.centerEnd,
                               child: ElevatedButton.icon(
-                                onPressed: _showAddBannerDialog,
+                                onPressed: () => _showBannerDialog(),
                                 icon: const Icon(Icons.add_photo_alternate_rounded, size: 18),
                                 label: const Text('زیادکردنی بانەر'),
                               ),
@@ -402,6 +450,11 @@ class _MarketingScreenState extends State<MarketingScreen>
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.edit_rounded, color: RegaColors.blue, size: 20),
+                                          tooltip: 'دەستکاریکردن',
+                                          onPressed: () => _showBannerDialog(existing: b),
+                                        ),
                                         Switch(
                                           value: active,
                                           onChanged: (v) async {

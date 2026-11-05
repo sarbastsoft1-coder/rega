@@ -166,6 +166,54 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
     );
   }
 
+  void _confirmDeleteZone(Map<String, dynamic> z) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('سڕینەوەی گەڕەکی ${z['name_ku']}'),
+        content: const Text('ئایا دڵنیایت لە سڕینەوەی ئەم گەڕەکە؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await widget.api.deleteNeighborhood(z['id'] as int);
+                _load();
+              } catch (_) {}
+            },
+            child: const Text('سڕینەوە'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteCategory(Map<String, dynamic> c) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('سڕینەوەی بەشی ${c['name_ku']}'),
+        content: const Text('ئایا دڵنیایت لە سڕینەوەی ئەم بەشە؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await widget.api.deleteCategory(c['id'] as int);
+                _load();
+              } catch (_) {}
+            },
+            child: const Text('سڕینەوە'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -250,7 +298,11 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                                         ),
                                         IconButton(
                                           onPressed: () => _showZoneDialog(existing: z),
-                                          icon: const Icon(Icons.edit_outlined),
+                                          icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
+                                        ),
+                                        IconButton(
+                                          onPressed: () => _confirmDeleteZone(z),
+                                          icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
                                         ),
                                       ],
                                     ),
@@ -323,7 +375,11 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                                         ),
                                         IconButton(
                                           onPressed: () => _showCategoryDialog(existing: c),
-                                          icon: const Icon(Icons.edit_outlined),
+                                          icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
+                                        ),
+                                        IconButton(
+                                          onPressed: () => _confirmDeleteCategory(c),
+                                          icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
                                         ),
                                       ],
                                     ),

@@ -156,9 +156,9 @@ class AppStrings {
       'en': 'Add New',
     },
     'part_vendor': {
-      'ku': '١. بەشی فرۆشیار (Vendor)',
-      'ar': '١. قسم البائعين (Vendor)',
-      'en': '1. Vendor Part',
+      'ku': '١. بەشی فرۆشیار (Froshyar)',
+      'ar': '١. قسم البائعين (Froshyar)',
+      'en': '1. Vendor Part (Froshyar)',
     },
     'part_customer': {
       'ku': '٢. بەشی کڕیار (Customer)',

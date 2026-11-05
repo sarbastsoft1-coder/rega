@@ -188,6 +188,7 @@ class OrderManagementController extends Controller
 
         $updates = ['status' => $newStatus];
         match ($newStatus) {
+            'pending' => $updates += ['vendor_status' => 'pending', 'driver_status' => $order->driver_id ? 'driver_assigned' : 'unassigned'],
             'preparing' => $updates += ['vendor_status' => 'preparing', 'accepted_at' => $order->accepted_at ?? now()],
             'ready' => $updates += ['vendor_status' => 'ready', 'ready_at' => $order->ready_at ?? now()],
             'picked_up' => $updates += ['vendor_status' => 'completed', 'driver_status' => 'picked_up', 'picked_up_at' => $order->picked_up_at ?? now()],
@@ -208,6 +209,7 @@ class OrderManagementController extends Controller
         };
 
         $order->update($updates);
+        $order->refresh();
 
         OrderStatusLog::create([
             'order_id' => $order->id,
@@ -260,6 +262,60 @@ class OrderManagementController extends Controller
             'success' => true,
             'message' => 'پاداشتی چاوەڕوانی بۆ شۆفێر تۆمارکرا.',
             'data' => $order->fresh(['driver.driverProfile', 'statusLogs.actor']),
+        ]);
+    }
+
+    public function update(Request $request, Order $order): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_name' => ['sometimes', 'string', 'max:120'],
+            'customer_phone' => ['sometimes', 'string', 'max:30'],
+            'delivery_address' => ['sometimes', 'string', 'max:255'],
+            'customer_notes' => ['nullable', 'string', 'max:500'],
+            'delivery_fee' => ['nullable', 'integer', 'min:0'],
+            'payment_method' => ['nullable', 'string', 'in:cash,fib,fastpay,wallet'],
+            'payment_status' => ['nullable', 'string', 'in:pending,paid,refunded'],
+            'status' => ['nullable', 'string'],
+        ]);
+
+        if (isset($validated['delivery_fee'])) {
+            $diff = (int) $validated['delivery_fee'] - (int) $order->delivery_fee;
+            $validated['total_amount'] = (int) $order->total_amount + $diff;
+            $validated['driver_total_earning'] = (int) $validated['delivery_fee'] + (int) $order->driver_tip + (int) $order->waiting_bonus;
+        }
+
+        $order->update($validated);
+
+        if (! empty($validated['status']) && $validated['status'] !== $order->getOriginal('status')) {
+            OrderStatusLog::create([
+                'order_id' => $order->id,
+                'from_status' => $order->getOriginal('status'),
+                'to_status' => $validated['status'],
+                'actor_id' => $request->user()->id,
+                'actor_role' => $request->user()->role,
+                'note' => 'دەستکاریکردنی داواکاری لەلایەن ئەدمین',
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'زانیاری داواکاری نوێکرایەوە.',
+            'data' => $order->fresh(['store', 'customer', 'driver.driverProfile', 'items']),
+        ]);
+    }
+
+    public function destroy(Order $order): JsonResponse
+    {
+        DB::transaction(function () use ($order) {
+            $order->items()->delete();
+            $order->statusLogs()->delete();
+            LiveTelemetrySession::where('order_id', $order->id)->delete();
+            $order->delete();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'داواکاری بە سەرکەوتوویی سڕایەوە.',
         ]);
     }
 }

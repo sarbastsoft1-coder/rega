@@ -162,6 +162,16 @@ class _FinanceScreenState extends State<FinanceScreen>
               SectionHeader(
                 title: AppStrings.tr('nav_finance', widget.lang),
                 subtitle: 'ژمێریاری ناوەندی: کۆمیسیۆنی ١٢٪، شایستەی فرۆشگاکان و وەرگرتنەوەی کاشی شۆفێران (COD)',
+                trailing: ElevatedButton.icon(
+                  onPressed: () => _showQuickSettlementDialog(
+                    title: 'تۆمارکردنی مامەڵەی دارایی نوێ',
+                    recipientType: 'vendor',
+                    direction: 'payout_to_partner',
+                    suggestedAmount: 25000,
+                  ),
+                  icon: const Icon(Icons.add_card_rounded, size: 18),
+                  label: const Text('تۆمارکردنی مامەڵەی دارایی'),
+                ),
               ),
               const SizedBox(height: 16),
               LayoutBuilder(
