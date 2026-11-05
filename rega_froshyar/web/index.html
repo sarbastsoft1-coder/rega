@@ -115,20 +115,25 @@
       });
     }
 
+    function removeSplash() {
+      const splash = document.getElementById('rega-splash');
+      if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(function() {
+          if (splash.parentNode) splash.parentNode.removeChild(splash);
+        }, 450);
+      }
+    }
+
     // Auto-remove splash when flutter-view appears
     const observer = new MutationObserver(function() {
-      if (document.querySelector('flutter-view')) {
-        const splash = document.getElementById('rega-splash');
-        if (splash) {
-          splash.style.opacity = '0';
-          setTimeout(function() {
-            if (splash.parentNode) splash.parentNode.removeChild(splash);
-          }, 450);
-        }
+      if (document.querySelector('flutter-view') || document.querySelector('flt-glass-pane') || document.querySelector('flt-scene-host')) {
+        removeSplash();
         observer.disconnect();
       }
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(removeSplash, 2800);
   </script>
 </head>
 <body>

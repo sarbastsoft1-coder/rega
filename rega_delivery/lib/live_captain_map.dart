@@ -402,7 +402,9 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
 
     if (_followCaptain && _mapReady) {
       try {
-        _mapController.move(next, _mapController.camera.zoom);
+        final curZoom = _mapController.camera.zoom;
+        final safeZoom = (curZoom.isNaN || curZoom < 11.5) ? 15.6 : curZoom;
+        _mapController.move(next, safeZoom);
       } catch (_) {}
     }
   }
@@ -588,22 +590,39 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     return (math.atan2(y, x) * 180.0 / math.pi + 360.0) % 360.0;
   }
 
-  void _fitFullRoute() {
+  void _safeFitBounds(List<LatLng> points, {double maxZoom = 16.2, double minZoom = 11.5}) {
+    if (!_mapReady || points.isEmpty) return;
+    try {
+      final valid = points.where((p) => !p.latitude.isNaN && !p.longitude.isNaN).toList();
+      if (valid.isEmpty) return;
+      if (valid.length == 1) {
+        _mapController.move(valid.first, 15.6);
+        return;
+      }
+      final bounds = LatLngBounds.fromPoints(valid);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+          maxZoom: maxZoom,
+          minZoom: minZoom,
+        ),
+      );
+    } catch (_) {
+      try {
+        _mapController.move(_displayDriverPos, 15.6);
+      } catch (_) {}
+    }
+  }
+
+  void _fitFullRoute({bool keepFollowing = false}) {
     if (!_mapReady) return;
-    final allPoints = <LatLng>[
+    _followCaptain = keepFollowing;
+    _safeFitBounds([
       _displayDriverPos,
       _storePoint,
       _customerPoint,
-    ];
-    final bounds = LatLngBounds.fromPoints(allPoints);
-    _followCaptain = false;
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: bounds,
-        padding: const EdgeInsets.only(top: 120, bottom: 290, left: 48, right: 48),
-        maxZoom: 16.5,
-      ),
-    );
+    ]);
     setState(() {});
   }
 
@@ -743,7 +762,17 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                 : const Color(0xFFE2E8F0),
             onMapReady: () {
               _mapReady = true;
-              _fitFullRoute();
+              _mapController.move(_displayDriverPos, 15.6);
+              _followCaptain = true;
+              Future.delayed(const Duration(milliseconds: 350), () {
+                if (mounted && _mapReady) {
+                  _safeFitBounds([
+                    _displayDriverPos,
+                    _storePoint,
+                    _customerPoint,
+                  ]);
+                }
+              });
             },
             onPositionChanged: (_, hasGesture) {
               if (hasGesture && _followCaptain) {
@@ -754,8 +783,10 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
           children: [
             TileLayer(
               urlTemplate: _tileUrl,
+              fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               subdomains: _mapStyleIndex == 2 ? const [] : const ['a', 'b', 'c', 'd'],
               userAgentPackageName: 'iq.rega.delivery',
+              tileProvider: NetworkTileProvider(),
             ),
             PolylineLayer(polylines: polylines),
             MarkerLayer(

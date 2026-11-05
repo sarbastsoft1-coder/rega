@@ -641,20 +641,30 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
 
     if (_followDriver && _mapReady) {
       try {
-        _mapController.move(next, _mapController.camera.zoom);
+        final curZoom = _mapController.camera.zoom;
+        final safeZoom = (curZoom.isNaN || curZoom < 12.0) ? 15.6 : curZoom;
+        _mapController.move(next, safeZoom);
       } catch (_) {}
     }
   }
 
   void _onGlideTick() {
     if (!mounted) return;
-    final t = _glideController.value;
+    final t = Curves.easeInOut.transform(_glideController.value);
+    final cur = LatLng(
+      _prevDriverPos.latitude + (_targetDriverPos.latitude - _prevDriverPos.latitude) * t,
+      _prevDriverPos.longitude + (_targetDriverPos.longitude - _prevDriverPos.longitude) * t,
+    );
     setState(() {
-      _displayDriverPos = LatLng(
-        _prevDriverPos.latitude + (_targetDriverPos.latitude - _prevDriverPos.latitude) * t,
-        _prevDriverPos.longitude + (_targetDriverPos.longitude - _prevDriverPos.longitude) * t,
-      );
+      _displayDriverPos = cur;
     });
+    if (_followDriver && _mapReady) {
+      try {
+        final curZoom = _mapController.camera.zoom;
+        final safeZoom = (curZoom.isNaN || curZoom < 12.0) ? 15.6 : curZoom;
+        _mapController.move(cur, safeZoom);
+      } catch (_) {}
+    }
   }
 
   void _recomputeLocalMetrics() {
@@ -705,39 +715,50 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     return [...pts.sublist(0, prevIdx + 1), current];
   }
 
+  void _safeFitBounds(List<LatLng> points, {double maxZoom = 16.2, double minZoom = 12.0}) {
+    if (!_mapReady || points.isEmpty) return;
+    try {
+      final valid = points.where((p) => !p.latitude.isNaN && !p.longitude.isNaN).toList();
+      if (valid.isEmpty) return;
+      if (valid.length == 1) {
+        _mapController.move(valid.first, 15.6);
+        return;
+      }
+      final bounds = LatLngBounds.fromPoints(valid);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+          maxZoom: maxZoom,
+          minZoom: minZoom,
+        ),
+      );
+    } catch (_) {
+      try {
+        _mapController.move(_displayDriverPos, 15.6);
+      } catch (_) {}
+    }
+  }
+
   void _focusOnPickupRoute() {
     if (!_mapReady) return;
     _followDriver = false;
-    final bounds = LatLngBounds.fromPoints([
+    _safeFitBounds([
       _displayDriverPos,
       _dispatchOrigin,
       widget.storeLocation,
     ]);
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: bounds,
-        padding: const EdgeInsets.only(top: 175, bottom: 280, left: 45, right: 45),
-        maxZoom: 16.8,
-      ),
-    );
     setState(() {});
   }
 
   void _focusOnDeliveryRoute() {
     if (!_mapReady) return;
     _followDriver = false;
-    final bounds = LatLngBounds.fromPoints([
+    _safeFitBounds([
       widget.storeLocation,
       widget.customerLocation,
       if (_localProgress >= 0.35) _displayDriverPos,
     ]);
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: bounds,
-        padding: const EdgeInsets.only(top: 175, bottom: 280, left: 45, right: 45),
-        maxZoom: 16.8,
-      ),
-    );
     setState(() {});
   }
 
@@ -753,8 +774,6 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       pts[idx].longitude + (pts[idx + 1].longitude - pts[idx].longitude) * frac,
     );
   }
-
-
 
   double _haversineMeters(LatLng a, LatLng b) {
     const r = 6371000.0;
@@ -777,21 +796,14 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     return (math.atan2(y, x) * 180.0 / math.pi + 360.0) % 360.0;
   }
 
-  void _fitAllMarkers() {
+  void _fitAllMarkers({bool keepFollowing = false}) {
     if (!_mapReady) return;
-    _followDriver = false;
-    final bounds = LatLngBounds.fromPoints([
+    _followDriver = keepFollowing;
+    _safeFitBounds([
       _displayDriverPos,
       widget.storeLocation,
       widget.customerLocation,
     ]);
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: bounds,
-        padding: const EdgeInsets.only(top: 135, bottom: 320, left: 48, right: 48),
-        maxZoom: 16.5,
-      ),
-    );
     setState(() {});
   }
 
@@ -989,11 +1001,22 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                 options: MapOptions(
                   initialCenter: _displayDriverPos,
                   initialZoom: 15.6,
-                  minZoom: 12.0,
+                  minZoom: 11.0,
                   maxZoom: 18.5,
+                  backgroundColor: const Color(0xFF1E293B),
                   onMapReady: () {
                     _mapReady = true;
-                    _fitAllMarkers();
+                    _mapController.move(_displayDriverPos, 15.6);
+                    _followDriver = true;
+                    Future.delayed(const Duration(milliseconds: 350), () {
+                      if (mounted && _mapReady) {
+                        _safeFitBounds([
+                          _displayDriverPos,
+                          widget.storeLocation,
+                          widget.customerLocation,
+                        ]);
+                      }
+                    });
                   },
                   onPositionChanged: (_, hasGesture) {
                     if (hasGesture && _followDriver) {
@@ -1004,8 +1027,10 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                 children: [
                   TileLayer(
                     urlTemplate: _tileUrl,
+                    fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     subdomains: _mapStyleIndex == 2 ? const [] : const ["a", "b", "c", "d"],
                     userAgentPackageName: "iq.rega.customer",
+                    tileProvider: NetworkTileProvider(),
                   ),
                   PolylineLayer(polylines: polylines),
                   MarkerLayer(
@@ -1186,157 +1211,166 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
             ),
 
             // 2. Top Live Second-by-Second Header Bar & Two-Stage Journey Navigator
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.94),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: const Color(0xFFFAC800).withValues(alpha: 0.55),
-                          width: 1.5,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 20,
-                            offset: Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          InkWell(
-                            onTap: () => Navigator.pop(context),
-                            borderRadius: BorderRadius.circular(14),
-                            child: Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.arrow_back_ios_new_rounded,
-                                color: Colors.white,
-                                size: 18,
-                              ),
+            Positioned(
+              top: 10,
+              left: 12,
+              right: 12,
+              child: SafeArea(
+                bottom: false,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 580),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A).withValues(alpha: 0.94),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: const Color(0xFFFAC800).withValues(alpha: 0.55),
+                              width: 1.5,
                             ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 20,
+                                offset: Offset(0, 8),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
+                          child: Row(
+                            children: [
+                              InkWell(
+                                onTap: () => Navigator.pop(context),
+                                borderRadius: BorderRadius.circular(14),
+                                child: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.arrow_back_ios_new_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        color: _status == 'delivered'
-                                            ? const Color(0xFF22C55E)
-                                            : const Color(0xFF00E676),
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        _liveCaptainConnected
-                                            ? "LIVE GPS • ڕاستەوخۆ لە مۆبایلی شۆفێرەوە"
-                                            : (_serverLiveConnected
-                                                ? "LIVE 1s • نوێکردنەوەی چرکە بە چرکە"
-                                                : "LIVE 1s • شوێنپێهەڵگرتنی زیندوو"),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Color(0xFF00E676),
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            color: _status == 'delivered'
+                                                ? const Color(0xFF22C55E)
+                                                : const Color(0xFF00E676),
+                                            shape: BoxShape.circle,
+                                          ),
                                         ),
+                                        const SizedBox(width: 6),
+                                        Flexible(
+                                          child: Text(
+                                            _liveCaptainConnected
+                                                ? "LIVE GPS • ڕاستەوخۆ لە مۆبایلی شۆفێرەوە"
+                                                : (_serverLiveConnected
+                                                    ? "LIVE 1s • نوێکردنەوەی چرکە بە چرکە"
+                                                    : "LIVE 1s • شوێنپێهەڵگرتنی زیندوو"),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Color(0xFF00E676),
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      _statusHeadline,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w900,
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  _statusHeadline,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w900,
+                              ),
+                              const SizedBox(width: 8),
+                              // Exact MM:SS Second-by-Second Countdown Pill
+                              Directionality(
+                                textDirection: TextDirection.ltr,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 7,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _status == 'delivered'
+                                        ? const Color(0xFF22C55E)
+                                        : (isHeadingToStore ? const Color(0xFFF59E0B) : const Color(0xFFFAC800)),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _status == 'delivered'
+                                            ? 'DONE'
+                                            : _formatCountdown(_etaSeconds),
+                                        style: const TextStyle(
+                                          color: Color(0xFF0F172A),
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w900,
+                                          fontFeatures: [FontFeature.tabularFigures()],
+                                        ),
+                                      ),
+                                      Text(
+                                        _status == 'delivered'
+                                            ? 'گەیشت'
+                                            : (isHeadingToStore
+                                                ? '${_formatMeters(_remainingMeters)} بۆ فرۆشگا'
+                                                : '${_formatMeters(_remainingMeters)} بۆ ماڵت'),
+                                        style: const TextStyle(
+                                          color: Color(0xFF1E293B),
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          // Exact MM:SS Second-by-Second Countdown Pill
-                          Directionality(
-                            textDirection: TextDirection.ltr,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _status == 'delivered'
-                                    ? const Color(0xFF22C55E)
-                                    : (isHeadingToStore ? const Color(0xFFF59E0B) : const Color(0xFFFAC800)),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    _status == 'delivered'
-                                        ? 'DONE'
-                                        : _formatCountdown(_etaSeconds),
-                                    style: const TextStyle(
-                                      color: Color(0xFF0F172A),
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w900,
-                                      fontFeatures: [FontFeature.tabularFigures()],
-                                    ),
-                                  ),
-                                  Text(
-                                    _status == 'delivered'
-                                        ? 'گەیشت'
-                                        : (isHeadingToStore
-                                            ? '${_formatMeters(_remainingMeters)} بۆ فرۆشگا'
-                                            : '${_formatMeters(_remainingMeters)} بۆ ماڵت'),
-                                    style: const TextStyle(
-                                      color: Color(0xFF1E293B),
-                                      fontSize: 8.5,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 6),
+                        // Visual Two-Stage Journey Header (Pickup from store -> Delivery to you)
+                        _buildJourneyPhaseBar(isHeadingToStore, isDelivered),
+                      ],
                     ),
-                    const SizedBox(height: 6),
-                    // Visual Two-Stage Journey Header (Pickup from store -> Delivery to you)
-                    _buildJourneyPhaseBar(isHeadingToStore, isDelivered),
-                  ],
+                  ),
                 ),
               ),
             ),
 
             // 3. Map Controls (Follow Driver, Fit Full, Focus Pickup, Focus Delivery, Map Style)
             Positioned(
-              top: 178,
+              top: 135,
               left: 14,
               child: SafeArea(
                 child: Column(
@@ -1349,7 +1383,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                       onTap: () {
                         setState(() => _followDriver = true);
                         if (_mapReady) {
-                          _mapController.move(_displayDriverPos, 16.2);
+                          _mapController.move(_displayDriverPos, 16.0);
                         }
                       },
                     ),
@@ -1357,7 +1391,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                     _TrackerMapBtn(
                       icon: Icons.route_rounded,
                       active: false,
-                      onTap: _fitAllMarkers,
+                      onTap: () => _fitAllMarkers(keepFollowing: false),
                     ),
                     const SizedBox(height: 8),
                     _TrackerMapBtn(
@@ -1391,22 +1425,28 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
               bottom: 12,
               child: SafeArea(
                 top: false,
-                child: Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 28,
-                        offset: Offset(0, -6),
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 580),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(26),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 28,
+                            offset: Offset(0, -6),
+                          ),
+                        ],
                       ),
-                    ],
+                      child: _status == 'delivered'
+                          ? _buildDeliveredCelebrationCard()
+                          : _buildActiveLiveBottomPanel(),
+                    ),
                   ),
-                  child: _status == 'delivered'
-                      ? _buildDeliveredCelebrationCard()
-                      : _buildActiveLiveBottomPanel(),
                 ),
               ),
             ),
