@@ -161,13 +161,21 @@ class _AdminShellState extends State<AdminShell> {
                 itemBuilder: (ctx, idx) {
                   final item = items[idx];
                   final active = _selectedIndex == idx;
+                  final isOrdersActive = active && idx == 1;
                   final isCustomerActive = active && idx == 3;
+
+                  Color itemBg = Colors.transparent;
+                  if (active) {
+                    itemBg = isOrdersActive
+                        ? const Color(0xFFEA580C)
+                        : RegaColors.forestGreenActive;
+                  }
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: active ? RegaColors.forestGreenActive : Colors.transparent,
+                        color: itemBg,
                         borderRadius: BorderRadius.circular(10),
                         border: isCustomerActive
                             ? const Border(
@@ -227,7 +235,7 @@ class _AdminShellState extends State<AdminShell> {
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 1024;
     final surfaceColor = widget.isDark ? RegaColors.darkSurface : Colors.white;
-    final hideTopOperationalBar = isDesktop && (_selectedIndex == 0 || _selectedIndex == 2 || _selectedIndex == 3 || _selectedIndex == 4);
+    final hideTopOperationalBar = isDesktop && (_selectedIndex == 0 || _selectedIndex == 1 || _selectedIndex == 2 || _selectedIndex == 3 || _selectedIndex == 4);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
