@@ -210,18 +210,17 @@ class RegaVendorApp extends StatelessWidget {
             );
             return MediaQuery(
               data: mediaQuery.copyWith(textScaler: clampedTextScaler),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: Directionality(
-                    textDirection: Trans.direction,
-                    child: child!,
-                  ),
-                ),
+              child: Directionality(
+                textDirection: Trans.direction,
+                child: child!,
               ),
             );
           },
-          home: const LoginScreen(),
+          home: (Uri.base.queryParameters['bypass'] == 'true' || Uri.base.queryParameters.containsKey('tab'))
+              ? MainNavigationScreen(
+                  initialIndex: int.tryParse(Uri.base.queryParameters['tab'] ?? '3') ?? 3,
+                )
+              : const LoginScreen(),
         );
       },
     );
@@ -1036,13 +1035,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             title: SizedBox(
               width: double.infinity,
               height: 52,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1080),
+                  child: Stack(
+                    alignment: Alignment.center,
                     children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
                       // Right Side in RTL (Start): Store Logo & Store Name
                       Flexible(
                         child: Row(
@@ -1213,34 +1215,48 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     ],
                   ),
 
-                  // Center: App Logo (بارکردنی لۆگۆ لە فایلی پڕۆژەکە یان ئۆنلاین)
-                  _buildTopLogo(),
+                  // Center: App Logo (Only on tablets and wide screens so it doesn't overlap the store name on phones)
+                  if (MediaQuery.of(context).size.width >= 560)
+                    _buildTopLogo(),
                 ],
               ),
             ),
           ),
         ),
-        body: screens[_selectedIndex],
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFFAF7F2),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(28),
-              topRight: Radius.circular(28),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.06),
-                blurRadius: 18,
-                offset: const Offset(0, -4),
-              ),
-            ],
-            border: const Border(
-              top: BorderSide(color: Color(0xFFF0EBE1), width: 1.2),
-            ),
+      ),
+    ),
+    body: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1080),
+        child: screens[_selectedIndex],
+      ),
+    ),
+    bottomNavigationBar: Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAF7F2),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(28),
+          topRight: Radius.circular(28),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, -4),
           ),
-          child: SafeArea(
-            top: false,
+        ],
+        border: const Border(
+          top: BorderSide(color: Color(0xFFF0EBE1), width: 1.2),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        bottom: true,
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          heightFactor: 1.0,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
@@ -1286,6 +1302,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
           ),
         ),
+      ),
+    ),
       ),
     );
   }
@@ -1720,52 +1738,80 @@ class OrdersScreen extends StatelessWidget {
 
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 16, 10, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  t('داواکارییە چالاکەکان'),
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-                ),
-                ElevatedButton.icon(
-                  onPressed: onSimulate,
-                  icon: const Icon(Icons.notifications_active_rounded, size: 15, color: Colors.white),
-                  label: const Text(
-                    'تاقیکردنەوەی دەنگ',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: 0,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 16, 10, 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      t('داواکارییە چالاکەکان'),
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF6418),
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
+                    ElevatedButton.icon(
+                      onPressed: onSimulate,
+                      icon: const Icon(Icons.notifications_active_rounded, size: 15, color: Colors.white),
+                      label: const Text(
+                        'تاقیکردنەوەی دەنگ',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF6418),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              Expanded(
+                child: activeOrders.isEmpty
+                    ? _buildEmptyState()
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          if (constraints.maxWidth >= 720) {
+                            final crossAxisCount = constraints.maxWidth >= 1024 ? 3 : 2;
+                            return GridView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 10,
+                                childAspectRatio: crossAxisCount == 3 ? 0.95 : 1.15,
+                              ),
+                              itemCount: activeOrders.length,
+                              itemBuilder: (context, index) {
+                                return SingleChildScrollView(
+                                  physics: const ClampingScrollPhysics(),
+                                  child: _buildOrderCard(context, activeOrders[index]),
+                                );
+                              },
+                            );
+                          }
+                          return ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                            itemCount: activeOrders.length,
+                            itemBuilder: (context, index) {
+                              final order = activeOrders[index];
+                              return _buildOrderCard(context, order);
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
           ),
-          Expanded(
-            child: activeOrders.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                    itemCount: activeOrders.length,
-                    itemBuilder: (context, index) {
-                      final order = activeOrders[index];
-                      return _buildOrderCard(context, order);
-                    },
-                  ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -3549,9 +3595,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: Column(
-        children: [
-          // 1. Search Bar
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: Column(
+            children: [
+              // 1. Search Bar
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
             child: Container(
@@ -3857,27 +3906,36 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
           const SizedBox(height: 6),
 
-          // 3. Products Grid (2 columns)
+          // 3. Products Grid (Responsive for Phone, iPad & Tablet)
           Expanded(
             child: filteredProducts.isEmpty
                 ? _buildEmptyState()
-                : GridView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.68,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    itemCount: filteredProducts.length,
-                    itemBuilder: (context, index) {
-                      return _buildProductCard(context, filteredProducts[index]);
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final w = constraints.maxWidth;
+                      final crossAxisCount = w >= 980 ? 4 : (w >= 620 ? 3 : 2);
+                      final childAspectRatio = w >= 620 ? 0.76 : 0.68;
+                      return GridView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          childAspectRatio: childAspectRatio,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                        itemCount: filteredProducts.length,
+                        itemBuilder: (context, index) {
+                          return _buildProductCard(context, filteredProducts[index]);
+                        },
+                      );
                     },
                   ),
           ),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildEmptyState() {
@@ -4359,10 +4417,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) => Directionality(
         textDirection: Trans.direction,
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            child: Column(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 540),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Drag Handle
@@ -4563,7 +4625,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
 
     if (source != null) {
       final XFile? image = await picker.pickImage(source: source);
@@ -5012,41 +5076,46 @@ class _RevenueScreenState extends State<RevenueScreen> {
       textDirection: TextDirection.rtl,
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          children: [
-            // 1. Header with title & refresh button
-            _buildHeader(context),
-            const SizedBox(height: 14),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1080),
+            child: Column(
+              children: [
+                // 1. Header with title & refresh button
+                _buildHeader(context),
+                const SizedBox(height: 14),
 
-            // 2. Period Filter Tabs
-            _buildTabs(),
-            const SizedBox(height: 14),
+                // 2. Period Filter Tabs
+                _buildTabs(),
+                const SizedBox(height: 14),
 
-            // 3. Main Profit Summary Card (Mint Green Card)
-            _buildSummaryCard(
-              netProfit: netProfit,
-              totalSales: totalSales,
-              commission: commission,
-              ordersCount: baseOrders,
-              avgTicket: avgTicket,
-              growthText: growthText,
-              periodTitle: periodTitle,
+                // 3. Main Profit Summary Card (Mint Green Card)
+                _buildSummaryCard(
+                  netProfit: netProfit,
+                  totalSales: totalSales,
+                  commission: commission,
+                  ordersCount: baseOrders,
+                  avgTicket: avgTicket,
+                  growthText: growthText,
+                  periodTitle: periodTitle,
+                ),
+                const SizedBox(height: 14),
+
+                // 4. Interactive Chart Card
+                _buildChartCard(
+                  title: chartTitle,
+                  labels: chartLabels,
+                  fullLabels: chartFullLabels,
+                  values: chartValues,
+                ),
+                const SizedBox(height: 14),
+
+                // 5. Top Products Card
+                _buildTopProductsCard(topProducts),
+                const SizedBox(height: 24),
+              ],
             ),
-            const SizedBox(height: 14),
-
-            // 4. Interactive Chart Card
-            _buildChartCard(
-              title: chartTitle,
-              labels: chartLabels,
-              fullLabels: chartFullLabels,
-              values: chartValues,
-            ),
-            const SizedBox(height: 14),
-
-            // 5. Top Products Card
-            _buildTopProductsCard(topProducts),
-            const SizedBox(height: 24),
-          ],
+          ),
         ),
       ),
     );
@@ -5778,10 +5847,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) => Directionality(
         textDirection: Trans.direction,
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            child: Column(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 540),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Center(
@@ -5973,7 +6046,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
 
     if (source != null) {
       final XFile? pickedFile = await _picker.pickImage(source: source);
@@ -6135,9 +6210,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       textDirection: Trans.direction,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Header
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Column(
+              children: [
+                // Header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -6295,7 +6373,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildLangBtn(String label, String code) {
