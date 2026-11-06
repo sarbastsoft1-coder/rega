@@ -361,7 +361,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(24, 12, 24, 6),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -377,57 +377,55 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
           ),
         ],
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _buildFroshyarNavItem(
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildFroshyarNavItem(
               index: 0,
               activeIcon: Icons.local_mall_rounded,
               inactiveIcon: Icons.local_mall_outlined,
               label: 'داواکارییەکان',
-              subtitle: 'چێشتخانەی زیندوو',
               badgeCount: activeKitchenCount,
               isDark: isDark,
             ),
-            const SizedBox(width: 6),
-            _buildFroshyarNavItem(
+          ),
+          Expanded(
+            child: _buildFroshyarNavItem(
               index: 1,
               activeIcon: Icons.restaurant_menu_rounded,
               inactiveIcon: Icons.restaurant_menu_outlined,
-              label: 'مێنۆ و بەرهەم',
-              subtitle: '${_kpis['total_products'] ?? 0} کاڵا',
+              label: 'مێنۆ',
               isDark: isDark,
             ),
-            const SizedBox(width: 6),
-            _buildFroshyarNavItem(
+          ),
+          Expanded(
+            child: _buildFroshyarNavItem(
               index: 2,
               activeIcon: Icons.auto_graph_rounded,
               inactiveIcon: Icons.auto_graph_outlined,
-              label: 'داهاتی فرۆشیار',
-              subtitle: 'پوختە و ئامار',
+              label: 'داهات',
               isDark: isDark,
             ),
-            const SizedBox(width: 6),
-            _buildFroshyarNavItem(
+          ),
+          Expanded(
+            child: _buildFroshyarNavItem(
               index: 3,
-              activeIcon: Icons.tune_rounded,
-              inactiveIcon: Icons.tune_outlined,
-              label: 'فرۆشگاکان و هەژمار',
-              subtitle: '${_kpis['total_stores'] ?? 0} فرۆشگا',
+              activeIcon: Icons.storefront_rounded,
+              inactiveIcon: Icons.storefront_outlined,
+              label: 'فرۆشگاکان',
               isDark: isDark,
             ),
-            const SizedBox(width: 6),
-            _buildFroshyarNavItem(
+          ),
+          Expanded(
+            child: _buildFroshyarNavItem(
               index: 4,
               activeIcon: Icons.account_balance_wallet_rounded,
               inactiveIcon: Icons.account_balance_wallet_outlined,
-              label: 'حەواڵە و پاکتاو',
-              subtitle: 'باڵانسی فرۆشیاران',
+              label: 'پاکتاو',
               isDark: isDark,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -437,13 +435,12 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
     required IconData activeIcon,
     required IconData inactiveIcon,
     required String label,
-    String? subtitle,
     int badgeCount = 0,
     required bool isDark,
   }) {
     final bool isSelected = _tabController.index == index;
-    const activeColor = Color(0xFFEA580C);
-    final inactiveColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    const pillYellow = Color(0xFFFAC800);
+    final iconColor = isDark ? Colors.white : const Color(0xFF0F172A);
 
     return InkWell(
       onTap: () {
@@ -451,92 +448,79 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
         _tabController.animateTo(index);
         setState(() {});
       },
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? (isDark ? const Color(0xFFEA580C).withValues(alpha: 0.2) : const Color(0xFFFFF7ED))
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFEA580C).withValues(alpha: 0.35) : Colors.transparent,
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+      borderRadius: BorderRadius.circular(50),
+      splashColor: pillYellow.withValues(alpha: 0.2),
+      highlightColor: Colors.transparent,
+      child: Center(
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                AnimatedScale(
-                  scale: isSelected ? 1.15 : 1.0,
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  child: Icon(
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.symmetric(
+                horizontal: isSelected ? 14 : 12,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: isSelected ? pillYellow : Colors.transparent,
+                borderRadius: BorderRadius.circular(50),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
                     isSelected ? activeIcon : inactiveIcon,
-                    color: isSelected ? activeColor : inactiveColor,
+                    color: isSelected ? const Color(0xFF0F172A) : iconColor,
                     size: 22,
                   ),
-                ),
-                if (badgeCount > 0)
-                  Positioned(
-                    top: -6,
-                    right: -10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white, width: 1.5),
-                        boxShadow: const [
-                          BoxShadow(color: Color(0x33EF4444), blurRadius: 4, offset: Offset(0, 2)),
-                        ],
-                      ),
-                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                      child: Text(
-                        '$badgeCount',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
-                        ),
-                      ),
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    child: isSelected
+                        ? Padding(
+                            padding: const EdgeInsetsDirectional.only(start: 8),
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF0F172A),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ),
+            if (badgeCount > 0)
+              Positioned(
+                top: -2,
+                right: -2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                  child: Text(
+                    '$badgeCount',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedDefaultTextStyle(
-                  duration: const Duration(milliseconds: 180),
-                  style: TextStyle(
-                    color: isSelected ? activeColor : (isDark ? Colors.white : const Color(0xFF1E293B)),
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-                    letterSpacing: -0.2,
-                  ),
-                  child: Text(label),
                 ),
-                if (subtitle != null)
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: isSelected ? activeColor.withValues(alpha: 0.8) : inactiveColor,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-              ],
-            ),
+              ),
           ],
         ),
       ),

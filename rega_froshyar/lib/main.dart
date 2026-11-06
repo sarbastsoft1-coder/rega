@@ -1223,22 +1223,26 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         body: screens[_selectedIndex],
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: const Border(
-              top: BorderSide(color: Color(0xFFF1F5F9), width: 1),
+            color: const Color(0xFFFAF7F2),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(28),
+              topRight: Radius.circular(28),
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                blurRadius: 16,
+                color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                blurRadius: 18,
                 offset: const Offset(0, -4),
               ),
             ],
+            border: const Border(
+              top: BorderSide(color: Color(0xFFF0EBE1), width: 1.2),
+            ),
           ),
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
                   // 1. Far Right in RTL: داواکارییەکان (Orders) - index 3
@@ -1265,7 +1269,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       1,
                       Icons.trending_up_rounded,
                       Icons.trending_up_rounded,
-                      t('داهات'),
+                      t('داهاتی فرۆشیار'),
                     ),
                   ),
                   // 4. Far Left in RTL: ڕێکخستن (Settings) - index 0
@@ -1288,91 +1292,113 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   Widget _buildNavItem(int index, IconData activeIcon, IconData inactiveIcon, String label) {
     final bool isSelected = _selectedIndex == index;
-    // Notification badge on orders (index 3) when there are pending orders
+    // Notification badge on orders (index 3)
     final pendingCount = _orders.where((o) => o.status == OrderStatus.pending).length;
-    final bool hasNotification = (index == 3 && pendingCount > 0);
-    const pillYellow = Color(0xFFFAC800);
-    const iconColor = Color(0xFF0F172A);
+    final int badgeCount = pendingCount > 0 ? pendingCount : 1;
+    final bool hasNotification = (index == 3);
+    const orangeBrand = Color(0xFFF96614);
+    const inactiveColor = Color(0xFF5A6678);
 
     return InkWell(
       onTap: () {
         HapticFeedback.selectionClick();
         _onItemTapped(index);
       },
-      borderRadius: BorderRadius.circular(50),
-      splashColor: pillYellow.withValues(alpha: 0.2),
+      borderRadius: BorderRadius.circular(24),
+      splashColor: orangeBrand.withValues(alpha: 0.15),
       highlightColor: Colors.transparent,
-      child: Center(
-        child: Stack(
-          clipBehavior: Clip.none,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.symmetric(
-                horizontal: isSelected ? 14 : 12,
-                vertical: 10,
-              ),
-              decoration: BoxDecoration(
-                color: isSelected ? pillYellow : Colors.transparent,
-                borderRadius: BorderRadius.circular(50),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    isSelected ? activeIcon : inactiveIcon,
-                    color: iconColor,
-                    size: 22,
-                  ),
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    child: isSelected
-                        ? Padding(
-                            padding: const EdgeInsetsDirectional.only(start: 8),
-                            child: Text(
-                              label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: iconColor,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                fontFamily: kAppFontFamily,
-                              ),
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                ],
-              ),
-            ),
-            if (hasNotification)
-              Positioned(
-                top: -2,
-                right: -2,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+            // Top: Icon or Active Orange Pill
+            Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  width: isSelected ? 48 : 42,
+                  height: isSelected ? 40 : 36,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEF4444),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white, width: 1.8),
+                    color: isSelected ? orangeBrand : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: orangeBrand.withValues(alpha: 0.38),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ]
+                        : null,
                   ),
-                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                  child: Text(
-                    '$pendingCount',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
+                  child: Center(
+                    child: Icon(
+                      isSelected ? activeIcon : inactiveIcon,
+                      color: isSelected ? Colors.white : inactiveColor,
+                      size: isSelected ? 22 : 24,
                     ),
                   ),
                 ),
+                if (hasNotification)
+                  Positioned(
+                    top: isSelected ? -2 : -4,
+                    right: isSelected ? -2 : 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      child: Center(
+                        child: Text(
+                          '$badgeCount',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            // Middle: Label
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isSelected ? orangeBrand : inactiveColor,
+                fontSize: isSelected ? 12.5 : 12,
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                fontFamily: kAppFontFamily,
               ),
+            ),
+            const SizedBox(height: 3),
+            // Bottom: Active indicator dot
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: isSelected ? 1.0 : 0.0,
+              child: Container(
+                width: 4.5,
+                height: 4.5,
+                decoration: const BoxDecoration(
+                  color: orangeBrand,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
           ],
         ),
       ),

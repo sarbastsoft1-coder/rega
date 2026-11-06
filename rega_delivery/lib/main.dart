@@ -2538,7 +2538,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     );
   }
 
-  // شریتی خوارەوەی ئەپ (Bottom Navigation Bar) ڕێک وەک وێنەکە
+  // شریتی خوارەوەی ئەپ — yellow pill active tab (icon + label)
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
@@ -2560,7 +2560,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           child: Row(
             children: [
               _buildBottomNavItem(
@@ -2601,8 +2601,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     required String label,
   }) {
     final isSelected = _currentTabIndex == index;
-    const activeColor = Color(0xFF16A34A);
-    const inactiveColor = Color(0xFF94A3B8);
+    const pillYellow = Color(0xFFFAC800);
+    const iconColor = Color(0xFF0F172A);
 
     return Expanded(
       child: InkWell(
@@ -2610,50 +2610,52 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           HapticFeedback.selectionClick();
           setState(() => _currentTabIndex = index);
         },
-        splashColor: Colors.transparent,
+        splashColor: pillYellow.withOpacity(0.2),
         highlightColor: Colors.transparent,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedScale(
-                scale: isSelected ? 1.15 : 1.0,
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                child: Icon(
+        borderRadius: BorderRadius.circular(50),
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.symmetric(
+              horizontal: isSelected ? 14 : 12,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected ? pillYellow : Colors.transparent,
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
                   isSelected ? activeIcon : icon,
-                  color: isSelected ? activeColor : inactiveColor,
-                  size: 24,
+                  color: iconColor,
+                  size: 22,
                 ),
-              ),
-              const SizedBox(height: 5),
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 180),
-                style: TextStyle(
-                  color: isSelected ? activeColor : inactiveColor,
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                  letterSpacing: -0.2,
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: isSelected
+                      ? Padding(
+                          padding: const EdgeInsetsDirectional.only(start: 8),
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: iconColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(height: 3),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                width: isSelected ? 4 : 0,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isSelected ? activeColor : Colors.transparent,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

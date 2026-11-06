@@ -35,7 +35,7 @@ class AdminShell extends StatefulWidget {
 }
 
 class _AdminShellState extends State<AdminShell> {
-  int _selectedIndex = 4; // فرۆشیاران (Stores / Vendors) selected by default to match screenshot
+  int _selectedIndex = 0; // سەرەکی (Executive Dashboard) selected by default to match screenshot
   int _pendingOrdersBadge = 0;
   int _onlineStoresBadge = 0;
   int _customersBadge = 0;
@@ -115,40 +115,40 @@ class _AdminShellState extends State<AdminShell> {
       child: SafeArea(
         child: Column(
           children: [
-            // Food cloche & Brand title matching screenshot
+            // Prominent REGA Pin Logo matching screenshot
             Padding(
               padding: const EdgeInsets.only(top: 24, bottom: 20),
               child: Column(
                 children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFF5722),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.room_service_rounded,
-                      size: 24,
-                      color: Colors.white,
-                    ),
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Icon(
+                        Icons.location_on_rounded,
+                        size: 42,
+                        color: Color(0xFFFF5722),
+                      ),
+                      Positioned(
+                        top: 9,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF113E2E),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   const Text(
-                    'خزمەتی خواردن',
+                    'REGA',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'بۆ ژیانی باشتر',
-                    style: TextStyle(
-                      color: Colors.white60,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 10.5,
+                      fontSize: 16,
+                      letterSpacing: 1.2,
                     ),
                   ),
                 ],
@@ -227,7 +227,7 @@ class _AdminShellState extends State<AdminShell> {
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 1024;
     final surfaceColor = widget.isDark ? RegaColors.darkSurface : Colors.white;
-    final hideTopOperationalBar = isDesktop && (_selectedIndex == 2 || _selectedIndex == 3 || _selectedIndex == 4);
+    final hideTopOperationalBar = isDesktop && (_selectedIndex == 0 || _selectedIndex == 2 || _selectedIndex == 3 || _selectedIndex == 4);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),

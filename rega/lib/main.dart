@@ -830,6 +830,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<OrderItem> _orders = [];
   double? _pinnedCustomerLat;
   double? _pinnedCustomerLng;
+  bool _isGpsLocating = false;
   String _selectedOrderFilter = 'هەموو';
   final Set<String> _favoriteStoreIds = {'store_sarwar'};
 
@@ -842,11 +843,11 @@ class _MainScreenState extends State<MainScreen> {
   late TextEditingController _passwordCtrl;
 
   // Security & Integrity State
-  bool _isLocationAuthorized = false;
-  bool _isCheckingLocation = true;
+  bool _isLocationAuthorized = kIsWeb;
+  bool _isCheckingLocation = !kIsWeb;
   bool _isVpnActive = false; // 🛡️ بارودۆخی VPN
   bool _isDeviceSafe = true; // 🔒 ئایا ئامێرەکە پارێزراوە؟
-  bool _isCheckingSecurity = true; // 🔒 پشکنینی ئاسایش
+  bool _isCheckingSecurity = !kIsWeb; // 🔒 پشکنینی ئاسایش
   String _securityErrorMessage = "";
 
   @override
@@ -919,52 +920,188 @@ class _MainScreenState extends State<MainScreen> {
   // 📍 فەنکشن بۆ داواکردنی ڕێگەپێدانی GPS لە مۆبایل (بە مەرجی ناچاری)
   Future<void> _requestLocationPermission() async {
     if (kIsWeb) {
-      setState(() {
-        _isLocationAuthorized = true;
-        _isCheckingLocation = false;
-      });
-      return;
-    }
-    setState(() => _isCheckingLocation = true);
-    
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    // پشکنینی ئەوەی ئایا GPS لە مۆبایلەکەدا کراوەیە
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      setState(() {
-        _isLocationAuthorized = false;
-        _isCheckingLocation = false;
-      });
-      return;
-    }
-
-    // پشکنینی ڕێگەپێدانەکان
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
+      if (mounted) {
         setState(() {
-          _isLocationAuthorized = false;
+          _isLocationAuthorized = true;
           _isCheckingLocation = false;
         });
-        return;
       }
-    }
-    
-    if (permission == LocationPermission.deniedForever) {
-      setState(() {
-        _isLocationAuthorized = false;
-        _isCheckingLocation = false;
-      });
       return;
     }
+    if (mounted) setState(() => _isCheckingLocation = true);
 
-    setState(() {
-      _isLocationAuthorized = true;
-      _isCheckingLocation = false;
-    });
+    try {
+      if (!kIsWeb) {
+        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          if (mounted) {
+            setState(() {
+              _isLocationAuthorized = false;
+              _isCheckingLocation = false;
+            });
+          }
+          return;
+        }
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          setState(() {
+            _isLocationAuthorized = false;
+            _isCheckingLocation = false;
+          });
+        }
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLocationAuthorized = true;
+          _isCheckingLocation = false;
+        });
+      }
+
+      // دوای ڕێگەپێدان، شوێنی ڕاستەقینەی بەکارهێنەر بدۆزەرەوە
+      await _detectUserLocation(silent: true);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          // لە وێب/هەڵەدا ڕێگە بدە بەکارهێنەر شوێن بە دەستی هەڵبژێرێت
+          _isLocationAuthorized = kIsWeb ? true : _isLocationAuthorized;
+          _isCheckingLocation = false;
+        });
+      }
+    }
+  }
+
+  Neighborhood _closestNeighborhoodTo(double lat, double lng) {
+    if (kalarNeighborhoods.isEmpty) {
+      return _selectedNeighborhood;
+    }
+    Neighborhood closest = kalarNeighborhoods.first;
+    double minDistance = double.infinity;
+    for (final n in kalarNeighborhoods) {
+      final geo = KalarGeoCatalog.forNeighborhoodId(n.id);
+      final dist = Geolocator.distanceBetween(lat, lng, geo.latitude, geo.longitude);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closest = n;
+      }
+    }
+    return closest;
+  }
+
+  /// دۆزینەوەی شوێنی GPS ی بەکارهێنەر و نوێکردنەوەی گەڕەک
+  Future<bool> _detectUserLocation({bool silent = false}) async {
+    if (_isGpsLocating) return false;
+    if (mounted) setState(() => _isGpsLocating = true);
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!silent && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تکایە GPS / Location مۆبایلەکەت هەڵبکە'),
+              backgroundColor: Color(0xFFDC2626),
+            ),
+          );
+          await Geolocator.openLocationSettings();
+        }
+        return false;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied) {
+        if (!silent && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ڕێگەپێدانی لۆکەیشن پێویستە بۆ دیاریکردنی شوێنەکەت'),
+              backgroundColor: Color(0xFFDC2626),
+            ),
+          );
+        }
+        return false;
+      }
+      if (permission == LocationPermission.deniedForever) {
+        if (!silent && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('لە ڕێکخستنی مۆبایل ڕێگەپێدانی لۆکەیشن چالاک بکە'),
+              backgroundColor: Color(0xFFDC2626),
+            ),
+          );
+          await Geolocator.openAppSettings();
+        }
+        return false;
+      }
+
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 15),
+          ),
+        );
+      } catch (_) {
+        pos = await Geolocator.getLastKnownPosition();
+      }
+
+      if (pos == null) {
+        if (!silent && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('نەتوانرا شوێنەکەت بدۆزرێتەوە. دووبارە هەوڵبدەرەوە'),
+              backgroundColor: Color(0xFFDC2626),
+            ),
+          );
+        }
+        return false;
+      }
+
+      final fixedPos = pos;
+      final closest = _closestNeighborhoodTo(fixedPos.latitude, fixedPos.longitude);
+      if (mounted) {
+        setState(() {
+          _pinnedCustomerLat = fixedPos.latitude;
+          _pinnedCustomerLng = fixedPos.longitude;
+          _selectedNeighborhood = closest;
+          _isLocationAuthorized = true;
+        });
+        if (!silent) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('🎯 شوێنەکەت دیاریکرا: ${closest.name}'),
+              backgroundColor: const Color(0xFF059669),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+      return true;
+    } catch (_) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('هەڵەی GPS. تکایە دووبارە هەوڵبدەرەوە'),
+            backgroundColor: Color(0xFFDC2626),
+          ),
+        );
+      }
+      return false;
+    } finally {
+      if (mounted) setState(() => _isGpsLocating = false);
+    }
   }
 
   // 🔒 پشکنینی پڕۆفیشناڵ بۆ ئاسایشی ئامێرەکە
@@ -1119,7 +1256,17 @@ class _MainScreenState extends State<MainScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _requestLocationPermission,
+                onPressed: () async {
+                  final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                  if (!serviceEnabled) {
+                    await Geolocator.openLocationSettings();
+                  }
+                  final perm = await Geolocator.checkPermission();
+                  if (perm == LocationPermission.deniedForever) {
+                    await Geolocator.openAppSettings();
+                  }
+                  await _requestLocationPermission();
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFAC800),
                   foregroundColor: Colors.black,
@@ -1177,6 +1324,7 @@ class _MainScreenState extends State<MainScreen> {
       if (boot != null && mounted) {
         final rawZones = boot['neighborhoods'] as List<dynamic>? ?? [];
         if (rawZones.isNotEmpty) {
+          final previousId = _selectedNeighborhood.id;
           kalarNeighborhoods
             ..clear()
             ..addAll(rawZones.map((z) {
@@ -1188,7 +1336,11 @@ class _MainScreenState extends State<MainScreen> {
                 deliveryFee: (m['delivery_fee'] as num?)?.toInt() ?? 1500,
               );
             }));
-          _selectedNeighborhood = kalarNeighborhoods.first;
+          // Keep GPS / user-selected neighborhood when backend zones refresh
+          _selectedNeighborhood = kalarNeighborhoods.firstWhere(
+            (n) => n.id == previousId || n.name == _selectedNeighborhood.name,
+            orElse: () => kalarNeighborhoods.first,
+          );
         }
 
         final rawCategories = boot['categories'] as List<dynamic>? ?? [];
@@ -2495,43 +2647,50 @@ class _MainScreenState extends State<MainScreen> {
                                                     isGpsLocating = true;
                                                   });
 
+                                                  bool ok = false;
                                                   try {
-                                                    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-                                                    LocationPermission perm = await Geolocator.checkPermission();
-                                                    if (perm == LocationPermission.denied) {
-                                                      perm = await Geolocator.requestPermission();
-                                                    }
-
-                                                    Position? pos;
-                                                    if (serviceEnabled && (perm == LocationPermission.always || perm == LocationPermission.whileInUse)) {
-                                                      pos = await Geolocator.getCurrentPosition(
-                                                        desiredAccuracy: LocationAccuracy.medium,
-                                                        timeLimit: const Duration(seconds: 5),
-                                                      );
-                                                    }
-
-                                                    if (pos != null) {
-                                                      Neighborhood closest = kalarNeighborhoods.first;
-                                                      double minDistance = double.infinity;
-                                                      for (final n in kalarNeighborhoods) {
-                                                        final geo = KalarGeoCatalog.forNeighborhoodId(n.id);
-                                                        final dist = Geolocator.distanceBetween(pos.latitude, pos.longitude, geo.latitude, geo.longitude);
-                                                        if (dist < minDistance) {
-                                                          minDistance = dist;
-                                                          closest = n;
-                                                        }
-                                                      }
-                                                      tempSelected = closest;
-                                                      _pinnedCustomerLat = pos.latitude;
-                                                      _pinnedCustomerLng = pos.longitude;
-                                                      gpsAccuracyText = '🎯 شوێنی ڕاستەقینەی GPS ()';
+                                                    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                                                    if (!serviceEnabled) {
+                                                      gpsAccuracyText = 'GPS کوژاوەتەوە';
+                                                      await Geolocator.openLocationSettings();
                                                     } else {
-                                                      tempSelected = kalarNeighborhoods[1];
-                                                      gpsAccuracyText = '📍 شوێنی زۆر دەقیقی GPS (کەلار)';
+                                                      LocationPermission perm = await Geolocator.checkPermission();
+                                                      if (perm == LocationPermission.denied) {
+                                                        perm = await Geolocator.requestPermission();
+                                                      }
+                                                      if (perm == LocationPermission.deniedForever) {
+                                                        gpsAccuracyText = 'ڕێگەپێدان پێویستە';
+                                                        await Geolocator.openAppSettings();
+                                                      } else if (perm == LocationPermission.always ||
+                                                          perm == LocationPermission.whileInUse) {
+                                                        Position? pos;
+                                                        try {
+                                                          pos = await Geolocator.getCurrentPosition(
+                                                            locationSettings: const LocationSettings(
+                                                              accuracy: LocationAccuracy.high,
+                                                              timeLimit: Duration(seconds: 15),
+                                                            ),
+                                                          );
+                                                        } catch (_) {
+                                                          pos = await Geolocator.getLastKnownPosition();
+                                                        }
+
+                                                        if (pos != null) {
+                                                          final closest = _closestNeighborhoodTo(pos.latitude, pos.longitude);
+                                                          tempSelected = closest;
+                                                          _pinnedCustomerLat = pos.latitude;
+                                                          _pinnedCustomerLng = pos.longitude;
+                                                          gpsAccuracyText = '🎯 GPS: ${closest.name}';
+                                                          ok = true;
+                                                        } else {
+                                                          gpsAccuracyText = 'نەتوانرا شوێن بدۆزرێتەوە';
+                                                        }
+                                                      } else {
+                                                        gpsAccuracyText = 'ڕێگەپێدان ڕەتکرایەوە';
+                                                      }
                                                     }
                                                   } catch (_) {
-                                                    tempSelected = kalarNeighborhoods[1];
-                                                    gpsAccuracyText = '📍 شوێنی زۆر دەقیقی GPS (کەلار)';
+                                                    gpsAccuracyText = 'هەڵەی GPS';
                                                   }
 
                                                   setModalState(() {
@@ -2542,8 +2701,14 @@ class _MainScreenState extends State<MainScreen> {
                                                   if (context.mounted) {
                                                     ScaffoldMessenger.of(context).showSnackBar(
                                                       SnackBar(
-                                                        content: Text('🎯 شوێنەکەت لەسەر نەخشەی کەلار دیاریکرا: '),
-                                                        backgroundColor: const Color(0xFF059669),
+                                                        content: Text(
+                                                          ok
+                                                              ? '🎯 شوێنەکەت دیاریکرا: ${tempSelected.name}'
+                                                              : gpsAccuracyText,
+                                                        ),
+                                                        backgroundColor: ok
+                                                            ? const Color(0xFF059669)
+                                                            : const Color(0xFFDC2626),
                                                         duration: const Duration(seconds: 2),
                                                       ),
                                                     );
@@ -3558,6 +3723,7 @@ class _MainScreenState extends State<MainScreen> {
 
     return Scaffold(
       body: Stack(
+        fit: StackFit.expand,
         children: [
           _selectedStore != null
               ? _buildStoreDetailView(_selectedStore!)
@@ -3587,7 +3753,7 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ),
 
-      // 📍 Bottom Navigation Bar (Hidden when offline) - Floating Modern Dock Island
+      // 📍 Bottom Navigation Bar — yellow pill active tab (icon + label)
       bottomNavigationBar: _isOffline
           ? null
           : Container(
@@ -3610,7 +3776,7 @@ class _MainScreenState extends State<MainScreen> {
               child: SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                   child: Row(
                     children: [
                       _buildBottomNavItem(0, _t('سەرەکی'), Icons.home_rounded, Icons.home_outlined),
@@ -3628,8 +3794,8 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildBottomNavItem(int index, String label, IconData activeIcon, IconData inactiveIcon, {bool isCart = false}) {
     final bool isSelected = _currentIndex == index;
-    const activeColor = Color(0xFFD97706); // Rich warm amber/gold for crisp high contrast
-    const inactiveColor = Color(0xFF94A3B8);
+    const pillYellow = Color(0xFFFAC800);
+    const iconColor = Color(0xFF0F172A);
 
     return Expanded(
       child: InkWell(
@@ -3643,86 +3809,86 @@ class _MainScreenState extends State<MainScreen> {
             _syncCustomerOrdersFromBackend();
           }
         },
-        splashColor: Colors.transparent,
+        splashColor: pillYellow.withOpacity(0.2),
         highlightColor: Colors.transparent,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        borderRadius: BorderRadius.circular(50),
+        child: Center(
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  AnimatedScale(
-                    scale: isSelected ? 1.15 : 1.0,
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    child: Icon(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSelected ? 14 : 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected ? pillYellow : Colors.transparent,
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
                       isSelected ? activeIcon : inactiveIcon,
-                      color: isSelected ? activeColor : inactiveColor,
-                      size: 24,
+                      color: iconColor,
+                      size: 22,
                     ),
-                  ),
-                  if (isCart && _cart.isNotEmpty)
-                    Positioned(
-                      top: -4,
-                      right: -6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                        child: Text(
-                          '',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w900,
-                            height: 1,
-                          ),
-                        ),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      child: isSelected
+                          ? Padding(
+                              padding: const EdgeInsetsDirectional.only(start: 8),
+                              child: Text(
+                                label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: iconColor,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+              ),
+              if (isCart && _cart.isNotEmpty)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      '',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 5),
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 180),
-                style: TextStyle(
-                  color: isSelected ? activeColor : inactiveColor,
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                  letterSpacing: -0.2,
+                  ),
                 ),
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(height: 3),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                width: isSelected ? 4 : 0,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isSelected ? activeColor : Colors.transparent,
-                  shape: BoxShape.circle,
-                ),
-              ),
             ],
           ),
         ),
       ),
     );
   }
-
 
   Widget _buildDefaultTextLogo() {
     return Row(
@@ -3896,62 +4062,79 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildLocationBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      child: InkWell(
-        onTap: _showLocationPicker,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.grey.shade200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              // Yellow GPS Target Icon (Right side in RTL)
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFAC800),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.my_location, size: 16, color: Colors.black),
-              ),
-
-              Expanded(
-                child: Text(
-                  'گەیاندن بۆ: ${_selectedNeighborhood.name}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
-                  textAlign: TextAlign.center,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Yellow GPS button — detects real user location
+            Material(
+              color: const Color(0xFFFAC800),
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _isGpsLocating ? null : () => _detectUserLocation(silent: false),
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: _isGpsLocating
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                        )
+                      : const Icon(Icons.my_location, size: 16, color: Colors.black),
                 ),
               ),
+            ),
 
-              // Change button pill (Left side in RTL)
-              Container(
+            Expanded(
+              child: InkWell(
+                onTap: _showLocationPicker,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Text(
+                    'گەیاندن بۆ: ${_selectedNeighborhood.name}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+
+            // Change button — opens location picker
+            InkWell(
+              onTap: _showLocationPicker,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.grey.shade300),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: const [
+                  children: [
                     Text('گۆڕین', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
                     SizedBox(width: 2),
                     Icon(Icons.keyboard_arrow_down, size: 14, color: Colors.black),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

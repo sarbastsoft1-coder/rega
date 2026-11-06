@@ -103,7 +103,6 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                   : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               subdomains: _darkStyle ? const ['a', 'b', 'c', 'd'] : const [],
               userAgentPackageName: 'iq.rega.customer',
-              fallbackUrl: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
             ),
             MarkerLayer(
               markers: [
@@ -992,7 +991,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: const Color(0xFFF1F5F9),
         body: Stack(
           children: [
             // 1. Real Interactive Kalar Street Map
@@ -1007,7 +1006,9 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                   backgroundColor: const Color(0xFFF1F5F9),
                   onMapReady: () {
                     _mapReady = true;
-                    _mapController.move(_displayDriverPos, 15.6);
+                    try {
+                      _mapController.move(_displayDriverPos, 15.6);
+                    } catch (_) {}
                     _followDriver = true;
                     Future.delayed(const Duration(milliseconds: 350), () {
                       if (mounted && _mapReady) {
@@ -1028,7 +1029,6 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                 children: [
                   TileLayer(
                     urlTemplate: _tileUrl,
-                    fallbackUrl: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
                     subdomains: (_mapStyleIndex == 1 || _mapStyleIndex == 2) ? const ["a", "b", "c", "d"] : const [],
                     userAgentPackageName: "iq.rega.customer",
                   ),
