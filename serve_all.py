@@ -53,26 +53,26 @@ def make_handler_for_directory(directory):
 def start_server_thread(name, port, directory):
     while True:
         if is_port_in_use(port):
-            time.sleep(15)
+            time.sleep(10)
             continue
 
         try:
             ThreadingHTTPServer.allow_reuse_address = True
             handler = make_handler_for_directory(directory)
             server = ThreadingHTTPServer(('127.0.0.1', port), handler)
-            print(f"[ONLINE] {name} serving on http://127.0.0.1:{port} from {directory}")
+            print(f"[ONLINE] {name} serving on http://127.0.0.1:{port} from {directory}", flush=True)
             server.serve_forever()
         except Exception as e:
-            time.sleep(15)
+            time.sleep(10)
 
 def start_backend_thread(base_dir):
     backend_dir = os.path.join(base_dir, "rega_backend")
     while True:
         if is_port_in_use(8001):
-            time.sleep(15)
+            time.sleep(10)
             continue
         try:
-            print("[ONLINE] REGA Backend starting on http://127.0.0.1:8001 ...")
+            print("[ONLINE] REGA Backend starting on http://127.0.0.1:8001 ...", flush=True)
             proc = subprocess.Popen(
                 ["php", "artisan", "serve", "--port=8001", "--host=127.0.0.1"],
                 cwd=backend_dir,
@@ -82,7 +82,7 @@ def start_backend_thread(base_dir):
             while proc.poll() is None:
                 time.sleep(5)
         except Exception as e:
-            print(f"[ERROR] Backend error: {e}")
+            print(f"[ERROR] Backend error: {e}", flush=True)
             time.sleep(10)
 
 def main():
@@ -106,9 +106,9 @@ def main():
         t.start()
         threads.append(t)
 
-    print("REGA Unified Ecosystem online and serving on all ports (8001, 8080, 8081, 8082, 8083).")
-    while True:
-        time.sleep(60)
+    print("REGA Unified Ecosystem online and serving on all ports (8001, 8080, 8081, 8082, 8083).", flush=True)
+    for t in threads:
+        t.join()
 
 if __name__ == '__main__':
     try:
