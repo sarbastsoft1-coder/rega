@@ -1233,69 +1233,60 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ),
     bottomNavigationBar: Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFAF7F2),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(28),
-          topRight: Radius.circular(28),
+        color: Colors.white,
+        border: const Border(
+          top: BorderSide(
+            color: Color(0xFFF1F5F9),
+            width: 1.0,
+          ),
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.06),
-            blurRadius: 18,
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 16,
             offset: const Offset(0, -4),
           ),
         ],
-        border: const Border(
-          top: BorderSide(color: Color(0xFFF0EBE1), width: 1.2),
-        ),
       ),
       child: SafeArea(
         top: false,
         bottom: true,
-        child: Align(
-          alignment: Alignment.bottomCenter,
+        child: Center(
           heightFactor: 1.0,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 620),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               child: Row(
                 children: [
                   // 1. Far Right in RTL: داواکارییەکان (Orders) - index 3
-                  Expanded(
-                    child: _buildNavItem(
-                      3,
-                      Icons.shopping_basket_rounded,
-                      Icons.shopping_basket_outlined,
-                      t('داواکارییەکان'),
-                    ),
+                  _buildNavItem(
+                    3,
+                    Icons.receipt_long_rounded,
+                    Icons.receipt_long_outlined,
+                    t('داواکارییەکان'),
+                    hasNotification: true,
                   ),
                   // 2. Next in RTL: مێنۆ و بەرهەم (Menu & Products) - index 2
-                  Expanded(
-                    child: _buildNavItem(
-                      2,
-                      Icons.soup_kitchen_rounded,
-                      Icons.soup_kitchen_outlined,
-                      t('مێنۆ و بەرهەم'),
-                    ),
+                  _buildNavItem(
+                    2,
+                    Icons.restaurant_menu_rounded,
+                    Icons.restaurant_menu_outlined,
+                    t('مێنۆ و بەرهەم'),
                   ),
                   // 3. Next in RTL: داهاتی فرۆشیار (Seller Revenue) - index 1
-                  Expanded(
-                    child: _buildNavItem(
-                      1,
-                      Icons.trending_up_rounded,
-                      Icons.trending_up_rounded,
-                      t('داهاتی فرۆشیار'),
-                    ),
+                  _buildNavItem(
+                    1,
+                    Icons.trending_up_rounded,
+                    Icons.trending_up_rounded,
+                    t('داهاتی فرۆشیار'),
                   ),
                   // 4. Far Left in RTL: ڕێکخستن (Settings) - index 0
-                  Expanded(
-                    child: _buildNavItem(
-                      0,
-                      Icons.tune_rounded,
-                      Icons.tune_rounded,
-                      t('ڕێکخستن'),
-                    ),
+                  _buildNavItem(
+                    0,
+                    Icons.tune_rounded,
+                    Icons.tune_rounded,
+                    t('ڕێکخستن'),
                   ),
                 ],
               ),
@@ -1308,116 +1299,110 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData activeIcon, IconData inactiveIcon, String label) {
+  Widget _buildNavItem(
+    int index,
+    IconData activeIcon,
+    IconData inactiveIcon,
+    String label, {
+    bool hasNotification = false,
+  }) {
     final bool isSelected = _selectedIndex == index;
+    const pillYellow = Color(0xFFFAC800);
+    const iconColor = Color(0xFF0F172A);
+
     // Notification badge on orders (index 3)
     final pendingCount = _orders.where((o) => o.status == OrderStatus.pending).length;
     final int badgeCount = pendingCount > 0 ? pendingCount : 1;
-    final bool hasNotification = (index == 3);
-    const orangeBrand = Color(0xFFF96614);
-    const inactiveColor = Color(0xFF5A6678);
+    final bool showBadge = hasNotification && pendingCount > 0;
 
-    return InkWell(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        _onItemTapped(index);
-      },
-      borderRadius: BorderRadius.circular(24),
-      splashColor: orangeBrand.withValues(alpha: 0.15),
-      highlightColor: Colors.transparent,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Top: Icon or Active Orange Pill
-            Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  width: isSelected ? 48 : 42,
-                  height: isSelected ? 40 : 36,
-                  decoration: BoxDecoration(
-                    color: isSelected ? orangeBrand : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: orangeBrand.withValues(alpha: 0.38),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Center(
-                    child: Icon(
-                      isSelected ? activeIcon : inactiveIcon,
-                      color: isSelected ? Colors.white : inactiveColor,
-                      size: isSelected ? 22 : 24,
-                    ),
-                  ),
+    return Expanded(
+      flex: isSelected ? 2 : 1,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _onItemTapped(index);
+        },
+        splashColor: pillYellow.withValues(alpha: 0.2),
+        highlightColor: Colors.transparent,
+        borderRadius: BorderRadius.circular(50),
+        child: Align(
+          alignment: Alignment.center,
+          heightFactor: 1.0,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSelected ? 12 : 8,
+                  vertical: 9,
                 ),
-                if (hasNotification)
-                  Positioned(
-                    top: isSelected ? -2 : -4,
-                    right: isSelected ? -2 : 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                      child: Center(
-                        child: Text(
-                          '$badgeCount',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w900,
-                            height: 1,
-                          ),
+                decoration: BoxDecoration(
+                  color: isSelected ? pillYellow : Colors.transparent,
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isSelected ? activeIcon : inactiveIcon,
+                      color: iconColor,
+                      size: 20,
+                    ),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      child: isSelected
+                          ? Padding(
+                              padding: const EdgeInsetsDirectional.only(start: 6),
+                              child: Text(
+                                label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: iconColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.2,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+              ),
+              if (showBadge)
+                Positioned(
+                  top: -2,
+                  right: isSelected ? 4 : -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    child: Center(
+                      child: Text(
+                        '$badgeCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
                         ),
                       ),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            // Middle: Label
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isSelected ? orangeBrand : inactiveColor,
-                fontSize: isSelected ? 12.5 : 12,
-                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-                fontFamily: kAppFontFamily,
-              ),
-            ),
-            const SizedBox(height: 3),
-            // Bottom: Active indicator dot
-            AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: isSelected ? 1.0 : 0.0,
-              child: Container(
-                width: 4.5,
-                height: 4.5,
-                decoration: const BoxDecoration(
-                  color: orangeBrand,
-                  shape: BoxShape.circle,
                 ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
