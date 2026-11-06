@@ -225,6 +225,38 @@ class _AdminShellState extends State<AdminShell> {
                 },
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () {
+                    if (widget.onLogout != null) {
+                      widget.onLogout!();
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.logout_rounded, size: 21, color: Colors.white70),
+                        SizedBox(width: 14),
+                        Text(
+                          'چوونە دەرەوە',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
