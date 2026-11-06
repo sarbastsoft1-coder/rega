@@ -35,7 +35,7 @@ class AdminShell extends StatefulWidget {
 }
 
 class _AdminShellState extends State<AdminShell> {
-  int _selectedIndex = 0; // سەرەکی (Executive Dashboard) selected by default to match screenshot
+  int _selectedIndex = 4; // فرۆشیاران (Stores Screen) selected by default to inspect newly updated screen
   int _pendingOrdersBadge = 0;
   int _onlineStoresBadge = 0;
   int _customersBadge = 0;
@@ -45,6 +45,13 @@ class _AdminShellState extends State<AdminShell> {
   @override
   void initState() {
     super.initState();
+    final tabParam = Uri.base.queryParameters['tab'];
+    if (tabParam != null) {
+      final idx = int.tryParse(tabParam);
+      if (idx != null && idx >= 0 && idx <= 6) {
+        _selectedIndex = idx;
+      }
+    }
     _refreshBadges();
   }
 
@@ -233,9 +240,7 @@ class _AdminShellState extends State<AdminShell> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(10),
                   onTap: () {
-                    if (widget.onLogout != null) {
-                      widget.onLogout!();
-                    }
+                    widget.onLogout();
                   },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
