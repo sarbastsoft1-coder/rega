@@ -610,15 +610,38 @@ class _OrdersScreenState extends State<OrdersScreen> {
   // 1. TOP HEADER (Matching Screenshot Header with Title, Search, Bell, Profile)
   // ============================================================================
   Widget _buildTopHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Left side in RTL: User profile, Bell with badge 3, Search pill
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 760;
+        final titleWidget = Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: const [
+            Text(
+              'بەڕێوەبردنی داواکارییەکان',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF111827),
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              'چاوەدێری و بەڕێوەبردنی هەموو داواکارییەکانی دلیڤەری',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: Color(0xFF6B7280),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        );
+
+        final profileAndBell = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             // User Avatar + Hemin Ali + Role
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   width: 36,
@@ -655,7 +678,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 18),
               ],
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
 
             // Notification Bell with Badge '3'
             Stack(
@@ -686,65 +709,87 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 ),
               ],
             ),
-            const SizedBox(width: 16),
+          ],
+        );
 
-            // Search pill: '...گەڕان بە ژمارەی داواکاری'
-            Container(
-              width: 260,
-              height: 38,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 10),
-                  const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: TextField(
-                      controller: _topSearchCtrl,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        hintText: '...گەڕان بە ژمارەی داواکاری',
-                        hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
+        final searchBar = Container(
+          width: isNarrow ? constraints.maxWidth : 260.0,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 10),
+              const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextField(
+                  controller: _topSearchCtrl,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    hintText: '...گەڕان بە ژمارەی داواکاری',
+                    hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
                   ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (constraints.maxWidth < 600) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  profileAndBell,
                 ],
               ),
-            ),
-          ],
-        ),
-
-        // Right side in RTL: Page Title & Subtitle
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: const [
-            Text(
-              'بەڕێوەبردنی داواکارییەکان',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF111827),
+              const SizedBox(height: 10),
+              titleWidget,
+              const SizedBox(height: 12),
+              searchBar,
+            ],
+          );
+        } else if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  profileAndBell,
+                  Expanded(child: titleWidget),
+                ],
               ),
-            ),
-            SizedBox(height: 2),
-            Text(
-              'چاوەدێری و بەڕێوەبردنی هەموو داواکارییەکانی دلیڤەری',
-              style: TextStyle(
-                fontSize: 12.5,
-                color: Color(0xFF6B7280),
-                fontWeight: FontWeight.w600,
+              const SizedBox(height: 12),
+              searchBar,
+            ],
+          );
+        } else {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  profileAndBell,
+                  const SizedBox(width: 16),
+                  searchBar,
+                ],
               ),
-            ),
-          ],
-        ),
-      ],
+              titleWidget,
+            ],
+          );
+        }
+      },
     );
   }
 
@@ -754,14 +799,22 @@ class _OrdersScreenState extends State<OrdersScreen> {
   Widget _buildKPICardsRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cardWidth = (constraints.maxWidth - 48) / 4;
+        final width = constraints.maxWidth;
+        final double cardWidth;
+        if (width >= 960) {
+          cardWidth = (width - 48) / 4;
+        } else if (width >= 560) {
+          cardWidth = (width - 16) / 2;
+        } else {
+          cardWidth = width;
+        }
         return Wrap(
           spacing: 16,
           runSpacing: 16,
           children: [
             // Card 1: کۆی داواکارییەکان (Rightmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'کۆی داواکارییەکان',
                 value: _totalOrdersKPI,
@@ -773,7 +826,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             ),
             // Card 2: چاوەڕوان
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'چاوەڕوان',
                 value: _pendingOrdersKPI,
@@ -785,7 +838,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             ),
             // Card 3: لە ڕێگادایە
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'لە ڕێگادایە',
                 value: _inTransitOrdersKPI,
@@ -797,7 +850,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             ),
             // Card 4: تەواوبوو (Leftmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'تەواوبوو',
                 value: _deliveredOrdersKPI,
@@ -881,69 +934,89 @@ class _OrdersScreenState extends State<OrdersScreen> {
   // 3. FILTER BAR (Matching Screenshot: Calendar, Status, City, Reset)
   // ============================================================================
   Widget _buildFilterBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        // Left side in RTL: Reset filter button "X فلتەر"
-        InkWell(
-          onTap: _resetFilters,
+    final resetBtn = InkWell(
+      onTap: _resetFilters,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(10),
-          child: Container(
-            height: 38,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Row(
-              children: const [
-                Icon(Icons.close_rounded, size: 15, color: Color(0xFF64748B)),
-                SizedBox(width: 6),
-                Text(
-                  'فلتەر',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF475569),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
-
-        // Right side in RTL: City, Status, Calendar dropdowns
-        Row(
-          children: [
-            // City Dropdown: 'هەموو شارەکان'
-            _buildDropdownPill(
-              icon: Icons.location_on_outlined,
-              value: _selectedCity,
-              items: const ['هەموو شارەکان', 'هەولێر', 'سلێمانی', 'دهۆک', 'کەلار'],
-              onChanged: (v) => setState(() => _selectedCity = v ?? 'هەموو شارەکان'),
-            ),
-            const SizedBox(width: 10),
-
-            // Status Dropdown: 'هەموو دۆخەکان'
-            _buildDropdownPill(
-              icon: Icons.format_list_bulleted_rounded,
-              value: _selectedStatus,
-              items: const ['هەموو دۆخەکان', 'چاوەڕوان', 'لە ڕێگادایە', 'تەواوبوو'],
-              onChanged: (v) => setState(() => _selectedStatus = v ?? 'هەموو دۆخەکان'),
-            ),
-            const SizedBox(width: 10),
-
-            // Calendar Dropdown: 'ئەمڕۆ'
-            _buildDropdownPill(
-              icon: Icons.calendar_today_outlined,
-              value: _selectedDate,
-              items: const ['ئەمڕۆ', 'دوێنێ', '٧ ڕۆژی ڕابردوو', 'ئەم مانگە'],
-              onChanged: (v) => setState(() => _selectedDate = v ?? 'ئەمڕۆ'),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.close_rounded, size: 15, color: Color(0xFF64748B)),
+            SizedBox(width: 6),
+            Text(
+              'فلتەر',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF475569),
+              ),
             ),
           ],
         ),
-      ],
+      ),
+    );
+
+    final dropdowns = [
+      _buildDropdownPill(
+        icon: Icons.location_on_outlined,
+        value: _selectedCity,
+        items: const ['هەموو شارەکان', 'هەولێر', 'سلێمانی', 'دهۆک', 'کەلار'],
+        onChanged: (v) => setState(() => _selectedCity = v ?? 'هەموو شارەکان'),
+      ),
+      _buildDropdownPill(
+        icon: Icons.format_list_bulleted_rounded,
+        value: _selectedStatus,
+        items: const ['هەموو دۆخەکان', 'چاوەڕوان', 'لە ڕێگادایە', 'تەواوبوو'],
+        onChanged: (v) => setState(() => _selectedStatus = v ?? 'هەموو دۆخەکان'),
+      ),
+      _buildDropdownPill(
+        icon: Icons.calendar_today_outlined,
+        value: _selectedDate,
+        items: const ['ئەمڕۆ', 'دوێنێ', '٧ ڕۆژی ڕابردوو', 'ئەم مانگە'],
+        onChanged: (v) => setState(() => _selectedDate = v ?? 'ئەمڕۆ'),
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 640) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              resetBtn,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: dropdowns.map((d) => Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: d,
+                )).toList(),
+              ),
+            ],
+          );
+        } else {
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              resetBtn,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: dropdowns,
+              ),
+            ],
+          );
+        }
+      },
     );
   }
 
@@ -1006,33 +1079,42 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          // Table Headers
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: const BoxDecoration(
-              color: Color(0xFFFAFAFA),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
-            ),
-            child: Row(
-              children: const [
-                Expanded(flex: 2, child: Text('ژمارەی داواکاری', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 3, child: Text('کڕیار', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 3, child: Text('فرۆشیار', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 3, child: Text('ماتۆرسوار', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('کۆی پارە', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('کاتی داواکاری', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
-              ],
-            ),
-          ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tableWidth = constraints.maxWidth < 880 ? 880.0 : constraints.maxWidth;
+          return Column(
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableWidth,
+                  child: Column(
+                    children: [
+                      // Table Headers
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFAFAFA),
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                          border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+                        ),
+                        child: Row(
+                          children: const [
+                            Expanded(flex: 2, child: Text('ژمارەی داواکاری', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text('کڕیار', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text('فرۆشیار', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text('ماتۆرسوار', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('کۆی پارە', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('کاتی داواکاری', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
+                          ],
+                        ),
+                      ),
 
-          // Table Rows
-          if (orders.isEmpty)
-            const Padding(
+                      // Table Rows
+                      if (orders.isEmpty)
+                        const Padding(
               padding: EdgeInsets.all(40),
               child: Center(
                 child: Text('هیچ داواکارییەک بەردەست نییە', style: TextStyle(color: Color(0xFF94A3B8))),
@@ -1306,6 +1388,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 );
               },
             ),
+                  ],
+                ),
+              ),
+            ),
 
           // Table Pagination Footer
           Container(
@@ -1313,8 +1399,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
               children: [
                 // Right side in RTL: 'نیشاندانی ١ تا ٥ لە کۆی ١,٢٨٤ داواکاری'
                 const Text(
@@ -1328,6 +1417,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
                 // Left side in RTL: Pagination Buttons < 5 4 3 2 [1] >
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildPageNavBtn(icon: Icons.chevron_left_rounded, onTap: () {}),
                     const SizedBox(width: 4),
@@ -1348,8 +1438,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
             ),
           ),
         ],
-      ),
-    );
+      );
+    },
+  ),
+);
   }
 
   Widget _buildStatusBadge(String status) {

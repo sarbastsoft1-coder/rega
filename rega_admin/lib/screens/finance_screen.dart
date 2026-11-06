@@ -73,12 +73,14 @@ class _FinanceScreenState extends State<FinanceScreen> {
   // 1. TOP HEADER (Matching Screenshot)
   // ============================================================================
   Widget _buildTopHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Right side in RTL (First child): Title, Subtitle, and Export Button
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 800;
+
+        final titleAndButton = Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 14,
+          runSpacing: 10,
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -102,8 +104,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 ),
               ],
             ),
-            const SizedBox(width: 24),
-            // Export Button: هەناردەکردنی ڕاپۆرت
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFEA580C),
@@ -120,52 +120,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
               ),
             ),
           ],
-        ),
+        );
 
-        // Left side in RTL (Second child): Date Dropdown, City Dropdown, Bell, Profile
-        Row(
+        final profileAndBell = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Date Filter: ئەم مانگە
-            _buildHeaderDropdownPill(
-              icon: Icons.calendar_today_outlined,
-              value: _selectedPeriod,
-              items: const ['ئەم مانگە', 'مانگی پێشوو', 'ئەمساڵ'],
-              onChanged: (v) => setState(() => _selectedPeriod = v ?? 'ئەم مانگە'),
-            ),
-            const SizedBox(width: 12),
-
-            // City Filter: هەموو شارەکان
-            _buildHeaderDropdownPill(
-              icon: Icons.location_on_outlined,
-              value: _selectedCity,
-              items: const ['هەموو شارەکان', 'هەولێر', 'سلێمانی', 'دهۆک', 'کەلار'],
-              onChanged: (v) => setState(() => _selectedCity = v ?? 'هەموو شارەکان'),
-            ),
-            const SizedBox(width: 16),
-
-            // Notification Bell with Red Badge '1'
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.notifications_none_rounded, color: Color(0xFF475569), size: 24),
-                Positioned(
-                  top: -3,
-                  right: -3,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEF4444),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 16),
-
-            // User Avatar with Name "هێوا عەلی" / "بەڕێوەبەر"
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   width: 36,
@@ -201,9 +162,95 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 ),
               ],
             ),
+            const SizedBox(width: 14),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications_none_rounded, color: Color(0xFF475569), size: 24),
+                Positioned(
+                  top: -3,
+                  right: -3,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEF4444),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+
+        final filters = Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          children: [
+            _buildHeaderDropdownPill(
+              icon: Icons.calendar_today_outlined,
+              value: _selectedPeriod,
+              items: const ['ئەم مانگە', 'مانگی پێشوو', 'ئەمساڵ'],
+              onChanged: (v) => setState(() => _selectedPeriod = v ?? 'ئەم مانگە'),
+            ),
+            _buildHeaderDropdownPill(
+              icon: Icons.location_on_outlined,
+              value: _selectedCity,
+              items: const ['هەموو شارەکان', 'هەولێر', 'سلێمانی', 'دهۆک', 'کەلار'],
+              onChanged: (v) => setState(() => _selectedCity = v ?? 'هەموو شارەکان'),
+            ),
+          ],
+        );
+
+        if (constraints.maxWidth < 600) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  profileAndBell,
+                ],
+              ),
+              const SizedBox(height: 10),
+              titleAndButton,
+              const SizedBox(height: 12),
+              filters,
+            ],
+          );
+        } else if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  profileAndBell,
+                  Expanded(child: titleAndButton),
+                ],
+              ),
+              const SizedBox(height: 12),
+              filters,
+            ],
+          );
+        } else {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              titleAndButton,
+              Row(
+                children: [
+                  filters,
+                  const SizedBox(width: 16),
+                  profileAndBell,
+                ],
+              ),
+            ],
+          );
+        }
+      },
     );
   }
 
@@ -255,14 +302,22 @@ class _FinanceScreenState extends State<FinanceScreen> {
   Widget _buildKPICardsRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cardWidth = (constraints.maxWidth - 48) / 4;
+        final width = constraints.maxWidth;
+        final double cardWidth;
+        if (width >= 960) {
+          cardWidth = (width - 48) / 4;
+        } else if (width >= 560) {
+          cardWidth = (width - 16) / 2;
+        } else {
+          cardWidth = width;
+        }
         return Wrap(
           spacing: 16,
           runSpacing: 16,
           children: [
             // Card 1: کۆی داواکارییەکان: ٣٨,٤٢٠ (Rightmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'کۆی داواکارییەکان',
                 value: '٣٨,٤٢٠',
@@ -273,7 +328,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
             ),
             // Card 2: داهاتی گشتی: ١٢٨,٥٠٠,٠٠٠ د.ع
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'داهاتی گشتی',
                 value: '١٢٨,٥٠٠,٠٠٠ د.ع',
@@ -284,7 +339,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
             ),
             // Card 3: ڕێژەی تەواوکردن: ٩٦٪
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'ڕێژەی تەواوکردن',
                 value: '٩٦٪',
@@ -295,7 +350,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
             ),
             // Card 4: کاتی گەیاندنی ناوەند: ٣٢ خولەک (Leftmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'کاتی گەیاندنی ناوەند',
                 value: '٣٢ خولەک',
@@ -730,52 +785,67 @@ class _FinanceScreenState extends State<FinanceScreen> {
             ),
           ),
 
-          // Table Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: const BoxDecoration(
-              color: Color(0xFFFAFAFA),
-              border: Border(
-                top: BorderSide(color: Color(0xFFF1F5F9)),
-                bottom: BorderSide(color: Color(0xFFF1F5F9)),
-              ),
-            ),
-            child: Row(
-              children: const [
-                Expanded(flex: 4, child: Text('ماتۆرسوار', textAlign: TextAlign.right, style: _tableHeaderStyle)),
-                Expanded(flex: 3, child: Text('داواکاریی تەواوکراو', textAlign: TextAlign.center, style: _tableHeaderStyle)),
-                Expanded(flex: 3, child: Text('کاتی ناوەند', textAlign: TextAlign.center, style: _tableHeaderStyle)),
-                Expanded(flex: 3, child: Text('هەڵسەنگاندن', textAlign: TextAlign.left, style: _tableHeaderStyle)),
-              ],
-            ),
-          ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final tableWidth = constraints.maxWidth > 580 ? constraints.maxWidth : 580.0;
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableWidth,
+                  child: Column(
+                    children: [
+                      // Table Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFAFAFA),
+                          border: Border(
+                            top: BorderSide(color: Color(0xFFF1F5F9)),
+                            bottom: BorderSide(color: Color(0xFFF1F5F9)),
+                          ),
+                        ),
+                        child: Row(
+                          children: const [
+                            Expanded(flex: 4, child: Text('ماتۆرسوار', textAlign: TextAlign.right, style: _tableHeaderStyle)),
+                            Expanded(flex: 3, child: Text('داواکاریی تەواوکراو', textAlign: TextAlign.center, style: _tableHeaderStyle)),
+                            Expanded(flex: 3, child: Text('کاتی ناوەند', textAlign: TextAlign.center, style: _tableHeaderStyle)),
+                            Expanded(flex: 3, child: Text('هەڵسەنگاندن', textAlign: TextAlign.left, style: _tableHeaderStyle)),
+                          ],
+                        ),
+                      ),
 
-          // 3 Screenshot Driver Rows
-          _buildDriverRow(
-            rank: '١',
-            name: 'ئارام محەمەد',
-            completedOrders: '1,245',
-            avgTime: '٢٨ خولەک',
-            rating: '4.9',
-            starCount: 5,
-          ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          _buildDriverRow(
-            rank: '٢',
-            name: 'سامان قادر',
-            completedOrders: '980',
-            avgTime: '٣١ خولەک',
-            rating: '4.7',
-            starCount: 4,
-          ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          _buildDriverRow(
-            rank: '٣',
-            name: 'دانا ڕەشید',
-            completedOrders: '860',
-            avgTime: '٣٦ خولەک',
-            rating: '4.6',
-            starCount: 4,
+                      // 3 Screenshot Driver Rows
+                      _buildDriverRow(
+                        rank: '١',
+                        name: 'ئارام محەمەد',
+                        completedOrders: '1,245',
+                        avgTime: '٢٨ خولەک',
+                        rating: '4.9',
+                        starCount: 5,
+                      ),
+                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                      _buildDriverRow(
+                        rank: '٢',
+                        name: 'سامان قادر',
+                        completedOrders: '980',
+                        avgTime: '٣١ خولەک',
+                        rating: '4.7',
+                        starCount: 4,
+                      ),
+                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                      _buildDriverRow(
+                        rank: '٣',
+                        name: 'دانا ڕەشید',
+                        completedOrders: '860',
+                        avgTime: '٣٦ خولەک',
+                        rating: '4.6',
+                        starCount: 4,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),

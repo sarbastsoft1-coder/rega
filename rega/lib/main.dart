@@ -3806,6 +3806,7 @@ class _MainScreenState extends State<MainScreen> {
                 top: false,
                 bottom: true,
                 child: Center(
+                  heightFactor: 1.0,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 620),
                     child: Padding(
@@ -3860,7 +3861,9 @@ class _MainScreenState extends State<MainScreen> {
         splashColor: pillYellow.withOpacity(0.2),
         highlightColor: Colors.transparent,
         borderRadius: BorderRadius.circular(50),
-        child: Center(
+        child: Align(
+          alignment: Alignment.center,
+          heightFactor: 1.0,
           child: Stack(
             clipBehavior: Clip.none,
             children: [

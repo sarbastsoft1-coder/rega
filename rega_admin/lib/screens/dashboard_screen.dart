@@ -165,15 +165,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // 1. TOP HEADER (Matching Screenshot Header with Profile, Bell Badge 5, Search)
   // ============================================================================
   Widget _buildTopHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Left in RTL: Profile (ئادەم محەمەد), Bell Badge 5, Search input
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 760;
+
+        final title = Column(
+          crossAxisAlignment: isNarrow ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+          children: const [
+            Text(
+              'داشبۆردی بەڕێوەبەرایەتی',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF111827),
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              'بەڕێوەبردنی یەکگرتووی خزمەتگوزاریی دلیڤەری',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: Color(0xFF6B7280),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        );
+
+        final profileAndBell = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             // User Avatar + Name (ئادەم محەمەد) + Role (بەڕێوەبەر) + Chevron
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(18),
@@ -193,6 +217,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(width: 8),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: const [
                     Text(
                       'ئادەم محەمەد',
@@ -216,7 +241,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF6B7280), size: 18),
               ],
             ),
-            const SizedBox(width: 18),
+            const SizedBox(width: 14),
 
             // Notification Bell with Badge 5
             Stack(
@@ -247,64 +272,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-            const SizedBox(width: 18),
+          ],
+        );
 
-            // Search Input Pill
-            Container(
-              width: 220,
-              height: 38,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 10),
-                  const Icon(Icons.search_rounded, size: 18, color: Color(0xFF9CA3AF)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: TextField(
-                      controller: _topSearchCtrl,
-                      decoration: const InputDecoration(
-                        hintText: '...گەڕان',
-                        hintStyle: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
+        final searchBar = Container(
+          width: isNarrow ? constraints.maxWidth : 220.0,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 10),
+              const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextField(
+                  controller: _topSearchCtrl,
+                  decoration: const InputDecoration(
+                    hintText: '...گەڕان',
+                    hintStyle: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
                   ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  profileAndBell,
+                  Expanded(child: title),
                 ],
               ),
-            ),
-          ],
-        ),
-
-        // Right in RTL: Page Title & Subtitle
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: const [
-            Text(
-              'داشبۆردی بەڕێوەبەرایەتی',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF111827),
+              const SizedBox(height: 12),
+              searchBar,
+            ],
+          );
+        } else {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  profileAndBell,
+                  const SizedBox(width: 18),
+                  searchBar,
+                ],
               ),
-            ),
-            SizedBox(height: 2),
-            Text(
-              'بەڕێوەبردنی یەکگرتووی خزمەتگوزاریی دلیڤەری',
-              style: TextStyle(
-                fontSize: 12.5,
-                color: Color(0xFF6B7280),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ],
+              title,
+            ],
+          );
+        }
+      },
     );
   }
 
@@ -314,14 +345,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildKPICardsRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cardWidth = (constraints.maxWidth - 48) / 4;
+        final width = constraints.maxWidth;
+        final double cardWidth;
+        if (width >= 960) {
+          cardWidth = (width - 48) / 4;
+        } else if (width >= 560) {
+          cardWidth = (width - 16) / 2;
+        } else {
+          cardWidth = width;
+        }
         return Wrap(
           spacing: 16,
           runSpacing: 16,
           children: [
             // Card 1: داواکاریی ئەمڕۆ (Rightmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'داواکاریی ئەمڕۆ',
                 value: _todayOrders,
@@ -333,7 +372,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             // Card 2: ماتۆرسوارانی چالاک
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'ماتۆرسوارانی چالاک',
                 value: _activeCouriers,
@@ -345,7 +384,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             // Card 3: کڕیاران
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'کڕیاران',
                 value: _totalCustomers,
@@ -357,7 +396,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             // Card 4: فرۆشیاران (Leftmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'فرۆشیاران',
                 value: _totalStores,
@@ -884,18 +923,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // Header with Title & Filter Pills
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
               children: [
                 // Filter Tabs on Left in RTL
-                Row(
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
                   children: [
                     _buildFilterPill('فرۆشیار'),
-                    const SizedBox(width: 6),
                     _buildFilterPill('کڕیار'),
-                    const SizedBox(width: 6),
                     _buildFilterPill('ماتۆرسوار'),
-                    const SizedBox(width: 6),
                     _buildFilterPill('هەموو'),
                   ],
                 ),
@@ -914,24 +955,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
-          // Table Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Row(
-              children: const [
-                Expanded(flex: 2, child: Text('داواکاری', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
-                Expanded(flex: 2, child: Text('کڕیار', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
-                Expanded(flex: 2, child: Text('فرۆشیار', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
-                Expanded(flex: 2, child: Text('ماتۆرسوار', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
-                Expanded(flex: 2, child: Text('دۆخ', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
-                Expanded(flex: 1, child: Text('کات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final tableWidth = constraints.maxWidth > 720 ? constraints.maxWidth : 720.0;
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableWidth,
+                  child: Column(
+                    children: [
+                      // Table Header
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        child: Row(
+                          children: const [
+                            Expanded(flex: 2, child: Text('داواکاری', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
+                            Expanded(flex: 2, child: Text('کڕیار', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
+                            Expanded(flex: 2, child: Text('فرۆشیار', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
+                            Expanded(flex: 2, child: Text('ماتۆرسوار', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
+                            Expanded(flex: 2, child: Text('دۆخ', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
+                            Expanded(flex: 1, child: Text('کات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
-          // Table Rows
-          ..._recentOrders.map((o) => _buildOrderRow(o)),
+                      // Table Rows
+                      ..._recentOrders.map((o) => _buildOrderRow(o)),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );

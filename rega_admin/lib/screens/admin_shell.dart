@@ -270,7 +270,8 @@ class _AdminShellState extends State<AdminShell> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width >= 1024;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
     final surfaceColor = widget.isDark ? RegaColors.darkSurface : Colors.white;
     final hideTopOperationalBar = isDesktop;
 
@@ -286,7 +287,7 @@ class _AdminShellState extends State<AdminShell> {
                 if (!hideTopOperationalBar)
                   Container(
                     height: 58,
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
                       color: surfaceColor,
                       border: Border(
@@ -309,24 +310,54 @@ class _AdminShellState extends State<AdminShell> {
                             AppStrings.tr('kalar_hub', widget.lang),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                           ),
                         ),
-                        // Language switcher
-                        SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(value: 'ku', label: Text('کوردی', style: TextStyle(fontSize: 11.5))),
-                            ButtonSegment(value: 'ar', label: Text('عربي', style: TextStyle(fontSize: 11.5))),
-                            ButtonSegment(value: 'en', label: Text('EN', style: TextStyle(fontSize: 11.5))),
-                          ],
-                          selected: {widget.lang},
-                          onSelectionChanged: (v) => widget.onLangChanged(v.first),
-                        ),
-                        const SizedBox(width: 8),
+                        // Language switcher (Adaptive: SegmentedButton on tablet, Popup on mobile)
+                        if (screenWidth >= 600)
+                          SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(value: 'ku', label: Text('کوردی', style: TextStyle(fontSize: 11))),
+                              ButtonSegment(value: 'ar', label: Text('عربي', style: TextStyle(fontSize: 11))),
+                              ButtonSegment(value: 'en', label: Text('EN', style: TextStyle(fontSize: 11))),
+                            ],
+                            selected: {widget.lang},
+                            onSelectionChanged: (v) => widget.onLangChanged(v.first),
+                          )
+                        else
+                          PopupMenuButton<String>(
+                            tooltip: 'زمان / Language',
+                            initialValue: widget.lang,
+                            onSelected: widget.onLangChanged,
+                            itemBuilder: (ctx) => const [
+                              PopupMenuItem(value: 'ku', child: Text('کوردی')),
+                              PopupMenuItem(value: 'ar', child: Text('عربي')),
+                              PopupMenuItem(value: 'en', child: Text('English')),
+                            ],
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: widget.isDark ? Colors.white10 : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.language_rounded, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    widget.lang.toUpperCase(),
+                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: 6),
                         IconButton(
                           tooltip: 'گۆڕینی دۆخی تاریک / ڕووناک',
                           onPressed: () => widget.onThemeChanged(!widget.isDark),
-                          icon: Icon(widget.isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
+                          icon: Icon(widget.isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 20),
                         ),
                         IconButton(
                           tooltip: AppStrings.tr('refresh', widget.lang),
@@ -334,7 +365,7 @@ class _AdminShellState extends State<AdminShell> {
                             _refreshBadges();
                             setState(() {});
                           },
-                          icon: const Icon(Icons.sync_rounded),
+                          icon: const Icon(Icons.sync_rounded, size: 20),
                         ),
                       ],
                     ),

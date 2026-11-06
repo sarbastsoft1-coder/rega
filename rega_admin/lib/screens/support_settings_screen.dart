@@ -106,12 +106,11 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   // 1. TOP HEADER (Matching Screenshot)
   // ============================================================================
   Widget _buildTopHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Right side in RTL (First child): Title and Subtitle
-        Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 760;
+
+        final title = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
             Text(
@@ -132,75 +131,13 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               ),
             ),
           ],
-        ),
+        );
 
-        // Left side in RTL (Second child): Search bar, Bell with 3, Profile
-        Row(
+        final profileAndBell = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Search box: '...گەڕان لە ناو سیستەمدا'
-            Container(
-              width: 260,
-              height: 38,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 10),
-                  const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchCtrl,
-                      decoration: const InputDecoration(
-                        hintText: '...گەڕان لە ناو سیستەمدا',
-                        hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-
-            // Notification Bell with Badge '3'
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.notifications_none_rounded, color: Color(0xFF475569), size: 24),
-                Positioned(
-                  top: -4,
-                  right: -4,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEA580C),
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: const Center(
-                      child: Text(
-                        '3',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 16),
-
-            // User Avatar with Name "کارگێری سەرەکی" / "بەڕێوەبەر"
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   width: 36,
@@ -238,9 +175,115 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                 const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 18),
               ],
             ),
+            const SizedBox(width: 14),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications_none_rounded, color: Color(0xFF475569), size: 24),
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEA580C),
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: const Center(
+                      child: Text(
+                        '3',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+
+        final searchBar = Container(
+          width: isNarrow ? constraints.maxWidth : 260.0,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 10),
+              const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextField(
+                  controller: _searchCtrl,
+                  decoration: const InputDecoration(
+                    hintText: '...گەڕان لە ناو سیستەمدا',
+                    hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (constraints.maxWidth < 600) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  profileAndBell,
+                ],
+              ),
+              const SizedBox(height: 10),
+              title,
+              const SizedBox(height: 12),
+              searchBar,
+            ],
+          );
+        } else if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  profileAndBell,
+                  Expanded(child: title),
+                ],
+              ),
+              const SizedBox(height: 12),
+              searchBar,
+            ],
+          );
+        } else {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              title,
+              Row(
+                children: [
+                  searchBar,
+                  const SizedBox(width: 16),
+                  profileAndBell,
+                ],
+              ),
+            ],
+          );
+        }
+      },
     );
   }
 
@@ -253,33 +296,36 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: List.generate(tabs.length, (idx) {
-          final isSelected = _selectedSubTab == idx;
-          return InkWell(
-            onTap: () => setState(() => _selectedSubTab = idx),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: isSelected ? const Color(0xFFEA580C) : Colors.transparent,
-                    width: 2.5,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: List.generate(tabs.length, (idx) {
+            final isSelected = _selectedSubTab == idx;
+            return InkWell(
+              onTap: () => setState(() => _selectedSubTab = idx),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isSelected ? const Color(0xFFEA580C) : Colors.transparent,
+                      width: 2.5,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  tabs[idx],
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                    color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
                   ),
                 ),
               ),
-              child: Text(
-                tabs[idx],
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                  color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
-                ),
-              ),
-            ),
-          );
-        }),
+            );
+          }),
+        ),
       ),
     );
   }

@@ -439,12 +439,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
   // 1. TOP HEADER (Matching Screenshot: Title & Button on Right, Profile on Left)
   // ============================================================================
   Widget _buildTopHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Right side in RTL (First child): Title, Subtitle, and Add Customer Button
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 760;
+
+        final titleAndButton = Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 14,
+          runSpacing: 10,
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -468,7 +470,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 ),
               ],
             ),
-            const SizedBox(width: 16),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF113E2E),
@@ -485,13 +486,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
               ),
             ),
           ],
-        ),
+        );
 
-        // Left side in RTL (Second child): Profile (سەربەست محەمەد), Bell with 3, Search pill
-        Row(
+        final profileAndBell = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             // User Avatar with Name
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   width: 36,
@@ -515,7 +517,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 18),
               ],
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
 
             // Notification Bell with Orange Badge '3'
             Stack(
@@ -546,41 +548,88 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 ),
               ],
             ),
-            const SizedBox(width: 16),
+          ],
+        );
 
-            // Search pill: '...گەڕان بە ناوی کڕیار'
-            Container(
-              width: 260,
-              height: 38,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 10),
-                  const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: TextField(
-                      controller: _topSearchCtrl,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        hintText: '...گەڕان بە ناوی کڕیار',
-                        hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
+        final searchBar = Container(
+          width: isNarrow ? constraints.maxWidth : 260.0,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 10),
+              const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextField(
+                  controller: _topSearchCtrl,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    hintText: '...گەڕان بە ناوی کڕیار',
+                    hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
                   ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (constraints.maxWidth < 600) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  profileAndBell,
                 ],
               ),
-            ),
-          ],
-        ),
-      ],
+              const SizedBox(height: 10),
+              titleAndButton,
+              const SizedBox(height: 12),
+              searchBar,
+            ],
+          );
+        } else if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(child: titleAndButton),
+                  const SizedBox(width: 12),
+                  profileAndBell,
+                ],
+              ),
+              const SizedBox(height: 12),
+              searchBar,
+            ],
+          );
+        } else {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              titleAndButton,
+              Row(
+                children: [
+                  profileAndBell,
+                  const SizedBox(width: 16),
+                  searchBar,
+                ],
+              ),
+            ],
+          );
+        }
+      },
     );
   }
 
@@ -590,14 +639,22 @@ class _CustomersScreenState extends State<CustomersScreen> {
   Widget _buildKPICardsRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cardWidth = (constraints.maxWidth - 48) / 4;
+        final width = constraints.maxWidth;
+        final double cardWidth;
+        if (width >= 960) {
+          cardWidth = (width - 48) / 4;
+        } else if (width >= 560) {
+          cardWidth = (width - 16) / 2;
+        } else {
+          cardWidth = width;
+        }
         return Wrap(
           spacing: 16,
           runSpacing: 16,
           children: [
             // Card 1: کۆی کڕیاران (Rightmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'کۆی کڕیاران',
                 value: _totalCustomers,
@@ -608,7 +665,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
             ),
             // Card 2: کڕیاری چالاک
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'کڕیاری چالاک',
                 value: _activeCustomers,
@@ -619,7 +676,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
             ),
             // Card 3: نوێی ئەم مانگە
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'نوێی ئەم مانگە',
                 value: _newThisMonth,
@@ -630,7 +687,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
             ),
             // Card 4: داواکاریی ئەمڕۆ (Leftmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'داواکاریی ئەمڕۆ',
                 value: _todayOrders,
@@ -750,8 +807,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }
 
   Widget _buildFilterBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.start,
+    return Wrap(
+      spacing: 10,
+      runSpacing: 8,
       children: [
         // Period: ئەم مانگە
         _buildDropdownPill(
@@ -760,7 +818,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
           items: const ['ئەم مانگە', 'مانگی ڕابردوو', 'ئەمساڵ'],
           onChanged: (v) => setState(() => _selectedPeriod = v ?? 'ئەم مانگە'),
         ),
-        const SizedBox(width: 10),
 
         // Status: دۆخی کڕیار
         _buildDropdownPill(
@@ -769,7 +826,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
           items: const ['دۆخی کڕیار', 'چالاک', 'ناچالاک'],
           onChanged: (v) => setState(() => _selectedStatus = v ?? 'دۆخی کڕیار'),
         ),
-        const SizedBox(width: 10),
 
         // City: هەموو شارەکان
         _buildDropdownPill(
@@ -930,172 +986,187 @@ class _CustomersScreenState extends State<CustomersScreen> {
       ),
       child: Column(
         children: [
-          // Table Headers
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: const BoxDecoration(
-              color: Color(0xFFFAFAFA),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
-            ),
-            child: Row(
-              children: const [
-                Expanded(flex: 3, child: Text('کڕیار', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 3, child: Text('ژمارەی مۆبایل', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('شار', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('کۆی داواکاری', textAlign: TextAlign.center, style: _headerStyle)),
-                Expanded(flex: 3, child: Text('بەرواری تۆمارکردن', textAlign: TextAlign.center, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
-              ],
-            ),
-          ),
-
-          // Table Rows
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: pagedList.length,
-            separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            itemBuilder: (context, index) {
-              final c = pagedList[index];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: Row(
-                  children: [
-                    // 1. Customer Name + Avatar
-                    Expanded(
-                      flex: 3,
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF1F5F9),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              c.isFemale ? Icons.face_3_rounded : Icons.person_rounded,
-                              size: 16,
-                              color: const Color(0xFF94A3B8),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              c.name,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12.5,
-                                color: Color(0xFF1E293B),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // 2. Phone
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        c.phone,
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF334155),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final tableWidth = constraints.maxWidth > 780 ? constraints.maxWidth : 780.0;
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableWidth,
+                  child: Column(
+                    children: [
+                      // Table Headers
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFAFAFA),
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                          border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+                        ),
+                        child: Row(
+                          children: const [
+                            Expanded(flex: 3, child: Text('کڕیار', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text('ژمارەی مۆبایل', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('شار', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('کۆی داواکاری', textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text('بەرواری تۆمارکردن', textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
+                          ],
                         ),
                       ),
-                    ),
 
-                    // 3. City
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        c.city,
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF334155),
-                        ),
-                      ),
-                    ),
+                      // Table Rows
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: pagedList.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                        itemBuilder: (context, index) {
+                          final c = pagedList[index];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            child: Row(
+                              children: [
+                                // 1. Customer Name + Avatar
+                                Expanded(
+                                  flex: 3,
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFFF1F5F9),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          c.isFemale ? Icons.face_3_rounded : Icons.person_rounded,
+                                          size: 16,
+                                          color: const Color(0xFF94A3B8),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          c.name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12.5,
+                                            color: Color(0xFF1E293B),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
 
-                    // 4. Total Orders
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        '${c.totalOrders}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                    ),
+                                // 2. Phone
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    c.phone,
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF334155),
+                                    ),
+                                  ),
+                                ),
 
-                    // 5. Register Date
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        c.registerDate,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
+                                // 3. City
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    c.city,
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF334155),
+                                    ),
+                                  ),
+                                ),
 
-                    // 6. Status
-                    Expanded(
-                      flex: 2,
-                      child: Center(child: _buildStatusBadge(c.isActive)),
-                    ),
+                                // 4. Total Orders
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    '${c.totalOrders}',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ),
 
-                    // 7. Actions [✏️] [👁]
-                    Expanded(
-                      flex: 2,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          // View Details Eye Button
-                          InkWell(
-                            onTap: () => _showCustomerDetailsDialog(c),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Container(
-                              padding: const EdgeInsets.all(5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF475569)),
+                                // 5. Register Date
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    c.registerDate,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+
+                                // 6. Status
+                                Expanded(
+                                  flex: 2,
+                                  child: Center(child: _buildStatusBadge(c.isActive)),
+                                ),
+
+                                // 7. Actions [✏️] [👁]
+                                Expanded(
+                                  flex: 2,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      // View Details Eye Button
+                                      InkWell(
+                                        onTap: () => _showCustomerDetailsDialog(c),
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(5),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF1F5F9),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF475569)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      // Edit Button
+                                      InkWell(
+                                        onTap: () => _showAddCustomerDialog(existing: c),
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(5),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF1F5F9),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF475569)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          // Edit Button
-                          InkWell(
-                            onTap: () => _showAddCustomerDialog(existing: c),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Container(
-                              padding: const EdgeInsets.all(5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF475569)),
-                            ),
-                          ),
-                        ],
+                          );
+                        },
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             },
@@ -1107,8 +1178,11 @@ class _CustomersScreenState extends State<CustomersScreen> {
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
               children: [
                 // Right side: 'نمایش 1 تا 5 لە 24,850 کڕیار'
                 const Text(
@@ -1122,6 +1196,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
                 // Left side: < 5 4 3 2 [1] >
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildPageNavBtn(icon: Icons.chevron_left_rounded, onTap: () {}),
                     const SizedBox(width: 4),

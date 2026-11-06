@@ -498,12 +498,14 @@ class _StoresScreenState extends State<StoresScreen> {
   // 1. TOP HEADER (Matching Screenshot)
   // ============================================================================
   Widget _buildTopHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Right side in RTL (First child): Title, Subtitle, and Add Vendor Button
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 760;
+
+        final titleAndButton = Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 14,
+          runSpacing: 10,
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -527,8 +529,6 @@ class _StoresScreenState extends State<StoresScreen> {
                 ),
               ],
             ),
-            const SizedBox(width: 24),
-            // Add Vendor Button: + زیادکردنی فرۆشیار
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF113E2E),
@@ -545,44 +545,37 @@ class _StoresScreenState extends State<StoresScreen> {
               ),
             ),
           ],
-        ),
+        );
 
-        // Left side in RTL (Second child): Search pill, Bell with 3, Profile (ئەدمین)
-        Row(
+        final profileAndBell = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Search pill: '...گەڕان بە ناوی فرۆشیار'
-            Container(
-              width: 260,
-              height: 38,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 10),
-                  const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: TextField(
-                      controller: _topSearchCtrl,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        hintText: '...گەڕان بە ناوی فرۆشیار',
-                        hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE2E8F0),
+                    shape: BoxShape.circle,
                   ),
-                ],
-              ),
+                  child: const Icon(Icons.person_rounded, color: Color(0xFF64748B), size: 22),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'ئەدمین',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 18),
+              ],
             ),
-            const SizedBox(width: 16),
-
-            // Notification Bell with Badge '3'
+            const SizedBox(width: 14),
             Stack(
               clipBehavior: Clip.none,
               children: [
@@ -611,36 +604,88 @@ class _StoresScreenState extends State<StoresScreen> {
                 ),
               ],
             ),
-            const SizedBox(width: 16),
-
-            // User Avatar with Name "ئەدمین"
-            Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE2E8F0),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.person_rounded, color: Color(0xFF64748B), size: 22),
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'ئەدمین',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 18),
-              ],
-            ),
           ],
-        ),
-      ],
+        );
+
+        final searchBar = Container(
+          width: isNarrow ? constraints.maxWidth : 260.0,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 10),
+              const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextField(
+                  controller: _topSearchCtrl,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    hintText: '...گەڕان بە ناوی فرۆشیار',
+                    hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (constraints.maxWidth < 600) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  profileAndBell,
+                ],
+              ),
+              const SizedBox(height: 10),
+              titleAndButton,
+              const SizedBox(height: 12),
+              searchBar,
+            ],
+          );
+        } else if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(child: titleAndButton),
+                  const SizedBox(width: 12),
+                  profileAndBell,
+                ],
+              ),
+              const SizedBox(height: 12),
+              searchBar,
+            ],
+          );
+        } else {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              titleAndButton,
+              Row(
+                children: [
+                  profileAndBell,
+                  const SizedBox(width: 16),
+                  searchBar,
+                ],
+              ),
+            ],
+          );
+        }
+      },
     );
   }
 
@@ -650,14 +695,22 @@ class _StoresScreenState extends State<StoresScreen> {
   Widget _buildKPICardsRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cardWidth = (constraints.maxWidth - 48) / 4;
+        final width = constraints.maxWidth;
+        final double cardWidth;
+        if (width >= 960) {
+          cardWidth = (width - 48) / 4;
+        } else if (width >= 560) {
+          cardWidth = (width - 16) / 2;
+        } else {
+          cardWidth = width;
+        }
         return Wrap(
           spacing: 16,
           runSpacing: 16,
           children: [
             // Card 1: کۆی فرۆشیاران (Rightmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'کۆی فرۆشیاران',
                 value: _registeredVendors,
@@ -668,7 +721,7 @@ class _StoresScreenState extends State<StoresScreen> {
             ),
             // Card 2: فرۆشیاری چالاک
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'فرۆشیاری چالاک',
                 value: _activeVendors,
@@ -679,7 +732,7 @@ class _StoresScreenState extends State<StoresScreen> {
             ),
             // Card 3: چاوەڕوانی پەسەندکردن
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'چاوەڕوانی پەسەندکردن',
                 value: _pendingApproval,
@@ -690,7 +743,7 @@ class _StoresScreenState extends State<StoresScreen> {
             ),
             // Card 4: داواکاریی ئەمڕۆ (Leftmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildKPICard(
                 title: 'داواکاریی ئەمڕۆ',
                 value: _todayOrders,
@@ -772,73 +825,83 @@ class _StoresScreenState extends State<StoresScreen> {
   // 3. FILTER BAR (Matching Screenshot with 3 dropdown columns)
   // ============================================================================
   Widget _buildFilterBar() {
-    return Row(
-      children: [
-        // 1. Food Type: جۆری خواردن -> هەموو جۆرەکان
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'جۆری خواردن',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
-              ),
-              const SizedBox(height: 6),
-              _buildDropdownPill(
-                value: _selectedCuisine,
-                items: const [
-                  'هەموو جۆرەکان',
-                  'خواردنی کوردی',
-                  'کافێی خواردنی خێرا',
-                  'پیتزا و خۆراکی خێرا',
-                  'شیرینی و خۆراکی شیرین',
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 680;
+        final itemWidth = isNarrow ? (constraints.maxWidth - 12) / 2 : (constraints.maxWidth - 28) / 3;
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            // 1. Food Type: جۆری خواردن -> هەموو جۆرەکان
+            SizedBox(
+              width: isNarrow && constraints.maxWidth < 420 ? constraints.maxWidth : itemWidth.clamp(160.0, 360.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'جۆری خواردن',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 6),
+                  _buildDropdownPill(
+                    value: _selectedCuisine,
+                    items: const [
+                      'هەموو جۆرەکان',
+                      'خواردنی کوردی',
+                      'کافێی خواردنی خێرا',
+                      'پیتزا و خۆراکی خێرا',
+                      'شیرینی و خۆراکی شیرین',
+                    ],
+                    onChanged: (v) => setState(() => _selectedCuisine = v ?? 'هەموو جۆرەکان'),
+                  ),
                 ],
-                onChanged: (v) => setState(() => _selectedCuisine = v ?? 'هەموو جۆرەکان'),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 14),
+            ),
 
-        // 2. City: شار -> هەموو شارەکان
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'شار',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+            // 2. City: شار -> هەموو شارەکان
+            SizedBox(
+              width: isNarrow && constraints.maxWidth < 420 ? constraints.maxWidth : itemWidth.clamp(160.0, 360.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'شار',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 6),
+                  _buildDropdownPill(
+                    value: _selectedCity,
+                    items: const ['هەموو شارەکان', 'هەولێر', 'سلێمانی', 'دهۆک', 'کەلار'],
+                    onChanged: (v) => setState(() => _selectedCity = v ?? 'هەموو شارەکان'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              _buildDropdownPill(
-                value: _selectedCity,
-                items: const ['هەموو شارەکان', 'هەولێر', 'سلێمانی', 'دهۆک', 'کەلار'],
-                onChanged: (v) => setState(() => _selectedCity = v ?? 'هەموو شارەکان'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 14),
+            ),
 
-        // 3. Status: دۆخ -> هەموو دۆخەکان
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'دۆخ',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+            // 3. Status: دۆخ -> هەموو دۆخەکان
+            SizedBox(
+              width: isNarrow && constraints.maxWidth < 420 ? constraints.maxWidth : itemWidth.clamp(160.0, 360.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'دۆخ',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 6),
+                  _buildDropdownPill(
+                    value: _selectedStatus,
+                    items: const ['هەموو دۆخەکان', 'چالاک', 'پێداچوونەوە'],
+                    onChanged: (v) => setState(() => _selectedStatus = v ?? 'هەموو دۆخەکان'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              _buildDropdownPill(
-                value: _selectedStatus,
-                items: const ['هەموو دۆخەکان', 'چالاک', 'پێداچوونەوە'],
-                onChanged: (v) => setState(() => _selectedStatus = v ?? 'هەموو دۆخەکان'),
-              ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -909,200 +972,215 @@ class _StoresScreenState extends State<StoresScreen> {
       ),
       child: Column(
         children: [
-          // Table Headers
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: const BoxDecoration(
-              color: Color(0xFFFAFAFA),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
-            ),
-            child: Row(
-              children: const [
-                Expanded(flex: 3, child: Text('فرۆشیار', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 3, child: Text('جۆری خواردن', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('شار', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 3, child: Text('ژمارەی مۆبایل', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('داواکاریی ئەمڕۆ', textAlign: TextAlign.center, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
-              ],
-            ),
-          ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final tableWidth = constraints.maxWidth > 840 ? constraints.maxWidth : 840.0;
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableWidth,
+                  child: Column(
+                    children: [
+                      // Table Headers
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFAFAFA),
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                          border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+                        ),
+                        child: Row(
+                          children: const [
+                            Expanded(flex: 3, child: Text('فرۆشیار', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text('جۆری خواردن', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('شار', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text('ژمارەی مۆبایل', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('داواکاریی ئەمڕۆ', textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
+                          ],
+                        ),
+                      ),
 
-          // Table Rows
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: pagedList.length,
-            separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            itemBuilder: (context, index) {
-              final v = pagedList[index];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: Row(
-                  children: [
-                    // 1. Vendor Name, Subtitle, and Thumbnail
-                    Expanded(
-                      flex: 3,
-                      child: Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              v.imageUrl,
-                              width: 38,
-                              height: 38,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.storefront_rounded, size: 20, color: Color(0xFF94A3B8)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Flexible(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
+                      // Table Rows
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: pagedList.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                        itemBuilder: (context, index) {
+                          final v = pagedList[index];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            child: Row(
                               children: [
-                                Text(
-                                  v.name,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
-                                    color: Color(0xFF1E293B),
+                                // 1. Vendor Name, Subtitle, and Thumbnail
+                                Expanded(
+                                  flex: 3,
+                                  child: Row(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          v.imageUrl,
+                                          width: 38,
+                                          height: 38,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) => Container(
+                                            width: 38,
+                                            height: 38,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF1F5F9),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: const Icon(Icons.storefront_rounded, size: 20, color: Color(0xFF94A3B8)),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Flexible(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              v.name,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 13,
+                                                color: Color(0xFF1E293B),
+                                              ),
+                                            ),
+                                            if (v.subtitle.isNotEmpty) ...[
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                v.subtitle,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 10.5,
+                                                  color: Color(0xFF94A3B8),
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                if (v.subtitle.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    v.subtitle,
-                                    overflow: TextOverflow.ellipsis,
+
+                                // 2. Food Type
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    v.cuisine,
+                                    textAlign: TextAlign.right,
                                     style: const TextStyle(
-                                      fontSize: 10.5,
-                                      color: Color(0xFF94A3B8),
-                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF334155),
                                     ),
                                   ),
-                                ],
+                                ),
+
+                                // 3. City
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    v.city,
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF334155),
+                                    ),
+                                  ),
+                                ),
+
+                                // 4. Phone
+                                Expanded(
+                                  flex: 3,
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Directionality(
+                                      textDirection: TextDirection.ltr,
+                                      child: Text(
+                                        v.phone,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF334155),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                // 5. Today Orders
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    _toKurdishDigits(v.todayOrders),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ),
+
+                                // 6. Status
+                                Expanded(
+                                  flex: 2,
+                                  child: Center(child: _buildStatusBadge(v.status)),
+                                ),
+
+                                // 7. Actions [✏️] [👁]
+                                Expanded(
+                                  flex: 2,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      // View Details Eye Button
+                                      InkWell(
+                                        onTap: () => _showVendorDetailsDialog(v),
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(5),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF1F5F9),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF475569)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      // Edit Button
+                                      InkWell(
+                                        onTap: () => _showAddVendorDialog(existing: v),
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(5),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF1F5F9),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF475569)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
-                          ),
-                        ],
+                          );
+                        },
                       ),
-                    ),
-
-                    // 2. Food Type
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        v.cuisine,
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF334155),
-                        ),
-                      ),
-                    ),
-
-                    // 3. City
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        v.city,
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF334155),
-                        ),
-                      ),
-                    ),
-
-                    // 4. Phone
-                    Expanded(
-                      flex: 3,
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Directionality(
-                          textDirection: TextDirection.ltr,
-                          child: Text(
-                            v.phone,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF334155),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // 5. Today Orders
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        _toKurdishDigits(v.todayOrders),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                    ),
-
-                    // 6. Status
-                    Expanded(
-                      flex: 2,
-                      child: Center(child: _buildStatusBadge(v.status)),
-                    ),
-
-                    // 7. Actions [✏️] [👁]
-                    Expanded(
-                      flex: 2,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          // View Details Eye Button
-                          InkWell(
-                            onTap: () => _showVendorDetailsDialog(v),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Container(
-                              padding: const EdgeInsets.all(5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF475569)),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          // Edit Button
-                          InkWell(
-                            onTap: () => _showAddVendorDialog(existing: v),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Container(
-                              padding: const EdgeInsets.all(5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF475569)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             },
@@ -1114,8 +1192,11 @@ class _StoresScreenState extends State<StoresScreen> {
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
               children: [
                 // Right side: 'نمایشکردنی 1 تا 5 لە 342 دانە'
                 const Text(
@@ -1129,6 +1210,7 @@ class _StoresScreenState extends State<StoresScreen> {
 
                 // Left side: < 5 4 3 2 [1] >
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildPageNavBtn(icon: Icons.chevron_left_rounded, onTap: () {}),
                     const SizedBox(width: 4),

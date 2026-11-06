@@ -578,15 +578,38 @@ class _DriversScreenState extends State<DriversScreen> {
   // 1. Top Header Widget
   // ============================================================================
   Widget _buildTopHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Left Side in RTL: User Avatar + Name, Notification Bell with 3, Search Pill
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 760;
+        final titleWidget = Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: const [
+            Text(
+              'بەڕێوەبردنی ماتۆرسواران',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF111827),
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              'چاوەدێری و بەڕێوەبردنی تیمی دلیڤەری',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: Color(0xFF6B7280),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        );
+
+        final profileAndBell = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             // User Avatar + Aryan Mohammed
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const CircleAvatar(
                   radius: 18,
@@ -621,7 +644,7 @@ class _DriversScreenState extends State<DriversScreen> {
                 const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 18),
               ],
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
 
             // Notification Bell with Badge '3'
             Stack(
@@ -652,65 +675,87 @@ class _DriversScreenState extends State<DriversScreen> {
                 ),
               ],
             ),
-            const SizedBox(width: 16),
+          ],
+        );
 
-            // Search pill: '...گەڕان بە ناوی ماتۆرسوار'
-            Container(
-              width: 260,
-              height: 38,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 10),
-                  const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchCtrl,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        hintText: '...گەڕان بە ناوی ماتۆرسوار',
-                        hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
+        final searchBar = Container(
+          width: isNarrow ? constraints.maxWidth : 260.0,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 10),
+              const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    hintText: '...گەڕان بە ناوی ماتۆرسوار',
+                    hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
                   ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (constraints.maxWidth < 600) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  profileAndBell,
                 ],
               ),
-            ),
-          ],
-        ),
-
-        // Right Side in RTL: Title & Subtitle
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: const [
-            Text(
-              'بەڕێوەبردنی ماتۆرسواران',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF111827),
+              const SizedBox(height: 10),
+              titleWidget,
+              const SizedBox(height: 12),
+              searchBar,
+            ],
+          );
+        } else if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  profileAndBell,
+                  Expanded(child: titleWidget),
+                ],
               ),
-            ),
-            SizedBox(height: 2),
-            Text(
-              'چاوەدێری و بەڕێوەبردنی تیمی دلیڤەری',
-              style: TextStyle(
-                fontSize: 12.5,
-                color: Color(0xFF6B7280),
-                fontWeight: FontWeight.w600,
+              const SizedBox(height: 12),
+              searchBar,
+            ],
+          );
+        } else {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  profileAndBell,
+                  const SizedBox(width: 16),
+                  searchBar,
+                ],
               ),
-            ),
-          ],
-        ),
-      ],
+              titleWidget,
+            ],
+          );
+        }
+      },
     );
   }
 
@@ -720,14 +765,22 @@ class _DriversScreenState extends State<DriversScreen> {
   Widget _buildKpiSummaryRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cardWidth = (constraints.maxWidth - 48) / 4;
+        final width = constraints.maxWidth;
+        final double cardWidth;
+        if (width >= 960) {
+          cardWidth = (width - 48) / 4;
+        } else if (width >= 560) {
+          cardWidth = (width - 16) / 2;
+        } else {
+          cardWidth = width;
+        }
         return Wrap(
           spacing: 16,
           runSpacing: 16,
           children: [
             // Card 1: کۆی ماتۆرسواران (Rightmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildMetricCard(
                 title: 'کۆی ماتۆرسواران',
                 value: _totalDriversKPI,
@@ -738,7 +791,7 @@ class _DriversScreenState extends State<DriversScreen> {
             ),
             // Card 2: چالاک
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildMetricCard(
                 title: 'چالاک',
                 value: _activeDriversKPI,
@@ -749,7 +802,7 @@ class _DriversScreenState extends State<DriversScreen> {
             ),
             // Card 3: لە دلیڤەری
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildMetricCard(
                 title: 'لە دلیڤەری',
                 value: _inDeliveryKPI,
@@ -760,7 +813,7 @@ class _DriversScreenState extends State<DriversScreen> {
             ),
             // Card 4: چاوەڕوانی پەسەندکردن (Leftmost)
             SizedBox(
-              width: cardWidth.clamp(210.0, 450.0),
+              width: cardWidth,
               child: _buildMetricCard(
                 title: 'چاوەڕوانی پەسەندکردن',
                 value: _pendingApprovalKPI,
@@ -842,8 +895,11 @@ class _DriversScreenState extends State<DriversScreen> {
   // Filter Bar (Calendar, City, Status)
   // ============================================================================
   Widget _buildFilterBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
+    return Wrap(
+      spacing: 10,
+      runSpacing: 8,
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         // Date Dropdown: 'ئەمڕۆ'
         _buildDropdownPill(
@@ -852,7 +908,6 @@ class _DriversScreenState extends State<DriversScreen> {
           items: const ['ئەمڕۆ', 'دوێنێ', '٧ ڕۆژی ڕابردوو', 'ئەم مانگە'],
           onChanged: (v) => setState(() => _selectedDate = v ?? 'ئەمڕۆ'),
         ),
-        const SizedBox(width: 10),
 
         // City Dropdown: 'هەموو شارەکان'
         _buildDropdownPill(
@@ -861,7 +916,6 @@ class _DriversScreenState extends State<DriversScreen> {
           items: const ['هەموو شارەکان', 'هەولێر', 'سلێمانی', 'دهۆک', 'کەلار'],
           onChanged: (v) => setState(() => _selectedCity = v ?? 'هەموو شارەکان'),
         ),
-        const SizedBox(width: 10),
 
         // Status Dropdown: 'هەموو دۆخەکان'
         _buildDropdownPill(
@@ -1079,27 +1133,36 @@ class _DriversScreenState extends State<DriversScreen> {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          // Table Headers
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: const BoxDecoration(
-              color: Color(0xFFFAFAFA),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
-            ),
-            child: Row(
-              children: const [
-                Expanded(flex: 3, child: Text('ماتۆرسوار', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 3, child: Text('ژمارەی مۆبایل', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('شار', textAlign: TextAlign.right, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('داواکارییەکانی ئەمڕۆ', textAlign: TextAlign.center, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
-                Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
-              ],
-            ),
-          ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tableWidth = constraints.maxWidth < 680 ? 680.0 : constraints.maxWidth;
+          return Column(
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableWidth,
+                  child: Column(
+                    children: [
+                      // Table Headers
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFAFAFA),
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                          border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+                        ),
+                        child: Row(
+                          children: const [
+                            Expanded(flex: 3, child: Text('ماتۆرسوار', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text('ژمارەی مۆبایل', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('شار', textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('داواکارییەکانی ئەمڕۆ', textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
+                          ],
+                        ),
+                      ),
 
           // Table Rows
           if (list.isEmpty)
@@ -1235,44 +1298,54 @@ class _DriversScreenState extends State<DriversScreen> {
                 );
               },
             ),
-
-          // Pagination Footer
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Right side: '5 لە 248 دانە نمایش دەکرێت'
-                const Text(
-                  '5 لە 248 دانە نمایش دەکرێت',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF64748B),
+                    ],
                   ),
                 ),
+              ),
 
-                // Left side: < 3 2 [1] >
-                Row(
+              // Pagination Footer
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
+                ),
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 10,
                   children: [
-                    _buildPageNavBtn(icon: Icons.chevron_left_rounded, onTap: () {}),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 1, active: _currentPage == 1),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 2, active: _currentPage == 2),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 3, active: _currentPage == 3),
-                    const SizedBox(width: 4),
-                    _buildPageNavBtn(icon: Icons.chevron_right_rounded, onTap: () {}),
+                    // Right side: '5 لە 248 دانە نمایش دەکرێت'
+                    const Text(
+                      '5 لە 248 دانە نمایش دەکرێت',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+
+                    // Left side: < 3 2 [1] >
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildPageNavBtn(icon: Icons.chevron_left_rounded, onTap: () {}),
+                        const SizedBox(width: 4),
+                        _buildPageNumberBtn(page: 1, active: _currentPage == 1),
+                        const SizedBox(width: 4),
+                        _buildPageNumberBtn(page: 2, active: _currentPage == 2),
+                        const SizedBox(width: 4),
+                        _buildPageNumberBtn(page: 3, active: _currentPage == 3),
+                        const SizedBox(width: 4),
+                        _buildPageNavBtn(icon: Icons.chevron_right_rounded, onTap: () {}),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
