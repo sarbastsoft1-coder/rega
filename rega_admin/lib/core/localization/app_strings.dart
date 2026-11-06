@@ -11,19 +11,19 @@ class AppStrings {
       'en': 'Kalar Operations Hub • Garmian',
     },
     'nav_dashboard': {
-      'ku': 'داشبۆردی گشتی',
-      'ar': 'لوحة القيادة',
-      'en': 'Dashboard',
+      'ku': 'سەرەکی',
+      'ar': 'الرئيسية',
+      'en': 'Home',
     },
     'nav_orders': {
-      'ku': 'داواکارییەکان و ناردن',
-      'ar': 'الطلبات والتوجيه',
-      'en': 'Live Orders & Dispatch',
+      'ku': 'داواکارییەکان',
+      'ar': 'الطلبات',
+      'en': 'Orders',
     },
     'nav_stores': {
-      'ku': 'فرۆشگا و چێشتخانەکان',
-      'ar': 'المتاجر والمطاعم',
-      'en': 'Stores & Vendors',
+      'ku': 'فرۆشیاران',
+      'ar': 'المتاجر',
+      'en': 'Vendors',
     },
     'nav_products': {
       'ku': 'بەرهەم و مێنۆکان',
@@ -31,9 +31,9 @@ class AppStrings {
       'en': 'Products & Menus',
     },
     'nav_drivers': {
-      'ku': 'شۆفێران و بەڵگەنامەکان',
-      'ar': 'السائقون والوثائق',
-      'en': 'Drivers & KYC',
+      'ku': 'ماتۆرسواران',
+      'ar': 'السائقون',
+      'en': 'Couriers',
     },
     'nav_customers': {
       'ku': 'کڕیاران',
@@ -51,14 +51,14 @@ class AppStrings {
       'en': 'Marketing & Promos',
     },
     'nav_finance': {
-      'ku': 'دارایی و کۆمیسیۆن',
-      'ar': 'المالية والعمولات',
-      'en': 'Finance & Payouts',
+      'ku': 'ڕاپۆرتەکان',
+      'ar': 'التقارير',
+      'en': 'Reports',
     },
     'nav_support': {
-      'ku': 'سکاڵا و ڕێکخستنەکان',
-      'ar': 'الدعم والإعدادات',
-      'en': 'Support & Settings',
+      'ku': 'ڕێکخستن',
+      'ar': 'الإعدادات',
+      'en': 'Settings',
     },
     'refresh': {
       'ku': 'نوێکردنەوە',

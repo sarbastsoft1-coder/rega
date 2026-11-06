@@ -8,6 +8,11 @@ class RegaColors {
   static const Color goldDark = Color(0xFFD97706);
   static const Color goldSoft = Color(0xFFFEF9C3);
 
+  // Screenshot Forest Green Brand Palette
+  static const Color forestGreen = Color(0xFF113E2E);
+  static const Color forestGreenActive = Color(0xFF1D5540);
+  static const Color forestGreenBtn = Color(0xFF113E2E);
+
   // Operational Accents (matching rega_froshyar & rega_delivery)
   static const Color emerald = Color(0xFF10B981);
   static const Color emeraldDark = Color(0xFF059669);
@@ -17,9 +22,9 @@ class RegaColors {
   static const Color crimson = Color(0xFFE11D48);
 
   // Surfaces
-  static const Color sidebarBg = Color(0xFF0F172A);
-  static const Color sidebarCard = Color(0xFF1E293B);
-  static const Color lightCanvas = Color(0xFFF1F5F9);
+  static const Color sidebarBg = Color(0xFF113E2E);
+  static const Color sidebarCard = Color(0xFF1D5540);
+  static const Color lightCanvas = Color(0xFFF8FAFC);
   static const Color darkCanvas = Color(0xFF090D16);
   static const Color darkSurface = Color(0xFF111827);
 }

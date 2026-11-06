@@ -100,9 +100,10 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
             TileLayer(
               urlTemplate: _darkStyle
                   ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-                  : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-              subdomains: const ['a', 'b', 'c', 'd'],
+                  : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              subdomains: _darkStyle ? const ['a', 'b', 'c', 'd'] : const [],
               userAgentPackageName: 'iq.rega.customer',
+              fallbackUrl: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
             ),
             MarkerLayer(
               markers: [
@@ -885,9 +886,9 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       case 1:
         return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
       case 2:
-        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-      default:
         return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+      default:
+        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     }
   }
 
@@ -1003,7 +1004,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                   initialZoom: 15.6,
                   minZoom: 11.0,
                   maxZoom: 18.5,
-                  backgroundColor: const Color(0xFF1E293B),
+                  backgroundColor: const Color(0xFFF1F5F9),
                   onMapReady: () {
                     _mapReady = true;
                     _mapController.move(_displayDriverPos, 15.6);
@@ -1027,10 +1028,9 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                 children: [
                   TileLayer(
                     urlTemplate: _tileUrl,
-                    fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    subdomains: _mapStyleIndex == 2 ? const [] : const ["a", "b", "c", "d"],
+                    fallbackUrl: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    subdomains: (_mapStyleIndex == 1 || _mapStyleIndex == 2) ? const ["a", "b", "c", "d"] : const [],
                     userAgentPackageName: "iq.rega.customer",
-                    tileProvider: NetworkTileProvider(),
                   ),
                   PolylineLayer(polylines: polylines),
                   MarkerLayer(

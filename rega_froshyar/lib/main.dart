@@ -1222,39 +1222,34 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ),
         body: screens[_selectedIndex],
         bottomNavigationBar: Container(
-          margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
+            color: const Color(0xFFFCFBF7), // Warm off-white matching screenshot
+            borderRadius: BorderRadius.circular(28),
             border: Border.all(
-              color: const Color(0xFFE2E8F0),
+              color: const Color(0xFFEBE6DC),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.08),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
               child: Row(
                 children: [
                   // 1. Far Right in RTL: داواکارییەکان (Orders) - index 3
                   Expanded(
                     child: _buildNavItem(
                       3,
-                      Icons.receipt_long_rounded,
-                      Icons.receipt_long_outlined,
+                      Icons.shopping_basket_rounded,
+                      Icons.shopping_basket_outlined,
                       t('داواکارییەکان'),
                     ),
                   ),
@@ -1262,8 +1257,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   Expanded(
                     child: _buildNavItem(
                       2,
-                      Icons.restaurant_menu_rounded,
-                      Icons.restaurant_menu_outlined,
+                      Icons.soup_kitchen_rounded,
+                      Icons.soup_kitchen_outlined,
                       t('مێنۆ و بەرهەم'),
                     ),
                   ),
@@ -1271,8 +1266,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   Expanded(
                     child: _buildNavItem(
                       1,
-                      Icons.analytics_rounded,
-                      Icons.analytics_outlined,
+                      Icons.trending_up_rounded,
+                      Icons.trending_up_rounded,
                       t('داهاتی فرۆشیار'),
                     ),
                   ),
@@ -1280,8 +1275,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   Expanded(
                     child: _buildNavItem(
                       0,
-                      Icons.storefront_rounded,
-                      Icons.storefront_outlined,
+                      Icons.tune_rounded,
+                      Icons.tune_rounded,
                       t('ڕێکخستن'),
                     ),
                   ),
@@ -1299,67 +1294,72 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     // Notification badge on orders (index 3) when there are pending orders
     final pendingCount = _orders.where((o) => o.status == OrderStatus.pending).length;
     final bool hasNotification = (index == 3 && pendingCount > 0);
-    const activeColor = Color(0xFFEA580C);
-    const inactiveColor = Color(0xFF64748B);
+    const orangeColor = Color(0xFFFF6D00); // Vibrant Froshyar Orange matching screenshot
+    const inactiveColor = Color(0xFF55606D); // Dark slate grey matching screenshot
 
     return InkWell(
       onTap: () {
         HapticFeedback.selectionClick();
         _onItemTapped(index);
       },
-      borderRadius: BorderRadius.circular(16),
-      splashColor: activeColor.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(20),
+      splashColor: orangeColor.withValues(alpha: 0.1),
       highlightColor: Colors.transparent,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFFF7ED) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFFFEDD5) : Colors.transparent,
-            width: 1.0,
-          ),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Icon area (with Orange Pill if selected)
             Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
-                AnimatedScale(
-                  scale: isSelected ? 1.08 : 1.0,
-                  duration: const Duration(milliseconds: 200),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutCubic,
+                  width: isSelected ? 50 : 36,
+                  height: isSelected ? 42 : 36,
+                  decoration: BoxDecoration(
+                    color: isSelected ? orangeColor : Colors.transparent,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: orangeColor.withValues(alpha: 0.38),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  alignment: Alignment.center,
                   child: Icon(
                     isSelected ? activeIcon : inactiveIcon,
-                    color: isSelected ? activeColor : inactiveColor,
+                    color: isSelected ? Colors.white : inactiveColor,
                     size: 24,
                   ),
                 ),
                 if (hasNotification)
                   Positioned(
-                    top: -5,
-                    right: -9,
+                    top: isSelected ? -3 : -4,
+                    right: isSelected ? -4 : -6,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-                        ),
+                        color: const Color(0xFFEF4444),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: Colors.white, width: 1.8),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.45),
                             blurRadius: 4,
                             offset: const Offset(0, 1),
                           ),
                         ],
                       ),
-                      constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                       child: Text(
                         '$pendingCount',
                         textAlign: TextAlign.center,
@@ -1375,19 +1375,27 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               ],
             ),
             const SizedBox(height: 4),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
+            // Text Label
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: isSelected ? activeColor : inactiveColor,
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                letterSpacing: -0.2,
+                color: isSelected ? orangeColor : inactiveColor,
+                fontSize: 11.5,
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
                 fontFamily: kAppFontFamily,
               ),
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 3),
+            // Dot indicator directly under active tab (matches screenshot exactly)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: isSelected ? 5.5 : 0,
+              height: 5.5,
+              decoration: BoxDecoration(
+                color: isSelected ? orangeColor : Colors.transparent,
+                shape: BoxShape.circle,
               ),
             ),
           ],
