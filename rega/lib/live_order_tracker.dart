@@ -1649,11 +1649,16 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     const stepLabels = ['وەرگیرا', 'ئامادەیە', 'هەڵگیرا', 'لە ڕێگایە', 'ڕادەست کرا'];
     final activeIdx = _activeStepIndex;
     final isArrivedAtDoor = _status == 'arrived_customer';
+    final screenH = MediaQuery.of(context).size.height;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // 5-Stage Live Stepper
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: screenH < 620 ? screenH * 0.44 : 360),
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 5-Stage Live Stepper
         Row(
           children: List.generate(stepLabels.length, (i) {
             final done = i <= activeIdx;
@@ -1871,7 +1876,9 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
           ],
         ),
       ],
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildDeliveredCelebrationCard() {

@@ -2239,17 +2239,21 @@ class _MainScreenState extends State<MainScreen> {
           final subtotal = _cart.fold<int>(0, (sum, i) => sum + (i.product.price * i.quantity));
           final grandTotal = subtotal + _selectedNeighborhood.deliveryFee;
 
-          return SafeArea(
-            top: false,
-            bottom: true,
-            child: Padding(
-              padding: EdgeInsets.only(
-                top: 24,
-                left: 20,
-                right: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-              ),
-              child: SingleChildScrollView(
+          return Align(
+            alignment: Alignment.bottomCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: SafeArea(
+                top: false,
+                bottom: true,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    top: 24,
+                    left: 20,
+                    right: 20,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                  ),
+                  child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2358,10 +2362,12 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ),
-          );
-        },
-      ),
-    );
+          ),
+        ),
+      );
+    },
+  ),
+);
   }
 
   // 📍 Full Interactive Google Map Style Kalar GPS Location Picker
@@ -2378,13 +2384,17 @@ class _MainScreenState extends State<MainScreen> {
 
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.90,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: Column(
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Container(
+                  height: MediaQuery.of(context).size.height * 0.90,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                  ),
+                  child: Column(
                 children: [
                   // Top Modal Drag Handle & Header
                   Container(
@@ -2837,11 +2847,13 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ],
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
+  },
+);
   }
 
   Widget _buildMapLandmarkBadge(String text) {
@@ -2923,13 +2935,17 @@ class _MainScreenState extends State<MainScreen> {
                     return title.contains(query) || catName.contains(query);
                   }).toList();
 
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.88,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: Column(
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Container(
+                  height: MediaQuery.of(context).size.height * 0.88,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                  ),
+                  child: Column(
                 children: [
                   // Top Grabber Handle & Header
                   Container(
@@ -3294,11 +3310,13 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ],
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
+  },
+);
   }
 
   // 🔔 Comprehensive Notifications & Discount Offers Modal
@@ -3396,13 +3414,17 @@ class _MainScreenState extends State<MainScreen> {
               return true;
             }).toList();
 
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.85,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: Column(
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Container(
+                  height: MediaQuery.of(context).size.height * 0.85,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                  ),
+                  child: Column(
                 children: [
                   // Top Grabber & Header Row
                   Container(
@@ -3659,11 +3681,13 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ],
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
+  },
+);
   }
 
   Widget _buildNotifFilterChip(String label, String current, Function(String) onSelect) {
@@ -3734,15 +3758,20 @@ class _MainScreenState extends State<MainScreen> {
 
                     // 📄 Active View Switcher
                     Expanded(
-                      child: IndexedStack(
-                        index: _currentIndex,
-                        children: [
-                          _buildHomeTab(),
-                          _buildStoresTab(),
-                          _buildCartTab(),
-                          _buildOrdersTab(),
-                          _buildProfileTab(),
-                        ],
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1080),
+                          child: IndexedStack(
+                            index: _currentIndex,
+                            children: [
+                              _buildHomeTab(),
+                              _buildStoresTab(),
+                              _buildCartTab(),
+                              _buildOrdersTab(),
+                              _buildProfileTab(),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -3775,21 +3804,40 @@ class _MainScreenState extends State<MainScreen> {
               ),
               child: SafeArea(
                 top: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                  child: Row(
-                    children: [
-                      _buildBottomNavItem(0, _t('سەرەکی'), Icons.home_rounded, Icons.home_outlined),
-                      _buildBottomNavItem(1, _t('داشکاندن'), Icons.local_offer_rounded, Icons.local_offer_outlined),
-                      _buildBottomNavItem(2, _t('سەبەتە'), Icons.shopping_bag_rounded, Icons.shopping_bag_outlined, isCart: true),
-                      _buildBottomNavItem(3, _t('داواکاری'), Icons.receipt_long_rounded, Icons.receipt_long_outlined),
-                      _buildBottomNavItem(4, _t('پڕۆفایل'), Icons.person_rounded, Icons.person_outline_rounded),
-                    ],
+                bottom: true,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 620),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      child: Row(
+                        children: [
+                          _buildBottomNavItem(0, _t('سەرەکی'), Icons.home_rounded, Icons.home_outlined),
+                          _buildBottomNavItem(1, _t('داشکاندن'), Icons.local_offer_rounded, Icons.local_offer_outlined),
+                          _buildBottomNavItem(2, _t('سەبەتە'), Icons.shopping_bag_rounded, Icons.shopping_bag_outlined, isCart: true),
+                          _buildBottomNavItem(3, _t('داواکاری'), Icons.receipt_long_rounded, Icons.receipt_long_outlined),
+                          _buildBottomNavItem(4, _t('پڕۆفایل'), Icons.person_rounded, Icons.person_outline_rounded),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
     );
+  }
+
+  // 📱 RESPONSIVE BREAKPOINT HELPERS (IPHONE, ANDROID, IPAD, TABLET)
+  int _responsiveGridCount(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    if (w >= 1024) return 4;
+    if (w >= 640) return 3;
+    return 2;
+  }
+
+  double _responsiveAspectRatio(BuildContext context, {required double mobile, required double tablet}) {
+    final w = MediaQuery.of(context).size.width;
+    return w >= 640 ? tablet : mobile;
   }
 
   Widget _buildBottomNavItem(int index, String label, IconData activeIcon, IconData inactiveIcon, {bool isCart = false}) {
@@ -4006,53 +4054,58 @@ class _MainScreenState extends State<MainScreen> {
         left: 16,
         right: 16,
       ),
-      child: SizedBox(
-        height: toolbarHeight,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Search Icon (RTL: First child renders on the Right)
-            IconButton(
-              onPressed: _openSearchModal,
-              icon: const Icon(Icons.search_rounded, color: Colors.black, size: 26),
-            ),
-
-            // Logo Center Badge (SizedBox بەرزی 52 پێکسڵ و لۆگۆ بە بەرزی 48 پێکسڵ بە BoxFit.contain)
-            SizedBox(
-              height: 52,
-              child: Center(
-                child: _buildLogoWidget(),
-              ),
-            ),
-
-            // Notification Bell Icon with Badge (RTL: Third child renders on the Left)
-            Stack(
-              clipBehavior: Clip.none,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: SizedBox(
+            height: toolbarHeight,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // Search Icon (RTL: First child renders on the Right)
                 IconButton(
-                  onPressed: _openNotificationsModal,
-                  icon: const Icon(Icons.notifications_rounded, color: Colors.black, size: 26),
+                  onPressed: _openSearchModal,
+                  icon: const Icon(Icons.search_rounded, color: Colors.black, size: 26),
                 ),
-                if (_unreadNotificationCount > 0)
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        '$_unreadNotificationCount',
-                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                      ),
-                    ),
+
+                // Logo Center Badge (SizedBox بەرزی 52 پێکسڵ و لۆگۆ بە بەرزی 48 پێکسڵ بە BoxFit.contain)
+                SizedBox(
+                  height: 52,
+                  child: Center(
+                    child: _buildLogoWidget(),
                   ),
+                ),
+
+                // Notification Bell Icon with Badge (RTL: Third child renders on the Left)
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      onPressed: _openNotificationsModal,
+                      icon: const Icon(Icons.notifications_rounded, color: Colors.black, size: 26),
+                    ),
+                    if (_unreadNotificationCount > 0)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '$_unreadNotificationCount',
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -4062,79 +4115,84 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildLocationBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Yellow GPS button — detects real user location
-            Material(
-              color: const Color(0xFFFAC800),
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: _isGpsLocating ? null : () => _detectUserLocation(silent: false),
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: _isGpsLocating
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                        )
-                      : const Icon(Icons.my_location, size: 16, color: Colors.black),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.grey.shade200),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
-              ),
+              ],
             ),
-
-            Expanded(
-              child: InkWell(
-                onTap: _showLocationPicker,
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Text(
-                    'گەیاندن بۆ: ${_selectedNeighborhood.name}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
-                    textAlign: TextAlign.center,
+            child: Row(
+              children: [
+                // Yellow GPS button — detects real user location
+                Material(
+                  color: const Color(0xFFFAC800),
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _isGpsLocating ? null : () => _detectUserLocation(silent: false),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: _isGpsLocating
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                            )
+                          : const Icon(Icons.my_location, size: 16, color: Colors.black),
+                    ),
                   ),
                 ),
-              ),
-            ),
 
-            // Change button — opens location picker
-            InkWell(
-              onTap: _showLocationPicker,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                Expanded(
+                  child: InkWell(
+                    onTap: _showLocationPicker,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Text(
+                        'گەیاندن بۆ: ${_selectedNeighborhood.name}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Change button — opens location picker
+                InkWell(
+                  onTap: _showLocationPicker,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('گۆڕین', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+                        SizedBox(width: 2),
+                        Icon(Icons.keyboard_arrow_down, size: 14, color: Colors.black),
+                      ],
+                    ),
+                  ),
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('گۆڕین', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
-                    SizedBox(width: 2),
-                    Icon(Icons.keyboard_arrow_down, size: 14, color: Colors.black),
-                  ],
-                ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -4295,11 +4353,11 @@ class _MainScreenState extends State<MainScreen> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: categoryStores.length,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: _responsiveGridCount(context),
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
-                      childAspectRatio: 0.72,
+                      childAspectRatio: _responsiveAspectRatio(context, mobile: 0.72, tablet: 0.82),
                     ),
                     itemBuilder: (context, index) {
                       final store = categoryStores[index];
@@ -4336,6 +4394,7 @@ class _MainScreenState extends State<MainScreen> {
             final bannerSub = (hasDynamic && topBanner?['subtitle_ku'] != null)
                 ? topBanner!['subtitle_ku'].toString()
                 : 'هەموو ڕۆژێک میوە و سەوزەی تازەی خۆماڵی بە نرخی بازاڕ لە کەلار';
+            final bannerHeight = MediaQuery.of(context).size.width >= 640 ? 230.0 : 170.0;
 
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -4345,13 +4404,13 @@ class _MainScreenState extends State<MainScreen> {
                   children: [
                     Image.network(
                       bannerImg,
-                      height: 170,
+                      height: bannerHeight,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(height: 170, color: const Color(0xFF1E293B)),
+                      errorBuilder: (_, __, ___) => Container(height: bannerHeight, color: const Color(0xFF1E293B)),
                     ),
                     Container(
-                      height: 170,
+                      height: bannerHeight,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [Colors.black.withOpacity(0.7), Colors.transparent],
@@ -4479,11 +4538,11 @@ class _MainScreenState extends State<MainScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: categoriesList.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: _responsiveGridCount(context),
               crossAxisSpacing: 14,
               mainAxisSpacing: 14,
-              childAspectRatio: 0.82,
+              childAspectRatio: _responsiveAspectRatio(context, mobile: 0.82, tablet: 0.95),
             ),
             itemBuilder: (context, index) {
             final cat = categoriesList[index];
@@ -4819,6 +4878,7 @@ class _MainScreenState extends State<MainScreen> {
     final displayProds = activeProds.isNotEmpty ? activeProds : storeProds;
 
     final topPadding = MediaQuery.of(context).padding.top;
+    final coverHeight = (MediaQuery.of(context).size.width >= 640 ? 240.0 : 200.0) + topPadding;
 
     return Container(
       color: Colors.white,
@@ -4828,7 +4888,7 @@ class _MainScreenState extends State<MainScreen> {
           Stack(
             children: [
               Container(
-                height: 200 + topPadding,
+                height: coverHeight,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   image: DecorationImage(
@@ -5075,11 +5135,11 @@ class _MainScreenState extends State<MainScreen> {
                           child: GridView.builder(
                             padding: EdgeInsets.zero,
                             itemCount: subCategories.length,
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: _responsiveGridCount(context),
                               crossAxisSpacing: 12,
                               mainAxisSpacing: 8,
-                              childAspectRatio: 0.95,
+                              childAspectRatio: _responsiveAspectRatio(context, mobile: 0.95, tablet: 1.10),
                             ),
                             itemBuilder: (context, idx) {
                               final cat = subCategories[idx];
@@ -5237,11 +5297,11 @@ class _MainScreenState extends State<MainScreen> {
                               : GridView.builder(
                                   padding: EdgeInsets.zero,
                                   itemCount: displayProds.length,
-                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 2,
+                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: _responsiveGridCount(context),
                                     crossAxisSpacing: 12,
                                     mainAxisSpacing: 10,
-                                    childAspectRatio: 0.68,
+                                    childAspectRatio: _responsiveAspectRatio(context, mobile: 0.68, tablet: 0.76),
                                   ),
                                   itemBuilder: (context, i) {
                                     final p = displayProds[i];
@@ -5458,11 +5518,11 @@ class _MainScreenState extends State<MainScreen> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: discountStores.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _responsiveGridCount(context),
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 0.72,
+            childAspectRatio: _responsiveAspectRatio(context, mobile: 0.72, tablet: 0.82),
           ),
           itemBuilder: (context, index) {
             final store = discountStores[index];
@@ -6186,14 +6246,18 @@ class _MainScreenState extends State<MainScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 24,
-            bottom: MediaQuery.of(ctx).padding.bottom + 20,
-          ),
-          child: Column(
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(ctx).padding.bottom + 20,
+              ),
+              child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               // Header (ناونیشان لە ڕاست و دوگمەی داخستن لە چەپ)
@@ -6312,9 +6376,11 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
+  },
+);
   }
 
   Widget _buildReceiptInfoRow(String label, String value) {
@@ -6409,14 +6475,18 @@ class _MainScreenState extends State<MainScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(ctx).padding.bottom + 20,
-              ),
-              child: Column(
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    top: 20,
+                    bottom: MediaQuery.of(ctx).padding.bottom + 20,
+                  ),
+                  child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -6629,11 +6699,13 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ],
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
+  },
+);
   }
 
   // ============================================================================
