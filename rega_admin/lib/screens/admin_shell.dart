@@ -35,7 +35,7 @@ class AdminShell extends StatefulWidget {
 }
 
 class _AdminShellState extends State<AdminShell> {
-  int _selectedIndex = 4; // فرۆشیاران (Stores Screen) selected by default to inspect newly updated screen
+  int _selectedIndex = 0; // سەرەکی (Executive Dashboard) selected by default
   int _pendingOrdersBadge = 0;
   int _onlineStoresBadge = 0;
   int _customersBadge = 0;
@@ -272,7 +272,7 @@ class _AdminShellState extends State<AdminShell> {
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 1024;
     final surfaceColor = widget.isDark ? RegaColors.darkSurface : Colors.white;
-    final hideTopOperationalBar = isDesktop && (_selectedIndex == 0 || _selectedIndex == 1 || _selectedIndex == 2 || _selectedIndex == 3 || _selectedIndex == 4);
+    final hideTopOperationalBar = isDesktop;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
