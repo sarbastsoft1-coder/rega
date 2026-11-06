@@ -496,6 +496,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 ),
               ),
               FractionallySizedBox(
+                alignment: Alignment.centerRight,
                 widthFactor: ratio,
                 child: Container(
                   height: 22,
@@ -664,43 +665,33 @@ class _FinanceScreenState extends State<FinanceScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'ڕەوتی داواکاری و داهات',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
-                ),
-              ),
-              Row(
-                children: [
-                  Row(
-                    children: const [
-                      Icon(Icons.circle, size: 8, color: Color(0xFF16503B)),
-                      SizedBox(width: 4),
-                      Text('ژمارەی داواکارییەکان', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
-                    ],
-                  ),
-                  const SizedBox(width: 12),
-                  Row(
-                    children: const [
-                      Icon(Icons.circle, size: 8, color: Color(0xFFEA580C)),
-                      SizedBox(width: 4),
-                      Text('داهات (ع.د)', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
-                    ],
-                  ),
-                ],
-              ),
-            ],
+          const Text(
+            'ڕەوتی داواکاری و داهات',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF111827),
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Expanded(
             child: CustomPaint(
               painter: _DualAxisLineChartPainter(),
             ),
+          ),
+          const SizedBox(height: 6),
+          // Legend below chart matching screenshot
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.circle, size: 8, color: Color(0xFF16503B)),
+              SizedBox(width: 6),
+              Text('ژمارەی داواکارییەکان', style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+              SizedBox(width: 20),
+              Icon(Icons.circle, size: 8, color: Color(0xFFEA580C)),
+              SizedBox(width: 6),
+              Text('داهات (ع.د)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+            ],
           ),
         ],
       ),
@@ -958,7 +949,7 @@ class _DualAxisLineChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const leftPadding = 55.0;
     const rightPadding = 65.0;
-    const topPadding = 15.0;
+    const topPadding = 24.0;
     const bottomPadding = 25.0;
 
     final chartWidth = size.width - leftPadding - rightPadding;
@@ -975,6 +966,21 @@ class _DualAxisLineChartPainter extends CustomPainter {
 
     final leftYLabels = ['0', '5,000', '10,000', '15,000', '20,000'];
     final rightYLabels = ['0', '20,000,000', '40,000,000', '60,000,000', '80,000,000'];
+
+    // Axis titles
+    textPainter.text = const TextSpan(
+      text: 'داواکارییەکان',
+      style: TextStyle(fontSize: 9.5, color: Color(0xFF64748B), fontWeight: FontWeight.w700),
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(leftPadding - textPainter.width + 6, topPadding - 18));
+
+    textPainter.text = const TextSpan(
+      text: 'داهات (ع.د)',
+      style: TextStyle(fontSize: 9.5, color: Color(0xFFEA580C), fontWeight: FontWeight.w700),
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(leftPadding + chartWidth - 10, topPadding - 18));
 
     for (int i = 0; i < 5; i++) {
       final y = topPadding + chartHeight - (i * chartHeight / 4);
