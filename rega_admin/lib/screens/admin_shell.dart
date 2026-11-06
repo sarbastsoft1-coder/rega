@@ -35,7 +35,7 @@ class AdminShell extends StatefulWidget {
 }
 
 class _AdminShellState extends State<AdminShell> {
-  int _selectedIndex = 3; // کڕیاران (Customers) selected by default to match screenshot
+  int _selectedIndex = 4; // فرۆشیاران (Stores / Vendors) selected by default to match screenshot
   int _pendingOrdersBadge = 0;
   int _onlineStoresBadge = 0;
   int _customersBadge = 0;
@@ -115,13 +115,43 @@ class _AdminShellState extends State<AdminShell> {
       child: SafeArea(
         child: Column(
           children: [
-            // Restaurant Fork & Knife Icon matching screenshot
+            // Food cloche & Brand title matching screenshot
             Padding(
               padding: const EdgeInsets.only(top: 24, bottom: 20),
-              child: const Icon(
-                Icons.restaurant_rounded,
-                size: 36,
-                color: Colors.white,
+              child: Column(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFF5722),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.room_service_rounded,
+                      size: 24,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'خزمەتی خواردن',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'بۆ ژیانی باشتر',
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -197,7 +227,7 @@ class _AdminShellState extends State<AdminShell> {
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 1024;
     final surfaceColor = widget.isDark ? RegaColors.darkSurface : Colors.white;
-    final hideTopOperationalBar = isDesktop && (_selectedIndex == 2 || _selectedIndex == 3);
+    final hideTopOperationalBar = isDesktop && (_selectedIndex == 2 || _selectedIndex == 3 || _selectedIndex == 4);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),

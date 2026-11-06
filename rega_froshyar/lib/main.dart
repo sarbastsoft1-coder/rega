@@ -1222,26 +1222,23 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ),
         body: screens[_selectedIndex],
         bottomNavigationBar: Container(
-          margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
           decoration: BoxDecoration(
-            color: const Color(0xFFFCFBF7), // Warm off-white matching screenshot
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: const Color(0xFFEBE6DC),
-              width: 1.2,
+            color: Colors.white,
+            border: const Border(
+              top: BorderSide(color: Color(0xFFF1F5F9), width: 1),
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
+                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                blurRadius: 16,
+                offset: const Offset(0, -4),
               ),
             ],
           ),
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               child: Row(
                 children: [
                   // 1. Far Right in RTL: داواکارییەکان (Orders) - index 3
@@ -1268,7 +1265,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       1,
                       Icons.trending_up_rounded,
                       Icons.trending_up_rounded,
-                      t('داهاتی فرۆشیار'),
+                      t('داهات'),
                     ),
                   ),
                   // 4. Far Left in RTL: ڕێکخستن (Settings) - index 0
@@ -1294,110 +1291,88 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     // Notification badge on orders (index 3) when there are pending orders
     final pendingCount = _orders.where((o) => o.status == OrderStatus.pending).length;
     final bool hasNotification = (index == 3 && pendingCount > 0);
-    const orangeColor = Color(0xFFFF6D00); // Vibrant Froshyar Orange matching screenshot
-    const inactiveColor = Color(0xFF55606D); // Dark slate grey matching screenshot
+    const pillYellow = Color(0xFFFAC800);
+    const iconColor = Color(0xFF0F172A);
 
     return InkWell(
       onTap: () {
         HapticFeedback.selectionClick();
         _onItemTapped(index);
       },
-      borderRadius: BorderRadius.circular(20),
-      splashColor: orangeColor.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(50),
+      splashColor: pillYellow.withValues(alpha: 0.2),
       highlightColor: Colors.transparent,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
+      child: Center(
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            // Icon area (with Orange Pill if selected)
-            Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  width: isSelected ? 50 : 36,
-                  height: isSelected ? 42 : 36,
-                  decoration: BoxDecoration(
-                    color: isSelected ? orangeColor : Colors.transparent,
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: orangeColor.withValues(alpha: 0.38),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.symmetric(
+                horizontal: isSelected ? 14 : 12,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: isSelected ? pillYellow : Colors.transparent,
+                borderRadius: BorderRadius.circular(50),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
                     isSelected ? activeIcon : inactiveIcon,
-                    color: isSelected ? Colors.white : inactiveColor,
-                    size: 24,
+                    color: iconColor,
+                    size: 22,
                   ),
-                ),
-                if (hasNotification)
-                  Positioned(
-                    top: isSelected ? -3 : -4,
-                    right: isSelected ? -4 : -6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white, width: 1.8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFEF4444).withValues(alpha: 0.45),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                      child: Text(
-                        '$pendingCount',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
-                        ),
-                      ),
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    child: isSelected
+                        ? Padding(
+                            padding: const EdgeInsetsDirectional.only(start: 8),
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: iconColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: kAppFontFamily,
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ),
+            if (hasNotification)
+              Positioned(
+                top: -2,
+                right: -2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 1.8),
+                  ),
+                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                  child: Text(
+                    '$pendingCount',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            // Text Label
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isSelected ? orangeColor : inactiveColor,
-                fontSize: 11.5,
-                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-                fontFamily: kAppFontFamily,
+                ),
               ),
-            ),
-            const SizedBox(height: 3),
-            // Dot indicator directly under active tab (matches screenshot exactly)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: isSelected ? 5.5 : 0,
-              height: 5.5,
-              decoration: BoxDecoration(
-                color: isSelected ? orangeColor : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
-            ),
           ],
         ),
       ),
