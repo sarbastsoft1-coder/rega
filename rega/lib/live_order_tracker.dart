@@ -100,8 +100,9 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
             TileLayer(
               urlTemplate: _darkStyle
                   ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-                  : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              subdomains: _darkStyle ? const ['a', 'b', 'c', 'd'] : const [],
+                  : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+              subdomains: const ['a', 'b', 'c', 'd'],
+              fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'iq.rega.customer',
             ),
             MarkerLayer(
@@ -885,9 +886,9 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       case 1:
         return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
       case 2:
-        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
-      default:
         return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+      default:
+        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
     }
   }
 
@@ -1029,7 +1030,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                 children: [
                   TileLayer(
                     urlTemplate: _tileUrl,
-                    subdomains: (_mapStyleIndex == 1 || _mapStyleIndex == 2) ? const ["a", "b", "c", "d"] : const [],
+                    fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    subdomains: _mapStyleIndex == 2 ? const [] : const ["a", "b", "c", "d"],
                     userAgentPackageName: "iq.rega.customer",
                   ),
                   PolylineLayer(polylines: polylines),
