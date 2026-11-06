@@ -35,7 +35,7 @@ class AdminShell extends StatefulWidget {
 }
 
 class _AdminShellState extends State<AdminShell> {
-  int _selectedIndex = 2; // ماتۆرسواران (Drivers) selected by default to match screenshot
+  int _selectedIndex = 3; // کڕیاران (Customers) selected by default to match screenshot
   int _pendingOrdersBadge = 0;
   int _onlineStoresBadge = 0;
   int _customersBadge = 0;
@@ -103,7 +103,7 @@ class _AdminShellState extends State<AdminShell> {
           onChanged: _refreshBadges,
         );
       default:
-        return DriversScreen(api: widget.api, lang: widget.lang);
+        return CustomersScreen(api: widget.api, lang: widget.lang);
     }
   }
 
@@ -115,7 +115,15 @@ class _AdminShellState extends State<AdminShell> {
       child: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 28),
+            // Restaurant Fork & Knife Icon matching screenshot
+            Padding(
+              padding: const EdgeInsets.only(top: 24, bottom: 20),
+              child: const Icon(
+                Icons.restaurant_rounded,
+                size: 36,
+                color: Colors.white,
+              ),
+            ),
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -123,38 +131,54 @@ class _AdminShellState extends State<AdminShell> {
                 itemBuilder: (ctx, idx) {
                   final item = items[idx];
                   final active = _selectedIndex == idx;
+                  final isCustomerActive = active && idx == 3;
+
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6),
-                    child: Material(
-                      color: active ? RegaColors.forestGreenActive : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                      child: InkWell(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: active ? RegaColors.forestGreenActive : Colors.transparent,
                         borderRadius: BorderRadius.circular(10),
-                        onTap: () {
-                          setState(() => _selectedIndex = idx);
-                          if (isDrawer) Navigator.pop(ctx);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Row(
-                            children: [
-                              Icon(
-                                item.icon,
-                                size: 21,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Text(
-                                  item.label,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                                    color: Colors.white,
+                        border: isCustomerActive
+                            ? const Border(
+                                right: BorderSide(
+                                  color: Color(0xFFFF5722),
+                                  width: 3.5,
+                                ),
+                              )
+                            : null,
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () {
+                            setState(() => _selectedIndex = idx);
+                            if (isDrawer) Navigator.pop(ctx);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  item.icon,
+                                  size: 21,
+                                  color: isCustomerActive ? const Color(0xFFFF5722) : Colors.white,
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Text(
+                                    item.label,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                                      color: isCustomerActive ? const Color(0xFFFF5722) : Colors.white,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -173,7 +197,7 @@ class _AdminShellState extends State<AdminShell> {
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 1024;
     final surfaceColor = widget.isDark ? RegaColors.darkSurface : Colors.white;
-    final hideTopOperationalBar = isDesktop && _selectedIndex == 2;
+    final hideTopOperationalBar = isDesktop && (_selectedIndex == 2 || _selectedIndex == 3);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
