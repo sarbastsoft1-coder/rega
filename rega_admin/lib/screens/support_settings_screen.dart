@@ -336,7 +336,16 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         children: [
           // Header with Office/Apartment Icon
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              const Text(
+                'زانیاریی دامەزراوە',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF111827),
+                ),
+              ),
               Container(
                 width: 38,
                 height: 38,
@@ -345,15 +354,6 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.apartment_rounded, color: Color(0xFF334155), size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'زانیاریی دامەزراوە',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
-                ),
               ),
             ],
           ),
@@ -449,7 +449,16 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         children: [
           // Header with Delivery Truck Icon
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              const Text(
+                'ڕێکخستنی دلیڤەری',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF111827),
+                ),
+              ),
               Container(
                 width: 38,
                 height: 38,
@@ -458,15 +467,6 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.local_shipping_rounded, color: Color(0xFF16A34A), size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'ڕێکخستنی دلیڤەری',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
-                ),
               ),
             ],
           ),
@@ -533,15 +533,16 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF64748B)),
-                      const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _hoursCtrl,
+                          textAlign: TextAlign.right,
                           style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
                           decoration: const InputDecoration(border: InputBorder.none, isDense: true),
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF64748B)),
                     ],
                   ),
                 ),
@@ -629,7 +630,16 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         children: [
           // Header with Shield Icon
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              const Text(
+                'ئاسایش و دەسەڵات',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF111827),
+                ),
+              ),
               Container(
                 width: 38,
                 height: 38,
@@ -638,15 +648,6 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.shield_outlined, color: Color(0xFF16A34A), size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'ئاسایش و دەسەڵات',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
-                ),
               ),
             ],
           ),
@@ -753,7 +754,16 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         children: [
           // Header with Credit Card Icon
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              const Text(
+                'پارەدان و کرێ',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF111827),
+                ),
+              ),
               Container(
                 width: 38,
                 height: 38,
@@ -762,15 +772,6 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.credit_card_rounded, color: Color(0xFF334155), size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'پارەدان و کرێ',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
-                ),
               ),
             ],
           ),
@@ -796,27 +797,28 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   ),
                   child: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        alignment: Alignment.center,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF8F9FA),
-                          border: Border(left: BorderSide(color: Color(0xFFE2E8F0))),
-                        ),
-                        child: const Text(
-                          'دینار',
-                          style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w700),
-                        ),
-                      ),
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 10),
                           child: TextField(
                             controller: _deliveryFeeCtrl,
                             keyboardType: TextInputType.number,
+                            textAlign: TextAlign.right,
                             style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
                             decoration: const InputDecoration(border: InputBorder.none, isDense: true),
                           ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF8F9FA),
+                          border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+                        ),
+                        child: const Text(
+                          'دینار',
+                          style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w700),
                         ),
                       ),
                     ],
@@ -847,27 +849,28 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   ),
                   child: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        alignment: Alignment.center,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF8F9FA),
-                          border: Border(left: BorderSide(color: Color(0xFFE2E8F0))),
-                        ),
-                        child: const Text(
-                          '%',
-                          style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w800),
-                        ),
-                      ),
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 10),
                           child: TextField(
                             controller: _commissionCtrl,
                             keyboardType: TextInputType.number,
+                            textAlign: TextAlign.right,
                             style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
                             decoration: const InputDecoration(border: InputBorder.none, isDense: true),
                           ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF8F9FA),
+                          border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+                        ),
+                        child: const Text(
+                          '%',
+                          style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w800),
                         ),
                       ),
                     ],
@@ -916,7 +919,16 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         children: [
           // Header with Notification Bell Icon
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              const Text(
+                'ئاگادارکردنەوەکان',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF111827),
+                ),
+              ),
               Container(
                 width: 38,
                 height: 38,
@@ -925,15 +937,6 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.notifications_active_rounded, color: Color(0xFF16A34A), size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'ئاگادارکردنەوەکان',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
-                ),
               ),
             ],
           ),
