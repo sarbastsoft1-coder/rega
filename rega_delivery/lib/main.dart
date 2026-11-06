@@ -68,14 +68,26 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
           surface: Colors.white,
         ),
       ),
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        final clampedTextScaler = mediaQuery.textScaler.clamp(
+          minScaleFactor: 0.85,
+          maxScaleFactor: 1.15,
+        );
+        return MediaQuery(
+          data: mediaQuery.copyWith(textScaler: clampedTextScaler),
+          child: child!,
+        );
+      },
       home: Directionality(
         textDirection: _locale == 'en' ? TextDirection.ltr : TextDirection.rtl,
-        child: _isLoggedIn 
+        child: (_isLoggedIn && Uri.base.queryParameters['logout'] != 'true')
           ? DriverMainScreen(
               currentLocale: _locale, 
               onLanguageChange: _changeLanguage,
               onLogout: _handleLogout,
               driverPhone: _driverPhone,
+              initialTabIndex: int.tryParse(Uri.base.queryParameters['tab'] ?? '0') ?? 0,
             )
           : AuthScreen(
               currentLocale: _locale,
@@ -360,6 +372,7 @@ class DriverMainScreen extends StatefulWidget {
   final Function(String) onLanguageChange;
   final VoidCallback onLogout;
   final String driverPhone;
+  final int initialTabIndex;
 
   const DriverMainScreen({
     super.key,
@@ -367,6 +380,7 @@ class DriverMainScreen extends StatefulWidget {
     required this.onLanguageChange,
     required this.onLogout,
     this.driverPhone = '07501234567',
+    this.initialTabIndex = 0,
   });
 
   @override
@@ -483,6 +497,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   @override
   void initState() {
     super.initState();
+    _currentTabIndex = widget.initialTabIndex;
     _resetActiveOrder();
   }
 
@@ -798,19 +813,25 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => Directionality(
         textDirection: TextDirection.rtl,
-        child: PinVerificationBottomSheet(
-          orderNumber: _activeOrder.orderNumber,
-          correctPin: _activeOrder.deliveryPin,
-          onBackendVerify: _activeOrder.dbId != null
-              ? (pin) => DriverApiService.instance.verifyDeliveryPin(_activeOrder.dbId!, pin)
-              : null,
-          onSuccess: () {
-            Navigator.pop(ctx);
-            _updateOrderStatus(OrderStatus.delivered);
-            _notifyBackendPinVerified();
-            _refreshBackendDriverData(silent: true);
-            _showSuccessSnackBar('گەیاندنەکە بە سەرکەوتوویی کۆتایی هات! پیرۆزە.');
-          },
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: PinVerificationBottomSheet(
+              orderNumber: _activeOrder.orderNumber,
+              correctPin: _activeOrder.deliveryPin,
+              onBackendVerify: _activeOrder.dbId != null
+                  ? (pin) => DriverApiService.instance.verifyDeliveryPin(_activeOrder.dbId!, pin)
+                  : null,
+              onSuccess: () {
+                Navigator.pop(ctx);
+                _updateOrderStatus(OrderStatus.delivered);
+                _notifyBackendPinVerified();
+                _refreshBackendDriverData(silent: true);
+                _showSuccessSnackBar('گەیاندنەکە بە سەرکەوتوویی کۆتایی هات! پیرۆزە.');
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -872,9 +893,12 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           bottomRight: Radius.circular(32),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
           // ئایکۆنی ئاگادارکردنەوەکان (Right in RTL - Index 0)
           InkWell(
             onTap: () {
@@ -993,7 +1017,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           ),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 
   // لاپەڕەی نەخشە و کارتی داواکاری
@@ -1050,33 +1076,45 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             left: 16,
             right: 16,
             bottom: 16,
-            child: _activeOrder.status == OrderStatus.delivered
-                ? _buildCompletedCard()
-                : ActiveOrderCard(
-                    order: _activeOrder,
-                    onUpdateStatus: _updateOrderStatus,
-                    onRequestPinVerification: _openPinVerification,
-                    onClose: () => setState(() => _isOrderCardVisible = false),
-                  ),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 580),
+                child: _activeOrder.status == OrderStatus.delivered
+                    ? _buildCompletedCard()
+                    : ActiveOrderCard(
+                        order: _activeOrder,
+                        onUpdateStatus: _updateOrderStatus,
+                        onRequestPinVerification: _openPinVerification,
+                        onClose: () => setState(() => _isOrderCardVisible = false),
+                      ),
+              ),
+            ),
           )
         else
-          // دوگمەی پیشاندانەوەی کارت (وەک ناو وێنەکە) کاتێک کارتەکە داخراوە
+          // دوگمەی پیشاندانەوەی کارت کاتێک کارتەکە داخراوە
           Positioned(
-            left: 40,
-            right: 40,
+            left: 16,
+            right: 16,
             bottom: 24,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF22C55E),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 4,
-              ),
-              onPressed: () => setState(() => _isOrderCardVisible = true),
-              child: const Text(
-                'پیشاندانی بۆکسی زانیارییەکان',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF22C55E),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 4,
+                  ),
+                  onPressed: () => setState(() => _isOrderCardVisible = true),
+                  child: const Text(
+                    'پیشاندانی بۆکسی زانیارییەکان',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1134,63 +1172,68 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 
   // لاپەڕەی داهات (Earnings Screen) ڕێک وەک وێنەکە
   Widget _buildEarningsScreen() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // ١. سەردێڕ و دەقی لاوەکی
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
           children: [
+            // ١. سەردێڕ و دەقی لاوەکی
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t('earnings'),
+                  style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+                ),
+                const Text(
+                  'Analytics & Insights',
+                  style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // ٢. تابی کات (ئەمڕۆ، ئەم هەفتەیە، ئەم مانگە)
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: _buildTimeTab(t('this_month'), _selectedEarningsTimeIndex == 0, onTap: () => setState(() => _selectedEarningsTimeIndex = 0))),
+                  Expanded(child: _buildTimeTab(t('this_week'), _selectedEarningsTimeIndex == 1, onTap: () => setState(() => _selectedEarningsTimeIndex = 1))),
+                  Expanded(child: _buildTimeTab(t('today'), _selectedEarningsTimeIndex == 2, onTap: () => setState(() => _selectedEarningsTimeIndex = 2))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ٣. کارتی سەرەکی داهات (بەپێی کاتی دیاریکراو دەگۆڕێت)
+            _buildMainEarningsCard(),
+            const SizedBox(height: 16),
+
+            // ٤. بۆکسەکانی بەخشیش و کاتژمێر
+            _buildEarningsSecondaryStats(),
+            const SizedBox(height: 24),
+
+            // ٥. سەردێڕی مێژووی داهاتی گەیاندنەکان
             Text(
-              t('earnings'),
-              style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+              t('earnings_history'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
             ),
-            const Text(
-              'Analytics & Insights',
-              style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
-            ),
+            const SizedBox(height: 16),
+
+            // ٦. لیستی داواکارییەکان
+            _buildEarningsHistoryItem('#10240', 'PM 2:25 • ${t('today')}', '4,000 ${t('iqd')}', '2,500 ${t('iqd')} + 500 ${t('iqd')}'),
+            _buildEarningsHistoryItem('#10238', 'PM 1:10 • ${t('today')}', '3,000 ${t('iqd')}', '3,000 ${t('iqd')}'),
+            _buildEarningsHistoryItem('#10235', 'AM 11:45 • ${t('today')}', '2,500 ${t('iqd')}', '2,500 ${t('iqd')}'),
+            _buildEarningsHistoryItem('#10232', 'AM 10:15 • ${t('today')}', '5,000 ${t('iqd')}', '4,500 ${t('iqd')} + 500 ${t('iqd')}'),
           ],
         ),
-        const SizedBox(height: 24),
-
-        // ٢. تابی کات (ئەمڕۆ، ئەم هەفتەیە، ئەم مانگە)
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Row(
-            children: [
-              Expanded(child: _buildTimeTab(t('this_month'), _selectedEarningsTimeIndex == 0, onTap: () => setState(() => _selectedEarningsTimeIndex = 0))),
-              Expanded(child: _buildTimeTab(t('this_week'), _selectedEarningsTimeIndex == 1, onTap: () => setState(() => _selectedEarningsTimeIndex = 1))),
-              Expanded(child: _buildTimeTab(t('today'), _selectedEarningsTimeIndex == 2, onTap: () => setState(() => _selectedEarningsTimeIndex = 2))),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // ٣. کارتی سەرەکی داهات (بەپێی کاتی دیاریکراو دەگۆڕێت)
-        _buildMainEarningsCard(),
-        const SizedBox(height: 16),
-
-        // ٤. بۆکسەکانی بەخشیش و کاتژمێر
-        _buildEarningsSecondaryStats(),
-        const SizedBox(height: 24),
-
-        // ٥. سەردێڕی مێژووی داهاتی گەیاندنەکان
-        Text(
-          t('earnings_history'),
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
-        ),
-        const SizedBox(height: 16),
-
-        // ٦. لیستی داواکارییەکان
-        _buildEarningsHistoryItem('#10240', 'PM 2:25 • ${t('today')}', '4,000 ${t('iqd')}', '2,500 ${t('iqd')} + 500 ${t('iqd')}'),
-        _buildEarningsHistoryItem('#10238', 'PM 1:10 • ${t('today')}', '3,000 ${t('iqd')}', '3,000 ${t('iqd')}'),
-        _buildEarningsHistoryItem('#10235', 'AM 11:45 • ${t('today')}', '2,500 ${t('iqd')}', '2,500 ${t('iqd')}'),
-        _buildEarningsHistoryItem('#10232', 'AM 10:15 • ${t('today')}', '5,000 ${t('iqd')}', '4,500 ${t('iqd')} + 500 ${t('iqd')}'),
-      ],
+      ),
     );
   }
 
@@ -1488,33 +1531,38 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 
   // لاپەڕەی پڕۆفایل (Profile Screen) ڕێک وەک وێنەکە
   Widget _buildProfileScreen() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // ١. کارتی زانیاری کەسی (Header Card)
-        _buildProfileHeaderCard(),
-        const SizedBox(height: 16),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // ١. کارتی زانیاری کەسی (Header Card)
+            _buildProfileHeaderCard(),
+            const SizedBox(height: 16),
 
-        // ٢. کارتی زانیاری ماتۆڕسکل
-        _buildMotorcycleInfoCard(),
-        const SizedBox(height: 16),
+            // ٢. کارتی زانیاری ماتۆڕسکل
+            _buildMotorcycleInfoCard(),
+            const SizedBox(height: 16),
 
-        // ٣. کارتی بەڵگەنامە یاساییەکان
-        _buildLegalDocumentsCard(),
-        const SizedBox(height: 16),
+            // ٣. کارتی بەڵگەنامە یاساییەکان
+            _buildLegalDocumentsCard(),
+            const SizedBox(height: 16),
 
-        // ٤. کارتی زمانەکان
-        _buildLanguageSelectionCard(),
-        const SizedBox(height: 16),
+            // ٤. کارتی زمانەکان
+            _buildLanguageSelectionCard(),
+            const SizedBox(height: 16),
 
-        // ٥. پشتیوانی خێرای شۆفێران
-        _buildSupportTile(),
-        const SizedBox(height: 16),
+            // ٥. پشتیوانی خێرای شۆفێران
+            _buildSupportTile(),
+            const SizedBox(height: 16),
 
-        // ٦. دوگمەی چوونەدەرەوە
-        _buildLogoutButton(),
-        const SizedBox(height: 40),
-      ],
+            // ٦. دوگمەی چوونەدەرەوە
+            _buildLogoutButton(),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1954,17 +2002,21 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => Directionality(
         textDirection: widget.currentLocale == 'en' ? TextDirection.ltr : TextDirection.rtl,
-        child: Container(
-          height: MediaQuery.of(context).size.height * 0.9,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(32),
-              topRight: Radius.circular(32),
-            ),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 580),
+            child: Container(
+              height: MediaQuery.of(context).size.height * 0.9,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(32),
+                  topRight: Radius.circular(32),
+                ),
+              ),
+              padding: const EdgeInsets.all(24),
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
@@ -2134,7 +2186,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildFAQItem(String question, String answer) {
@@ -2186,16 +2240,20 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(32),
-            topRight: Radius.circular(32),
-          ),
-        ),
-        child: Column(
+      builder: (ctx) => Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 580),
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.7,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(32),
+                topRight: Radius.circular(32),
+              ),
+            ),
+            child: Column(
           children: [
             // Header
             Container(
@@ -2296,99 +2354,136 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   // لاپەڕەی لیستی داواکارییەکان (Orders List Screen) ڕێک وەک وێنەکە
   Widget _buildOrdersListScreen() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ١. سەردێڕی لاپەڕە
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            t('orders'),
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
-          ),
-        ),
-
-        // ٢. بەشی گەڕان (Search Bar)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Container(
-            height: 48,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: TextField(
-              controller: _searchController,
-              textAlign: TextAlign.right,
-              onChanged: (val) => setState(() => _searchQuery = val),
-              decoration: InputDecoration(
-                hintText: t('search_hint'),
-                hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF94A3B8), size: 20),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 860),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ١. سەردێڕی لاپەڕە
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                t('orders'),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
               ),
             ),
-          ),
-        ),
 
-        // ٣. فلتەرەکان (Tabs/Filters)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            reverse: true, // بۆ ئەوەی لە ڕاستەوە دەست پێ بکات
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _buildFilterChip(t('all'), '5', _selectedFilterIndex == 0, onTap: () => setState(() => _selectedFilterIndex = 0)),
-                const SizedBox(width: 8),
-                _buildFilterChip(t('delivered'), '2', _selectedFilterIndex == 1, onTap: () => setState(() => _selectedFilterIndex = 1)),
-                const SizedBox(width: 8),
-                _buildFilterChip(t('cancelled'), '1', _selectedFilterIndex == 2, isDanger: true, onTap: () => setState(() => _selectedFilterIndex = 2)),
-              ],
+            // ٢. بەشی گەڕان (Search Bar)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  textAlign: TextAlign.right,
+                  onChanged: (val) => setState(() => _searchQuery = val),
+                  decoration: InputDecoration(
+                    hintText: t('search_hint'),
+                    hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                    prefixIcon: const Icon(Icons.search, color: Color(0xFF94A3B8), size: 20),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
 
-        // ٤. لیستی داواکارییەکان
-        Expanded(
-          child: _getFilteredOrders().isEmpty 
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+            // ٣. فلتەرەکان (Tabs/Filters)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                reverse: true, // بۆ ئەوەی لە ڕاستەوە دەست پێ بکات
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
                   children: [
-                    Icon(Icons.search_off, size: 64, color: Colors.grey.shade300),
-                    const SizedBox(height: 16),
-                    Text(t('no_orders'), style: TextStyle(color: Colors.grey.shade500)),
+                    _buildFilterChip(t('all'), '5', _selectedFilterIndex == 0, onTap: () => setState(() => _selectedFilterIndex = 0)),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(t('delivered'), '2', _selectedFilterIndex == 1, onTap: () => setState(() => _selectedFilterIndex = 1)),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(t('cancelled'), '1', _selectedFilterIndex == 2, isDanger: true, onTap: () => setState(() => _selectedFilterIndex = 2)),
                   ],
                 ),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _getFilteredOrders().length,
-                itemBuilder: (context, index) {
-                  final order = _getFilteredOrders()[index];
-                  return _buildListOrderCard(
-                    id: order['id'],
-                    merchant: order['merchant'],
-                    customer: order['customer'],
-                    status: t(order['statusKey']),
-                    price: order['price'],
-                    time: order['time'],
-                    statusColor: order['statusColor'],
-                    statusBg: order['statusBg'],
-                  );
-                },
               ),
+            ),
+
+            // ٤. لیستی داواکارییەکان
+            Expanded(
+              child: _getFilteredOrders().isEmpty 
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.search_off, size: 64, color: Colors.grey.shade300),
+                        const SizedBox(height: 16),
+                        Text(t('no_orders'), style: TextStyle(color: Colors.grey.shade500)),
+                      ],
+                    ),
+                  )
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final filtered = _getFilteredOrders();
+                      if (constraints.maxWidth >= 680) {
+                        return GridView.builder(
+                          padding: const EdgeInsets.all(16),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 14,
+                            mainAxisSpacing: 14,
+                            childAspectRatio: 1.7,
+                          ),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final order = filtered[index];
+                            return _buildListOrderCard(
+                              id: order['id'],
+                              merchant: order['merchant'],
+                              customer: order['customer'],
+                              status: t(order['statusKey']),
+                              price: order['price'],
+                              time: order['time'],
+                              statusColor: order['statusColor'],
+                              statusBg: order['statusBg'],
+                            );
+                          },
+                        );
+                      }
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final order = filtered[index];
+                          return _buildListOrderCard(
+                            id: order['id'],
+                            merchant: order['merchant'],
+                            customer: order['customer'],
+                            status: t(order['statusKey']),
+                            price: order['price'],
+                            time: order['time'],
+                            statusColor: order['statusColor'],
+                            statusBg: order['statusBg'],
+                          );
+                        },
+                      );
+                    },
+                  ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -2559,35 +2654,42 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          child: Row(
-            children: [
-              _buildBottomNavItem(
-                index: 0,
-                icon: Icons.map_outlined,
-                activeIcon: Icons.map_rounded,
-                label: t('home'),
+        bottom: true,
+        child: Center(
+          heightFactor: 1.0,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  _buildBottomNavItem(
+                    index: 0,
+                    icon: Icons.map_outlined,
+                    activeIcon: Icons.map_rounded,
+                    label: t('home'),
+                  ),
+                  _buildBottomNavItem(
+                    index: 1,
+                    icon: Icons.format_list_numbered_rounded,
+                    activeIcon: Icons.receipt_long_rounded,
+                    label: t('orders'),
+                  ),
+                  _buildBottomNavItem(
+                    index: 2,
+                    icon: Icons.account_balance_wallet_outlined,
+                    activeIcon: Icons.account_balance_wallet_rounded,
+                    label: t('earnings'),
+                  ),
+                  _buildBottomNavItem(
+                    index: 3,
+                    icon: Icons.person_outline_rounded,
+                    activeIcon: Icons.person_rounded,
+                    label: t('profile'),
+                  ),
+                ],
               ),
-              _buildBottomNavItem(
-                index: 1,
-                icon: Icons.format_list_numbered_rounded,
-                activeIcon: Icons.receipt_long_rounded,
-                label: t('orders'),
-              ),
-              _buildBottomNavItem(
-                index: 2,
-                icon: Icons.account_balance_wallet_outlined,
-                activeIcon: Icons.account_balance_wallet_rounded,
-                label: t('earnings'),
-              ),
-              _buildBottomNavItem(
-                index: 3,
-                icon: Icons.person_outline_rounded,
-                activeIcon: Icons.person_rounded,
-                label: t('profile'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -2613,7 +2715,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         splashColor: pillYellow.withOpacity(0.2),
         highlightColor: Colors.transparent,
         borderRadius: BorderRadius.circular(50),
-        child: Center(
+        child: Align(
+          alignment: Alignment.center,
+          heightFactor: 1.0,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
@@ -3763,19 +3867,21 @@ class _AuthScreenState extends State<AuthScreen> {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-          child: Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(40),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 30,
-                  offset: const Offset(0, 15),
-                ),
-              ],
-            ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(40),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 30,
+                    offset: const Offset(0, 15),
+                  ),
+                ],
+              ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -3908,6 +4014,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

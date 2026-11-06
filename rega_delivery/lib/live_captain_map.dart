@@ -896,27 +896,31 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
           top: 12,
           left: 14,
           right: 14,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F172A).withValues(alpha: 0.94),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: const Color(0xFF00E676).withValues(alpha: 0.45),
-                width: 1.4,
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.94),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: const Color(0xFF00E676).withValues(alpha: 0.45),
+                    width: 1.4,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
                   children: [
                     Container(
                       width: 44,
@@ -1015,6 +1019,8 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
             ),
           ),
         ),
+      ),
+    ),
 
         // 3. Floating Map Controls (Follow, Fit Route, Style, Auto-Drive, Sync Customer Order)
         Positioned(
