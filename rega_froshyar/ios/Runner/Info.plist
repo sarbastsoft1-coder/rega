@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Rega Froshyar</string>
+	<string>REGA Vendor</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,6 +26,21 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>REGA Vendor needs the camera to take product photos for your menu.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>REGA Vendor needs photo library access to upload product images.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>REGA Vendor may save product photos to your library.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>REGA Vendor may use the microphone when recording product videos.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

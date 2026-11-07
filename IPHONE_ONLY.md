@@ -13,35 +13,35 @@ Built from Windows via **Codemagic cloud Mac** + install with **Sideloadly** (fr
 
 ---
 
-## 1) Push is done to GitHub
+## 1) Repo
 
-Repo: `https://github.com/sarbastsoft1-coder/rega`
+`https://github.com/sarbastsoft1-coder/rega`
 
 ## 2) Codemagic cloud build
 
 1. Open https://codemagic.io → Sign in with **GitHub**
 2. Add application → `sarbastsoft1-coder/rega`
-3. Open workflow **iPhone IPA — Customer** (or Vendor / Delivery / Admin)
-4. Set env `REGA_API_HOST` to a URL your iPhone can reach  
-   (public server — **not** `127.0.0.1`)
-5. Start build → download **`.ipa`** from Artifacts  
-   (if unsigned, use the `.app` / ask Codemagic to sign with your Apple ID in Teams → Code signing)
+3. Workflow **iPhone IPA — Customer** (or Vendor / Delivery / Admin)
+4. Set env **`REGA_API_HOST`** to a URL the iPhone can reach:
+   - Same Wi‑Fi: `http://YOUR-PC-LAN-IP:8001`  
+     (`php artisan serve --host=0.0.0.0 --port=8001`)
+   - Or public HTTPS later  
+   - Never `127.0.0.1` / `api.example.com` on a real phone
+5. Start build → **Artifacts** → download **`.ipa`**
 
-### Free Apple ID on Codemagic
-- In Codemagic → **Teams** → **Code signing identities** → add Apple ID (personal team)
-- Or build unsigned, then sign/install with **Sideloadly** on Windows (below)
+### Free Apple ID signing
+- Prefer **Sideloadly** on Windows with free Apple ID
+- Or Codemagic → Teams → Code signing identities
 
-## 3) Install on iPhone with Sideloadly (Windows + free Apple ID)
+## 3) Install with Sideloadly
 
-1. On iPhone: Settings → enable **Developer Mode** if asked  
+1. Enable **Developer Mode** on iPhone if asked  
 2. Install [Sideloadly](https://sideloadly.io/) on Windows  
-3. Connect iPhone with USB cable  
-4. Trust the computer on iPhone  
-5. Drag the `.ipa` into Sideloadly  
-6. Enter your **free Apple ID** → Start  
-7. On iPhone: Settings → General → VPN & Device Management → Trust the app  
+3. USB connect iPhone → trust computer  
+4. Drag `.ipa` → enter free Apple ID → Start  
+5. iPhone: Settings → General → VPN & Device Management → Trust  
 
-Re-install / re-sign every **~7 days** with Sideloadly.
+Re-sign every **~7 days**.
 
 ## Bundle IDs
 
@@ -49,3 +49,12 @@ Re-install / re-sign every **~7 days** with Sideloadly.
 - Vendor `iq.rega.vendor`
 - Delivery `iq.rega.delivery`
 - Admin `iq.rega.admin`
+
+## Fixed in repo (code blockers)
+
+- Customer broken `Info.plist` repaired + renamed from Xera → REGA
+- HTTP App Transport Security for local/API HTTP
+- Location / notification / camera / photo permission strings
+- Vendor Android camera permissions
+- Delivery background location mode
+- iOS 15 + Podfiles with permission macros
