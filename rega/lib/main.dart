@@ -851,6 +851,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    _currentLanguage = CustomerL10n.displayName(widget.currentLang);
     _nameCtrl = TextEditingController(text: _userProfile?.name ?? '');
     _phoneCtrl = TextEditingController(text: _userProfile?.phone ?? '');
     _passwordCtrl = TextEditingController();
