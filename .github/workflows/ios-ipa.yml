@@ -49,7 +49,9 @@ jobs:
 
       - name: CocoaPods
         working-directory: ${{ steps.app.outputs.dir }}/ios
-        run: pod install
+        run: |
+          test -f Podfile
+          pod install --repo-update
 
       - name: Build iOS (unsigned — needs Apple signing to install on iPhone)
         working-directory: ${{ steps.app.outputs.dir }}

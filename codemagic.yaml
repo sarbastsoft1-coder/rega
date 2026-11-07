@@ -1,10 +1,5 @@
 # REGA — iPhone ONLY (Flutter → .ipa via Codemagic cloud Mac)
-# Docs for you: IPHONE_ONLY.md
-#
-# 1) Open https://codemagic.io  → add GitHub repo: sarbastsoft1-coder/rega
-# 2) Set env REGA_API_HOST to your public API URL (required for real phones)
-# 3) For installable IPA: enable iOS code signing in Codemagic (Apple Developer)
-# 4) Start a workflow → Artifacts → download .ipa
+# After push: Codemagic → Start build → iPhone IPA — Customer → Artifacts → .ipa
 
 workflows:
   ios_customer:
@@ -14,21 +9,24 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
+      cocoapods: default
       vars:
         APP_DIR: rega
         REGA_API_HOST: https://api.example.com
     scripts:
-      - name: Flutter pub get + pods
+      - name: Flutter pub get
         script: |
           cd $APP_DIR
           flutter pub get
-          cd ios
-          pod install
-      - name: Build IPA (unsigned archive if no signing profiles)
+          flutter precache --ios
+      - name: CocoaPods install
+        script: |
+          cd $APP_DIR/ios
+          ls -la Podfile
+          pod install --repo-update
+      - name: Build IPA (fallback unsigned if signing missing)
         script: |
           cd $APP_DIR
-          # If you linked Apple signing in Codemagic UI, this produces installable .ipa
-          # Otherwise use: flutter build ios --release --no-codesign
           set +e
           flutter build ipa --release \
             --build-name=1.0.${PROJECT_BUILD_NUMBER:-1} \
@@ -36,7 +34,7 @@ workflows:
             --dart-define=REGA_API_HOST=$REGA_API_HOST
           status=$?
           if [ $status -ne 0 ]; then
-            echo "IPA signing failed — building unsigned iOS app for CI artifact"
+            echo "IPA signing failed — building unsigned iOS app"
             flutter build ios --release --no-codesign \
               --dart-define=REGA_API_HOST=$REGA_API_HOST
           fi
@@ -53,15 +51,21 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
+      cocoapods: default
       vars:
         APP_DIR: rega_froshyar
         REGA_API_HOST: https://api.example.com
     scripts:
-      - name: Flutter pub get + pods
+      - name: Flutter pub get
         script: |
           cd $APP_DIR
           flutter pub get
-          cd ios && pod install
+          flutter precache --ios
+      - name: CocoaPods install
+        script: |
+          cd $APP_DIR/ios
+          ls -la Podfile
+          pod install --repo-update
       - name: Build IPA
         script: |
           cd $APP_DIR
@@ -86,15 +90,21 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
+      cocoapods: default
       vars:
         APP_DIR: rega_delivery
         REGA_API_HOST: https://api.example.com
     scripts:
-      - name: Flutter pub get + pods
+      - name: Flutter pub get
         script: |
           cd $APP_DIR
           flutter pub get
-          cd ios && pod install
+          flutter precache --ios
+      - name: CocoaPods install
+        script: |
+          cd $APP_DIR/ios
+          ls -la Podfile
+          pod install --repo-update
       - name: Build IPA
         script: |
           cd $APP_DIR
@@ -119,15 +129,21 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
+      cocoapods: default
       vars:
         APP_DIR: rega_admin
         REGA_API_HOST: https://api.example.com
     scripts:
-      - name: Flutter pub get + pods
+      - name: Flutter pub get
         script: |
           cd $APP_DIR
           flutter pub get
-          cd ios && pod install
+          flutter precache --ios
+      - name: CocoaPods install
+        script: |
+          cd $APP_DIR/ios
+          ls -la Podfile
+          pod install --repo-update
       - name: Build IPA
         script: |
           cd $APP_DIR
