@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../rega_mobile.dart';
 
 class ApiException implements Exception {
   final String message;
@@ -14,13 +15,13 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
-  static const String _defaultBaseUrl = 'http://127.0.0.1:8001/api/v1';
+  static String get _defaultBaseUrl => RegaApiHost.apiV1;
   static const String _prefTokenKey = 'rega_admin_token';
   static const String _prefBaseUrlKey = 'rega_admin_base_url';
   static const String _prefLangKey = 'rega_admin_lang';
   static const String _prefDarkKey = 'rega_admin_dark_mode';
 
-  String _baseUrl = _defaultBaseUrl;
+  String _baseUrl = 'http://127.0.0.1:8001/api/v1';
   String? _token;
 
   String get baseUrl => _baseUrl;
@@ -29,13 +30,22 @@ class ApiClient {
 
   String get serverOrigin {
     final uri = Uri.tryParse(_baseUrl);
-    if (uri == null) return 'http://127.0.0.1:8001';
+    if (uri == null) return RegaApiHost.origin;
     return '${uri.scheme}://${uri.authority}';
   }
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _baseUrl = prefs.getString(_prefBaseUrlKey) ?? _defaultBaseUrl;
+    // Prefer live LAN/host detection for iPhone/mobile, unless user saved a custom API URL.
+    final saved = prefs.getString(_prefBaseUrlKey);
+    final auto = _defaultBaseUrl;
+    if (saved == null ||
+        saved.contains('127.0.0.1') ||
+        saved.contains('localhost')) {
+      _baseUrl = auto;
+    } else {
+      _baseUrl = saved;
+    }
     _token = prefs.getString(_prefTokenKey);
   }
 

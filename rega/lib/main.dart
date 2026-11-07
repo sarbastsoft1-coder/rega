@@ -15,6 +15,7 @@ import 'package:screen_protector/screen_protector.dart'; // 🔒 بۆ ڕێگری
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'live_order_tracker.dart';
 import 'customer_api_service.dart';
+import 'rega_mobile.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -132,12 +133,13 @@ class _RegaAppState extends State<RegaApp> {
         ),
       ),
       builder: (context, child) {
-        return Directionality(
-          textDirection: _textDirection,
-          child: DefaultTextStyle.merge(
+        return RegaResponsive.appBuilder(
+          context,
+          DefaultTextStyle.merge(
             style: GoogleFonts.notoKufiArabic(),
             child: child ?? const SizedBox(),
           ),
+          direction: _textDirection,
         );
       },
       home: MainScreen(

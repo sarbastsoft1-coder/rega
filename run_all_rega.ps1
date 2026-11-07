@@ -2,8 +2,8 @@
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-Write-Host "Starting REGA Backend API (Laravel + PostgreSQL) on http://127.0.0.1:8001 ..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$root\rega_backend'; php artisan serve --host=127.0.0.1 --port=8001"
+Write-Host "Starting REGA Backend API (Laravel + PostgreSQL) on http://0.0.0.0:8001 ..." -ForegroundColor Cyan
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$root\rega_backend'; php artisan serve --host=0.0.0.0 --port=8001"
 
 $apps = @(
     @{ Name = "REGA Admin (3 Core Parts: Vendor / Customer / Delivery)"; Dir = "rega_admin"; Port = 8080 },
@@ -20,11 +20,12 @@ foreach ($app in $apps) {
         flutter build web --no-pub
         Pop-Location
     }
-    Write-Host "Serving $($app.Name) on http://127.0.0.1:$($app.Port) ..." -ForegroundColor Green
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "python '$root\serve_web.py' '$webDir' $($app.Port)"
+    Write-Host "Serving $($app.Name) on http://0.0.0.0:$($app.Port) (LAN + localhost) ..." -ForegroundColor Green
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "python '$root\serve_web.py' '$webDir' $($app.Port) 0.0.0.0"
 }
 
 Start-Sleep -Seconds 2
 Start-Process "http://127.0.0.1:8080"
 Write-Host "All REGA services are live!" -ForegroundColor Green
+Write-Host "For iPhone on same Wi-Fi use: .\run_iphone_mobile.ps1" -ForegroundColor Yellow
 

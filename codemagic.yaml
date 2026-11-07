@@ -1,0 +1,146 @@
+# REGA — iPhone ONLY (Flutter → .ipa via Codemagic cloud Mac)
+# Docs for you: IPHONE_ONLY.md
+#
+# 1) Open https://codemagic.io  → add GitHub repo: sarbastsoft1-coder/rega
+# 2) Set env REGA_API_HOST to your public API URL (required for real phones)
+# 3) For installable IPA: enable iOS code signing in Codemagic (Apple Developer)
+# 4) Start a workflow → Artifacts → download .ipa
+
+workflows:
+  ios_customer:
+    name: "iPhone IPA — Customer"
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      vars:
+        APP_DIR: rega
+        REGA_API_HOST: https://api.example.com
+    scripts:
+      - name: Flutter pub get + pods
+        script: |
+          cd $APP_DIR
+          flutter pub get
+          cd ios
+          pod install
+      - name: Build IPA (unsigned archive if no signing profiles)
+        script: |
+          cd $APP_DIR
+          # If you linked Apple signing in Codemagic UI, this produces installable .ipa
+          # Otherwise use: flutter build ios --release --no-codesign
+          set +e
+          flutter build ipa --release \
+            --build-name=1.0.${PROJECT_BUILD_NUMBER:-1} \
+            --build-number=${PROJECT_BUILD_NUMBER:-1} \
+            --dart-define=REGA_API_HOST=$REGA_API_HOST
+          status=$?
+          if [ $status -ne 0 ]; then
+            echo "IPA signing failed — building unsigned iOS app for CI artifact"
+            flutter build ios --release --no-codesign \
+              --dart-define=REGA_API_HOST=$REGA_API_HOST
+          fi
+          set -e
+    artifacts:
+      - rega/build/ios/ipa/*.ipa
+      - rega/build/ios/iphoneos/*.app
+      - rega/build/ios/archive/**/*.xcarchive
+
+  ios_vendor:
+    name: "iPhone IPA — Vendor"
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      vars:
+        APP_DIR: rega_froshyar
+        REGA_API_HOST: https://api.example.com
+    scripts:
+      - name: Flutter pub get + pods
+        script: |
+          cd $APP_DIR
+          flutter pub get
+          cd ios && pod install
+      - name: Build IPA
+        script: |
+          cd $APP_DIR
+          set +e
+          flutter build ipa --release \
+            --build-name=1.0.${PROJECT_BUILD_NUMBER:-1} \
+            --build-number=${PROJECT_BUILD_NUMBER:-1} \
+            --dart-define=REGA_API_HOST=$REGA_API_HOST
+          if [ $? -ne 0 ]; then
+            flutter build ios --release --no-codesign \
+              --dart-define=REGA_API_HOST=$REGA_API_HOST
+          fi
+          set -e
+    artifacts:
+      - rega_froshyar/build/ios/ipa/*.ipa
+      - rega_froshyar/build/ios/iphoneos/*.app
+
+  ios_delivery:
+    name: "iPhone IPA — Delivery"
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      vars:
+        APP_DIR: rega_delivery
+        REGA_API_HOST: https://api.example.com
+    scripts:
+      - name: Flutter pub get + pods
+        script: |
+          cd $APP_DIR
+          flutter pub get
+          cd ios && pod install
+      - name: Build IPA
+        script: |
+          cd $APP_DIR
+          set +e
+          flutter build ipa --release \
+            --build-name=1.0.${PROJECT_BUILD_NUMBER:-1} \
+            --build-number=${PROJECT_BUILD_NUMBER:-1} \
+            --dart-define=REGA_API_HOST=$REGA_API_HOST
+          if [ $? -ne 0 ]; then
+            flutter build ios --release --no-codesign \
+              --dart-define=REGA_API_HOST=$REGA_API_HOST
+          fi
+          set -e
+    artifacts:
+      - rega_delivery/build/ios/ipa/*.ipa
+      - rega_delivery/build/ios/iphoneos/*.app
+
+  ios_admin:
+    name: "iPhone IPA — Admin"
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      vars:
+        APP_DIR: rega_admin
+        REGA_API_HOST: https://api.example.com
+    scripts:
+      - name: Flutter pub get + pods
+        script: |
+          cd $APP_DIR
+          flutter pub get
+          cd ios && pod install
+      - name: Build IPA
+        script: |
+          cd $APP_DIR
+          set +e
+          flutter build ipa --release \
+            --build-name=1.0.${PROJECT_BUILD_NUMBER:-1} \
+            --build-number=${PROJECT_BUILD_NUMBER:-1} \
+            --dart-define=REGA_API_HOST=$REGA_API_HOST
+          if [ $? -ne 0 ]; then
+            flutter build ios --release --no-codesign \
+              --dart-define=REGA_API_HOST=$REGA_API_HOST
+          fi
+          set -e
+    artifacts:
+      - rega_admin/build/ios/ipa/*.ipa
+      - rega_admin/build/ios/iphoneos/*.app

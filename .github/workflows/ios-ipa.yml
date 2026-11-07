@@ -1,0 +1,73 @@
+# Build iPhone IPA artifacts on GitHub's cloud Mac (no local Mac needed)
+name: iPhone IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Which REGA app to build
+        required: true
+        default: customer
+        type: choice
+        options:
+          - customer
+          - vendor
+          - delivery
+          - admin
+      api_host:
+        description: Public API base URL (no trailing slash)
+        required: true
+        default: https://api.example.com
+
+jobs:
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Resolve app folder
+        id: app
+        run: |
+          case "${{ inputs.app }}" in
+            customer) echo "dir=rega" >> $GITHUB_OUTPUT ;;
+            vendor) echo "dir=rega_froshyar" >> $GITHUB_OUTPUT ;;
+            delivery) echo "dir=rega_delivery" >> $GITHUB_OUTPUT ;;
+            admin) echo "dir=rega_admin" >> $GITHUB_OUTPUT ;;
+          esac
+
+      - name: Flutter pub get
+        working-directory: ${{ steps.app.outputs.dir }}
+        run: flutter pub get
+
+      - name: CocoaPods
+        working-directory: ${{ steps.app.outputs.dir }}/ios
+        run: pod install
+
+      - name: Build iOS (unsigned — needs Apple signing to install on iPhone)
+        working-directory: ${{ steps.app.outputs.dir }}
+        run: |
+          flutter build ios --release --no-codesign \
+            --dart-define=REGA_API_HOST=${{ inputs.api_host }}
+
+      - name: Zip Runner.app
+        working-directory: ${{ steps.app.outputs.dir }}
+        run: |
+          mkdir -p dist
+          APP_PATH=$(find build/ios/iphoneos -name "*.app" | head -n 1)
+          echo "Found: $APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "dist/${{ inputs.app }}-ios-unsigned.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rega-${{ inputs.app }}-ios
+          path: ${{ steps.app.outputs.dir }}/dist/*.zip
+          retention-days: 14

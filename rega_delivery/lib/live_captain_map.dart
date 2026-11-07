@@ -7,6 +7,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'rega_mobile.dart';
 
 enum CaptainRouteStage {
   assigned,
@@ -36,7 +37,7 @@ class CaptainLiveMapWidget extends StatefulWidget {
   final VoidCallback onArrivedPromptPin;
   final void Function(Map<String, dynamic> syncedOrder)? onNewBackendOrderFound;
 
-  const CaptainLiveMapWidget({
+  CaptainLiveMapWidget({
     super.key,
     required this.orderNumber,
     required this.stage,
@@ -50,11 +51,11 @@ class CaptainLiveMapWidget extends StatefulWidget {
     this.customerLat = 34.6912,
     this.customerLng = 45.3264,
     this.isOnline = true,
-    this.apiBaseUrl = 'http://127.0.0.1:8001/api/v1',
+    String? apiBaseUrl,
     required this.onStageAutoReached,
     required this.onArrivedPromptPin,
     this.onNewBackendOrderFound,
-  });
+  }) : apiBaseUrl = apiBaseUrl ?? RegaApiHost.apiV1;
 
   @override
   State<CaptainLiveMapWidget> createState() => _CaptainLiveMapWidgetState();
@@ -73,7 +74,9 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   // Map appearance & camera controls
   int _mapStyleIndex = 0; // 0: Voyager HD, 1: Dark Night Radar, 2: OSM Kalar
   bool _followCaptain = true;
-  bool _autoDriveSimulation = true;
+  /// Prefer real phone GPS. Simulation is only a fallback / demo toggle.
+  bool _autoDriveSimulation = false;
+  bool _usingRealGps = false;
   bool _mapReady = false;
   bool _backendSynced = false;
   bool _promptedPinOnce = false;
@@ -291,32 +294,133 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     _recomputeMetrics();
   }
 
-  Future<void> _startRealGpsIfAvailable() async {
+  Future<void> _startRealGpsIfAvailable({bool requestPermission = true}) async {
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) return;
+      if (!enabled) {
+        if (mounted) setState(() => _autoDriveSimulation = true);
+        return;
+      }
+
       var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) return; // Don't block UI with popup unless tapped
-      if (perm == LocationPermission.always || perm == LocationPermission.whileInUse) {
-        _gpsSub = Geolocator.getPositionStream(
+      if (perm == LocationPermission.denied && requestPermission) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        if (mounted) setState(() => _autoDriveSimulation = true);
+        return;
+      }
+
+      // Snap map to current phone place immediately.
+      try {
+        final pos = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.bestForNavigation,
-            distanceFilter: 2,
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 12),
           ),
-        ).listen((pos) {
-          // Only override Kalar coordinates if device is actually near Kalar!
-          final inKalarBounds = pos.latitude > 34.55 &&
-              pos.latitude < 34.80 &&
-              pos.longitude > 45.20 &&
-              pos.longitude < 45.48;
-          if (inKalarBounds && !_autoDriveSimulation && mounted) {
-            _speedKmh = math.max(0, pos.speed * 3.6);
-            _animateDriverTo(LatLng(pos.latitude, pos.longitude));
-            _recomputeMetrics();
-          }
+        );
+        if (mounted) _applyPhoneGpsPosition(pos);
+      } catch (_) {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null && mounted) _applyPhoneGpsPosition(last);
+      }
+
+      await _gpsSub?.cancel();
+      _gpsSub = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+          distanceFilter: 3,
+        ),
+      ).listen((pos) {
+        if (!mounted || _autoDriveSimulation) return;
+        _applyPhoneGpsPosition(pos);
+      });
+
+      if (mounted) {
+        setState(() {
+          _usingRealGps = true;
+          _autoDriveSimulation = false;
+          _followCaptain = true;
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _autoDriveSimulation = true);
+    }
+  }
+
+  /// Move captain pin + camera whenever the delivery phone place changes.
+  void _applyPhoneGpsPosition(Position pos) {
+    final next = LatLng(pos.latitude, pos.longitude);
+    final speed = pos.speed.isFinite ? math.max(0.0, pos.speed * 3.6) : _speedKmh;
+    if (speed > 0.5) _speedKmh = speed;
+    if (pos.heading.isFinite && pos.heading >= 0) {
+      _headingDeg = pos.heading;
+    }
+    _animateDriverTo(next);
+    _updateProgressFromPhoneGps(next);
+    _maybeAutoAdvanceStageFromGps(next);
+    _recomputeMetrics();
+  }
+
+  double _nearestProgressOnPolyline(List<LatLng> pts, LatLng here) {
+    if (pts.length < 2) return 0;
+    var bestDist = double.infinity;
+    var bestProgress = 0.0;
+    for (var i = 0; i < pts.length; i++) {
+      final d = _haversineMeters(here, pts[i]);
+      if (d < bestDist) {
+        bestDist = d;
+        bestProgress = i / (pts.length - 1);
+      }
+    }
+    return bestProgress.clamp(0.0, 1.0);
+  }
+
+  void _updateProgressFromPhoneGps(LatLng here) {
+    if (widget.stage == CaptainRouteStage.assigned ||
+        widget.stage == CaptainRouteStage.arrivingPickup) {
+      _leg1Progress = _nearestProgressOnPolyline(_legToStore, here);
+    } else if (widget.stage == CaptainRouteStage.onTheWay ||
+        widget.stage == CaptainRouteStage.arrivedCustomer) {
+      _leg1Progress = 1.0;
+      _leg2Progress = _nearestProgressOnPolyline(_legToCustomer, here);
+    }
+  }
+
+  void _maybeAutoAdvanceStageFromGps(LatLng here) {
+    const arriveMeters = 45.0;
+    switch (widget.stage) {
+      case CaptainRouteStage.assigned:
+        // First real phone move => start navigating to store
+        if (_haversineMeters(here, _dispatchOrigin) > 20) {
+          widget.onStageAutoReached(CaptainRouteStage.arrivingPickup);
+        }
+        break;
+      case CaptainRouteStage.arrivingPickup:
+        if (_haversineMeters(here, _storePoint) <= arriveMeters) {
+          widget.onStageAutoReached(CaptainRouteStage.arrivedPickup);
+        }
+        break;
+      case CaptainRouteStage.pickedUp:
+        widget.onStageAutoReached(CaptainRouteStage.onTheWay);
+        break;
+      case CaptainRouteStage.onTheWay:
+        if (_haversineMeters(here, _customerPoint) <= arriveMeters) {
+          widget.onStageAutoReached(CaptainRouteStage.arrivedCustomer);
+          if (!_promptedPinOnce) {
+            _promptedPinOnce = true;
+            Future.delayed(const Duration(milliseconds: 400), () {
+              if (mounted && widget.stage == CaptainRouteStage.arrivedCustomer) {
+                widget.onArrivedPromptPin();
+              }
+            });
+          }
+        }
+        break;
+      default:
+        break;
+    }
   }
 
   void _startOneSecondEngine() {
@@ -1055,10 +1159,35 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
               ),
               const SizedBox(height: 8),
               _MapHudButton(
-                icon: _autoDriveSimulation ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded,
+                icon: _usingRealGps && !_autoDriveSimulation
+                    ? Icons.my_location_rounded
+                    : Icons.location_searching_rounded,
+                active: _usingRealGps && !_autoDriveSimulation,
+                tooltip: 'GPS ی مۆبایل — شوێنی ڕاستەقینەی گەیاندن',
+                onTap: () async {
+                  setState(() {
+                    _autoDriveSimulation = false;
+                    _followCaptain = true;
+                  });
+                  await _startRealGpsIfAvailable(requestPermission: true);
+                },
+              ),
+              const SizedBox(height: 8),
+              _MapHudButton(
+                icon: _autoDriveSimulation
+                    ? Icons.pause_circle_filled_rounded
+                    : Icons.play_circle_fill_rounded,
                 active: _autoDriveSimulation,
-                tooltip: 'لێخوڕینی زیندوو چرکە بە چرکە',
-                onTap: () => setState(() => _autoDriveSimulation = !_autoDriveSimulation),
+                tooltip: _autoDriveSimulation
+                    ? 'دەمۆی خۆکار (پەیس بۆ GPS ی مۆبایل)'
+                    : 'دەستپێکردنی دەمۆی خۆکار',
+                onTap: () async {
+                  final nextSim = !_autoDriveSimulation;
+                  setState(() => _autoDriveSimulation = nextSim);
+                  if (!nextSim) {
+                    await _startRealGpsIfAvailable(requestPermission: true);
+                  }
+                },
               ),
               const SizedBox(height: 8),
               _MapHudButton(

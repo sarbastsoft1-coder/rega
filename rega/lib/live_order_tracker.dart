@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'rega_mobile.dart';
 
 /// Real Kalar neighborhood center coordinates
 class KalarGeoCatalog {
@@ -228,7 +229,7 @@ class CustomerLiveOrderTrackerScreen extends StatefulWidget {
   final String apiBaseUrl;
   final ValueChanged<String>? onOrderStatusChanged;
 
-  const CustomerLiveOrderTrackerScreen({
+  CustomerLiveOrderTrackerScreen({
     super.key,
     required this.orderCode,
     required this.storeName,
@@ -240,9 +241,9 @@ class CustomerLiveOrderTrackerScreen extends StatefulWidget {
     required this.initialStatus,
     this.storeLocation = const LatLng(34.6836, 45.3189),
     this.customerLocation = const LatLng(34.6912, 45.3264),
-    this.apiBaseUrl = 'http://127.0.0.1:8001/api/v1',
+    String? apiBaseUrl,
     this.onOrderStatusChanged,
-  });
+  }) : apiBaseUrl = apiBaseUrl ?? RegaApiHost.apiV1;
 
   @override
   State<CustomerLiveOrderTrackerScreen> createState() =>

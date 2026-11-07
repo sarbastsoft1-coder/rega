@@ -23,16 +23,18 @@ class MultiThreadedFlutterHandler(SimpleHTTPRequestHandler):
 
 def run():
     if len(sys.argv) < 3:
-        print("Usage: python serve_web.py <directory> <port>")
+        print("Usage: python serve_web.py <directory> <port> [host]")
         sys.exit(1)
-    
+
     directory = sys.argv[1]
     port = int(sys.argv[2])
+    # Bind all interfaces so iPhone/Android on same Wi-Fi can open the app.
+    host = sys.argv[3] if len(sys.argv) > 3 else '0.0.0.0'
     os.chdir(directory)
 
     ThreadingHTTPServer.allow_reuse_address = True
-    server = ThreadingHTTPServer(('127.0.0.1', port), MultiThreadedFlutterHandler)
-    print(f"Serving {directory} on http://127.0.0.1:{port} (Multi-Threaded)")
+    server = ThreadingHTTPServer((host, port), MultiThreadedFlutterHandler)
+    print(f"Serving {directory} on http://{host}:{port} (Multi-Threaded, phone-ready)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -40,4 +42,3 @@ def run():
 
 if __name__ == '__main__':
     run()
-

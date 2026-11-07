@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'live_captain_map.dart';
 import 'driver_api_service.dart';
+import 'rega_mobile.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,14 +70,10 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
         ),
       ),
       builder: (context, child) {
-        final mediaQuery = MediaQuery.of(context);
-        final clampedTextScaler = mediaQuery.textScaler.clamp(
-          minScaleFactor: 0.85,
-          maxScaleFactor: 1.15,
-        );
-        return MediaQuery(
-          data: mediaQuery.copyWith(textScaler: clampedTextScaler),
-          child: child!,
+        return RegaResponsive.appBuilder(
+          context,
+          child,
+          direction: _locale == 'en' ? TextDirection.ltr : TextDirection.rtl,
         );
       },
       home: Directionality(
@@ -743,7 +740,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     try {
       await http
           .post(
-            Uri.parse('http://127.0.0.1:8001/api/v1/live-telemetry/$cleanRef/verify-pin'),
+            Uri.parse('${DriverApiService.baseUrl}/live-telemetry/$cleanRef/verify-pin'),
             headers: const {
               'Content-Type': 'application/json',
               'Accept': 'application/json',

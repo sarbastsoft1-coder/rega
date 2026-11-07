@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'rega_mobile.dart';
 
 class CustomerApiService {
   CustomerApiService._();
   static final CustomerApiService instance = CustomerApiService._();
 
-  static const String baseUrl = 'http://127.0.0.1:8001/api/v1';
+  static String get baseUrl => RegaApiHost.apiV1;
   static const String _tokenKey = 'rega_customer_sanctum_token';
 
   String? _token;

@@ -271,9 +271,11 @@ class _AdminShellState extends State<AdminShell> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final isDesktop = screenWidth >= 1024;
+    // Phone / iPad portrait use drawer; wide tablets & desktop keep fixed sidebar.
+    final isDesktop = screenWidth >= 900;
+    final isPhone = screenWidth < 600;
     final surfaceColor = widget.isDark ? RegaColors.darkSurface : Colors.white;
-    final hideTopOperationalBar = isDesktop;
+    final hideTopOperationalBar = isDesktop && !isPhone;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),

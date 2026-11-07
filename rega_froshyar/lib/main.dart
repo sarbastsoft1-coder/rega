@@ -9,6 +9,7 @@ import "package:flutter/foundation.dart";
 import 'package:google_fonts/google_fonts.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'vendor_api_service.dart';
+import 'rega_mobile.dart';
 
 // ==============================================================================
 // 🔔 خزمەتگوزاری دەنگی موزیک و ئاگادارکردنەوە بۆ داواکارییە نوێیەکان (Order Sound Service)
@@ -202,18 +203,10 @@ class RegaVendorApp extends StatelessWidget {
             scaffoldBackgroundColor: const Color(0xFFF8F9FA),
           ),
           builder: (context, child) {
-            final mediaQuery = MediaQuery.of(context);
-            // پاراستنی ئەپ لە گەورەبوونی فۆنت لە ڕێکخستنی مۆبایلەکان کە دەبێتە هۆی تێکچوونی دیزاین
-            final clampedTextScaler = mediaQuery.textScaler.clamp(
-              minScaleFactor: 0.85,
-              maxScaleFactor: 1.15,
-            );
-            return MediaQuery(
-              data: mediaQuery.copyWith(textScaler: clampedTextScaler),
-              child: Directionality(
-                textDirection: Trans.direction,
-                child: child!,
-              ),
+            return RegaResponsive.appBuilder(
+              context,
+              child,
+              direction: Trans.direction,
             );
           },
           home: (Uri.base.queryParameters['bypass'] == 'true' || Uri.base.queryParameters.containsKey('tab'))
