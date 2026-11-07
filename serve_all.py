@@ -78,6 +78,7 @@ def start_backend_thread(base_dir):
                 cwd=backend_dir,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                shell=True,
             )
             while proc.poll() is None:
                 time.sleep(5)
