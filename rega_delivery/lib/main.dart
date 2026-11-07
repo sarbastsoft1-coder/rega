@@ -4,9 +4,15 @@ import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import 'live_captain_map.dart';
 import 'driver_api_service.dart';
 import 'rega_mobile.dart';
+import 'app/providers.dart';
+import 'app/app_router.dart';
+import 'state/driver_nav_notifier.dart';
+import 'state/driver_session_notifier.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +22,7 @@ void main() {
       statusBarIconBrightness: Brightness.dark,
     ),
   );
-  runApp(const DeliveryDriverApp());
+  runApp(buildDriverProviders(child: const DeliveryDriverApp()));
 }
 
 /// ئەپی سەرەکی شۆفێری گەیاندن بە دیزاینی مۆدێرن و تەواو کوردی
@@ -28,34 +34,50 @@ class DeliveryDriverApp extends StatefulWidget {
 }
 
 class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
-  String _locale = 'ku';
-  bool _isLoggedIn = true; // گۆڕینی بۆ true بۆ تێست، دواتر دەکرێتە false
-  final String _driverPhone = '07501234567';
+  GoRouter? _router;
 
-  void _changeLanguage(String lang) {
-    setState(() {
-      _locale = lang;
-    });
-  }
-
-  void _handleLogin() {
-    setState(() {
-      _isLoggedIn = true;
-    });
-  }
-
-  void _handleLogout() {
-    DriverApiService.instance.logout();
-    setState(() {
-      _isLoggedIn = false;
-    });
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _router ??= createDriverRouter(
+      refreshListenable: context.read<DriverSessionNotifier>(),
+      authBuilder: (context) {
+        final session = context.watch<DriverSessionNotifier>();
+        return AuthScreen(
+          currentLocale: session.locale,
+          onLogin: () {
+            session.login();
+            context.go('/map');
+          },
+        );
+      },
+      shellBuilder: (context, tabIndex) {
+        final session = context.watch<DriverSessionNotifier>();
+        return DriverMainScreen(
+          currentLocale: session.locale,
+          onLanguageChange: session.setLocale,
+          onLogout: () {
+            DriverApiService.instance.logout();
+            session.logout();
+            context.go('/login');
+          },
+          driverPhone: session.driverPhone,
+          initialTabIndex: tabIndex,
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    final session = context.watch<DriverSessionNotifier>();
+    final router = _router;
+    if (router == null) return const SizedBox.shrink();
+
+    return MaterialApp.router(
       title: 'REGA Delivery',
       debugShowCheckedModeBanner: false,
+      routerConfig: router,
       theme: ThemeData(
         useMaterial3: true,
         primaryColor: const Color(0xFF00E676),
@@ -73,24 +95,9 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
         return RegaResponsive.appBuilder(
           context,
           child,
-          direction: _locale == 'en' ? TextDirection.ltr : TextDirection.rtl,
+          direction: session.textDirection,
         );
       },
-      home: Directionality(
-        textDirection: _locale == 'en' ? TextDirection.ltr : TextDirection.rtl,
-        child: (_isLoggedIn && Uri.base.queryParameters['logout'] != 'true')
-          ? DriverMainScreen(
-              currentLocale: _locale, 
-              onLanguageChange: _changeLanguage,
-              onLogout: _handleLogout,
-              driverPhone: _driverPhone,
-              initialTabIndex: int.tryParse(Uri.base.queryParameters['tab'] ?? '0') ?? 0,
-            )
-          : AuthScreen(
-              currentLocale: _locale,
-              onLogin: _handleLogin,
-            ),
-      ),
     );
   }
 }
@@ -532,6 +539,21 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     super.initState();
     _currentTabIndex = widget.initialTabIndex;
     _resetActiveOrder();
+  }
+
+  @override
+  void didUpdateWidget(covariant DriverMainScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTabIndex != widget.initialTabIndex &&
+        _currentTabIndex != widget.initialTabIndex) {
+      setState(() => _currentTabIndex = widget.initialTabIndex);
+    }
+  }
+
+  void _goTab(int index) {
+    setState(() => _currentTabIndex = index);
+    context.read<DriverNavNotifier>().setTabIndex(index);
+    context.go(DriverNavNotifier.pathForIndex(index));
   }
 
   @override
@@ -2371,10 +2393,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                                 onPressed: () {
                                   Navigator.pop(ctx);
                                   setState(() {
-                                    _currentTabIndex = 1; // Go to Orders tab
                                     _searchQuery = notif['id']!;
                                     _searchController.text = notif['id']!;
                                   });
+                                  _goTab(1); // Go to Orders tab
                                 },
                                 child: Text(t('view_details'), style: const TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w900, fontSize: 12)),
                               ),
@@ -2743,7 +2765,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       child: InkWell(
         onTap: () {
           HapticFeedback.selectionClick();
-          setState(() => _currentTabIndex = index);
+          _goTab(index);
         },
         splashColor: pillYellow.withOpacity(0.2),
         highlightColor: Colors.transparent,

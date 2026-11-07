@@ -18,6 +18,8 @@ class AdminShell extends StatefulWidget {
   final ValueChanged<String> onLangChanged;
   final ValueChanged<bool> onThemeChanged;
   final VoidCallback onLogout;
+  final int initialIndex;
+  final ValueChanged<int>? onTabChanged;
 
   const AdminShell({
     super.key,
@@ -28,6 +30,8 @@ class AdminShell extends StatefulWidget {
     required this.onLangChanged,
     required this.onThemeChanged,
     required this.onLogout,
+    this.initialIndex = 0,
+    this.onTabChanged,
   });
 
   @override
@@ -35,7 +39,7 @@ class AdminShell extends StatefulWidget {
 }
 
 class _AdminShellState extends State<AdminShell> {
-  int _selectedIndex = 0; // سەرەکی (Executive Dashboard) selected by default
+  late int _selectedIndex;
   int _pendingOrdersBadge = 0;
   int _onlineStoresBadge = 0;
   int _customersBadge = 0;
@@ -45,6 +49,7 @@ class _AdminShellState extends State<AdminShell> {
   @override
   void initState() {
     super.initState();
+    _selectedIndex = widget.initialIndex.clamp(0, 6);
     final tabParam = Uri.base.queryParameters['tab'];
     if (tabParam != null) {
       final idx = int.tryParse(tabParam);
@@ -53,6 +58,20 @@ class _AdminShellState extends State<AdminShell> {
       }
     }
     _refreshBadges();
+  }
+
+  @override
+  void didUpdateWidget(covariant AdminShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialIndex != widget.initialIndex &&
+        _selectedIndex != widget.initialIndex) {
+      setState(() => _selectedIndex = widget.initialIndex.clamp(0, 6));
+    }
+  }
+
+  void _selectTab(int idx) {
+    setState(() => _selectedIndex = idx);
+    widget.onTabChanged?.call(idx);
   }
 
   Future<void> _refreshBadges() async {
@@ -87,7 +106,7 @@ class _AdminShellState extends State<AdminShell> {
         return DashboardScreen(
           api: widget.api,
           lang: widget.lang,
-          onNavigateTab: (idx) => setState(() => _selectedIndex = idx),
+          onNavigateTab: _selectTab,
         );
       case 1:
         return OrdersScreen(
@@ -199,7 +218,7 @@ class _AdminShellState extends State<AdminShell> {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(10),
                           onTap: () {
-                            setState(() => _selectedIndex = idx);
+                            _selectTab(idx);
                             if (isDrawer) Navigator.pop(ctx);
                           },
                           child: Padding(

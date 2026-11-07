@@ -13,14 +13,27 @@ import 'package:safe_device/safe_device.dart'; // 🔒 بۆ پشکنینی ها�
 import 'package:screen_protector/screen_protector.dart'; // 🔒 بۆ ڕێگری لە وێنەگرتنی شاشە
 // Platform import removed to fix unused warning
 import 'package:latlong2/latlong.dart' show LatLng;
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import 'live_order_tracker.dart';
 import 'customer_api_service.dart';
 import 'rega_mobile.dart';
 import 'l10n/customer_l10n.dart';
+import 'models/customer_models.dart';
+import 'app/providers.dart';
+import 'app/app_router.dart';
+import 'state/cart_notifier.dart';
+import 'state/locale_notifier.dart';
+import 'state/location_notifier.dart';
+import 'state/navigation_notifier.dart';
+import 'state/orders_notifier.dart';
+import 'state/session_notifier.dart';
+
+export 'models/customer_models.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const RegaApp());
+  runApp(buildCustomerProviders(child: const RegaApp()));
 }
 
 /// ============================================================================
@@ -38,72 +51,31 @@ class RegaApp extends StatefulWidget {
 }
 
 class _RegaAppState extends State<RegaApp> {
-  TextDirection _textDirection = TextDirection.rtl;
-  String _currentLang = 'ku'; // 'ku' | 'ar' | 'en'
+  late final GoRouter _router;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedLanguage();
-    _syncMarketplaceFromBackend();
-  }
-
-  // 💾 بارکردنی زمانی پاشەکەوتکراو لە SharedPreferences کاتی کردنەوەی ئەپ
-  Future<void> _loadSavedLanguage() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedLang = prefs.getString('rega_saved_language_code');
-      if (savedLang != null && savedLang.isNotEmpty) {
-        setState(() {
-          _currentLang = CustomerL10n.normalizeLang(savedLang);
-          _textDirection = CustomerL10n.directionFor(_currentLang);
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading saved language in RegaApp: $e');
-    }
-  }
-
-  // 💾 گۆڕین و پاشەکەوتکردنی زمان
-  void _syncMarketplaceFromBackend() {}
-  Future<void> _toggleLanguage(String lang) async {
-    final code = CustomerL10n.normalizeLang(lang);
-    setState(() {
-      _currentLang = code;
-      _textDirection = CustomerL10n.directionFor(code);
-    });
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('rega_saved_language_code', code);
-      await prefs.setString('rega_saved_language_name', CustomerL10n.displayName(code));
-    } catch (e) {
-      debugPrint('Error saving language in RegaApp: $e');
-    }
-  }
-
-  TextStyle notoKufi({
-    double? fontSize,
-    FontWeight? fontWeight,
-    Color? color,
-    double? height,
-    TextDecoration? decoration,
-    double? letterSpacing,
-  }) {
-    return GoogleFonts.notoKufiArabic(
-      fontSize: fontSize,
-      fontWeight: fontWeight,
-      color: color,
-      height: height,
-      decoration: decoration,
-      letterSpacing: letterSpacing,
+    _router = createCustomerRouter(
+      shellBuilder: (context, tabIndex, openStoreId) {
+        final locale = context.watch<LocaleNotifier>();
+        return MainScreen(
+          currentLang: locale.langCode,
+          onLanguageChange: (lang) => context.read<LocaleNotifier>().setLanguage(lang),
+          initialTabIndex: tabIndex,
+          openStoreId: openStoreId,
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    final locale = context.watch<LocaleNotifier>();
+    return MaterialApp.router(
       title: 'REGA - ڕێگا',
       debugShowCheckedModeBanner: false,
+      routerConfig: _router,
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: GoogleFonts.notoKufiArabic().fontFamily,
@@ -135,13 +107,9 @@ class _RegaAppState extends State<RegaApp> {
             style: GoogleFonts.notoKufiArabic(),
             child: child ?? const SizedBox(),
           ),
-          direction: _textDirection,
+          direction: locale.textDirection,
         );
       },
-      home: MainScreen(
-        currentLang: _currentLang,
-        onLanguageChange: _toggleLanguage,
-      ),
     );
   }
 }
@@ -164,149 +132,9 @@ String appLogoUrl = '';
 // 📦 DATA MODELS & STRUCTURES
 // ============================================================================
 
-class Neighborhood {
-  final String id;
-  final String name;
-  final String nameEn;
-  final int deliveryFee;
-
-  Neighborhood({
-    required this.id,
-    required this.name,
-    required this.nameEn,
-    required this.deliveryFee,
-  });
-}
-
-class StoreItem {
-  final String id;
-  final String name;
-  final String category;
-  final double rating;
-  final String deliveryTime;
-  final int deliveryFee;
-  final String imageUrl;
-  final String address;
-  final bool isOpen;
-  final String phone;
-  final String? discountBadge;
-  final double lat;
-  final double lng;
-
-  StoreItem({
-    required this.id,
-    required this.name,
-    required this.category,
-    required this.rating,
-    required this.deliveryTime,
-    required this.deliveryFee,
-    required this.imageUrl,
-    required this.address,
-    this.isOpen = true,
-    required this.phone,
-    this.discountBadge,
-    this.lat = 34.6836,
-    this.lng = 45.3189,
-  });
-}
-
-class ProductItem {
-  final String id;
-  final String storeId;
-  final String name;
-  final int price;
-  final String description;
-  final String imageUrl;
-  final String category;
-  final String? subCategory;
-
-  ProductItem({
-    required this.id,
-    required this.storeId,
-    required this.name,
-    required this.price,
-    required this.description,
-    required this.imageUrl,
-    required this.category,
-    this.subCategory,
-  });
-}
-
-class CartEntry {
-  final ProductItem product;
-  int quantity;
-  String specialNotes;
-
-  CartEntry({
-    required this.product,
-    this.quantity = 1,
-    this.specialNotes = '',
-  });
-}
-
-class UserProfile {
-  String name;
-  String email;
-  String phone;
-  String address;
-
-  UserProfile({
-    required this.name,
-    required this.email,
-    required this.phone,
-    required this.address,
-  });
-}
-
-class OrderItem {
-  final String id;
-  final String storeName;
-  final int totalAmount;
-  String status; // 'pending' | 'preparing' | 'heading_to_store' | 'picked_up' | 'on_the_way' | 'delivered'
-  final String deliveryPin;
-  final double storeLat;
-  final double storeLng;
-  final double customerLat;
-  final double customerLng;
-  final DateTime date;
-  final List<CartEntry> items;
-  final String driverName;
-  final String driverPhone;
-  final String address;
-
-  OrderItem({
-    required this.id,
-    required this.storeName,
-    required this.totalAmount,
-    required this.status,
-    required this.date,
-    required this.items,
-    required this.driverName,
-    required this.driverPhone,
-    this.address = 'گەڕەکی شەهیدان - کۆڵانی ١٤، تەنیشت قوتابخانەی کەلار',
-    this.deliveryPin = '4821',
-    this.storeLat = 34.6836,
-    this.storeLng = 45.3189,
-    this.customerLat = 34.6912,
-    this.customerLng = 45.3264,
-  });
-}
-
 // ============================================================================
 // 🏪 INITIAL DATA FOR KALAR (کەلار)
 // ============================================================================
-
-final List<Neighborhood> kalarNeighborhoods = [
-  Neighborhood(id: 'n1', name: 'شارۆچکەی رزگاری', nameEn: 'Rzgari', deliveryFee: 1500),
-  Neighborhood(id: 'n2', name: 'گەڕەکی زانکۆ', nameEn: 'Zanko', deliveryFee: 1000),
-  Neighborhood(id: 'n3', name: 'گەڕەکی شەهیدان', nameEn: 'Shahidan', deliveryFee: 1000),
-  Neighborhood(id: 'n4', name: 'گەڕەکی سیروان', nameEn: 'Sirwan', deliveryFee: 1500),
-  Neighborhood(id: 'n5', name: 'گەڕەکی شۆڕش', nameEn: 'Shorish', deliveryFee: 1500),
-  Neighborhood(id: 'n6', name: 'گەڕەکی بێساری', nameEn: 'Besari', deliveryFee: 2000),
-  Neighborhood(id: 'n7', name: 'گەڕەکی کاکەییان', nameEn: 'Kakeyan', deliveryFee: 1500),
-  Neighborhood(id: 'n8', name: 'گەڕەکی فەرمانبەران', nameEn: 'Farmanbaran', deliveryFee: 1000),
-  Neighborhood(id: 'n9', name: 'ناو بازاڕی کەلار', nameEn: 'Downtown Market', deliveryFee: 1000),
-];
 
 final List<StoreItem> allStores = [
   StoreItem(
@@ -778,11 +606,15 @@ final List<ProductItem> allProducts = [
 class MainScreen extends StatefulWidget {
   final String currentLang;
   final Function(String) onLanguageChange;
+  final int initialTabIndex;
+  final String? openStoreId;
 
   const MainScreen({
     super.key,
     required this.currentLang,
     required this.onLanguageChange,
+    this.initialTabIndex = 0,
+    this.openStoreId,
   });
 
   @override
@@ -790,13 +622,56 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
   int _unreadNotificationCount = 3;
-  Neighborhood _selectedNeighborhood = kalarNeighborhoods[1]; // Zanko by default
   String _searchQuery = '';
   String _selectedCategory = 'گشتی';
   StoreItem? _selectedStore;
   String? _selectedSubCategory;
+
+  // Provider-backed app state (source of truth for cart / session / location / orders)
+  List<CartEntry> get _cart => context.read<CartNotifier>().mutableItems;
+  UserProfile? get _userProfile => context.read<SessionNotifier>().user;
+  set _userProfile(UserProfile? value) {
+    final session = context.read<SessionNotifier>();
+    if (value == null) {
+      session.signOut();
+    } else {
+      session.signIn(value);
+    }
+  }
+
+  bool get _isLoginMode => context.read<SessionNotifier>().isLoginMode;
+  set _isLoginMode(bool value) => context.read<SessionNotifier>().setLoginMode(value);
+
+  List<OrderItem> get _orders => context.read<OrdersNotifier>().mutableOrders;
+
+  Neighborhood get _selectedNeighborhood => context.read<LocationNotifier>().neighborhood;
+  set _selectedNeighborhood(Neighborhood value) =>
+      context.read<LocationNotifier>().setNeighborhood(value);
+
+  double? get _pinnedCustomerLat => context.read<LocationNotifier>().pinnedLat;
+  set _pinnedCustomerLat(double? value) {
+    final loc = context.read<LocationNotifier>();
+    if (value == null && loc.pinnedLng == null) {
+      loc.clearPin();
+    } else {
+      loc.updateCoords(lat: value);
+    }
+  }
+
+  double? get _pinnedCustomerLng => context.read<LocationNotifier>().pinnedLng;
+  set _pinnedCustomerLng(double? value) {
+    final loc = context.read<LocationNotifier>();
+    if (value == null && loc.pinnedLat == null) {
+      loc.clearPin();
+    } else {
+      loc.updateCoords(lng: value);
+    }
+  }
+
+  String? get _deliveryPlaceNote => context.read<LocationNotifier>().placeNote;
+  set _deliveryPlaceNote(String? value) => context.read<LocationNotifier>().setPlaceNote(value);
 
   // Dynamic Marketplace Data from Backend (Categories, Banners)
   List<Map<String, dynamic>> _dynamicCategories = [];
@@ -821,13 +696,7 @@ class _MainScreenState extends State<MainScreen> {
   Timer? _connectivityTimer;
   Timer? _backendOrdersTimer;
 
-  // App State
-  final List<CartEntry> _cart = [];
-  UserProfile? _userProfile; // NULL by default (Guest mode)
-  bool _isLoginMode = false; // Toggle between Login and Register
-  final List<OrderItem> _orders = [];
-  double? _pinnedCustomerLat;
-  double? _pinnedCustomerLng;
+  // App State (cart / session / location / orders live in Provider notifiers)
   bool _isGpsLocating = false;
   String _selectedOrderFilter = 'هەموو';
   final Set<String> _favoriteStoreIds = {'store_sarwar'};
@@ -851,16 +720,21 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialTabIndex.clamp(0, 4);
     _currentLanguage = CustomerL10n.displayName(widget.currentLang);
-    _nameCtrl = TextEditingController(text: _userProfile?.name ?? '');
-    _phoneCtrl = TextEditingController(text: _userProfile?.phone ?? '');
+    _nameCtrl = TextEditingController();
+    _phoneCtrl = TextEditingController();
     _passwordCtrl = TextEditingController();
     _loadProfile();
     _loadSavedLanguage();
     _syncMarketplaceFromBackend();
-    
-    // 🚀 دەستپێکردنی زنجیرەی چالاککردنی ئەپ بە شێوەیەکی ڕێکخراو
     _startAppInitialization();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _nameCtrl.text = _userProfile?.name ?? '';
+      _phoneCtrl.text = _userProfile?.phone ?? '';
+      _applyOpenStoreFromRoute();
+    });
   }
 
   @override
@@ -871,6 +745,43 @@ class _MainScreenState extends State<MainScreen> {
         _currentLanguage = CustomerL10n.displayName(widget.currentLang);
       });
     }
+    if (oldWidget.initialTabIndex != widget.initialTabIndex &&
+        _currentIndex != widget.initialTabIndex) {
+      setState(() {
+        _currentIndex = widget.initialTabIndex.clamp(0, 4);
+        if (widget.openStoreId == null) _selectedStore = null;
+      });
+    }
+    if (oldWidget.openStoreId != widget.openStoreId) {
+      _applyOpenStoreFromRoute();
+    }
+  }
+
+  void _applyOpenStoreFromRoute() {
+    final id = widget.openStoreId;
+    if (id == null || id.isEmpty) return;
+    StoreItem? match;
+    for (final s in allStores) {
+      if (s.id == id) {
+        match = s;
+        break;
+      }
+    }
+    if (match != null && mounted) {
+      setState(() => _selectedStore = match);
+    }
+  }
+
+  void _goTab(int index) {
+    final path = NavigationNotifier.pathForIndex(index);
+    context.read<NavigationNotifier>().setTabIndex(index);
+    if (_currentIndex != index) {
+      setState(() {
+        _currentIndex = index;
+        _selectedStore = null;
+      });
+    }
+    context.go(path);
   }
 
   // 🚀 زنجیرەی چالاککردنی ئەپ (Security -> Notification -> Location)
@@ -1069,6 +980,7 @@ class _MainScreenState extends State<MainScreen> {
           _pinnedCustomerLat = fixedPos.latitude;
           _pinnedCustomerLng = fixedPos.longitude;
           _selectedNeighborhood = closest;
+          _deliveryPlaceNote = null; // current GPS — not a future meet-up place
           _isLocationAuthorized = true;
         });
         if (!silent) {
@@ -1785,7 +1697,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 onPressed: () {
                   Navigator.pop(ctx);
-                  setState(() => _currentIndex = 4); // Switch to Profile Tab
+                  _goTab(4); // Switch to Profile Tab
                 },
                 icon: const Icon(Icons.login_rounded, size: 20),
                 label: const Text('ڕاستەوخۆ بڕۆ بۆ خۆتۆمارکردن', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1974,7 +1886,9 @@ class _MainScreenState extends State<MainScreen> {
                       items: List.from(cartItems),
                       driverName: 'ئاراس ئەحمەد (ماتۆڕسوار)',
                       driverPhone: '07709876543',
-                      address: '${_selectedNeighborhood.name} - شاری کەلار',
+                      address: (_deliveryPlaceNote != null && _deliveryPlaceNote!.isNotEmpty)
+                          ? '$_deliveryPlaceNote • ${_selectedNeighborhood.name}'
+                          : '${_selectedNeighborhood.name} - شاری کەلار',
                       deliveryPin: orderCode.length >= 4
                           ? orderCode.substring(orderCode.length - 4)
                           : '4821',
@@ -2199,12 +2113,10 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 onPressed: () {
                   Navigator.pop(ctx);
-                  setState(() {
-                    _currentIndex = 3; // Switch to Orders tab
-                    if (_orders.isNotEmpty) {
-                      Future.microtask(() => _showLiveTrackingModal(_orders.first));
-                    }
-                  });
+                  _goTab(3); // Switch to Orders tab
+                  if (_orders.isNotEmpty) {
+                    Future.microtask(() => _showLiveTrackingModal(_orders.first));
+                  }
                 },
                 child: const Text(
                   'بەدواداچوون بۆ داواکاری (Orders) 📦',
@@ -2363,507 +2275,213 @@ class _MainScreenState extends State<MainScreen> {
 );
   }
 
-  // 📍 Full Interactive Google Map Style Kalar GPS Location Picker
+  /// Pick delivery place: current GPS anywhere in Iraq, OR tap a future place
+  /// (e.g. a park) so the driver goes there even if the user is not there yet.
   void _showLocationPicker() {
+    LatLng draftPin = LatLng(
+      _pinnedCustomerLat ?? KalarGeoCatalog.forNeighborhoodId(_selectedNeighborhood.id).latitude,
+      _pinnedCustomerLng ?? KalarGeoCatalog.forNeighborhoodId(_selectedNeighborhood.id).longitude,
+    );
+    Neighborhood draftNeighborhood = _selectedNeighborhood;
+    final noteCtrl = TextEditingController(text: _deliveryPlaceNote ?? '');
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        Neighborhood tempSelected = _selectedNeighborhood;
-        bool isGpsLocating = false;
-        String gpsAccuracyText = 'دەقیقی GPS: %100 (Google Maps Kalar)';
-        Offset pinPosition = const Offset(0.50, 0.45); // Center on Kalar map
-
         return StatefulBuilder(
           builder: (context, setModalState) {
+            void applyPin(LatLng pt, {bool markAsSelectedPlace = true}) {
+              draftPin = pt;
+              draftNeighborhood = _closestNeighborhoodTo(pt.latitude, pt.longitude);
+              setModalState(() {});
+              if (markAsSelectedPlace && noteCtrl.text.trim().isEmpty) {
+                // Keep optional note empty; coords are the source of truth.
+              }
+            }
+
             return Align(
               alignment: Alignment.bottomCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 640),
                 child: Container(
-                  height: MediaQuery.of(context).size.height * 0.90,
+                  height: MediaQuery.of(context).size.height * 0.92,
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                   ),
                   child: Column(
-                children: [
-                  // Top Modal Drag Handle & Header
-                  Container(
-                    padding: const EdgeInsets.only(top: 12, bottom: 10, left: 16, right: 16),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.map_rounded, color: Color(0xFFFAC800), size: 26),
-                                  const SizedBox(width: 8),
-                                  const Expanded(
-                                    child: Text(
-                                      'نەخشەی شاری کەلار (Google Maps)',
-                                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.black),
-                                      overflow: TextOverflow.ellipsis,
+                            Center(
+                              child: Container(
+                                width: 42,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade300,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                const Icon(Icons.map_rounded, color: Color(0xFFFAC800), size: 26),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _t('شوێنی گەیاندن لە عێراق'),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.black,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () => Navigator.pop(context),
-                              icon: const Icon(Icons.close, color: Colors.black54),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          'تکایە شوێنەکەت لەسەر نەخشەی کەلار کلیک بکە یان دوگمەی GPS داگیرسێنە',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const Divider(height: 1),
-
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 38,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F172A),
-                          foregroundColor: const Color(0xFFFAC800),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          elevation: 0,
-                        ),
-                        onPressed: () {
-                          final startPt = LatLng(
-                            _pinnedCustomerLat ?? KalarGeoCatalog.forNeighborhoodId(tempSelected.id).latitude,
-                            _pinnedCustomerLng ?? KalarGeoCatalog.forNeighborhoodId(tempSelected.id).longitude,
-                          );
-                          showDialog(
-                            context: context,
-                            builder: (dCtx) => Dialog(
-                              insetPadding: const EdgeInsets.all(14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(24),
-                                child: SizedBox(
-                                  height: MediaQuery.of(dCtx).size.height * 0.72,
-                                  child: Stack(
-                                    children: [
-                                      KalarInteractivePickerMap(
-                                        initialPoint: startPt,
-                                        selectedNeighborhoodName: tempSelected.name,
-                                        onLocationChanged: (pt) {
-                                          setState(() {
-                                            _pinnedCustomerLat = pt.latitude;
-                                            _pinnedCustomerLng = pt.longitude;
-                                          });
-                                        },
-                                      ),
-                                      Positioned(
-                                        bottom: 14,
-                                        right: 14,
-                                        child: ElevatedButton.icon(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFFFAC800),
-                                            foregroundColor: Colors.black,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                          ),
-                                          onPressed: () => Navigator.pop(dCtx),
-                                          icon: const Icon(Icons.check_circle_rounded, size: 18),
-                                          label: const Text('پەسەندکردنی شوێنی GPS', style: TextStyle(fontWeight: FontWeight.w900)),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
                                 ),
-                              ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.satellite_alt_rounded, size: 17),
-                        label: const Text('کردنەوەی نەخشەی ڕاستەقینەی شەقامەکانی کەلار (HD)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                      ),
-                    ),
-                  ),
-                  // 🗺️ GOOGLE MAPS STYLE INTERACTIVE MAP CANVAS (EXPANDED FULL VIEW)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14.0),
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1E293B), // Google Maps dark theme
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(color: const Color(0xFFFAC800), width: 2.5),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 5),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(21),
-                                child: GestureDetector(
-                                  onPanUpdate: (details) {
-                                    setModalState(() {
-                                      // Allow dragging the pin on Google Map canvas
-                                      double newX = (pinPosition.dx + details.delta.dx / 300).clamp(0.1, 0.9);
-                                      double newY = (pinPosition.dy + details.delta.dy / 300).clamp(0.1, 0.9);
-                                      pinPosition = Offset(newX, newY);
-                                    });
-                                  },
-                                  onTapUp: (details) {
-                                    setModalState(() {
-                                      // Tap anywhere on Kalar Map to move precision pin
-                                      pinPosition = Offset(
-                                        (details.localPosition.dx / 320).clamp(0.1, 0.9),
-                                        (details.localPosition.dy / 380).clamp(0.1, 0.9),
-                                      );
-                                    });
-                                  },
-                                  child: Stack(
-                                    children: [
-                                      // Google Map Tile Grid & Road Rendering
-                                      Positioned.fill(
-                                        child: CustomPaint(
-                                          painter: _KalarMapPainter(),
-                                        ),
-                                      ),
-
-                                      // Google Maps Watermark Badge
-                                      Positioned(
-                                        bottom: 12,
-                                        left: 12,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withOpacity(0.9),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Row(
-                                            children: const [
-                                              Icon(Icons.g_mobiledata, color: Colors.blue, size: 18),
-                                              Text(
-                                                'Google Maps • Kalar',
-                                                style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.black87),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-
-                                      // Kalar Famous Landmarks on Google Map
-                                      Positioned(
-                                        top: 20,
-                                        left: 20,
-                                        child: _buildMapLandmarkBadge('🏰 قەڵای شێروانە'),
-                                      ),
-                                      Positioned(
-                                        top: 80,
-                                        right: 20,
-                                        child: _buildMapLandmarkBadge('🎓 زانکۆی گەرمیان'),
-                                      ),
-                                      Positioned(
-                                        bottom: 50,
-                                        left: 25,
-                                        child: _buildMapLandmarkBadge('🌊 ڕووباری سیروان'),
-                                      ),
-                                      Positioned(
-                                        bottom: 100,
-                                        right: 30,
-                                        child: _buildMapLandmarkBadge('🏪 ناو بازاڕی کەلار'),
-                                      ),
-
-                                      // 📍 DRAGGABLE / PRECISION LOCATION PIN
-                                      LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          final pinX = pinPosition.dx * constraints.maxWidth - 20;
-                                          final pinY = pinPosition.dy * constraints.maxHeight - 40;
-                                          return Positioned(
-                                            left: pinX,
-                                            top: pinY,
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.black,
-                                                    borderRadius: BorderRadius.circular(8),
-                                                    border: Border.all(color: const Color(0xFFFAC800)),
-                                                  ),
-                                                  child: Text(
-                                                    '📍 ${tempSelected.name}',
-                                                    style: const TextStyle(
-                                                      color: Color(0xFFFAC800),
-                                                      fontSize: 10,
-                                                      fontWeight: FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ),
-                                                const Icon(
-                                                  Icons.location_on,
-                                                  size: 40,
-                                                  color: Color(0xFFEF4444),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      ),
-
-                                      // 🎯 PRECISION AUTO GPS BUTTON
-                                      Positioned(
-                                        bottom: 12,
-                                        right: 12,
-                                        child: ElevatedButton.icon(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFFFAC800),
-                                            foregroundColor: Colors.black,
-                                            elevation: 6,
-                                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-                                          ),
-                                          onPressed: isGpsLocating
-                                              ? null
-                                              : () async {
-                                                  setModalState(() {
-                                                    isGpsLocating = true;
-                                                  });
-
-                                                  bool ok = false;
-                                                  try {
-                                                    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-                                                    if (!serviceEnabled) {
-                                                      gpsAccuracyText = 'GPS کوژاوەتەوە';
-                                                      await Geolocator.openLocationSettings();
-                                                    } else {
-                                                      LocationPermission perm = await Geolocator.checkPermission();
-                                                      if (perm == LocationPermission.denied) {
-                                                        perm = await Geolocator.requestPermission();
-                                                      }
-                                                      if (perm == LocationPermission.deniedForever) {
-                                                        gpsAccuracyText = 'ڕێگەپێدان پێویستە';
-                                                        await Geolocator.openAppSettings();
-                                                      } else if (perm == LocationPermission.always ||
-                                                          perm == LocationPermission.whileInUse) {
-                                                        Position? pos;
-                                                        try {
-                                                          pos = await Geolocator.getCurrentPosition(
-                                                            locationSettings: const LocationSettings(
-                                                              accuracy: LocationAccuracy.high,
-                                                              timeLimit: Duration(seconds: 15),
-                                                            ),
-                                                          );
-                                                        } catch (_) {
-                                                          pos = await Geolocator.getLastKnownPosition();
-                                                        }
-
-                                                        if (pos != null) {
-                                                          final closest = _closestNeighborhoodTo(pos.latitude, pos.longitude);
-                                                          tempSelected = closest;
-                                                          _pinnedCustomerLat = pos.latitude;
-                                                          _pinnedCustomerLng = pos.longitude;
-                                                          gpsAccuracyText = '🎯 GPS: ${closest.name}';
-                                                          ok = true;
-                                                        } else {
-                                                          gpsAccuracyText = 'نەتوانرا شوێن بدۆزرێتەوە';
-                                                        }
-                                                      } else {
-                                                        gpsAccuracyText = 'ڕێگەپێدان ڕەتکرایەوە';
-                                                      }
-                                                    }
-                                                  } catch (_) {
-                                                    gpsAccuracyText = 'هەڵەی GPS';
-                                                  }
-
-                                                  setModalState(() {
-                                                    pinPosition = const Offset(0.50, 0.38);
-                                                    isGpsLocating = false;
-                                                  });
-
-                                                  if (context.mounted) {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(
-                                                          ok
-                                                              ? '🎯 شوێنەکەت دیاریکرا: ${tempSelected.name}'
-                                                              : gpsAccuracyText,
-                                                        ),
-                                                        backgroundColor: ok
-                                                            ? const Color(0xFF059669)
-                                                            : const Color(0xFFDC2626),
-                                                        duration: const Duration(seconds: 2),
-                                                      ),
-                                                    );
-                                                  }
-                                                },
-                                          icon: isGpsLocating
-                                              ? const SizedBox(
-                                                  width: 16,
-                                                  height: 16,
-                                                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
-                                                )
-                                              : const Icon(Icons.my_location, size: 20, color: Colors.black),
-                                          label: Text(
-                                            isGpsLocating ? 'پشکنینی GPS...' : 'GPS ی خۆکار (دەقیق)',
-                                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
-                                          ),
-                                        ),
-                                      ),
-
-                                      // Top Live Accuracy Bar
-                                      Positioned(
-                                        top: 10,
-                                        right: 12,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(0.8),
-                                            borderRadius: BorderRadius.circular(14),
-                                            border: Border.all(color: Colors.white24),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              const Icon(Icons.gps_fixed, size: 13, color: Color(0xFF10B981)),
-                                              const SizedBox(width: 5),
-                                              Text(
-                                                gpsAccuracyText,
-                                                style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 14),
-
-                          // Selected Location Summary Bar
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFFBEB),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFFFDE68A)),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFFAC800),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.location_on, color: Colors.black, size: 20),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'شوێنی دیاریکراو: ${tempSelected.name}',
-                                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900, color: Colors.black),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'تێچووی گەیاندن: ${tempSelected.deliveryFee} د.ع  • کەلار، گەرمیان',
-                                        style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
-                                      ),
-                                    ],
-                                  ),
+                                IconButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  icon: const Icon(Icons.close, color: Colors.black54),
                                 ),
                               ],
                             ),
-                          ),
-
-                          const SizedBox(height: 14),
-
-                          // Save Location Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFFAC800),
-                                foregroundColor: Colors.black,
-                                elevation: 2,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _selectedNeighborhood = tempSelected;
-                                });
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('📍 شوێنی گەیاندن لە Google Maps تۆمارکرا: ${tempSelected.name}'),
-                                    backgroundColor: const Color(0xFF059669),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.check_circle_rounded, size: 20),
-                              label: const Text(
-                                'پشتڕاستکردنەوەی شوێن لە نەخشە',
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
-                              ),
+                            Text(
+                              _t('شوێنی ئێستات یان پارک/شوێنێک هەڵبژێرە بۆ دواتر'),
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.35),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: KalarInteractivePickerMap(
+                              initialPoint: draftPin,
+                              selectedNeighborhoodName: draftNeighborhood.name,
+                              allowIraqWide: true,
+                              onLocationChanged: (pt) => applyPin(pt),
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          14,
+                          10,
+                          14,
+                          12 + MediaQuery.of(context).padding.bottom,
+                        ),
+                        child: Column(
+                          children: [
+                            TextField(
+                              controller: noteCtrl,
+                              textInputAction: TextInputAction.done,
+                              decoration: InputDecoration(
+                                hintText: _t('ناوی شوێن (پارک، ناوەند، ...)'),
+                                prefixIcon: const Icon(Icons.park_outlined, color: Color(0xFFB45309)),
+                                filled: true,
+                                fillColor: const Color(0xFFFFFBEB),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: Color(0xFFFDE68A)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: Color(0xFFFDE68A)),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFFBEB),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${_t('شوێنی دیاریکراو')}: ${draftNeighborhood.name}',
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'GPS: ${draftPin.latitude.toStringAsFixed(5)}, ${draftPin.longitude.toStringAsFixed(5)}',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFB45309),
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_t('تێچووی گەیاندن')}: ${draftNeighborhood.deliveryFee} ${_t('د.ع')}',
+                                    style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFFAC800),
+                                  foregroundColor: Colors.black,
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                                onPressed: () {
+                                  final note = noteCtrl.text.trim();
+                                  setState(() {
+                                    _pinnedCustomerLat = draftPin.latitude;
+                                    _pinnedCustomerLng = draftPin.longitude;
+                                    _selectedNeighborhood = draftNeighborhood;
+                                    _deliveryPlaceNote = note.isEmpty ? null : note;
+                                  });
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        note.isEmpty
+                                            ? '📍 ${_t('شوێنی گەیاندن پاشەکەوت کرا')}: ${draftNeighborhood.name}'
+                                            : '📍 ${_t('شوێنی گەیاندن پاشەکەوت کرا')}: $note',
+                                      ),
+                                      backgroundColor: const Color(0xFF059669),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.check_circle_rounded, size: 20),
+                                label: Text(
+                                  _t('پشتڕاستکردنەوەی شوێنی گەیاندن'),
+                                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
-    );
-  },
-);
+    ).whenComplete(noteCtrl.dispose);
   }
-
-  Widget _buildMapLandmarkBadge(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.amber.withOpacity(0.4)),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(color: Colors.amber, fontSize: 9.5, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-
 
   // 🔍 Comprehensive Search Modal (Stores, Categories, Products & Foods)
   void _openSearchModal() {
@@ -3095,8 +2713,8 @@ class _MainScreenState extends State<MainScreen> {
                                   setState(() {
                                     _selectedCategory = c['catName'] as String;
                                     _selectedStore = null;
-                                    _currentIndex = 0;
                                   });
+                                  _goTab(0);
                                 },
                               ),
                             );
@@ -3147,8 +2765,8 @@ class _MainScreenState extends State<MainScreen> {
                                     setState(() {
                                       _selectedCategory = c['catName'] as String;
                                       _selectedStore = null;
-                                      _currentIndex = 0;
                                     });
+                                    _goTab(0);
                                   },
                                 );
                               }).toList(),
@@ -3208,10 +2826,8 @@ class _MainScreenState extends State<MainScreen> {
                                   ),
                                   onTap: () {
                                     Navigator.pop(context);
-                                    setState(() {
-                                      _selectedStore = store;
-                                      _currentIndex = 0;
-                                    });
+                                    setState(() => _selectedStore = store);
+                                    _goTab(0);
                                   },
                                 ),
                               );
@@ -3514,17 +3130,15 @@ class _MainScreenState extends State<MainScreen> {
                               onTap: () {
                                 if (store != null) {
                                   Navigator.pop(context);
-                                  setState(() {
-                                    _selectedStore = store;
-                                    _currentIndex = 0;
-                                  });
+                                  setState(() => _selectedStore = store);
+                                  _goTab(0);
                                 } else if (catName != null) {
                                   Navigator.pop(context);
                                   setState(() {
                                     _selectedCategory = catName;
                                     _selectedStore = null;
-                                    _currentIndex = 0;
                                   });
+                                  _goTab(0);
                                 }
                               },
                               child: Padding(
@@ -3703,6 +3317,13 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild when Provider-backed state changes.
+    context.watch<CartNotifier>();
+    context.watch<LocationNotifier>();
+    context.watch<SessionNotifier>();
+    context.watch<OrdersNotifier>();
+    context.watch<NavigationNotifier>();
+
     // 🔒 ئەگەر هێشتا خەریکی پشکنینی ئاسایش بێت، نیشانەیەکی چاوەڕێکردن پیشان بدە
     if (_isCheckingSecurity) {
       return const Scaffold(
@@ -3843,10 +3464,7 @@ class _MainScreenState extends State<MainScreen> {
       child: InkWell(
         onTap: () {
           HapticFeedback.selectionClick();
-          setState(() {
-            _currentIndex = index;
-            _selectedStore = null;
-          });
+          _goTab(index);
           if (index == 3) {
             _syncCustomerOrdersFromBackend();
           }
@@ -4157,9 +3775,11 @@ class _MainScreenState extends State<MainScreen> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       child: Text(
-                        'گەیاندن بۆ: ${_selectedNeighborhood.name}',
+                        '${_t('گەیاندن بۆ')}: ${(_deliveryPlaceNote != null && _deliveryPlaceNote!.isNotEmpty) ? _deliveryPlaceNote! : _selectedNeighborhood.name}',
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
                         textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -5552,11 +5172,7 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 // Circular Yellow Cart Graphic with Top-Right (+) Badge (Clickable to go home)
                 GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _currentIndex = 0;
-                    });
-                  },
+                  onTap: () => _goTab(0),
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
@@ -6436,29 +6052,7 @@ class _MainScreenState extends State<MainScreen> {
   // ============================================================================
   void _showLiveTrackingModal(OrderItem order) {
     if (order.id.isNotEmpty) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => CustomerLiveOrderTrackerScreen(
-            orderCode: order.id,
-            storeName: order.storeName,
-            customerAddress: order.address,
-            driverName: order.driverName,
-            driverPhone: order.driverPhone,
-            deliveryPin: order.deliveryPin,
-            totalAmount: order.totalAmount,
-            initialStatus: order.status,
-            storeLocation: LatLng(order.storeLat, order.storeLng),
-            customerLocation: LatLng(order.customerLat, order.customerLng),
-            onOrderStatusChanged: (nextStatus) {
-              if (mounted) {
-                setState(() {
-                  order.status = nextStatus;
-                });
-              }
-            },
-          ),
-        ),
-      );
+      context.push('/track/${Uri.encodeComponent(order.id)}', extra: order);
       return;
     }
     showModalBottomSheet(
@@ -7725,34 +7319,47 @@ class _MainScreenState extends State<MainScreen> {
                           children: [
                             Row(
                               children: [
-                                Text(
-                                  _selectedNeighborhood.name,
-                                  style: GoogleFonts.notoKufiArabic(fontSize: 14.5, fontWeight: FontWeight.w900, color: const Color(0xFF1E293B)),
+                                Flexible(
+                                  child: Text(
+                                    (_deliveryPlaceNote != null && _deliveryPlaceNote!.isNotEmpty)
+                                        ? _deliveryPlaceNote!
+                                        : _selectedNeighborhood.name,
+                                    style: GoogleFonts.notoKufiArabic(fontSize: 14.5, fontWeight: FontWeight.w900, color: const Color(0xFF1E293B)),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                                 const SizedBox(width: 6),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF10B981).withOpacity(0.12),
+                                    color: (_pinnedCustomerLat != null)
+                                        ? const Color(0xFF10B981).withOpacity(0.12)
+                                        : Colors.grey.withOpacity(0.12),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    'GPS چالاکە',
-                                    style: GoogleFonts.notoKufiArabic(fontSize: 9.5, fontWeight: FontWeight.w800, color: const Color(0xFF059669)),
+                                    (_pinnedCustomerLat != null) ? _t('GPS چالاکە') : _t('GPS نییە'),
+                                    style: GoogleFonts.notoKufiArabic(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: (_pinnedCustomerLat != null)
+                                          ? const Color(0xFF059669)
+                                          : Colors.grey.shade700,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              'شاری کەلار • گەیاندن:  د.ع',
+                              '${_selectedNeighborhood.name} • ${_t('گەیاندن')}: ${_formatNum(_selectedNeighborhood.deliveryFee)} ${_t('د.ع')}',
                               style: GoogleFonts.notoKufiArabic(fontSize: 11.5, color: Colors.grey.shade700),
                             ),
-                            if (_pinnedCustomerLat != null)
+                            if (_pinnedCustomerLat != null && _pinnedCustomerLng != null)
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),
                                 child: Text(
-                                  '📍 GPS: (, )',
+                                  '📍 GPS: (${_pinnedCustomerLat!.toStringAsFixed(5)}, ${_pinnedCustomerLng!.toStringAsFixed(5)})',
                                   style: GoogleFonts.notoKufiArabic(fontSize: 10, color: const Color(0xFFB45309), fontWeight: FontWeight.w700),
                                 ),
                               ),
@@ -7768,7 +7375,7 @@ class _MainScreenState extends State<MainScreen> {
               GestureDetector(
                 onTap: _showLocationPicker,
                 child: Text(
-                  _t('کردنەوەی نەخشەی کەلار بۆ دیاریکردنی ماڵەکەت'),
+                  _t('کردنەوەی نەخشە بۆ دیاریکردنی شوێنی گەیاندن'),
                   style: GoogleFonts.notoKufiArabic(
                     fontSize: 12,
                     color: const Color(0xFFB45309),
@@ -7911,6 +7518,41 @@ class _MainScreenState extends State<MainScreen> {
     'مەرج و ڕێساکانی بەکارهێنان': {'کوردی': 'مەرج و ڕێساکانی بەکارهێنان', 'العربية': 'الشروط والأحكام', 'English': 'Terms & Conditions'},
     'سیاسەتی پاراستنی نهێنی': {'کوردی': 'سیاسەتی پاراستنی نهێنی', 'العربية': 'سياسة الخصوصية', 'English': 'Privacy Policy'},
     'دۆزینەوەی لۆکەیشن': {'کوردی': 'دۆزینەوەی لۆکەیشن', 'العربية': 'تحديد الموقع', 'English': 'Find Location'},
+    'شوێنی گەیاندن لە عێراق': {
+      'کوردی': 'شوێنی گەیاندن لە عێراق',
+      'العربية': 'موقع التوصيل في العراق',
+      'English': 'Delivery place in Iraq',
+    },
+    'شوێنی ئێستات یان پارک/شوێنێک هەڵبژێرە بۆ دواتر': {
+      'کوردی': 'شوێنی ئێستات یان پارک/شوێنێک هەڵبژێرە بۆ دواتر — تەنانەت ئەگەر ئێستا لەوێ نەبیت',
+      'العربية': 'استخدم موقعك الحالي أو اختر مكاناً (مثل حديقة) للوصول لاحقاً',
+      'English': 'Use current GPS or pick a place (e.g. park) for later delivery',
+    },
+    'ناوی شوێن (پارک، ناوەند، ...)': {
+      'کوردی': 'ناوی شوێن (پارک، ناوەند، ...)',
+      'العربية': 'اسم المكان (حديقة، مركز، ...)',
+      'English': 'Place name (park, plaza, ...)',
+    },
+    'شوێنی دیاریکراو': {'کوردی': 'شوێنی دیاریکراو', 'العربية': 'الموقع المحدد', 'English': 'Selected place'},
+    'شوێنی گەیاندن پاشەکەوت کرا': {
+      'کوردی': 'شوێنی گەیاندن پاشەکەوت کرا',
+      'العربية': 'تم حفظ موقع التوصيل',
+      'English': 'Delivery place saved',
+    },
+    'پشتڕاستکردنەوەی شوێنی گەیاندن': {
+      'کوردی': 'پشتڕاستکردنەوەی شوێنی گەیاندن',
+      'العربية': 'تأكيد موقع التوصيل',
+      'English': 'Confirm delivery place',
+    },
+    'کردنەوەی نەخشە بۆ دیاریکردنی شوێنی گەیاندن': {
+      'کوردی': 'کردنەوەی نەخشە بۆ دیاریکردنی شوێنی گەیاندن',
+      'العربية': 'افتح الخريطة لتحديد موقع التوصيل',
+      'English': 'Open map to set delivery place',
+    },
+    'GPS چالاکە': {'کوردی': 'GPS چالاکە', 'العربية': 'GPS نشط', 'English': 'GPS active'},
+    'GPS نییە': {'کوردی': 'GPS نییە', 'العربية': 'لا يوجد GPS', 'English': 'No GPS'},
+    'گەیاندن': {'کوردی': 'گەیاندن', 'العربية': 'توصيل', 'English': 'Delivery'},
+    'گەیاندن بۆ': {'کوردی': 'گەیاندن بۆ', 'العربية': 'التوصيل إلى', 'English': 'Deliver to'},
     'بینینی هەژمار': {'کوردی': 'بینینی هەژمار', 'العربية': 'عرض الحساب', 'English': 'View Account'},
     'خواردنگە': {'کوردی': 'خواردنگە', 'العربية': 'مطاعم', 'English': 'Restaurants'},
     'سوپەرمارکێت': {'کوردی': 'سوپەرمارکێت', 'العربية': 'سوبر ماركت', 'English': 'Supermarket'},
@@ -8438,54 +8080,6 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
   }
-}
-
-// 🗺️ CUSTOM PAINTER FOR KALAR CITY MAP VECTOR GRAPHICS
-class _KalarMapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    // 1. Sirwan River Path (Blue Wavy Curve)
-    final riverPaint = Paint()
-      ..color = const Color(0xFF0284C7).withOpacity(0.4)
-      ..strokeWidth = 14
-      ..style = PaintingStyle.stroke;
-
-    final riverPath = Path()
-      ..moveTo(0, size.height * 0.75)
-      ..cubicTo(
-        size.width * 0.35, size.height * 0.85,
-        size.width * 0.65, size.height * 0.55,
-        size.width, size.height * 0.68,
-      );
-
-    canvas.drawPath(riverPath, riverPaint);
-
-    // 2. Main Kalar Roads Grid (Yellowish & Grey Lines)
-    final mainRoadPaint = Paint()
-      ..color = const Color(0xFF64748B).withOpacity(0.3)
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-
-    final primaryHighwayPaint = Paint()
-      ..color = const Color(0xFFF59E0B).withOpacity(0.35)
-      ..strokeWidth = 5
-      ..style = PaintingStyle.stroke;
-
-    // Horizontal main avenues
-    canvas.drawLine(Offset(0, size.height * 0.35), Offset(size.width, size.height * 0.35), primaryHighwayPaint);
-    canvas.drawLine(Offset(0, size.height * 0.55), Offset(size.width, size.height * 0.55), mainRoadPaint);
-
-    // Vertical main avenues
-    canvas.drawLine(Offset(size.width * 0.3, 0), Offset(size.width * 0.3, size.height), primaryHighwayPaint);
-    canvas.drawLine(Offset(size.width * 0.6, 0), Offset(size.width * 0.6, size.height), mainRoadPaint);
-
-    // Diagonal street connectors
-    canvas.drawLine(Offset(0, 0), Offset(size.width * 0.5, size.height * 0.5), mainRoadPaint);
-    canvas.drawLine(Offset(size.width * 0.5, size.height * 0.5), Offset(size.width, size.height * 0.2), mainRoadPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _GPSTrackingPainter extends CustomPainter {

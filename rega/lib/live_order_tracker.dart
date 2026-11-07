@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'rega_mobile.dart';
@@ -22,22 +23,39 @@ class KalarGeoCatalog {
     'n9': LatLng(34.6836, 45.3189), // ناو بازاڕی کەلار
   };
 
+  /// Rough Iraq bounds for map picking (user can pin park/home anywhere).
+  static const LatLng iraqCenter = LatLng(33.3152, 44.3661); // Baghdad
+  static const double iraqMinLat = 29.0;
+  static const double iraqMaxLat = 37.5;
+  static const double iraqMinLng = 38.5;
+  static const double iraqMaxLng = 49.0;
+
   static LatLng forNeighborhoodId(String id) {
     return neighborhoodCoords[id] ?? const LatLng(34.6912, 45.3264);
   }
+
+  static bool isInsideIraq(double lat, double lng) {
+    return lat >= iraqMinLat &&
+        lat <= iraqMaxLat &&
+        lng >= iraqMinLng &&
+        lng <= iraqMaxLng;
+  }
 }
 
-/// Interactive real Kalar street map for picking exact customer delivery pin
+/// Interactive map to pick delivery place anywhere in Iraq
+/// (current GPS OR a future place like a park the user will go to later).
 class KalarInteractivePickerMap extends StatefulWidget {
   final LatLng initialPoint;
   final String selectedNeighborhoodName;
   final ValueChanged<LatLng> onLocationChanged;
+  final bool allowIraqWide;
 
   const KalarInteractivePickerMap({
     super.key,
     required this.initialPoint,
     required this.selectedNeighborhoodName,
     required this.onLocationChanged,
+    this.allowIraqWide = true,
   });
 
   @override
@@ -49,6 +67,7 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
   late LatLng _pinned;
   bool _darkStyle = false;
   bool _ready = false;
+  bool _locating = false;
 
   static const _landmarks = <(String, LatLng)>[
     ('🏰 قەڵای شێروانە', LatLng(34.6698, 45.3222)),
@@ -80,21 +99,81 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
     super.dispose();
   }
 
+  void _setPin(LatLng pt, {double? zoom}) {
+    setState(() => _pinned = pt);
+    widget.onLocationChanged(pt);
+    if (_ready) {
+      try {
+        _controller.move(pt, zoom ?? _controller.camera.zoom);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _goToCurrentGps() async {
+    if (_locating) return;
+    setState(() => _locating = true);
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
+        await Geolocator.openLocationSettings();
+        return;
+      }
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return;
+      }
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 15),
+          ),
+        );
+      } catch (_) {
+        pos = await Geolocator.getLastKnownPosition();
+      }
+      if (pos == null) return;
+      final pt = LatLng(pos.latitude, pos.longitude);
+      if (widget.allowIraqWide && !KalarGeoCatalog.isInsideIraq(pt.latitude, pt.longitude)) {
+        // Still allow pin — user may be near border; keep coords.
+      }
+      _setPin(pt, zoom: 16.2);
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final minZ = widget.allowIraqWide ? 5.2 : 12.0;
     return Stack(
       children: [
         FlutterMap(
           mapController: _controller,
           options: MapOptions(
             initialCenter: _pinned,
-            initialZoom: 15.4,
-            minZoom: 12.0,
+            initialZoom: widget.allowIraqWide ? 12.5 : 15.4,
+            minZoom: minZ,
             maxZoom: 18.5,
             onMapReady: () => _ready = true,
             onTap: (_, latLng) {
-              setState(() => _pinned = latLng);
-              widget.onLocationChanged(latLng);
+              if (widget.allowIraqWide &&
+                  !KalarGeoCatalog.isInsideIraq(latLng.latitude, latLng.longitude)) {
+                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                  const SnackBar(
+                    content: Text('تکایە شوێنێک لە ناو عێراق هەڵبژێرە'),
+                    backgroundColor: Color(0xFFDC2626),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+                return;
+              }
+              _setPin(latLng);
             },
           ),
           children: [
@@ -137,8 +216,8 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                 ),
                 Marker(
                   point: _pinned,
-                  width: 145,
-                  height: 78,
+                  width: 168,
+                  height: 86,
                   alignment: Alignment.topCenter,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -172,6 +251,29 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
         Positioned(
           top: 10,
           left: 10,
+          right: 10,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFAC800), width: 1),
+            ),
+            child: const Text(
+              'کلیک لەسەر نەخشە بۆ شوێنی گەیاندن (پارک / ماڵ / شوێنی دیکە) — تەنانەت ئەگەر ئێستا لەوێ نەبیت',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 68,
+          left: 10,
           child: Material(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -191,6 +293,44 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
           ),
         ),
         Positioned(
+          top: 68,
+          right: 10,
+          child: Material(
+            color: const Color(0xFFFAC800),
+            borderRadius: BorderRadius.circular(12),
+            elevation: 3,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _locating ? null : _goToCurrentGps,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_locating)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.black),
+                      )
+                    else
+                      const Icon(Icons.my_location_rounded, size: 18, color: Colors.black),
+                    const SizedBox(width: 6),
+                    Text(
+                      _locating ? 'GPS...' : 'شوێنی ئێستام',
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
           bottom: 10,
           left: 10,
           child: Container(
@@ -200,7 +340,7 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              'GPS: ${_pinned.latitude.toStringAsFixed(4)}, ${_pinned.longitude.toStringAsFixed(4)}',
+              'GPS: ${_pinned.latitude.toStringAsFixed(5)}, ${_pinned.longitude.toStringAsFixed(5)}',
               style: const TextStyle(
                 color: Color(0xFFFAC800),
                 fontSize: 10,

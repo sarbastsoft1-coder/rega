@@ -8,8 +8,14 @@ import 'package:image_picker/image_picker.dart';
 import "package:flutter/foundation.dart";
 import 'package:google_fonts/google_fonts.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import 'vendor_api_service.dart';
 import 'rega_mobile.dart';
+import 'app/providers.dart';
+import 'app/app_router.dart';
+import 'state/vendor_nav_notifier.dart';
+import 'state/vendor_session_notifier.dart';
 
 // ==============================================================================
 // 🔔 خزمەتگوزاری دەنگی موزیک و ئاگادارکردنەوە بۆ داواکارییە نوێیەکان (Order Sound Service)
@@ -176,20 +182,50 @@ class Trans {
 String t(String key) => Trans.get(key);
 
 void main() {
-  runApp(const RegaVendorApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(buildVendorProviders(child: const RegaVendorApp()));
 }
 
-class RegaVendorApp extends StatelessWidget {
+class RegaVendorApp extends StatefulWidget {
   const RegaVendorApp({super.key});
 
   @override
+  State<RegaVendorApp> createState() => _RegaVendorAppState();
+}
+
+class _RegaVendorAppState extends State<RegaVendorApp> {
+  GoRouter? _router;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _router ??= createVendorRouter(
+      refreshListenable: context.read<VendorSessionNotifier>(),
+      loginBuilder: (_) => const LoginScreen(),
+      shellBuilder: (context, tabIndex) {
+        final s = context.watch<VendorSessionNotifier>();
+        return MainNavigationScreen(
+          initialIndex: tabIndex,
+          loginPhone: s.phone,
+          loginPassword: s.password,
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final router = _router;
+    if (router == null) {
+      return const SizedBox.shrink();
+    }
     return ValueListenableBuilder<String>(
       valueListenable: Trans.lang,
       builder: (context, currentLang, child) {
-        return MaterialApp(
+        return MaterialApp.router(
           title: 'REGA Vendor',
           debugShowCheckedModeBanner: false,
+          routerConfig: router,
           theme: ThemeData(
             primarySwatch: Colors.orange,
             fontFamily: GoogleFonts.notoKufiArabic().fontFamily,
@@ -209,11 +245,6 @@ class RegaVendorApp extends StatelessWidget {
               direction: Trans.direction,
             );
           },
-          home: (Uri.base.queryParameters['bypass'] == 'true' || Uri.base.queryParameters.containsKey('tab'))
-              ? MainNavigationScreen(
-                  initialIndex: int.tryParse(Uri.base.queryParameters['tab'] ?? '3') ?? 3,
-                )
-              : const LoginScreen(),
         );
       },
     );
@@ -434,10 +465,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 54,
                         child: ElevatedButton(
                           onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (context) => MainNavigationScreen(initialIndex: 3, loginPhone: _phoneController.text, loginPassword: _passwordController.text)),
+                            context.read<VendorSessionNotifier>().login(
+                              phone: _phoneController.text,
+                              password: _passwordController.text,
                             );
+                            context.go('/orders');
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFEA580C),
@@ -626,6 +658,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant MainNavigationScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialIndex != widget.initialIndex &&
+        _selectedIndex != widget.initialIndex) {
+      setState(() => _selectedIndex = widget.initialIndex);
+    }
+  }
+
+  @override
   void dispose() {
     _simulationTimer?.cancel();
     _backendPollTimer?.cancel();
@@ -641,6 +682,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     setState(() {
       _selectedIndex = index;
     });
+    context.read<VendorNavNotifier>().setTabIndex(index);
+    context.go(VendorNavNotifier.pathForIndex(index));
   }
 
   OrderStatus _mapBackendVendorStatus(String raw) {
@@ -6330,7 +6373,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             
             // 5. Logout Button
             ElevatedButton.icon(
-              onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (c) => const LoginScreen())), 
+              onPressed: () {
+                context.read<VendorSessionNotifier>().logout();
+                context.go('/login');
+              }, 
               icon: const Icon(Icons.logout, color: Colors.white, size: 20),
               label: Text(
                 t('چوونە دەرەوە لە هەژمار'),
