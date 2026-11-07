@@ -7,7 +7,7 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m2
     environment:
-      flutter: stable
+      flutter: 3.41.2
       xcode: latest
       cocoapods: default
       vars:
@@ -22,7 +22,9 @@ workflows:
       - name: CocoaPods install
         script: |
           cd $APP_DIR/ios
-          ls -la Podfile
+          # Ensure platform line matches Flutter engine requirement
+          sed -i '' "s/platform :ios,.*/platform :ios, '15.0'/" Podfile || true
+          cat Podfile | head -n 5
           pod install --repo-update
       - name: Build IPA (fallback unsigned if signing missing)
         script: |
@@ -49,7 +51,7 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m2
     environment:
-      flutter: stable
+      flutter: 3.41.2
       xcode: latest
       cocoapods: default
       vars:
@@ -64,7 +66,7 @@ workflows:
       - name: CocoaPods install
         script: |
           cd $APP_DIR/ios
-          ls -la Podfile
+          sed -i '' "s/platform :ios,.*/platform :ios, '15.0'/" Podfile || true
           pod install --repo-update
       - name: Build IPA
         script: |
@@ -88,7 +90,7 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m2
     environment:
-      flutter: stable
+      flutter: 3.41.2
       xcode: latest
       cocoapods: default
       vars:
@@ -103,7 +105,7 @@ workflows:
       - name: CocoaPods install
         script: |
           cd $APP_DIR/ios
-          ls -la Podfile
+          sed -i '' "s/platform :ios,.*/platform :ios, '15.0'/" Podfile || true
           pod install --repo-update
       - name: Build IPA
         script: |
@@ -127,7 +129,7 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m2
     environment:
-      flutter: stable
+      flutter: 3.41.2
       xcode: latest
       cocoapods: default
       vars:
@@ -142,7 +144,7 @@ workflows:
       - name: CocoaPods install
         script: |
           cd $APP_DIR/ios
-          ls -la Podfile
+          sed -i '' "s/platform :ios,.*/platform :ios, '15.0'/" Podfile || true
           pod install --repo-update
       - name: Build IPA
         script: |
