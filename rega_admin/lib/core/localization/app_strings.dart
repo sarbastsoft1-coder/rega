@@ -170,6 +170,86 @@ class AppStrings {
       'ar': '٣. قسم التوصيل (Delivery)',
       'en': '3. Delivery Part',
     },
+    'language': {
+      'ku': 'زمان',
+      'ar': 'اللغة',
+      'en': 'Language',
+    },
+    'dark_mode': {
+      'ku': 'دۆخی تاریک',
+      'ar': 'الوضع الداكن',
+      'en': 'Dark mode',
+    },
+    'loading': {
+      'ku': 'چاوەڕوان بە...',
+      'ar': 'جاري التحميل...',
+      'en': 'Loading...',
+    },
+    'error_generic': {
+      'ku': 'هەڵەیەک ڕوویدا. دووبارە هەوڵبدەرەوە',
+      'ar': 'حدث خطأ. حاول مرة أخرى',
+      'en': 'Something went wrong. Try again',
+    },
+    'no_data': {
+      'ku': 'هیچ داتایەک نییە',
+      'ar': 'لا توجد بيانات',
+      'en': 'No data',
+    },
+    'confirm': {
+      'ku': 'دڵنیابوونەوە',
+      'ar': 'تأكيد',
+      'en': 'Confirm',
+    },
+    'delete': {
+      'ku': 'سڕینەوە',
+      'ar': 'حذف',
+      'en': 'Delete',
+    },
+    'edit': {
+      'ku': 'دەستکاری',
+      'ar': 'تعديل',
+      'en': 'Edit',
+    },
+    'status': {
+      'ku': 'دۆخ',
+      'ar': 'الحالة',
+      'en': 'Status',
+    },
+    'actions': {
+      'ku': 'کردارەکان',
+      'ar': 'الإجراءات',
+      'en': 'Actions',
+    },
+    'phone': {
+      'ku': 'مۆبایل',
+      'ar': 'الهاتف',
+      'en': 'Phone',
+    },
+    'name': {
+      'ku': 'ناو',
+      'ar': 'الاسم',
+      'en': 'Name',
+    },
+    'amount': {
+      'ku': 'بڕ',
+      'ar': 'المبلغ',
+      'en': 'Amount',
+    },
+    'iqd': {
+      'ku': 'د.ع',
+      'ar': 'د.ع',
+      'en': 'IQD',
+    },
+    'live_map': {
+      'ku': 'نەخشەی زیندوو',
+      'ar': 'الخريطة المباشرة',
+      'en': 'Live map',
+    },
+    'dispatch': {
+      'ku': 'ناردنی شۆفێر',
+      'ar': 'إرسال سائق',
+      'en': 'Dispatch',
+    },
   };
 
   static String tr(String key, String lang) {

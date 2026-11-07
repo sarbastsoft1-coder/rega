@@ -16,6 +16,7 @@ import 'package:latlong2/latlong.dart' show LatLng;
 import 'live_order_tracker.dart';
 import 'customer_api_service.dart';
 import 'rega_mobile.dart';
+import 'l10n/customer_l10n.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,7 +39,7 @@ class RegaApp extends StatefulWidget {
 
 class _RegaAppState extends State<RegaApp> {
   TextDirection _textDirection = TextDirection.rtl;
-  String _currentLang = 'ckb'; // 'ckb' (Kurdish) or 'en' (English) or 'ar' (Arabic)
+  String _currentLang = 'ku'; // 'ku' | 'ar' | 'en'
 
   @override
   void initState() {
@@ -54,8 +55,8 @@ class _RegaAppState extends State<RegaApp> {
       final savedLang = prefs.getString('rega_saved_language_code');
       if (savedLang != null && savedLang.isNotEmpty) {
         setState(() {
-          _currentLang = savedLang;
-          _textDirection = (savedLang == 'ckb' || savedLang == 'ar') ? TextDirection.rtl : TextDirection.ltr;
+          _currentLang = CustomerL10n.normalizeLang(savedLang);
+          _textDirection = CustomerL10n.directionFor(_currentLang);
         });
       }
     } catch (e) {
@@ -66,20 +67,15 @@ class _RegaAppState extends State<RegaApp> {
   // 💾 گۆڕین و پاشەکەوتکردنی زمان
   void _syncMarketplaceFromBackend() {}
   Future<void> _toggleLanguage(String lang) async {
+    final code = CustomerL10n.normalizeLang(lang);
     setState(() {
-      _currentLang = lang;
-      _textDirection = (lang == 'ckb' || lang == 'ar') ? TextDirection.rtl : TextDirection.ltr;
+      _currentLang = code;
+      _textDirection = CustomerL10n.directionFor(code);
     });
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('rega_saved_language_code', lang);
-      String displayName = 'کوردی';
-      if (lang == 'en') {
-        displayName = 'English';
-      } else if (lang == 'ar') {
-        displayName = 'العربية';
-      }
-      await prefs.setString('rega_saved_language_name', displayName);
+      await prefs.setString('rega_saved_language_code', code);
+      await prefs.setString('rega_saved_language_name', CustomerL10n.displayName(code));
     } catch (e) {
       debugPrint('Error saving language in RegaApp: $e');
     }
@@ -870,14 +866,8 @@ class _MainScreenState extends State<MainScreen> {
   void didUpdateWidget(covariant MainScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentLang != widget.currentLang) {
-      String newLang = 'کوردی';
-      if (widget.currentLang == 'en') {
-        newLang = 'English';
-      } else if (widget.currentLang == 'ar') {
-        newLang = 'العربية';
-      }
       setState(() {
-        _currentLanguage = newLang;
+        _currentLanguage = CustomerL10n.displayName(widget.currentLang);
       });
     }
   }
@@ -1009,9 +999,9 @@ class _MainScreenState extends State<MainScreen> {
       if (!serviceEnabled) {
         if (!silent && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('تکایە GPS / Location مۆبایلەکەت هەڵبکە'),
-              backgroundColor: Color(0xFFDC2626),
+            SnackBar(
+              content: Text(_t('تکایە GPS / Location مۆبایلەکەت هەڵبکە')),
+              backgroundColor: const Color(0xFFDC2626),
             ),
           );
           await Geolocator.openLocationSettings();
@@ -1026,9 +1016,9 @@ class _MainScreenState extends State<MainScreen> {
       if (permission == LocationPermission.denied) {
         if (!silent && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('ڕێگەپێدانی لۆکەیشن پێویستە بۆ دیاریکردنی شوێنەکەت'),
-              backgroundColor: Color(0xFFDC2626),
+            SnackBar(
+              content: Text(_t('ڕێگەپێدانی لۆکەیشن پێویستە بۆ دیاریکردنی شوێنەکەت')),
+              backgroundColor: const Color(0xFFDC2626),
             ),
           );
         }
@@ -1037,9 +1027,9 @@ class _MainScreenState extends State<MainScreen> {
       if (permission == LocationPermission.deniedForever) {
         if (!silent && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('لە ڕێکخستنی مۆبایل ڕێگەپێدانی لۆکەیشن چالاک بکە'),
-              backgroundColor: Color(0xFFDC2626),
+            SnackBar(
+              content: Text(_t('لە ڕێکخستنی مۆبایل ڕێگەپێدانی لۆکەیشن چالاک بکە')),
+              backgroundColor: const Color(0xFFDC2626),
             ),
           );
           await Geolocator.openAppSettings();
@@ -1062,9 +1052,9 @@ class _MainScreenState extends State<MainScreen> {
       if (pos == null) {
         if (!silent && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('نەتوانرا شوێنەکەت بدۆزرێتەوە. دووبارە هەوڵبدەرەوە'),
-              backgroundColor: Color(0xFFDC2626),
+            SnackBar(
+              content: Text(_t('نەتوانرا شوێنەکەت بدۆزرێتەوە. دووبارە هەوڵبدەرەوە')),
+              backgroundColor: const Color(0xFFDC2626),
             ),
           );
         }
@@ -1094,9 +1084,9 @@ class _MainScreenState extends State<MainScreen> {
     } catch (_) {
       if (!silent && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('هەڵەی GPS. تکایە دووبارە هەوڵبدەرەوە'),
-            backgroundColor: Color(0xFFDC2626),
+          SnackBar(
+            content: Text(_t('هەڵەی GPS. تکایە دووبارە هەوڵبدەرەوە')),
+            backgroundColor: const Color(0xFFDC2626),
           ),
         );
       }
@@ -7848,7 +7838,7 @@ class _MainScreenState extends State<MainScreen> {
         } else if (lang == 'العربية') {
           widget.onLanguageChange('ar');
         } else {
-          widget.onLanguageChange('ckb');
+          widget.onLanguageChange('ku');
         }
       },
       child: Container(
@@ -8033,8 +8023,15 @@ class _MainScreenState extends State<MainScreen> {
   };
 
   String _t(String text) {
+    // New ku/ar/en dictionary (also accepts display names / ckb)
+    final localized = CustomerL10n.tr(text, _currentLanguage);
+    if (localized != text) return localized;
+    // Legacy map keyed by display language names
     if (_translations.containsKey(text)) {
-      return _translations[text]![_currentLanguage] ?? text;
+      final legacyKey = CustomerL10n.displayName(_currentLanguage);
+      return _translations[text]![legacyKey] ??
+          _translations[text]![_currentLanguage] ??
+          text;
     }
     return text;
   }
