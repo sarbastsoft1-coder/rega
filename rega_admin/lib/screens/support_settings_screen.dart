@@ -29,6 +29,35 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   final _deliveryFeeCtrl = TextEditingController(text: '2500');
   final _commissionCtrl = TextEditingController(text: '10');
 
+  // Additional Payment & Finance Controllers
+  final _driverShareCtrl = TextEditingController(text: '80');
+  final _minOrderCtrl = TextEditingController(text: '5000');
+  final _maxCodCtrl = TextEditingController(text: '150000');
+  final _driverMinPayoutCtrl = TextEditingController(text: '10000');
+  final _vendorMinPayoutCtrl = TextEditingController(text: '25000');
+
+  // Payment Gateways States
+  bool _enableCod = true;
+  bool _enableFastPay = true;
+  bool _enableFib = true;
+  bool _enableZainCash = true;
+  bool _enableQiCard = false;
+  String _payoutSchedule = 'هەفتانە (Weekly)';
+  String _primaryCurrency = 'دیناری عێراقی (IQD)';
+
+  // Security States
+  bool _twoFactorAuth = false;
+  bool _autoLogoutIdle = true;
+  final _currentPassCtrl = TextEditingController();
+  final _newPassCtrl = TextEditingController();
+  final _confirmPassCtrl = TextEditingController();
+
+  // Notification States
+  bool _notifyNewCustomer = true;
+  bool _notifySystemAlert = true;
+  bool _notifySms = false;
+  bool _notifySound = true;
+
   // Dropdown States
   String _selectedCity = 'هەولێر';
   String _selectedDistance = '١٠ کیلۆمەتر';
@@ -96,6 +125,14 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     _hoursCtrl.dispose();
     _deliveryFeeCtrl.dispose();
     _commissionCtrl.dispose();
+    _driverShareCtrl.dispose();
+    _minOrderCtrl.dispose();
+    _maxCodCtrl.dispose();
+    _driverMinPayoutCtrl.dispose();
+    _vendorMinPayoutCtrl.dispose();
+    _currentPassCtrl.dispose();
+    _newPassCtrl.dispose();
+    _confirmPassCtrl.dispose();
     super.dispose();
   }
 
@@ -109,7 +146,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             Text(message, style: const TextStyle(fontWeight: FontWeight.w700)),
           ],
         ),
-        backgroundColor: const Color(0xFF113E2E),
+        backgroundColor: const Color(0xFFEA580C),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -135,12 +172,8 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               _buildSubTabsRow(),
               const SizedBox(height: 20),
 
-              // 3. Top Row of Cards: زانیاریی دامەزراوە (Right) & ڕێکخستنی دلیڤەری (Left)
-              _buildTopCardsRow(),
-              const SizedBox(height: 20),
-
-              // 4. Bottom Row of Cards: ئاسایش و دەسەڵات (Right), پارەدان و کرێ (Middle), ئاگادارکردنەوەکان (Left)
-              _buildBottomCardsRow(),
+              // 3. Active Subtab Content (Smoothly changes when clicking any tab)
+              _buildActiveSubTabContent(),
               const SizedBox(height: 24),
             ],
           ),
@@ -338,10 +371,17 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   // 2. SUB-NAVIGATION TABS (Matching Screenshot)
   // ============================================================================
   Widget _buildSubTabsRow() {
-    final tabs = ['گشتی', 'هەژمار', 'ئاگادارکردنەوە', 'پارەدان', 'ئاسایش'];
+    final tabs = [
+      {'name': 'گشتی', 'icon': Icons.tune_rounded},
+      {'name': 'هەژمار', 'icon': Icons.person_outline_rounded},
+      {'name': 'ئاگادارکردنەوە', 'icon': Icons.notifications_none_rounded},
+      {'name': 'پارەدان', 'icon': Icons.payments_outlined},
+      {'name': 'ئاسایش', 'icon': Icons.shield_outlined},
+    ];
+
     return Container(
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1.5)),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -349,25 +389,38 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           mainAxisAlignment: MainAxisAlignment.start,
           children: List.generate(tabs.length, (idx) {
             final isSelected = _selectedSubTab == idx;
+            final tab = tabs[idx];
             return InkWell(
               onTap: () => setState(() => _selectedSubTab = idx),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
                       color: isSelected ? const Color(0xFFEA580C) : Colors.transparent,
-                      width: 2.5,
+                      width: 2.8,
                     ),
                   ),
                 ),
-                child: Text(
-                  tabs[idx],
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                    color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      tab['icon'] as IconData,
+                      size: 17,
+                      color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      tab['name'] as String,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                        color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -378,7 +431,839 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   }
 
   // ============================================================================
-  // 3. TOP ROW OF CARDS: زانیاریی دامەزراوە (Right) & ڕێکخستنی دلیڤەری (Left)
+  // 3. DYNAMIC CONTENT SWITCHER
+  // ============================================================================
+  Widget _buildActiveSubTabContent() {
+    switch (_selectedSubTab) {
+      case 0:
+        return Column(
+          children: [
+            _buildTopCardsRow(),
+            const SizedBox(height: 20),
+            _buildBottomCardsRow(),
+          ],
+        );
+      case 1:
+        return _buildAccountTab();
+      case 2:
+        return _buildNotificationsTab();
+      case 3:
+        return _buildPaymentsTab();
+      case 4:
+        return _buildSecurityTab();
+      default:
+        return _buildPaymentsTab();
+    }
+  }
+
+  // ----------------------------------------------------------------------------
+  // TAB 1: هەژمار (Account)
+  // ----------------------------------------------------------------------------
+  Widget _buildAccountTab() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth > 880) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 3, child: _buildCompanyInfoCard()),
+              const SizedBox(width: 20),
+              Expanded(flex: 2, child: _buildAdminProfileCard()),
+            ],
+          );
+        } else {
+          return Column(
+            children: [
+              _buildCompanyInfoCard(),
+              const SizedBox(height: 20),
+              _buildAdminProfileCard(),
+            ],
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildAdminProfileCard() {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'هەژماری بەڕێوەبەر',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.person_rounded, color: Color(0xFFEA580C), size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Center(
+            child: Stack(
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFFFEDD5), width: 2),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.admin_panel_settings_rounded, color: Color(0xFFEA580C), size: 36),
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF16A34A),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.check, color: Colors.white, size: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Center(
+            child: Text(
+              'سەرپەرشتیاری گشتی سیستەم',
+              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+            ),
+          ),
+          const SizedBox(height: 2),
+          const Center(
+            child: Text(
+              'admin@rega.krd • ناوەندی ئۆپەرەیشن',
+              style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 14),
+          _buildInfoRow('دەسەڵات:', 'بەڕێوەبەری سەرەکی (Superadmin)'),
+          const SizedBox(height: 10),
+          _buildInfoRow('ناوەند:', 'ناوەندی ئۆپەرەیشنی کەلار • گەرمیان'),
+          const SizedBox(height: 10),
+          _buildInfoRow('دۆخ:', 'چالاک (Online)'),
+          const SizedBox(height: 10),
+          _buildInfoRow('دواهەمین چوونەژوورەوە:', 'ئەمڕۆ • 09:20'),
+        ],
+      ),
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // TAB 2: ئاگادارکردنەوە (Notifications)
+  // ----------------------------------------------------------------------------
+  Widget _buildNotificationsTab() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 880;
+        return Column(
+          children: [
+            if (isWide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: _buildNotificationsSettingsCard()),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 3, child: _buildNotificationChannelsCard()),
+                ],
+              )
+            else ...[
+              _buildNotificationsSettingsCard(),
+              const SizedBox(height: 20),
+              _buildNotificationChannelsCard(),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildNotificationChannelsCard() {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'کەناڵەکانی ناردنی ئاگاداری',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.ring_volume_rounded, color: Color(0xFFEA580C), size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _buildGatewayRow(
+            title: 'دەنگی ئاگادارکردنەوە لە وێبدا',
+            subtitle: 'لێدانی زەنگ لە کاتی هاتنی داواکاریی نوێ',
+            icon: Icons.volume_up_rounded,
+            value: _notifySound,
+            onChanged: (v) => setState(() => _notifySound = v),
+          ),
+          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+          _buildGatewayRow(
+            title: 'ئاگاداری کڕیارە نوێیەکان',
+            subtitle: 'ئاگادارکردنەوە لە کاتی دروستکردنی هەژماری نوێ',
+            icon: Icons.person_add_rounded,
+            value: _notifyNewCustomer,
+            onChanged: (v) => setState(() => _notifyNewCustomer = v),
+          ),
+          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+          _buildGatewayRow(
+            title: 'ئاگاداری نامەی کورت (SMS)',
+            subtitle: 'ناردنی SMS بۆ داواکارییە هەستیارەکان',
+            icon: Icons.sms_outlined,
+            value: _notifySms,
+            onChanged: (v) => setState(() => _notifySms = v),
+          ),
+          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+          _buildGatewayRow(
+            title: 'ئاگاداری کێشەی سیستەم',
+            subtitle: 'ئاگاداری ڕاستەوخۆ لە کاتی لەکارکەوتن یان پەستانی بەرز',
+            icon: Icons.warning_amber_rounded,
+            value: _notifySystemAlert,
+            onChanged: (v) => setState(() => _notifySystemAlert = v),
+          ),
+          const SizedBox(height: 18),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEA580C),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => _showSaveFeedback('ڕێکخستنەکانی کەناڵەکانی ئاگادارکردنەوە پاشەکەوت کران'),
+            child: const Text('پاشەکەوتکردن', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // TAB 3: پارەدان (Payments & Fees) - The Tab User Clicked!
+  // ----------------------------------------------------------------------------
+  Widget _buildPaymentsTab() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 880;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Top Highlights Banner
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFFEDD5)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEA580C),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.payments_rounded, color: Colors.white, size: 26),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'ڕێکخستنەکانی پارەدان و دەروازە داراییەکان',
+                          style: TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'دیاریکردنی کرێی گەیاندن، کۆمیسیۆنی فرۆشیاران، شێوازەکانی پارەدان و کاتی خولی پارەدان',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEA580C),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی پارەدان نوێکرانەوە'),
+                    icon: const Icon(Icons.save_rounded, size: 18),
+                    label: const Text(
+                      'پاشەکەوتکردن',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Main Two-column Grid
+            if (isWide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: _buildPaymentFeesCard()),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 3, child: _buildPaymentGatewaysCard()),
+                ],
+              )
+            else ...[
+              _buildPaymentFeesCard(),
+              const SizedBox(height: 20),
+              _buildPaymentGatewaysCard(),
+            ],
+            const SizedBox(height: 20),
+
+            // Payouts & Currencies Card
+            _buildPayoutAndCurrencyCard(),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPaymentGatewaysCard() {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'شێوازەکانی پارەدان و دەروازەکان',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.account_balance_rounded, color: Color(0xFFEA580C), size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+
+          _buildGatewayRow(
+            title: 'کاش لە کاتی گەیاندن (COD)',
+            subtitle: 'پارەدانی ڕاستەوخۆ بە کاش لە کاتی ڕادەستکردنی داواکاری',
+            icon: Icons.money_rounded,
+            value: _enableCod,
+            onChanged: (v) => setState(() => _enableCod = v),
+          ),
+          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+
+          _buildGatewayRow(
+            title: 'فاستپەی (FastPay)',
+            subtitle: 'پارەدانی ئەلیکترۆنی لە ڕێگەی ئەپی فاستپەی',
+            icon: Icons.flash_on_rounded,
+            value: _enableFastPay,
+            onChanged: (v) => setState(() => _enableFastPay = v),
+          ),
+          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+
+          _buildGatewayRow(
+            title: 'بانکی نێودەوڵەتی یەکەم (FIB)',
+            subtitle: 'دەروازەی ڕاستەوخۆی پارەدانی ئەلیکترۆنی FIB',
+            icon: Icons.account_balance_rounded,
+            value: _enableFib,
+            onChanged: (v) => setState(() => _enableFib = v),
+          ),
+          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+
+          _buildGatewayRow(
+            title: 'زەین کاش (ZainCash)',
+            subtitle: 'پارەدانی ڕاستەوخۆ لە ڕێگەی جزدانی زەین کاش',
+            icon: Icons.wallet_rounded,
+            value: _enableZainCash,
+            onChanged: (v) => setState(() => _enableZainCash = v),
+          ),
+          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+
+          _buildGatewayRow(
+            title: 'کی کارد (Qi Card)',
+            subtitle: 'پارەدان لە ڕێگەی ماستەرکارد و کی کاردی عێراقی',
+            icon: Icons.credit_card_rounded,
+            value: _enableQiCard,
+            onChanged: (v) => setState(() => _enableQiCard = v),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPayoutAndCurrencyCard() {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'دراوی سیستەم و خشتەی وەرگرتن (Payouts & Currency)',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.currency_exchange_rounded, color: Color(0xFF334155), size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          Wrap(
+            spacing: 20,
+            runSpacing: 16,
+            children: [
+              SizedBox(
+                width: 280,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('دراوی سەرەکی', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _primaryCurrency,
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(value: 'دیناری عێراقی (IQD)', child: Text('دیناری عێراقی (IQD)')),
+                            DropdownMenuItem(value: 'دۆلاری ئەمریکی (USD)', child: Text('دۆلاری ئەمریکی (USD)')),
+                          ],
+                          onChanged: (v) => setState(() => _primaryCurrency = v ?? 'دیناری عێراقی (IQD)'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(
+                width: 280,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('خولی پارەدان بە فرۆشیاران', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _payoutSchedule,
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(value: 'هەفتانە (Weekly)', child: Text('هەفتانە (Weekly)')),
+                            DropdownMenuItem(value: 'ڕۆژانە (Daily)', child: Text('ڕۆژانە (Daily)')),
+                            DropdownMenuItem(value: 'مانگانە (Monthly)', child: Text('مانگانە (Monthly)')),
+                          ],
+                          onChanged: (v) => setState(() => _payoutSchedule = v ?? 'هەفتانە (Weekly)'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(
+                width: 280,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('کەمترین باڵانس بۆ کێشانەوەی شۆفێران', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _driverMinPayoutCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        suffixText: 'دینار',
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(
+                width: 280,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('کەمترین باڵانس بۆ کێشانەوەی فرۆشیاران', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _vendorMinPayoutCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        suffixText: 'دینار',
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEA580C),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی دارایی و دراو نوێکرانەوە'),
+              icon: const Icon(Icons.check_circle_rounded, size: 18),
+              label: const Text('پاشەکەوتکردنی ڕێکخستنەکانی خشتەی پارەدان', style: TextStyle(fontWeight: FontWeight.w900)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // TAB 4: ئاسایش (Security)
+  // ----------------------------------------------------------------------------
+  Widget _buildSecurityTab() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 880;
+        return Column(
+          children: [
+            if (isWide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: _buildSecurityRolesCard()),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 3, child: _buildSecurityPasswordCard()),
+                ],
+              )
+            else ...[
+              _buildSecurityRolesCard(),
+              const SizedBox(height: 20),
+              _buildSecurityPasswordCard(),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSecurityPasswordCard() {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'ئاسایشی وشەی نهێنی و هەژمار',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.lock_outline_rounded, color: Color(0xFFEA580C), size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _buildGatewayRow(
+            title: 'سەلماندنی دوو قۆناغی (2FA)',
+            subtitle: 'پاراستنی هەژماری ئەدمین لە ڕێگەی کۆدی کاتی',
+            icon: Icons.phonelink_lock_rounded,
+            value: _twoFactorAuth,
+            onChanged: (v) => setState(() => _twoFactorAuth = v),
+          ),
+          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+          _buildGatewayRow(
+            title: 'چوونەدەرەوەی خۆکار کاتی بێدەنگی',
+            subtitle: 'چوونەدەرەوە لەدوای ١٥ خولەک بێچالاکی',
+            icon: Icons.timer_outlined,
+            value: _autoLogoutIdle,
+            onChanged: (v) => setState(() => _autoLogoutIdle = v),
+          ),
+          const Divider(height: 20, color: Color(0xFFF1F5F9)),
+          const Text('گۆڕینی وشەی نهێنی ئەدمین', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF1E293B))),
+          const SizedBox(height: 10),
+          _buildPasswordInput(label: 'وشەی نهێنی ئێستا', controller: _currentPassCtrl),
+          const SizedBox(height: 8),
+          _buildPasswordInput(label: 'وشەی نهێنی نوێ', controller: _newPassCtrl),
+          const SizedBox(height: 8),
+          _buildPasswordInput(label: 'دووبارەکردنەوەی وشەی نهێنی', controller: _confirmPassCtrl),
+          const SizedBox(height: 18),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEA580C),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              _currentPassCtrl.clear();
+              _newPassCtrl.clear();
+              _confirmPassCtrl.clear();
+              _showSaveFeedback('ڕێکخستنەکانی ئاسایش بە سەرکەوتوویی نوێکرانەوە');
+            },
+            child: const Text('پاشەکەوتکردنی ئاسایش', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPasswordInput({required String label, required TextEditingController controller}) {
+    return TextField(
+      controller: controller,
+      obscureText: true,
+      decoration: InputDecoration(
+        hintText: label,
+        hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+    );
+  }
+
+  Widget _buildGatewayRow({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: value ? const Color(0xFFFFF7ED) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: value ? const Color(0xFFEA580C) : const Color(0xFF94A3B8), size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: value ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            activeThumbColor: const Color(0xFFEA580C),
+            activeTrackColor: const Color(0xFFFFEDD5),
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
+        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+      ],
+    );
+  }
+
+  // ============================================================================
+  // 4. TOP ROW OF CARDS: زانیاریی دامەزراوە (Right) & ڕێکخستنی دلیڤەری (Left)
   // ============================================================================
   Widget _buildTopCardsRow() {
     return LayoutBuilder(
@@ -507,7 +1392,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           // Save Button: پاشەکەوتکردن
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF16503B),
+              backgroundColor: const Color(0xFFEA580C),
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 13),
@@ -663,7 +1548,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           const SizedBox(height: 18),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF16A34A),
+              backgroundColor: const Color(0xFFEA580C),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -988,7 +1873,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           // Save Button: پاشەکەوتکردن
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF16503B),
+              backgroundColor: const Color(0xFFEA580C),
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 13),
