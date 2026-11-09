@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/theme/app_theme.dart';
@@ -78,6 +79,7 @@ class OrdersScreen extends StatefulWidget {
 
 class _OrdersScreenState extends State<OrdersScreen> {
   final TextEditingController _topSearchCtrl = TextEditingController();
+  Timer? _refreshTimer;
   
   String _selectedDate = 'ئەمڕۆ';
   String _selectedStatus = 'هەموو دۆخەکان';
@@ -86,11 +88,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   List<dynamic> _drivers = [];
 
-  // KPI Metrics matching exact screenshot values
-  final String _totalOrdersKPI = '١,٢٨٤';
-  final String _pendingOrdersKPI = '٨٦';
-  final String _inTransitOrdersKPI = '٢٤٣';
-  final String _deliveredOrdersKPI = '٩٥٥';
+  // Live KPI Metrics updated from PostgreSQL database
+  String _totalOrdersKPI = '٠';
+  String _pendingOrdersKPI = '٠';
+  String _inTransitOrdersKPI = '٠';
+  String _deliveredOrdersKPI = '٠';
+
+  static String _toDigits(dynamic input) {
+    const en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    const ku = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    String s = input.toString();
+    for (int i = 0; i < 10; i++) {
+      s = s.replaceAll(en[i], ku[i]);
+    }
+    return s;
+  }
 
   // Demo Orders matching screenshot table exactly
   final List<AdminOrderItem> _demoOrders = [
@@ -163,15 +175,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
     super.initState();
     _orders = List.from(_demoOrders);
     _load();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _load(silent: true));
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _topSearchCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool silent = false}) async {
     try {
       final results = await Future.wait([
         widget.api.getOrders(),
@@ -186,34 +200,50 @@ class _OrdersScreenState extends State<OrdersScreen> {
           final m = raw as Map<String, dynamic>;
           final store = m['store'] as Map<String, dynamic>?;
           final driver = m['driver'] as Map<String, dynamic>?;
+          final cust = m['customer'] as Map<String, dynamic>?;
           
           String st = m['status']?.toString() ?? 'pending';
           if (st == 'preparing' || st == 'ready') st = 'pending';
           if (st == 'picked_up' || st == 'in_transit' || st == 'arrived_customer') st = 'on_the_way';
           if (st == 'completed') st = 'delivered';
 
+          final createdAt = m['created_at']?.toString() ?? '';
+          String timeStr = '١٤:٠٠';
+          String dateStr = '٢٠٢٦-١١-٠٩';
+          if (createdAt.isNotEmpty) {
+            try {
+              final dt = DateTime.parse(createdAt);
+              timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+              dateStr = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+            } catch (_) {}
+          }
+
           return AdminOrderItem(
             id: m['id'] as int? ?? DateTime.now().millisecondsSinceEpoch,
-            orderNumber: m['order_number']?.toString() ?? 'RG-${m['id']}',
-            customerName: m['customer_name']?.toString() ?? 'کڕیار',
-            storeName: store?['name_ku']?.toString() ?? 'فرۆشگا',
+            orderNumber: m['order_number']?.toString() ?? 'RA-${m['id']}',
+            customerName: cust?['name']?.toString() ?? m['customer_name']?.toString() ?? 'کڕیار',
+            storeName: store?['name_ku']?.toString() ?? store?['name_en']?.toString() ?? 'فرۆشگا',
             driverName: driver?['name']?.toString() ?? 'دیاری نەکراوە',
             isDriverOnline: true,
             totalAmount: formatIqd(m['total_amount'] as num?, lang: widget.lang),
-            orderTime: '١٤:٠٠',
-            orderDate: '٢٠٢٤-١٠-٢٦',
+            orderTime: _toDigits(timeStr),
+            orderDate: _toDigits(dateStr),
             status: st,
             rawOrder: m,
           );
         }).toList();
 
+        final totalCount = mapped.length;
+        final pendingCount = mapped.where((x) => x.status == 'pending').length;
+        final inTransitCount = mapped.where((x) => x.status == 'on_the_way').length;
+        final deliveredCount = mapped.where((x) => x.status == 'delivered').length;
+
         setState(() {
-          // Keep screenshot demo items if mapped list is short, or append
-          if (mapped.length >= 3) {
-            _orders = mapped;
-          } else {
-            _orders = [...mapped, ..._demoOrders.skip(mapped.length)];
-          }
+          _orders = mapped;
+          _totalOrdersKPI = _toDigits(totalCount);
+          _pendingOrdersKPI = _toDigits(pendingCount);
+          _inTransitOrdersKPI = _toDigits(inTransitCount);
+          _deliveredOrdersKPI = _toDigits(deliveredCount);
         });
       }
     } catch (_) {

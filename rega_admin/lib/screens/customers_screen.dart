@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 
@@ -62,17 +63,28 @@ class CustomersScreen extends StatefulWidget {
 
 class _CustomersScreenState extends State<CustomersScreen> {
   final TextEditingController _topSearchCtrl = TextEditingController();
+  Timer? _refreshTimer;
 
   String _selectedCity = 'هەموو شارەکان';
   String _selectedStatus = 'دۆخی کڕیار';
   String _selectedPeriod = 'ئەم مانگە';
   int _currentPage = 1;
 
-  // KPI Metrics matching exact screenshot values
-  final String _totalCustomers = '٢٤,٨٥٠';
-  final String _activeCustomers = '٨,٤٢٠';
-  final String _newThisMonth = '١,٢٨٠';
-  final String _todayOrders = '١,٢٨٤';
+  // Live KPI Metrics from PostgreSQL database
+  String _totalCustomers = '٠';
+  String _activeCustomers = '٠';
+  String _newThisMonth = '٠';
+  String _todayOrders = '٠';
+
+  static String _toDigits(dynamic input) {
+    const en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    const ku = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    String s = input.toString();
+    for (int i = 0; i < 10; i++) {
+      s = s.replaceAll(en[i], ku[i]);
+    }
+    return s;
+  }
 
   // Demo Customers matching the screenshot table exactly
   final List<CustomerItem> _demoCustomers = [
@@ -132,39 +144,48 @@ class _CustomersScreenState extends State<CustomersScreen> {
     super.initState();
     _customers = List.from(_demoCustomers);
     _loadFromBackend();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 6), (_) => _loadFromBackend(silent: true));
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _topSearchCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadFromBackend() async {
+  Future<void> _loadFromBackend({bool silent = false}) async {
     try {
       final res = await widget.api.getCustomers();
       if (res.isNotEmpty && mounted) {
-        // Retain screenshot demo records at the top for visual fidelity
         final mapped = res.map((m) {
           final map = m as Map<String, dynamic>;
           final addresses = map['addresses'] as List<dynamic>? ?? [];
           final city = addresses.isNotEmpty
-              ? (addresses.first as Map<String, dynamic>)['city']?.toString() ?? 'هەولێر'
-              : 'هەولێر';
-          final orderCount = (map['orders_count'] as num?)?.toInt() ?? 10;
+              ? (addresses.first as Map<String, dynamic>)['city']?.toString() ?? 'کەلار'
+              : 'کەلار';
+          final orderCount = (map['orders_count'] as num?)?.toInt() ?? 0;
+          final createdAt = map['created_at']?.toString() ?? '2026-11-09';
           return CustomerItem(
             id: map['id'] as int? ?? 1,
             name: map['name']?.toString() ?? 'کڕیار',
             phone: map['phone']?.toString() ?? '0750 000 ****',
             city: city,
             totalOrders: orderCount,
-            registerDate: '2024-06-01',
+            registerDate: createdAt.split('T').first,
             isActive: map['is_active'] != false,
           );
         }).toList();
 
+        final totalCount = mapped.length;
+        final activeCount = mapped.where((c) => c.isActive).length;
+
         setState(() {
-          _customers = [..._demoCustomers, ...mapped.where((x) => !_demoCustomers.any((d) => d.name == x.name))];
+          _customers = mapped;
+          _totalCustomers = _toDigits(totalCount);
+          _activeCustomers = _toDigits(activeCount);
+          _newThisMonth = _toDigits(totalCount);
+          _todayOrders = _toDigits(mapped.fold<int>(0, (sum, c) => sum + c.totalOrders));
         });
       }
     } catch (_) {}

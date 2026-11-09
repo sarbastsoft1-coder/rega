@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 
@@ -66,17 +67,18 @@ class StoresScreen extends StatefulWidget {
 
 class _StoresScreenState extends State<StoresScreen> {
   final TextEditingController _topSearchCtrl = TextEditingController();
+  Timer? _refreshTimer;
 
   String _selectedCuisine = 'هەموو جۆرەکان';
   String _selectedCity = 'هەموو شارەکان';
   String _selectedStatus = 'هەموو دۆخەکان';
   int _currentPage = 1;
 
-  // Top KPI metrics matching exact screenshot values
-  final String _registeredVendors = '٣٤٢';
-  final String _activeVendors = '٢٨٦';
-  final String _pendingApproval = '١٢';
-  final String _todayOrders = '١,٧٦٠';
+  // Live Top KPI metrics from PostgreSQL database
+  String _registeredVendors = '٠';
+  String _activeVendors = '٠';
+  String _pendingApproval = '٠';
+  String _todayOrders = '٠';
 
   // Demo Vendors matching the screenshot table exactly
   final List<VendorItem> _demoVendors = [
@@ -144,15 +146,17 @@ class _StoresScreenState extends State<StoresScreen> {
     super.initState();
     _vendors = List.from(_demoVendors);
     _loadFromBackend();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 6), (_) => _loadFromBackend(silent: true));
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _topSearchCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadFromBackend() async {
+  Future<void> _loadFromBackend({bool silent = false}) async {
     try {
       final res = await widget.api.getStores();
       if (res.isNotEmpty && mounted) {
@@ -162,23 +166,33 @@ class _StoresScreenState extends State<StoresScreen> {
           final cat = map['category'] as Map<String, dynamic>?;
           final cuisine = cat?['name_ku']?.toString() ?? 'خواردنی خێرا';
           final zone = map['neighborhood'] as Map<String, dynamic>?;
-          final city = zone?['city']?.toString() ?? 'هەولێر';
+          final city = zone?['city']?.toString() ?? 'کەلار';
           final isApproved = map['is_approved'] == true;
+          final activeOrders = (map['active_orders_count'] as num?)?.toInt() ?? 0;
           return VendorItem(
             id: (map['id'] as num?)?.toInt() ?? 0,
             name: name,
-            subtitle: 'خزمەتگوزاری خواردن',
+            subtitle: 'خزمەتگوزاری چێشتخانە و فرۆشگا',
             cuisine: cuisine,
             city: city,
             phone: map['phone']?.toString() ?? '0750 000 0000',
-            todayOrders: (map['active_orders_count'] as num?)?.toInt() ?? 45,
+            todayOrders: activeOrders,
             status: isApproved ? 'active' : 'under_review',
             imageUrl: map['cover_url']?.toString() ?? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&q=80',
           );
         }).toList();
 
+        final totalCount = mapped.length;
+        final activeCount = mapped.where((v) => v.status == 'active').length;
+        final pendingCount = mapped.where((v) => v.status == 'under_review').length;
+        final totalActiveOrders = mapped.fold<int>(0, (sum, v) => sum + v.todayOrders);
+
         setState(() {
-          _vendors = [..._demoVendors, ...mapped.where((x) => !_demoVendors.any((d) => d.name == x.name))];
+          _vendors = mapped;
+          _registeredVendors = _toKurdishDigits(totalCount);
+          _activeVendors = _toKurdishDigits(activeCount);
+          _pendingApproval = _toKurdishDigits(pendingCount);
+          _todayOrders = _toKurdishDigits(totalActiveOrders > 0 ? totalActiveOrders : totalCount);
         });
       }
     } catch (_) {}

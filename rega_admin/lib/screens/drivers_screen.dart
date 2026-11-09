@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -99,12 +100,23 @@ class _DriversScreenState extends State<DriversScreen> {
   String _selectedCity = 'هەموو شارەکان';
   String _selectedStatus = 'هەموو دۆخەکان';
   String _selectedDate = 'ئەمڕۆ';
+  Timer? _refreshTimer;
 
-  // KPI Metrics matching exact screenshot values
-  final String _totalDriversKPI = '٢٤٨';
-  final String _activeDriversKPI = '١٢٨';
-  final String _inDeliveryKPI = '٣٤';
-  final String _pendingApprovalKPI = '٩';
+  // Live KPI Metrics updated from PostgreSQL database
+  String _totalDriversKPI = '٠';
+  String _activeDriversKPI = '٠';
+  String _inDeliveryKPI = '٠';
+  String _pendingApprovalKPI = '٠';
+
+  static String _toDigits(dynamic input) {
+    const en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    const ku = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    String s = input.toString();
+    for (int i = 0; i < 10; i++) {
+      s = s.replaceAll(en[i], ku[i]);
+    }
+    return s;
+  }
 
   // Demo Couriers matching the screenshot table exactly
   final List<CourierItem> _initialDemoCouriers = [
@@ -192,16 +204,18 @@ class _DriversScreenState extends State<DriversScreen> {
     super.initState();
     _couriers = List.from(_initialDemoCouriers);
     _loadFromBackend();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _loadFromBackend(silent: true));
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _searchCtrl.dispose();
     _mapController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadFromBackend() async {
+  Future<void> _loadFromBackend({bool silent = false}) async {
     try {
       final backendList = await widget.api.getDrivers();
       if (!mounted) return;
@@ -214,21 +228,23 @@ class _DriversScreenState extends State<DriversScreen> {
           final u = m['user'] as Map<String, dynamic>? ?? {};
           final isOnline = m['is_online'] == true;
           final isVerified = m['is_verified'] == true;
+          final motorType = m['motor_type']?.toString() ?? 'هۆندا';
+          final plateNumber = m['plate_number']?.toString() ?? 'KLR-100';
 
           merged.add(
             CourierItem(
               id: m['id'] as int? ?? (100 + merged.length),
               name: u['name']?.toString() ?? 'شۆفێری ڕێگا',
               phone: u['phone']?.toString() ?? '0750 000 0000',
-              city: 'هەولێر',
+              city: 'کەلار',
               status: isOnline ? 'active' : 'offline',
-              todayOrders: (m['total_deliveries'] as num?)?.toInt() ?? 5,
+              todayOrders: (m['total_deliveries'] as num?)?.toInt() ?? 0,
               avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-              motorType: m['motor_type']?.toString() ?? 'هۆندا',
-              plateNumber: m['plate_number']?.toString() ?? 'KLR-100',
+              motorType: motorType,
+              plateNumber: plateNumber,
               location: LatLng(
-                36.1911 + (math.Random().nextDouble() - 0.5) * 0.03,
-                44.0091 + (math.Random().nextDouble() - 0.5) * 0.03,
+                (m['current_lat'] as num?)?.toDouble() ?? (34.6850 + (math.Random().nextDouble() - 0.5) * 0.02),
+                (m['current_lng'] as num?)?.toDouble() ?? (45.3200 + (math.Random().nextDouble() - 0.5) * 0.02),
               ),
               isVerified: isVerified,
               cashCollected: (m['cash_collected_hand'] as num?) ?? 0,
@@ -237,14 +253,17 @@ class _DriversScreenState extends State<DriversScreen> {
           );
         }
 
-        for (final d in _initialDemoCouriers) {
-          if (!merged.any((x) => x.name == d.name)) {
-            merged.add(d);
-          }
-        }
+        final totalCount = merged.length;
+        final activeCount = merged.where((c) => c.status == 'active').length;
+        final inDeliveryCount = merged.where((c) => c.status == 'on_the_way').length;
+        final pendingCount = merged.where((c) => !c.isVerified).length;
 
         setState(() {
           _couriers = merged;
+          _totalDriversKPI = _toDigits(totalCount);
+          _activeDriversKPI = _toDigits(activeCount);
+          _inDeliveryKPI = _toDigits(inDeliveryCount);
+          _pendingApprovalKPI = _toDigits(pendingCount);
         });
       }
     } catch (_) {}
