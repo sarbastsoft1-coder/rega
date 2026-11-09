@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/api/api_client.dart';
+import '../widgets/admin_top_header.dart';
 
 /// Representation of a courier matching the exact design in the screenshot
 class CourierItem {
@@ -827,124 +828,19 @@ class _DriversScreenState extends State<DriversScreen> {
           ],
         );
 
-        final profileAndBell = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // User Avatar + Aryan Mohammed
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Color(0xFFE2E8F0),
-                  backgroundImage: NetworkImage(
-                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'ئاریان محەمەد',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF1E293B),
-                      ),
-                    ),
-                    Text(
-                      'بەڕێوەبەر',
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        color: Color(0xFF94A3B8),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 18),
-              ],
-            ),
-            const SizedBox(width: 14),
-
-            // Notification Bell with Badge '3'
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.notifications_none_rounded, color: Color(0xFF475569), size: 24),
-                Positioned(
-                  top: -4,
-                  right: -4,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEA580C),
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: const Center(
-                      child: Text(
-                        '3',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+        final topActions = AdminTopBarRow(
+          searchCtrl: _searchCtrl,
+          hintText: '...گەڕان بە ناوی ماتۆرسوار',
+          onSearchChanged: (_) => setState(() {}),
         );
 
-        final searchBar = Container(
-          width: isNarrow ? constraints.maxWidth : 260.0,
-          height: 38,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: Row(
-            children: [
-              const SizedBox(width: 10),
-              const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
-              const SizedBox(width: 6),
-              Expanded(
-                child: TextField(
-                  controller: _searchCtrl,
-                  onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    hintText: '...گەڕان بە ناوی ماتۆرسوار',
-                    hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-
-        if (constraints.maxWidth < 600) {
+        if (constraints.maxWidth < 650) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  profileAndBell,
-                ],
-              ),
-              const SizedBox(height: 10),
-              titleWidget,
+              topActions,
               const SizedBox(height: 12),
-              searchBar,
+              titleWidget,
             ],
           );
         } else if (isNarrow) {
@@ -954,12 +850,11 @@ class _DriversScreenState extends State<DriversScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  profileAndBell,
                   Expanded(child: titleWidget),
                 ],
               ),
               const SizedBox(height: 12),
-              searchBar,
+              topActions,
             ],
           );
         } else {
@@ -967,14 +862,8 @@ class _DriversScreenState extends State<DriversScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  profileAndBell,
-                  const SizedBox(width: 16),
-                  searchBar,
-                ],
-              ),
               titleWidget,
+              topActions,
             ],
           );
         }

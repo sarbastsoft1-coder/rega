@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/api/api_client.dart';
+import '../widgets/admin_top_header.dart';
 
 /// Representation of a dashboard recent order
 class RecentOrderEntry {
@@ -270,131 +271,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         );
 
-        final profileAndBell = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // User Avatar + Name (ئادەم محەمەد) + Role (بەڕێوەبەر) + Chevron
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: Image.network(
-                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&q=80',
-                    width: 36,
-                    height: 36,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
-                      width: 36,
-                      height: 36,
-                      color: const Color(0xFFE5E7EB),
-                      child: const Icon(Icons.person_rounded, color: Color(0xFF6B7280), size: 20),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Text(
-                      'ئادەم محەمەد',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    Text(
-                      'بەڕێوەبەر',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF9CA3AF),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF6B7280), size: 18),
-              ],
-            ),
-            const SizedBox(width: 14),
-
-            // Notification Bell with Badge 5
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.notifications_none_rounded, color: Color(0xFF4B5563), size: 24),
-                Positioned(
-                  top: -4,
-                  right: -4,
-                  child: Container(
-                    padding: const EdgeInsets.all(3.5),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEF4444),
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: const Text(
-                      '5',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w900,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+        final topActions = AdminTopBarRow(
+          searchCtrl: _topSearchCtrl,
+          hintText: '...گەڕان لە سیستەمدا',
+          onSearchChanged: (_) => setState(() {}),
         );
 
-        final searchBar = Container(
-          width: isNarrow ? constraints.maxWidth : 220.0,
-          height: 38,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-          ),
-          child: Row(
+        if (constraints.maxWidth < 650) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(width: 10),
-              const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
-              const SizedBox(width: 6),
-              Expanded(
-                child: TextField(
-                  controller: _topSearchCtrl,
-                  decoration: const InputDecoration(
-                    hintText: '...گەڕان',
-                    hintStyle: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              ),
+              topActions,
+              const SizedBox(height: 12),
+              title,
             ],
-          ),
-        );
-
-        if (isNarrow) {
+          );
+        } else if (isNarrow) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  profileAndBell,
                   Expanded(child: title),
                 ],
               ),
               const SizedBox(height: 12),
-              searchBar,
+              topActions,
             ],
           );
         } else {
@@ -402,14 +305,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  profileAndBell,
-                  const SizedBox(width: 18),
-                  searchBar,
-                ],
-              ),
               title,
+              topActions,
             ],
           );
         }

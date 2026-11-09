@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
+import '../widgets/admin_top_header.dart';
 
 class FinanceScreen extends StatefulWidget {
   final ApiClient api;
@@ -188,67 +189,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
           ],
         );
 
-        final profileAndBell = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE2E8F0),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.person_rounded, color: Color(0xFF64748B), size: 22),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Text(
-                      'هێوا عەلی',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E293B),
-                      ),
-                    ),
-                    Text(
-                      'بەڕێوەبەر',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Color(0xFF94A3B8),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(width: 14),
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.notifications_none_rounded, color: Color(0xFF475569), size: 24),
-                Positioned(
-                  top: -3,
-                  right: -3,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEF4444),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
+        final topActions = const AdminTopBarRow();
 
         final filters = Wrap(
           spacing: 10,
@@ -269,17 +210,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
           ],
         );
 
-        if (constraints.maxWidth < 600) {
+        if (constraints.maxWidth < 650) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  profileAndBell,
-                ],
-              ),
-              const SizedBox(height: 10),
+              topActions,
+              const SizedBox(height: 12),
               titleAndButton,
               const SizedBox(height: 12),
               filters,
@@ -292,10 +228,11 @@ class _FinanceScreenState extends State<FinanceScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  profileAndBell,
                   Expanded(child: titleAndButton),
                 ],
               ),
+              const SizedBox(height: 12),
+              topActions,
               const SizedBox(height: 12),
               filters,
             ],
@@ -310,7 +247,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 children: [
                   filters,
                   const SizedBox(width: 16),
-                  profileAndBell,
+                  topActions,
                 ],
               ),
             ],
