@@ -996,7 +996,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               ),
             ],
           ),
-          backgroundColor: const Color(0xFF00894C),
+          backgroundColor: const Color(0xFFEA580C),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           duration: const Duration(seconds: 3),
@@ -1343,8 +1343,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     bool hasNotification = false,
   }) {
     final bool isSelected = _selectedIndex == index;
-    const pillYellow = Color(0xFFFAC800);
-    const iconColor = Color(0xFF0F172A);
+    const primeOrange = Color(0xFFEA580C);
+    final iconColor = isSelected ? Colors.white : const Color(0xFF64748B);
+    final textColor = isSelected ? Colors.white : const Color(0xFF64748B);
 
     // Notification badge on orders (index 3)
     final pendingCount = _orders.where((o) => o.status == OrderStatus.pending).length;
@@ -1358,7 +1359,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           HapticFeedback.selectionClick();
           _onItemTapped(index);
         },
-        splashColor: pillYellow.withValues(alpha: 0.2),
+        splashColor: primeOrange.withValues(alpha: 0.15),
         highlightColor: Colors.transparent,
         borderRadius: BorderRadius.circular(50),
         child: Align(
@@ -1371,12 +1372,21 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
                 padding: EdgeInsets.symmetric(
-                  horizontal: isSelected ? 12 : 8,
+                  horizontal: isSelected ? 14 : 8,
                   vertical: 9,
                 ),
                 decoration: BoxDecoration(
-                  color: isSelected ? pillYellow : Colors.transparent,
+                  color: isSelected ? primeOrange : Colors.transparent,
                   borderRadius: BorderRadius.circular(50),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: primeOrange.withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1397,8 +1407,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                                 label,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: iconColor,
+                                style: TextStyle(
+                                  color: textColor,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: -0.2,
@@ -1859,14 +1869,14 @@ class OrdersScreen extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8FAF0), // Exact mint background from screenshot
+        color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF6EE7B7), width: 1.5), // Mint green border from screenshot
+        border: Border.all(color: const Color(0xFFFFEDD5), width: 1.4),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00894C).withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: const Color(0xFFEA580C).withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -2167,32 +2177,35 @@ class OrdersScreen extends StatelessWidget {
     );
   }
 
-  /// بۆکسی تێبینی کڕیار (Cyber Cyan ڕێک وەک وێنەکە)
+  /// بۆکسی تێبینی کڕیار (ڕەنگی گەرمی نیشانەی تێبینی لەسەر ڕەنگی پڕایم)
   Widget _buildCustomerNotesBox(String notes) {
     return Container(
       margin: const EdgeInsets.only(top: 4, bottom: 8),
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF0097CD), // Exact Cyan from screenshot
+        color: const Color(0xFFFFF7ED), // Warm soft orange background
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0097CD).withOpacity(0.25),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+        border: Border.all(color: const Color(0xFFFED7AA), width: 1.2),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFFEA580C)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'تێبینی: $notes',
+              style: const TextStyle(
+                color: Color(0xFF9A3412),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                height: 1.35,
+                letterSpacing: 0,
+              ),
+            ),
           ),
         ],
-      ),
-      child: Text(
-        'تێبینی: $notes',
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 13.5,
-          height: 1.3,
-          letterSpacing: 0,
-        ),
       ),
     );
   }
@@ -2300,19 +2313,19 @@ class OrdersScreen extends StatelessWidget {
     String text;
     switch (status) {
       case OrderStatus.pending:
-        color = const Color(0xFFF97316); // Orange from screenshot
+        color = const Color(0xFFEA580C); // REGA Prime Orange
         text = t('چاوەڕوانکراو');
         break;
       case OrderStatus.preparing:
-        color = const Color(0xFF3B82F6); // Blue from screenshot
+        color = const Color(0xFFD97706); // Warm Amber Orange
         text = t('لە ئامادەکردندایە');
         break;
       case OrderStatus.ready:
-        color = const Color(0xFF00894C); // Emerald green
+        color = const Color(0xFF16A34A); // Clean Ready Green
         text = t('ئامادەیە بۆ شۆفێر');
         break;
       default:
-        color = Colors.grey;
+        color = const Color(0xFF64748B);
         text = 'نادیار';
     }
     return Container(
@@ -2392,8 +2405,15 @@ class OrdersScreen extends StatelessWidget {
         height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF00894C), // Emerald green from screenshot
+          color: const Color(0xFFEA580C), // REGA Prime Orange
           borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFEA580C).withValues(alpha: 0.28),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -2497,13 +2517,13 @@ class OrdersScreen extends StatelessWidget {
                                     width: 44,
                                     height: 44,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFF3E8FF), // light purple
+                                      color: const Color(0xFFFFF7ED),
                                       borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: const Color(0xFFE9D5FF), width: 1.2),
+                                      border: Border.all(color: const Color(0xFFFED7AA), width: 1.2),
                                     ),
                                     child: const Icon(
                                       Icons.key_rounded,
-                                      color: Color(0xFF7E22CE), // purple 700
+                                      color: Color(0xFFEA580C),
                                       size: 24,
                                     ),
                                   ),
@@ -2571,16 +2591,16 @@ class OrdersScreen extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFAF5FF), // purple-50
+                                color: const Color(0xFFFFF7ED),
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: const Color(0xFFE9D5FF)),
+                                border: Border.all(color: const Color(0xFFFED7AA)),
                               ),
                               child: Row(
                                 children: [
                                   const Icon(
                                     Icons.security_rounded,
                                     size: 20,
-                                    color: Color(0xFF7E22CE),
+                                    color: Color(0xFFEA580C),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
@@ -2592,7 +2612,7 @@ class OrdersScreen extends StatelessWidget {
                                           style: TextStyle(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w900,
-                                            color: Color(0xFF581C87),
+                                            color: Color(0xFF9A3412),
                                           ),
                                         ),
                                         const SizedBox(height: 2),
@@ -2601,7 +2621,7 @@ class OrdersScreen extends StatelessWidget {
                                           style: const TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.bold,
-                                            color: Color(0xFF9333EA),
+                                            color: Color(0xFFEA580C),
                                           ),
                                         ),
                                       ],
@@ -2634,7 +2654,7 @@ class OrdersScreen extends StatelessWidget {
                                 fontSize: 26,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 16,
-                                color: Color(0xFF581C87),
+                                color: Color(0xFFEA580C),
                                 fontFamily: 'monospace',
                               ),
                               decoration: InputDecoration(
@@ -2646,19 +2666,19 @@ class OrdersScreen extends StatelessWidget {
                                   fontSize: 22,
                                 ),
                                 filled: true,
-                                fillColor: const Color(0xFFFDF4FF), // light purple tint
+                                fillColor: const Color(0xFFFFF7ED),
                                 contentPadding: const EdgeInsets.symmetric(vertical: 14),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(16),
                                   borderSide: BorderSide(
-                                    color: errorMessage != null ? const Color(0xFFE11D48) : const Color(0xFFD8B4FE),
+                                    color: errorMessage != null ? const Color(0xFFE11D48) : const Color(0xFFFED7AA),
                                     width: 1.5,
                                   ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(16),
                                   borderSide: BorderSide(
-                                    color: errorMessage != null ? const Color(0xFFE11D48) : const Color(0xFF7E22CE),
+                                    color: errorMessage != null ? const Color(0xFFE11D48) : const Color(0xFFEA580C),
                                     width: 2,
                                   ),
                                 ),
@@ -2701,7 +2721,7 @@ class OrdersScreen extends StatelessWidget {
                                   flex: 3,
                                   child: ElevatedButton(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF00894C), // Emerald green
+                                      backgroundColor: const Color(0xFFEA580C), // REGA Prime Orange
                                       foregroundColor: Colors.white,
                                       elevation: 0,
                                       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
@@ -3037,7 +3057,7 @@ class OrdersScreen extends StatelessWidget {
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.person_rounded, size: 15, color: Color(0xFF00894C)),
+                                const Icon(Icons.person_rounded, size: 15, color: Color(0xFFEA580C)),
                                 const SizedBox(width: 5),
                                 const Text('کڕیار: ', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.bold)),
                                 Text(order.customerName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF1B2028))),
@@ -3046,7 +3066,7 @@ class OrdersScreen extends StatelessWidget {
                             const SizedBox(height: 5),
                             Row(
                               children: [
-                                const Icon(Icons.phone_rounded, size: 15, color: Color(0xFF00894C)),
+                                const Icon(Icons.phone_rounded, size: 15, color: Color(0xFFEA580C)),
                                 const SizedBox(width: 5),
                                 const Text('مۆبایل: ', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.bold)),
                                 Directionality(
@@ -3058,7 +3078,7 @@ class OrdersScreen extends StatelessWidget {
                             const SizedBox(height: 5),
                             Row(
                               children: [
-                                const Icon(Icons.location_on_rounded, size: 15, color: Color(0xFF00894C)),
+                                const Icon(Icons.location_on_rounded, size: 15, color: Color(0xFFEA580C)),
                                 const SizedBox(width: 5),
                                 const Text('ناونیشان: ', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.bold)),
                                 Expanded(
@@ -3308,7 +3328,7 @@ class OrdersScreen extends StatelessWidget {
                             Expanded(
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF00894C),
+                                  backgroundColor: const Color(0xFFEA580C),
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3344,7 +3364,7 @@ class OrdersScreen extends StatelessWidget {
                       ] else if (order.status == OrderStatus.preparing) ...[
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00894C),
+                            backgroundColor: const Color(0xFFEA580C),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3360,7 +3380,7 @@ class OrdersScreen extends StatelessWidget {
                       ] else if (order.status == OrderStatus.ready) ...[
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00894C),
+                            backgroundColor: const Color(0xFFEA580C),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3713,9 +3733,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         child: Container(
                           height: 48,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE8FAF0),
+                            color: const Color(0xFFFFF7ED),
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFF5CD895), width: 1.5),
+                            border: Border.all(color: const Color(0xFFFED7AA), width: 1.5),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: Center(
@@ -3724,12 +3744,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: const [
-                                  Icon(Icons.add_rounded, color: Color(0xFF00894C), size: 19),
+                                  Icon(Icons.add_rounded, color: Color(0xFFEA580C), size: 19),
                                   SizedBox(width: 5),
                                   Text(
                                     'زیادکردنی بەشی نوێ',
                                     style: TextStyle(
-                                      color: Color(0xFF00894C),
+                                      color: Color(0xFFEA580C),
                                       fontWeight: FontWeight.w900,
                                       fontSize: 13,
                                     ),
@@ -3750,11 +3770,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         child: Container(
                           height: 48,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00894C),
+                            color: const Color(0xFFEA580C),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF00894C).withOpacity(0.25),
+                                color: const Color(0xFFEA580C).withValues(alpha: 0.28),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3),
                               ),
@@ -3793,7 +3813,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   SizedBox(
                     height: 40,
                     child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
+                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
                       itemCount: widget.categories.length + 1,
                       itemBuilder: (context, index) {
@@ -3808,12 +3828,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               margin: const EdgeInsets.only(left: 8),
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                               decoration: BoxDecoration(
-                                color: isAllSelected ? const Color(0xFFE8FAF0) : const Color(0xFFF8FAFC),
+                                color: isAllSelected ? const Color(0xFFEA580C) : const Color(0xFFF8FAFC),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: isAllSelected ? const Color(0xFF00894C) : const Color(0xFFE2E8F0),
+                                  color: isAllSelected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
                                   width: isAllSelected ? 1.5 : 1,
                                 ),
+                                boxShadow: isAllSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: const Color(0xFFEA580C).withValues(alpha: 0.25),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -3823,14 +3852,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                     style: TextStyle(
                                       fontWeight: FontWeight.w900,
                                       fontSize: 13,
-                                      color: isAllSelected ? const Color(0xFF00894C) : const Color(0xFF1E293B),
+                                      color: isAllSelected ? Colors.white : const Color(0xFF1E293B),
                                     ),
                                   ),
                                   const SizedBox(width: 6),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: isAllSelected ? const Color(0xFF00894C) : const Color(0xFFE2E8F0),
+                                      color: isAllSelected ? Colors.white.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
@@ -3855,12 +3884,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         return Container(
                           margin: const EdgeInsets.only(left: 8),
                           decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFFE8FAF0) : const Color(0xFFF8FAFC),
+                            color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFF8FAFC),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: isSelected ? const Color(0xFF00894C) : const Color(0xFFE2E8F0),
+                              color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
                               width: isSelected ? 1.5 : 1,
                             ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFFEA580C).withValues(alpha: 0.25),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -3886,14 +3924,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                         style: TextStyle(
                                           fontWeight: FontWeight.w900,
                                           fontSize: 13,
-                                          color: isSelected ? const Color(0xFF00894C) : const Color(0xFF1E293B),
+                                          color: isSelected ? Colors.white : const Color(0xFF1E293B),
                                         ),
                                       ),
                                       const SizedBox(width: 6),
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: isSelected ? const Color(0xFF00894C) : const Color(0xFFE2E8F0),
+                                          color: isSelected ? Colors.white.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: Text(
@@ -3917,13 +3955,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   width: 20,
                                   height: 20,
                                   decoration: BoxDecoration(
-                                    color: isSelected ? const Color(0xFFD1F2DF) : const Color(0xFFE2E8F0),
+                                    color: isSelected ? Colors.white.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
                                     Icons.close_rounded,
                                     size: 13,
-                                    color: isSelected ? const Color(0xFF00894C) : const Color(0xFF64748B),
+                                    color: isSelected ? Colors.white : const Color(0xFF64748B),
                                   ),
                                 ),
                               ),
@@ -3976,7 +4014,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.restaurant_menu_outlined, color: Color(0xFF00894C), size: 48),
+          const Icon(Icons.restaurant_menu_outlined, color: Color(0xFFEA580C), size: 48),
           const SizedBox(height: 24),
           Text(t('هیچ بەرهەمێک نەدۆزرایەوە'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
@@ -4107,7 +4145,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     Text(
                       discountPriceFormatted,
                       style: const TextStyle(
-                        color: Color(0xFF00894C),
+                        color: Color(0xFFEA580C),
                         fontWeight: FontWeight.w900,
                         fontSize: 14,
                       ),
@@ -4129,7 +4167,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               : Text(
                   priceFormatted,
                   style: const TextStyle(
-                    color: Color(0xFF00894C),
+                    color: Color(0xFFEA580C),
                     fontWeight: FontWeight.w900,
                     fontSize: 14,
                   ),
@@ -5189,7 +5227,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                backgroundColor: const Color(0xFF00894C),
+                backgroundColor: const Color(0xFFEA580C),
                 duration: const Duration(seconds: 2),
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -5214,14 +5252,14 @@ class _RevenueScreenState extends State<RevenueScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.refresh, size: 18, color: Color(0xFF00894C)),
+                const Icon(Icons.refresh, size: 18, color: Color(0xFFEA580C)),
                 const SizedBox(width: 6),
                 Text(
                   t('نوێکردنەوە'),
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF00894C),
+                    color: Color(0xFFEA580C),
                   ),
                 ),
               ],
@@ -5272,12 +5310,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 9),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF00894C) : Colors.transparent,
+            color: isSelected ? const Color(0xFFEA580C) : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF00894C).withOpacity(0.25),
+                      color: const Color(0xFFEA580C).withValues(alpha: 0.25),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -5311,12 +5349,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8FAF0),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF5CD895), width: 1.1),
+        border: Border.all(color: const Color(0xFFFFEDD5), width: 1.4),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00894C).withOpacity(0.04),
+            color: const Color(0xFFEA580C).withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -5343,22 +5381,22 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF2E7D32),
+                            color: Color(0xFF9A3412),
                           ),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: const Color(0xFFFFF7ED),
                             borderRadius: BorderRadius.circular(5),
-                            border: Border.all(color: const Color(0xFF81C784)),
+                            border: Border.all(color: const Color(0xFFFED7AA)),
                           ),
                           child: Text(
                             periodTitle,
                             style: const TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF2E7D32),
+                              color: Color(0xFFEA580C),
                             ),
                           ),
                         ),
@@ -5378,7 +5416,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                             style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w900,
-                              color: Color(0xFF00894C),
+                              color: Color(0xFFEA580C),
                               letterSpacing: -0.5,
                             ),
                           ),
@@ -5386,7 +5424,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF00894C),
+                              color: const Color(0xFFEA580C),
                               borderRadius: BorderRadius.circular(5),
                             ),
                             child: const Text(
@@ -5411,7 +5449,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF5CD895)),
+                  border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.3)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.02),
@@ -5425,13 +5463,13 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   children: [
                     Transform.flip(
                       flipX: true,
-                      child: const Icon(Icons.trending_up, color: Color(0xFF00894C), size: 13),
+                      child: const Icon(Icons.trending_up, color: Color(0xFF16A34A), size: 13),
                     ),
                     const SizedBox(width: 3),
                     Text(
                       growthText,
                       style: const TextStyle(
-                        color: Color(0xFF00894C),
+                        color: Color(0xFF16A34A),
                         fontWeight: FontWeight.w900,
                         fontSize: 10,
                       ),
@@ -5450,7 +5488,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFD1E7DD)),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
             child: Row(
               children: [
@@ -5460,7 +5498,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                 Container(width: 1, height: 22, color: const Color(0xFFE5E7EB)),
                 _buildMetricCol(t('داواکارییەکان'), '$ordersCount دانە', const Color(0xFF1E2024)),
                 Container(width: 1, height: 22, color: const Color(0xFFE5E7EB)),
-                _buildMetricCol(t('تێکڕای فرۆش'), '${_formatAmount(avgTicket)} د.ع', const Color(0xFF00894C)),
+                _buildMetricCol(t('تێکڕای فرۆش'), '${_formatAmount(avgTicket)} د.ع', const Color(0xFFEA580C)),
               ],
             ),
           ),
@@ -5547,10 +5585,10 @@ class _RevenueScreenState extends State<RevenueScreen> {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE8FAF0),
+                        color: const Color(0xFFFFF7ED),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.bar_chart, color: Color(0xFF00894C), size: 18),
+                      child: const Icon(Icons.bar_chart, color: Color(0xFFEA580C), size: 18),
                     ),
                     const SizedBox(width: 8),
                     Flexible(
@@ -5573,14 +5611,14 @@ class _RevenueScreenState extends State<RevenueScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8FAF0),
+                  color: const Color(0xFFFFF7ED),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF5CD895)),
+                  border: Border.all(color: const Color(0xFFFED7AA)),
                 ),
                 child: Text(
                   highlightText,
                   style: const TextStyle(
-                    color: Color(0xFF00894C),
+                    color: Color(0xFFEA580C),
                     fontSize: 11,
                     fontWeight: FontWeight.w900,
                   ),
@@ -5619,12 +5657,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           width: isActive ? 28 : 22,
                           height: normalizedHeight,
                           decoration: BoxDecoration(
-                            color: isActive ? const Color(0xFF00894C) : const Color(0xFFD1E7DD),
+                            color: isActive ? const Color(0xFFEA580C) : const Color(0xFFFFEDD5),
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
                             boxShadow: isActive
                                 ? [
                                     BoxShadow(
-                                      color: const Color(0xFF00894C).withOpacity(0.3),
+                                      color: const Color(0xFFEA580C).withValues(alpha: 0.3),
                                       blurRadius: 6,
                                       offset: const Offset(0, 2),
                                     ),
@@ -5636,7 +5674,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                         Text(
                           labels[i],
                           style: TextStyle(
-                            color: isActive ? const Color(0xFF00894C) : const Color(0xFF6B7280),
+                            color: isActive ? const Color(0xFFEA580C) : const Color(0xFF6B7280),
                             fontSize: 11,
                             fontWeight: isActive ? FontWeight.w900 : FontWeight.bold,
                           ),
@@ -5823,7 +5861,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 13,
-                    color: Color(0xFF00894C),
+                    color: Color(0xFFEA580C),
                   ),
                 ),
               ),
@@ -5836,7 +5874,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
             child: LinearProgressIndicator(
               value: (item['percent'] as double).clamp(0.0, 1.0),
               backgroundColor: const Color(0xFFE5E7EB),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF5CD895)),
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFEA580C)),
               minHeight: 4,
             ),
           ),
