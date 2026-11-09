@@ -74,8 +74,8 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   // Map appearance & camera controls
   int _mapStyleIndex = 0; // 0: Voyager HD, 1: Dark Night Radar, 2: OSM Kalar
   bool _followCaptain = true;
-  /// Prefer real phone GPS. Simulation is only a fallback / demo toggle.
-  bool _autoDriveSimulation = false;
+  /// Auto GPS navigation on map
+  bool _autoDriveSimulation = true;
   bool _usingRealGps = false;
   bool _mapReady = false;
   bool _backendSynced = false;
@@ -394,13 +394,51 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     _secondTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || !widget.isOnline) return;
       _elapsedSeconds += 1;
+      _stepSimulationOneSecond();
       _recomputeMetrics();
       _pushOneSecondTelemetryToBackend();
     });
   }
 
   void _stepSimulationOneSecond() {
-    // Disabled: No automatic drive simulation.
+    if (!_autoDriveSimulation) return;
+
+    switch (widget.stage) {
+      case CaptainRouteStage.assigned:
+      case CaptainRouteStage.arrivingPickup:
+        if (_legToStore.isNotEmpty) {
+          _leg1Progress = (_leg1Progress + 0.040).clamp(0.0, 1.0);
+          final nextPos = _pointAlong(_legToStore, _leg1Progress);
+          _speedKmh = 28.0 + ((_elapsedSeconds % 5) * 1.4);
+          _animateDriverTo(nextPos);
+          if (_leg1Progress >= 1.0) {
+            _speedKmh = 0.0;
+          }
+        }
+        break;
+
+      case CaptainRouteStage.arrivedPickup:
+        _speedKmh = 0.0;
+        break;
+
+      case CaptainRouteStage.pickedUp:
+      case CaptainRouteStage.onTheWay:
+        if (_legToCustomer.isNotEmpty) {
+          _leg2Progress = (_leg2Progress + 0.022).clamp(0.0, 1.0);
+          final nextPos = _pointAlong(_legToCustomer, _leg2Progress);
+          _speedKmh = 32.0 + ((_elapsedSeconds % 6) * 1.3);
+          _animateDriverTo(nextPos);
+          if (_leg2Progress >= 1.0) {
+            _speedKmh = 0.0;
+          }
+        }
+        break;
+
+      case CaptainRouteStage.arrivedCustomer:
+      case CaptainRouteStage.delivered:
+        _speedKmh = 0.0;
+        break;
+    }
   }
 
   void _animateDriverTo(LatLng next) {
@@ -1078,6 +1116,19 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                     _followCaptain = true;
                   });
                   await _startRealGpsIfAvailable(requestPermission: true);
+                },
+              ),
+              const SizedBox(height: 8),
+              _MapHudButton(
+                icon: _autoDriveSimulation
+                    ? Icons.navigation_rounded
+                    : Icons.play_arrow_rounded,
+                active: _autoDriveSimulation,
+                tooltip: _autoDriveSimulation
+                    ? 'جووڵەی ئۆتۆماتیکی نەخشە (چالاکە)'
+                    : 'دەستپێکردنی جووڵەی نەخشەی GPS',
+                onTap: () {
+                  setState(() => _autoDriveSimulation = !_autoDriveSimulation);
                 },
               ),
               const SizedBox(height: 8),

@@ -628,7 +628,10 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
 
       if (_status == 'delivered') return;
 
-      await _pollBackendOneSecond();
+      final synced = await _pollBackendOneSecond();
+      if (!synced && _status != 'pending' && _status != 'preparing') {
+        _stepLocalOneSecond();
+      }
     });
   }
 
@@ -694,8 +697,14 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
   }
 
   void _stepLocalOneSecond() {
-    // Disabled: No artificial status progression or fake driver movement.
-    // Order tracking strictly mirrors real backend telemetry and driver updates.
+    if (_status == 'delivered') return;
+
+    // Auto GPS map movement along Kalar street polyline
+    _localProgress = (_localProgress + 0.015).clamp(0.0, 1.0);
+    final nextPos = _pointAlong(_fullRoute, _localProgress);
+    _speedKmh = 29.0 + ((_secondsSinceOpen % 4) * 1.5);
+    _glideDriverTo(nextPos);
+    _recomputeLocalMetrics();
   }
 
   void _updateStatus(String next) {
