@@ -87,65 +87,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
     return s;
   }
 
-  // Demo Customers matching the screenshot table exactly
-  final List<CustomerItem> _demoCustomers = [
-    CustomerItem(
-      id: 1,
-      name: 'ئازین عومەر',
-      phone: '0750 123 ****',
-      city: 'هەولێر',
-      totalOrders: 56,
-      registerDate: '2024-06-10',
-      isActive: true,
-      isFemale: true,
-    ),
-    CustomerItem(
-      id: 2,
-      name: 'دانا خالید',
-      phone: '0770 987 ****',
-      city: 'سلێمانی',
-      totalOrders: 12,
-      registerDate: '2024-05-22',
-      isActive: false,
-    ),
-    CustomerItem(
-      id: 3,
-      name: 'هەڵگورد نوری',
-      phone: '0750 555 ****',
-      city: 'دهۆک',
-      totalOrders: 34,
-      registerDate: '2024-06-03',
-      isActive: true,
-    ),
-    CustomerItem(
-      id: 4,
-      name: 'سارا ئەحمەد',
-      phone: '0770 444 ****',
-      city: 'هەولێر',
-      totalOrders: 8,
-      registerDate: '2024-04-18',
-      isActive: true,
-      isFemale: true,
-    ),
-    CustomerItem(
-      id: 5,
-      name: 'ڕێبین ئیسماعیل',
-      phone: '0750 222 ****',
-      city: 'سلێمانی',
-      totalOrders: 27,
-      registerDate: '2024-03-27',
-      isActive: false,
-    ),
-  ];
-
-  late List<CustomerItem> _customers;
+  List<CustomerItem> _customers = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _customers = List.from(_demoCustomers);
     _loadFromBackend();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 6), (_) => _loadFromBackend(silent: true));
+    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) => _loadFromBackend(silent: true));
   }
 
   @override
@@ -156,40 +105,49 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }
 
   Future<void> _loadFromBackend({bool silent = false}) async {
+    if (!silent && _customers.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
       final res = await widget.api.getCustomers();
-      if (res.isNotEmpty && mounted) {
-        final mapped = res.map((m) {
-          final map = m as Map<String, dynamic>;
-          final addresses = map['addresses'] as List<dynamic>? ?? [];
-          final city = addresses.isNotEmpty
-              ? (addresses.first as Map<String, dynamic>)['city']?.toString() ?? 'کەلار'
-              : 'کەلار';
-          final orderCount = (map['orders_count'] as num?)?.toInt() ?? 0;
-          final createdAt = map['created_at']?.toString() ?? '2026-11-09';
-          return CustomerItem(
-            id: map['id'] as int? ?? 1,
-            name: map['name']?.toString() ?? 'کڕیار',
-            phone: map['phone']?.toString() ?? '0750 000 ****',
-            city: city,
-            totalOrders: orderCount,
-            registerDate: createdAt.split('T').first,
-            isActive: map['is_active'] != false,
-          );
-        }).toList();
+      if (!mounted) return;
 
-        final totalCount = mapped.length;
-        final activeCount = mapped.where((c) => c.isActive).length;
+      final mapped = res.map((m) {
+        final map = m as Map<String, dynamic>;
+        final addresses = map['addresses'] as List<dynamic>? ?? [];
+        final city = addresses.isNotEmpty
+            ? (addresses.first as Map<String, dynamic>)['city']?.toString() ?? 'کەلار'
+            : 'کەلار';
+        final orderCount = (map['orders_count'] as num?)?.toInt() ?? 0;
+        final createdAt = map['created_at']?.toString() ?? '2026-11-09';
+        return CustomerItem(
+          id: map['id'] as int? ?? 1,
+          name: map['name']?.toString() ?? 'کڕیار',
+          phone: map['phone']?.toString() ?? '0750 000 ****',
+          city: city,
+          totalOrders: orderCount,
+          registerDate: createdAt.split('T').first,
+          isActive: map['is_active'] != false,
+        );
+      }).toList();
 
-        setState(() {
-          _customers = mapped;
-          _totalCustomers = _toDigits(totalCount);
-          _activeCustomers = _toDigits(activeCount);
-          _newThisMonth = _toDigits(totalCount);
-          _todayOrders = _toDigits(mapped.fold<int>(0, (sum, c) => sum + c.totalOrders));
-        });
+      final totalCount = mapped.length;
+      final activeCount = mapped.where((c) => c.isActive).length;
+      final totalOrders = mapped.fold<int>(0, (sum, c) => sum + c.totalOrders);
+
+      setState(() {
+        _customers = mapped;
+        _totalCustomers = _toDigits(totalCount);
+        _activeCustomers = _toDigits(activeCount);
+        _newThisMonth = _toDigits(totalCount);
+        _todayOrders = _toDigits(totalOrders);
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted && !silent) {
+        setState(() => _isLoading = false);
       }
-    } catch (_) {}
+    }
   }
 
   void _showSnack(String msg, {bool error = false}) {
@@ -937,7 +895,25 @@ class _CustomersScreenState extends State<CustomersScreen> {
                       ),
 
                       // Table Rows
-                      ListView.separated(
+                      if (list.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.people_outline_rounded, size: 40, color: Color(0xFFCBD5E1)),
+                                SizedBox(height: 10),
+                                Text(
+                                  'هیچ کڕیارێک لە سیستەمدا نییە',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: pagedList.length,
@@ -1104,10 +1080,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
               spacing: 12,
               runSpacing: 10,
               children: [
-                // Right side: 'نمایش 1 تا 5 لە 24,850 کڕیار'
-                const Text(
-                  'نمایش 1 تا 5 لە 24,850 کڕیار',
-                  style: TextStyle(
+                Text(
+                  'نمایش ${_toDigits(pagedList.length)} لە ${_toDigits(list.length)} کڕیار',
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF64748B),

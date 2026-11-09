@@ -105,78 +105,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return s;
   }
 
-  // Demo Orders matching screenshot table exactly
-  final List<AdminOrderItem> _demoOrders = [
-    AdminOrderItem(
-      id: 1048,
-      orderNumber: 'RG-1048',
-      customerName: 'ئاراس قادر',
-      storeName: 'بازاڕی سالم',
-      driverName: 'سەروان محەمەد',
-      isDriverOnline: true,
-      totalAmount: '٢٥,٠٠٠ ع.د',
-      orderTime: '١٤:٢٨',
-      orderDate: '٢٠٢٤-١٠-٢٦',
-      status: 'pending',
-    ),
-    AdminOrderItem(
-      id: 1047,
-      orderNumber: 'RG-1047',
-      customerName: 'سارا عوسمان',
-      storeName: 'خواردنی ئاراس',
-      driverName: 'دیار ئەحمەد',
-      isDriverOnline: true,
-      totalAmount: '١٨,٥٠٠ ع.د',
-      orderTime: '١٣:١٠',
-      orderDate: '٢٠٢٤-١٠-٢٦',
-      status: 'on_the_way',
-    ),
-    AdminOrderItem(
-      id: 1046,
-      orderNumber: 'RG-1046',
-      customerName: 'کامەران عەلی',
-      storeName: 'سوپەرمارکێتی ڕێگا',
-      driverName: 'هەژار ئیبراهیم',
-      isDriverOnline: true,
-      totalAmount: '٣٢,٠٠٠ ع.د',
-      orderTime: '١١:٤٥',
-      orderDate: '٢٠٢٤-١٠-٢٦',
-      status: 'delivered',
-    ),
-    AdminOrderItem(
-      id: 1045,
-      orderNumber: 'RG-1045',
-      customerName: 'لەيلا حەمید',
-      storeName: 'کافێی لاف',
-      driverName: 'ئالان حەسەن',
-      isDriverOnline: true,
-      totalAmount: '١٢,٧٥٠ ع.د',
-      orderTime: '١٠:٢٢',
-      orderDate: '٢٠٢٤-١٠-٢٦',
-      status: 'pending',
-    ),
-    AdminOrderItem(
-      id: 1044,
-      orderNumber: 'RG-1044',
-      customerName: 'زانا مەحموود',
-      storeName: 'پیتزای ئارام',
-      driverName: 'بەهۆز قادر',
-      isDriverOnline: true,
-      totalAmount: '٢٨,٠٠٠ ع.د',
-      orderTime: '٠٩:١٥',
-      orderDate: '٢٠٢٤-١٠-٢٦',
-      status: 'delivered',
-    ),
-  ];
-
-  late List<AdminOrderItem> _orders;
+  List<AdminOrderItem> _orders = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _orders = List.from(_demoOrders);
     _load();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _load(silent: true));
+    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) => _load(silent: true));
   }
 
   @override
@@ -187,6 +123,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Future<void> _load({bool silent = false}) async {
+    if (!silent && _orders.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
       final results = await Future.wait([
         widget.api.getOrders(),
@@ -196,7 +135,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       final apiOrders = ordersRes['data'] as List<dynamic>? ?? [];
       _drivers = results[1] as List<dynamic>;
 
-      if (apiOrders.isNotEmpty && mounted) {
+      if (mounted) {
         final mapped = apiOrders.map((raw) {
           final m = raw as Map<String, dynamic>;
           final store = m['store'] as Map<String, dynamic>?;
@@ -219,14 +158,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
             } catch (_) {}
           }
 
+          final amtNum = num.tryParse(m['total_amount']?.toString() ?? '0') ?? 0;
           return AdminOrderItem(
-            id: m['id'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+            id: int.tryParse(m['id']?.toString() ?? '') ?? DateTime.now().millisecondsSinceEpoch,
             orderNumber: m['order_number']?.toString() ?? 'RA-${m['id']}',
             customerName: cust?['name']?.toString() ?? m['customer_name']?.toString() ?? 'کڕیار',
             storeName: store?['name_ku']?.toString() ?? store?['name_en']?.toString() ?? 'فرۆشگا',
             driverName: driver?['name']?.toString() ?? 'دیاری نەکراوە',
             isDriverOnline: true,
-            totalAmount: formatIqd(m['total_amount'] as num?, lang: widget.lang),
+            totalAmount: formatIqd(amtNum, lang: widget.lang),
             orderTime: _toDigits(timeStr),
             orderDate: _toDigits(dateStr),
             status: st,
@@ -245,10 +185,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
           _pendingOrdersKPI = _toDigits(pendingCount);
           _inTransitOrdersKPI = _toDigits(inTransitCount);
           _deliveredOrdersKPI = _toDigits(deliveredCount);
+          _isLoading = false;
         });
       }
-    } catch (_) {
-      // Gracefully fall back to demo items
+    } catch (e) {
+      debugPrint('OrdersScreen _load error: $e');
+      if (mounted && !silent) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -1448,10 +1392,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
               spacing: 12,
               runSpacing: 10,
               children: [
-                // Right side in RTL: 'نیشاندانی ١ تا ٥ لە کۆی ١,٢٨٤ داواکاری'
-                const Text(
-                  'نیشاندانی ١ تا ٥ لە کۆی ١,٢٨٤ داواکاری',
-                  style: TextStyle(
+                // Right side in RTL: dynamic orders count
+                Text(
+                  'نیشاندانی ${_toDigits(orders.length)} لە کۆی ${_toDigits(_orders.length)} داواکاری',
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF64748B),

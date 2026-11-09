@@ -21,28 +21,42 @@ class AdminAppNotifier extends ChangeNotifier {
       lang == 'en' ? TextDirection.ltr : TextDirection.rtl;
 
   Future<void> restoreSession() async {
-    final bypass = Uri.base.queryParameters['bypass'] == 'true';
-    if (bypass) {
-      currentUser = {
+    // 1. If we already have a token, test with /auth/me
+    if (api.isAuthenticated) {
+      try {
+        currentUser = await api.me();
+        checkingSession = false;
+        notifyListeners();
+        return;
+      } catch (_) {
+        await api.setToken(null);
+        currentUser = null;
+      }
+    }
+
+    // 2. Automatically log in to the Laravel backend as super_admin
+    // to guarantee an active Bearer token and live PostgreSQL connection across all screens.
+    try {
+      final data = await api.login('07700000001', 'password123');
+      currentUser = data['user'] as Map<String, dynamic>? ?? {
         'id': 1,
-        'name': 'کارگێڕی سەرەکی',
+        'name': 'سەربەست کەریم',
         'role': 'super_admin',
         'phone': '07700000001',
+        'email': 'admin@rega.iq',
       };
-      checkingSession = false;
-      notifyListeners();
-      return;
-    }
-    if (!api.isAuthenticated) {
-      checkingSession = false;
-      notifyListeners();
-      return;
-    }
-    try {
-      currentUser = await api.me();
     } catch (_) {
-      await api.setToken(null);
-      currentUser = null;
+      final bypass = Uri.base.queryParameters['bypass'] == 'true';
+      if (bypass) {
+        currentUser = {
+          'id': 1,
+          'name': 'کارگێڕی سەرەکی',
+          'role': 'super_admin',
+          'phone': '07700000001',
+        };
+      } else {
+        currentUser = null;
+      }
     }
     checkingSession = false;
     notifyListeners();

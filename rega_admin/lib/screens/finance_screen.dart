@@ -25,6 +25,11 @@ class _FinanceScreenState extends State<FinanceScreen> {
   String _completionRate = '١٠٠٪';
   String _avgDeliveryTime = '٢٨ خولەک';
   List<Map<String, dynamic>> _topDrivers = [];
+  List<Map<String, dynamic>> _topStores = [];
+  int _rawTotalOrders = 0;
+  int _deliveredCount = 0;
+  int _activeCount = 0;
+  int _cancelledCount = 0;
 
   static String _toDigits(dynamic input) {
     const en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -40,7 +45,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
   void initState() {
     super.initState();
     _loadData();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 6), (_) => _loadData(silent: true));
+    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) => _loadData(silent: true));
   }
 
   @override
@@ -57,6 +62,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
 
       final totalOrders = (kpis['total_orders'] as num?)?.toInt() ?? 0;
       final delivered = (kpis['delivered_orders'] as num?)?.toInt() ?? 0;
+      final activeOrders = (kpis['active_orders_count'] as num?)?.toInt() ?? 0;
+      final cancelledOrders = (kpis['cancelled_orders'] as num?)?.toInt() ?? 0;
       final gmv = (kpis['total_gmv'] as num?)?.toInt() ?? 0;
       final rate = totalOrders > 0 ? ((delivered / totalOrders) * 100).round() : 100;
       var drivers = data['top_drivers'] as List<dynamic>? ?? [];
@@ -70,14 +77,27 @@ class _FinanceScreenState extends State<FinanceScreen> {
         } catch (_) {}
       }
 
+      List<Map<String, dynamic>> stores = [];
+      try {
+        final resStores = await widget.api.getStores();
+        stores = resStores.map((s) => s as Map<String, dynamic>).toList();
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() {
-        _totalOrders = _toDigits(totalOrders > 0 ? totalOrders : 23);
+        _rawTotalOrders = totalOrders;
+        _deliveredCount = delivered;
+        _activeCount = activeOrders;
+        _cancelledCount = cancelledOrders;
+        _totalOrders = _toDigits(totalOrders);
         final formattedGmv = gmv.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
         _totalRevenue = '${_toDigits(formattedGmv)} د.ع';
         _completionRate = '${_toDigits(rate)}٪';
         if (drivers.isNotEmpty) {
           _topDrivers = drivers.map((d) => d as Map<String, dynamic>).toList();
+        }
+        if (stores.isNotEmpty) {
+          _topStores = stores;
         }
       });
     } catch (_) {}
@@ -498,14 +518,18 @@ class _FinanceScreenState extends State<FinanceScreen> {
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildVendorBarRow('کبابی هەولێر', 4280, 6000),
-                _buildVendorBarRow('پیتزای ڕووناک', 3120, 6000),
-                _buildVendorBarRow('بەرگەر لاند', 2650, 6000),
-              ],
-            ),
+            child: _topStores.isEmpty
+                ? const Center(
+                    child: Text('زانیارییەکان لە سێرڤەرەوە باردەکرێن...', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: _topStores.take(3).map((s) {
+                      final name = s['name_ku']?.toString() ?? s['name_en']?.toString() ?? 'فرۆشگا';
+                      final orders = (s['active_orders_count'] as num?)?.toInt() ?? 10;
+                      return _buildVendorBarRow(name, orders, 50);
+                    }).toList(),
+                  ),
           ),
           const SizedBox(height: 12),
           // X-axis scale labels: 0, 2,000, 4,000, 6,000
@@ -623,26 +647,35 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     CustomPaint(
                       size: const Size(120, 120),
                       painter: _DonutChartPainter(
-                        slices: const [
-                          _Slice(0.96, Color(0xFF16503B)), // تەواوبوو 96%
-                          _Slice(0.03, Color(0xFFEA580C)), // لە ڕێگادایە 3%
-                          _Slice(0.01, Color(0xFFCBD5E1)), // هەڵوەشایەوە 1%
+                        slices: [
+                          _Slice(
+                            _rawTotalOrders > 0 ? (_deliveredCount / _rawTotalOrders).clamp(0.01, 1.0) : 1.0,
+                            const Color(0xFF16503B),
+                          ),
+                          _Slice(
+                            _rawTotalOrders > 0 ? (_activeCount / _rawTotalOrders).clamp(0.0, 1.0) : 0.0,
+                            const Color(0xFFEA580C),
+                          ),
+                          _Slice(
+                            _rawTotalOrders > 0 ? (_cancelledCount / _rawTotalOrders).clamp(0.0, 1.0) : 0.0,
+                            const Color(0xFFCBD5E1),
+                          ),
                         ],
                         strokeWidth: 16,
                       ),
                     ),
                     Column(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
+                      children: [
                         Text(
-                          '٣٨,٤٢٠',
-                          style: TextStyle(
+                          _totalOrders,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                             color: Color(0xFF0F172A),
                           ),
                         ),
-                        Text(
+                        const Text(
                           'داواکاری',
                           style: TextStyle(
                             fontSize: 10,
@@ -651,8 +684,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
                           ),
                         ),
                         Text(
-                          '96%',
-                          style: TextStyle(
+                          _completionRate,
+                          style: const TextStyle(
                             fontSize: 10,
                             color: Color(0xFF16A34A),
                             fontWeight: FontWeight.w800,
@@ -840,34 +873,16 @@ class _FinanceScreenState extends State<FinanceScreen> {
                             ],
                           );
                         })
-                      else ...[
-                        _buildDriverRow(
-                          rank: '١',
-                          name: 'ئارام محەمەد',
-                          completedOrders: '1,245',
-                          avgTime: '٢٨ خولەک',
-                          rating: '4.9',
-                          starCount: 5,
+                      else
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 36),
+                          child: Center(
+                            child: Text(
+                              'هیچ زانیارییەکی ماتۆرسوار لە سیستەمدا بەردەست نییە',
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                            ),
+                          ),
                         ),
-                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                        _buildDriverRow(
-                          rank: '٢',
-                          name: 'سامان قادر',
-                          completedOrders: '980',
-                          avgTime: '٣١ خولەک',
-                          rating: '4.7',
-                          starCount: 4,
-                        ),
-                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                        _buildDriverRow(
-                          rank: '٣',
-                          name: 'دانا ڕەشید',
-                          completedOrders: '860',
-                          avgTime: '٣٦ خولەک',
-                          rating: '4.6',
-                          starCount: 4,
-                        ),
-                      ],
                     ],
                   ),
                 ),

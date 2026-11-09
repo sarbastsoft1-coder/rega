@@ -81,73 +81,14 @@ class _StoresScreenState extends State<StoresScreen> {
   String _pendingApproval = '٠';
   String _todayOrders = '٠';
 
-  // Demo Vendors matching the screenshot table exactly
-  final List<VendorItem> _demoVendors = [
-    VendorItem(
-      id: 1,
-      name: 'چێشتخانەی ئارام',
-      subtitle: 'چێشت و گریل',
-      cuisine: 'خواردنی کوردی',
-      city: 'هەولێر',
-      phone: '0750 123 4567',
-      todayOrders: 248,
-      status: 'active',
-      imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&q=80',
-    ),
-    VendorItem(
-      id: 2,
-      name: 'کافێی ڕۆژ',
-      subtitle: 'کافێ و ساندویچ',
-      cuisine: 'کافێی خواردنی خێرا',
-      city: 'سلێمانی',
-      phone: '0770 234 5678',
-      todayOrders: 93,
-      status: 'under_review',
-      imageUrl: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=120&q=80',
-    ),
-    VendorItem(
-      id: 3,
-      name: 'پیتزای شار',
-      subtitle: 'پیتزا و پاستا',
-      cuisine: 'پیتزا و خۆراکی خێرا',
-      city: 'هەولێر',
-      phone: '0750 987 6543',
-      todayOrders: 317,
-      status: 'active',
-      imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=120&q=80',
-    ),
-    VendorItem(
-      id: 4,
-      name: 'خواردنی کوردی',
-      subtitle: 'چێشتە کوردییەکان',
-      cuisine: 'خواردنی کوردی',
-      city: 'سلێمانی',
-      phone: '0770 111 2233',
-      todayOrders: 126,
-      status: 'active',
-      imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=120&q=80',
-    ),
-    VendorItem(
-      id: 5,
-      name: 'شیرینی هەولێر',
-      subtitle: 'کێک و شیرینی',
-      cuisine: 'شیرینی و خۆراکی شیرین',
-      city: 'هەولێر',
-      phone: '0750 444 7788',
-      todayOrders: 76,
-      status: 'under_review',
-      imageUrl: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=120&q=80',
-    ),
-  ];
-
-  late List<VendorItem> _vendors;
+  List<VendorItem> _vendors = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _vendors = List.from(_demoVendors);
     _loadFromBackend();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 6), (_) => _loadFromBackend(silent: true));
+    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) => _loadFromBackend(silent: true));
   }
 
   @override
@@ -158,45 +99,52 @@ class _StoresScreenState extends State<StoresScreen> {
   }
 
   Future<void> _loadFromBackend({bool silent = false}) async {
+    if (!silent && _vendors.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
       final res = await widget.api.getStores();
-      if (res.isNotEmpty && mounted) {
-        final mapped = res.map((m) {
-          final map = m as Map<String, dynamic>;
-          final name = map['name_ku']?.toString() ?? map['name_en']?.toString() ?? 'فرۆشگا';
-          final cat = map['category'] as Map<String, dynamic>?;
-          final cuisine = cat?['name_ku']?.toString() ?? 'خواردنی خێرا';
-          final zone = map['neighborhood'] as Map<String, dynamic>?;
-          final city = zone?['city']?.toString() ?? 'کەلار';
-          final isApproved = map['is_approved'] == true;
-          final activeOrders = (map['active_orders_count'] as num?)?.toInt() ?? 0;
-          return VendorItem(
-            id: (map['id'] as num?)?.toInt() ?? 0,
-            name: name,
-            subtitle: 'خزمەتگوزاری چێشتخانە و فرۆشگا',
-            cuisine: cuisine,
-            city: city,
-            phone: map['phone']?.toString() ?? '0750 000 0000',
-            todayOrders: activeOrders,
-            status: isApproved ? 'active' : 'under_review',
-            imageUrl: map['cover_url']?.toString() ?? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&q=80',
-          );
-        }).toList();
+      if (!mounted) return;
+      final mapped = res.map((m) {
+        final map = m as Map<String, dynamic>;
+        final name = map['name_ku']?.toString() ?? map['name_en']?.toString() ?? 'فرۆشگا';
+        final cat = map['category'] as Map<String, dynamic>?;
+        final cuisine = cat?['name_ku']?.toString() ?? 'خواردنی خێرا';
+        final zone = map['neighborhood'] as Map<String, dynamic>?;
+        final city = zone?['city']?.toString() ?? 'کەلار';
+        final isApproved = map['is_approved'] == true;
+        final activeOrders = (map['active_orders_count'] as num?)?.toInt() ?? 0;
+        return VendorItem(
+          id: (map['id'] as num?)?.toInt() ?? 0,
+          name: name,
+          subtitle: 'خزمەتگوزاری چێشتخانە و فرۆشگا',
+          cuisine: cuisine,
+          city: city,
+          phone: map['phone']?.toString() ?? '0750 000 0000',
+          todayOrders: activeOrders,
+          status: isApproved ? 'active' : 'under_review',
+          imageUrl: map['cover_url']?.toString() ?? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&q=80',
+        );
+      }).toList();
 
-        final totalCount = mapped.length;
-        final activeCount = mapped.where((v) => v.status == 'active').length;
-        final pendingCount = mapped.where((v) => v.status == 'under_review').length;
-        final totalActiveOrders = mapped.fold<int>(0, (sum, v) => sum + v.todayOrders);
+      final totalCount = mapped.length;
+      final activeCount = mapped.where((v) => v.status == 'active').length;
+      final pendingCount = mapped.where((v) => v.status == 'under_review').length;
+      final totalActiveOrders = mapped.fold<int>(0, (sum, v) => sum + v.todayOrders);
 
-        setState(() {
-          _vendors = mapped;
-          _registeredVendors = _toKurdishDigits(totalCount);
-          _activeVendors = _toKurdishDigits(activeCount);
-          _pendingApproval = _toKurdishDigits(pendingCount);
-          _todayOrders = _toKurdishDigits(totalActiveOrders > 0 ? totalActiveOrders : totalCount);
-        });
+      setState(() {
+        _vendors = mapped;
+        _registeredVendors = _toKurdishDigits(totalCount);
+        _activeVendors = _toKurdishDigits(activeCount);
+        _pendingApproval = _toKurdishDigits(pendingCount);
+        _todayOrders = _toKurdishDigits(totalActiveOrders);
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted && !silent) {
+        setState(() => _isLoading = false);
       }
-    } catch (_) {}
+    }
   }
 
   List<VendorItem> get _filteredVendors {
@@ -1376,7 +1324,25 @@ class _StoresScreenState extends State<StoresScreen> {
                       ),
 
                       // Table Rows
-                      ListView.separated(
+                      if (list.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.storefront_outlined, size: 40, color: Color(0xFFCBD5E1)),
+                                SizedBox(height: 10),
+                                Text(
+                                  'هیچ فرۆشگایەک لە سیستەمدا نییە',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: pagedList.length,
@@ -1571,10 +1537,9 @@ class _StoresScreenState extends State<StoresScreen> {
               spacing: 12,
               runSpacing: 10,
               children: [
-                // Right side: 'نمایشکردنی 1 تا 5 لە 342 دانە'
-                const Text(
-                  'نمایشکردنی 1 تا 5 لە 342 دانە',
-                  style: TextStyle(
+                Text(
+                  'نمایشکردنی ${_toKurdishDigits(pagedList.length)} لە ${_toKurdishDigits(list.length)} دانە',
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF64748B),

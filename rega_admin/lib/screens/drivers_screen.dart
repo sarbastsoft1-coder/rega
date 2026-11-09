@@ -119,93 +119,14 @@ class _DriversScreenState extends State<DriversScreen> {
     return s;
   }
 
-  // Demo Couriers matching the screenshot table exactly
-  final List<CourierItem> _initialDemoCouriers = [
-    CourierItem(
-      id: 1,
-      name: 'ئارام حوسێن',
-      phone: '0750 123 4567',
-      city: 'هەولێر',
-      status: 'active',
-      todayOrders: 12,
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-      motorType: 'Honda CBR 150R',
-      plateNumber: 'KLR-402',
-      location: const LatLng(36.1911, 44.0091),
-      isVerified: true,
-      cashCollected: 45000,
-      walletBalance: 18500,
-    ),
-    CourierItem(
-      id: 2,
-      name: 'سەرباز قادر',
-      phone: '0750 234 5678',
-      city: 'سلێمانی',
-      status: 'on_the_way',
-      todayOrders: 8,
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-      motorType: 'Yamaha NMAX 155',
-      plateNumber: 'KLR-819',
-      location: const LatLng(36.1820, 44.0200),
-      isVerified: true,
-      cashCollected: 62000,
-      walletBalance: 24000,
-    ),
-    CourierItem(
-      id: 3,
-      name: 'هێمن ئەحمەد',
-      phone: '0750 345 6789',
-      city: 'دهۆک',
-      status: 'offline',
-      todayOrders: 5,
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-      motorType: 'Bajaj Pulsar 200',
-      plateNumber: 'ERB-3104',
-      location: const LatLng(36.1985, 43.9980),
-      isVerified: true,
-      cashCollected: 38000,
-      walletBalance: 31000,
-    ),
-    CourierItem(
-      id: 4,
-      name: 'دانا مەحموود',
-      phone: '0750 456 7890',
-      city: 'هەولێر',
-      status: 'active',
-      todayOrders: 11,
-      avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
-      motorType: 'TVS HLX 150',
-      plateNumber: 'KLR-552',
-      location: const LatLng(36.2050, 44.0150),
-      isVerified: true,
-      cashCollected: 19000,
-      walletBalance: 9500,
-    ),
-    CourierItem(
-      id: 5,
-      name: 'ڕێبین ساڵح',
-      phone: '0750 567 8901',
-      city: 'سلێمانی',
-      status: 'on_the_way',
-      todayOrders: 7,
-      avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150',
-      motorType: 'Suzuki Haojue 125',
-      plateNumber: 'KLR-901',
-      location: const LatLng(36.1750, 44.0010),
-      isVerified: true,
-      cashCollected: 51000,
-      walletBalance: 16000,
-    ),
-  ];
-
-  late List<CourierItem> _couriers;
+  List<CourierItem> _couriers = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _couriers = List.from(_initialDemoCouriers);
     _loadFromBackend();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _loadFromBackend(silent: true));
+    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) => _loadFromBackend(silent: true));
   }
 
   @override
@@ -217,57 +138,63 @@ class _DriversScreenState extends State<DriversScreen> {
   }
 
   Future<void> _loadFromBackend({bool silent = false}) async {
+    if (!silent && _couriers.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
       final backendList = await widget.api.getDrivers();
       if (!mounted) return;
 
-      if (backendList.isNotEmpty) {
-        final List<CourierItem> merged = [];
+      final List<CourierItem> merged = [];
 
-        for (final item in backendList) {
-          final m = item as Map<String, dynamic>;
-          final u = m['user'] as Map<String, dynamic>? ?? {};
-          final isOnline = m['is_online'] == true;
-          final isVerified = m['is_verified'] == true;
-          final motorType = m['motor_type']?.toString() ?? 'هۆندا';
-          final plateNumber = m['plate_number']?.toString() ?? 'KLR-100';
+      for (final item in backendList) {
+        final m = item as Map<String, dynamic>;
+        final u = m['user'] as Map<String, dynamic>? ?? {};
+        final isOnline = m['is_online'] == true;
+        final isVerified = m['is_verified'] == true;
+        final motorType = m['motor_type']?.toString() ?? 'هۆندا';
+        final plateNumber = m['plate_number']?.toString() ?? 'KLR-100';
 
-          merged.add(
-            CourierItem(
-              id: m['id'] as int? ?? (100 + merged.length),
-              name: u['name']?.toString() ?? 'شۆفێری ڕێگا',
-              phone: u['phone']?.toString() ?? '0750 000 0000',
-              city: 'کەلار',
-              status: isOnline ? 'active' : 'offline',
-              todayOrders: (m['total_deliveries'] as num?)?.toInt() ?? 0,
-              avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-              motorType: motorType,
-              plateNumber: plateNumber,
-              location: LatLng(
-                (m['current_lat'] as num?)?.toDouble() ?? (34.6850 + (math.Random().nextDouble() - 0.5) * 0.02),
-                (m['current_lng'] as num?)?.toDouble() ?? (45.3200 + (math.Random().nextDouble() - 0.5) * 0.02),
-              ),
-              isVerified: isVerified,
-              cashCollected: (m['cash_collected_hand'] as num?) ?? 0,
-              walletBalance: (m['wallet_balance'] as num?) ?? 0,
+        merged.add(
+          CourierItem(
+            id: m['id'] as int? ?? (100 + merged.length),
+            name: u['name']?.toString() ?? 'شۆفێری ڕێگا',
+            phone: u['phone']?.toString() ?? '0750 000 0000',
+            city: 'کەلار',
+            status: isOnline ? 'active' : 'offline',
+            todayOrders: (m['total_deliveries'] as num?)?.toInt() ?? 0,
+            avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+            motorType: motorType,
+            plateNumber: plateNumber,
+            location: LatLng(
+              (m['current_lat'] as num?)?.toDouble() ?? 34.6850,
+              (m['current_lng'] as num?)?.toDouble() ?? 45.3200,
             ),
-          );
-        }
-
-        final totalCount = merged.length;
-        final activeCount = merged.where((c) => c.status == 'active').length;
-        final inDeliveryCount = merged.where((c) => c.status == 'on_the_way').length;
-        final pendingCount = merged.where((c) => !c.isVerified).length;
-
-        setState(() {
-          _couriers = merged;
-          _totalDriversKPI = _toDigits(totalCount);
-          _activeDriversKPI = _toDigits(activeCount);
-          _inDeliveryKPI = _toDigits(inDeliveryCount);
-          _pendingApprovalKPI = _toDigits(pendingCount);
-        });
+            isVerified: isVerified,
+            cashCollected: (m['cash_collected_hand'] as num?) ?? 0,
+            walletBalance: (m['wallet_balance'] as num?) ?? 0,
+          ),
+        );
       }
-    } catch (_) {}
+
+      final totalCount = merged.length;
+      final activeCount = merged.where((c) => c.status == 'active').length;
+      final inDeliveryCount = merged.where((c) => c.status == 'on_the_way').length;
+      final pendingCount = merged.where((c) => !c.isVerified).length;
+
+      setState(() {
+        _couriers = merged;
+        _totalDriversKPI = _toDigits(totalCount);
+        _activeDriversKPI = _toDigits(activeCount);
+        _inDeliveryKPI = _toDigits(inDeliveryCount);
+        _pendingApprovalKPI = _toDigits(pendingCount);
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted && !silent) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   void _showSnack(String msg, {bool error = false}) {
@@ -1214,10 +1141,13 @@ class _DriversScreenState extends State<DriversScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: const [
-                _LegendItem(color: Color(0xFF16A34A), text: 'چالاک (١٢٨)'),
-                _LegendItem(color: Color(0xFFEA580C), text: 'لە دلیڤەری (٣٤)'),
-                _LegendItem(color: Color(0xFF94A3B8), text: 'ناچالاک (٨٦)'),
+              children: [
+                _LegendItem(color: const Color(0xFF16A34A), text: 'چالاک ($_activeDriversKPI)'),
+                _LegendItem(color: const Color(0xFFEA580C), text: 'لە دلیڤەری ($_inDeliveryKPI)'),
+                _LegendItem(
+                  color: const Color(0xFF94A3B8),
+                  text: 'ناچالاک (${_toDigits(_couriers.where((c) => c.status == 'offline').length)})',
+                ),
               ],
             ),
           ),
@@ -1427,10 +1357,10 @@ class _DriversScreenState extends State<DriversScreen> {
                   spacing: 12,
                   runSpacing: 10,
                   children: [
-                    // Right side: '5 لە 248 دانە نمایش دەکرێت'
-                    const Text(
-                      '5 لە 248 دانە نمایش دەکرێت',
-                      style: TextStyle(
+                    // Right side: dynamic drivers count
+                    Text(
+                      '${_toDigits(list.length)} لە ${_toDigits(_couriers.length)} دانە نمایش دەکرێت',
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF64748B),

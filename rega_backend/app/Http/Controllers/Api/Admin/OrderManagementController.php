@@ -29,7 +29,7 @@ class OrderManagementController extends Controller
                 'items',
             ]);
 
-        if ($request->filled('status') && $request->string('status') !== 'all') {
+        if ($request->filled('status') && (string) $request->string('status') !== 'all') {
             $status = (string) $request->string('status');
             if ($status === 'active') {
                 $query->whereNotIn('status', ['delivered', 'cancelled', 'rejected']);

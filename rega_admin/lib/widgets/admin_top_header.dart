@@ -179,24 +179,106 @@ class _SpotlightSearchDialog extends StatefulWidget {
 
 class _SpotlightSearchDialogState extends State<_SpotlightSearchDialog> {
   late final TextEditingController _queryCtrl;
-
   final List<Map<String, dynamic>> _allEntries = [
-    {'title': 'داواکاری #10249', 'sub': 'چێشتخانەی ئارام • 18,500 د.ع', 'type': 'order', 'path': '/orders', 'icon': Icons.receipt_long_rounded},
-    {'title': 'داواکاری #10248', 'sub': 'پیتزای شار • 24,000 د.ع', 'type': 'order', 'path': '/orders', 'icon': Icons.receipt_long_rounded},
-    {'title': 'چێشتخانەی ئارام', 'sub': 'خواردنی کوردی و گریل • هەولێر', 'type': 'store', 'path': '/stores', 'icon': Icons.storefront_rounded},
-    {'title': 'کافێی ڕۆژ', 'sub': 'کافێ و خواردنەوە • سلێمانی', 'type': 'store', 'path': '/stores', 'icon': Icons.storefront_rounded},
-    {'title': 'پیتزای شار', 'sub': 'پیتزا و فاست فود • هەولێر', 'type': 'store', 'path': '/stores', 'icon': Icons.storefront_rounded},
-    {'title': 'کاروان کەریم', 'sub': 'ماتۆرسوار • کەلار • چالاک', 'type': 'driver', 'path': '/drivers', 'icon': Icons.two_wheeler_rounded},
-    {'title': 'ئاراس محەمەد', 'sub': 'ماتۆرسوار • سلێمانی • ئامادەیە', 'type': 'driver', 'path': '/drivers', 'icon': Icons.two_wheeler_rounded},
-    {'title': 'ئەحمەد عەلی', 'sub': 'کڕیار • 0750 111 2233', 'type': 'customer', 'path': '/customers', 'icon': Icons.person_rounded},
     {'title': 'ڕێکخستنەکانی پارەدان', 'sub': 'کرێی گەیاندن، کۆمیسیۆن و دەروازەکان', 'type': 'setting', 'path': '/support', 'icon': Icons.payments_rounded},
     {'title': 'ڕاپۆرتە داراییەکان', 'sub': 'داهات، فرۆش و تێچووی سیستەم', 'type': 'finance', 'path': '/finance', 'icon': Icons.insert_chart_rounded},
   ];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _queryCtrl = TextEditingController(text: widget.initialQuery);
+    _loadLiveEntities();
+  }
+
+  Future<void> _loadLiveEntities() async {
+    final api = context.read<AdminAppNotifier>().api;
+    try {
+      final results = await Future.wait([
+        api.getOrders(),
+        api.getStores(),
+        api.getDrivers(),
+        api.getCustomers(),
+      ]);
+
+      final ordersRes = results[0] as Map<String, dynamic>? ?? {};
+      final ordersList = ordersRes['data'] as List<dynamic>? ?? [];
+      final storesList = results[1] as List<dynamic>? ?? [];
+      final driversList = results[2] as List<dynamic>? ?? [];
+      final customersList = results[3] as List<dynamic>? ?? [];
+
+      final List<Map<String, dynamic>> live = [];
+
+      for (final o in ordersList.take(20)) {
+        final m = o as Map<String, dynamic>;
+        final store = m['store'] as Map<String, dynamic>?;
+        final num = m['order_number']?.toString() ?? '#RA-${m['id']}';
+        final storeName = store?['name_ku']?.toString() ?? store?['name_en']?.toString() ?? 'فرۆشگا';
+        final amt = m['total_amount']?.toString() ?? '0';
+        live.add({
+          'title': 'داواکاری $num',
+          'sub': '$storeName • $amt د.ع',
+          'type': 'order',
+          'path': '/orders',
+          'icon': Icons.receipt_long_rounded,
+        });
+      }
+
+      for (final s in storesList) {
+        final m = s as Map<String, dynamic>;
+        final name = m['name_ku']?.toString() ?? m['name_en']?.toString() ?? 'فرۆشگا';
+        final cat = m['category'] as Map<String, dynamic>?;
+        final cuisine = cat?['name_ku']?.toString() ?? 'خواردن';
+        live.add({
+          'title': name,
+          'sub': '$cuisine • کەلار',
+          'type': 'store',
+          'path': '/stores',
+          'icon': Icons.storefront_rounded,
+        });
+      }
+
+      for (final d in driversList) {
+        final m = d as Map<String, dynamic>;
+        final u = m['user'] as Map<String, dynamic>? ?? {};
+        final name = u['name']?.toString() ?? 'شۆفێر';
+        final phone = u['phone']?.toString() ?? '';
+        live.add({
+          'title': name,
+          'sub': 'ماتۆرسوار • $phone',
+          'type': 'driver',
+          'path': '/drivers',
+          'icon': Icons.two_wheeler_rounded,
+        });
+      }
+
+      for (final c in customersList) {
+        final m = c as Map<String, dynamic>;
+        final name = m['name']?.toString() ?? 'کڕیار';
+        final phone = m['phone']?.toString() ?? '';
+        live.add({
+          'title': name,
+          'sub': 'کڕیار • $phone',
+          'type': 'customer',
+          'path': '/customers',
+          'icon': Icons.person_rounded,
+        });
+      }
+
+      live.add({'title': 'ڕێکخستنەکانی پارەدان', 'sub': 'کرێی گەیاندن، کۆمیسیۆن و دەروازەکان', 'type': 'setting', 'path': '/support', 'icon': Icons.payments_rounded});
+      live.add({'title': 'ڕاپۆرتە داراییەکان', 'sub': 'داهات، فرۆش و تێچووی سیستەم', 'type': 'finance', 'path': '/finance', 'icon': Icons.insert_chart_rounded});
+
+      if (mounted) {
+        setState(() {
+          _allEntries.clear();
+          _allEntries.addAll(live);
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -662,7 +744,39 @@ class AdminNotificationsBell extends StatefulWidget {
 }
 
 class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
-  int _unreadCount = 3;
+  int _unreadCount = 0;
+  int _pendingOrders = 0;
+  int _pendingStores = 0;
+  int _pendingDrivers = 0;
+  int _openTickets = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLiveNotifications();
+  }
+
+  Future<void> _loadLiveNotifications() async {
+    try {
+      final api = context.read<AdminAppNotifier>().api;
+      final dash = await api.getDashboard(days: 7);
+      final kpis = dash['kpis'] as Map<String, dynamic>? ?? {};
+      final po = (kpis['pending_orders_count'] as num?)?.toInt() ?? 0;
+      final ps = (kpis['pending_stores'] as num?)?.toInt() ?? 0;
+      final pd = (kpis['pending_kyc_drivers'] as num?)?.toInt() ?? 0;
+      final ot = (kpis['open_tickets_count'] as num?)?.toInt() ?? 0;
+      final total = po + ps + pd + ot;
+      if (mounted) {
+        setState(() {
+          _pendingOrders = po;
+          _pendingStores = ps;
+          _pendingDrivers = pd;
+          _openTickets = ot;
+          _unreadCount = total;
+        });
+      }
+    } catch (_) {}
+  }
 
   void _showNotificationsModal(BuildContext context) {
     showDialog(
@@ -733,64 +847,76 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 const SizedBox(height: 10),
 
-                // Notification Item 1: New Order
-                _buildNotificationItem(
-                  icon: Icons.receipt_long_rounded,
-                  iconColor: const Color(0xFFEA580C),
-                  title: 'داواکارییەکی نوێ گەیشت (#10249)',
-                  subtitle: 'چێشتخانەی ئارام • برنج و شلە • 18,500 د.ع',
-                  time: 'پێش ٣ خولەک',
-                  isUnread: _unreadCount >= 1,
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    if (widget.onGoToOrders != null) {
-                      widget.onGoToOrders!();
-                    } else {
-                      context.read<AdminNavNotifier>().setTabIndex(1);
-                      context.go('/orders');
-                    }
-                  },
-                ),
-                const Divider(height: 8, color: Color(0xFFF1F5F9)),
+                if (_unreadCount == 0 && _pendingOrders == 0 && _pendingStores == 0 && _pendingDrivers == 0)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(
+                        'هیچ ئاگادارییەکی لە چاوەڕوانیدا نییە',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                      ),
+                    ),
+                  )
+                else ...[
+                  // Notification Item 1: Pending Orders
+                  _buildNotificationItem(
+                    icon: Icons.receipt_long_rounded,
+                    iconColor: const Color(0xFFEA580C),
+                    title: 'داواکاری لە چاوەڕوانیدایە',
+                    subtitle: _pendingOrders > 0 ? '$_pendingOrders داواکاری نوێ چاوەڕوانی وەڵامە' : 'داواکارییەکان لە کاتی خۆیاندا بەڕێوەدەچن',
+                    time: 'ڕاستەوخۆ لە داتابەیس',
+                    isUnread: _unreadCount > 0 && _pendingOrders > 0,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      if (widget.onGoToOrders != null) {
+                        widget.onGoToOrders!();
+                      } else {
+                        context.read<AdminNavNotifier>().setTabIndex(1);
+                        context.go('/orders');
+                      }
+                    },
+                  ),
+                  const Divider(height: 8, color: Color(0xFFF1F5F9)),
 
-                // Notification Item 2: New Store
-                _buildNotificationItem(
-                  icon: Icons.storefront_rounded,
-                  iconColor: const Color(0xFFD97706),
-                  title: 'فرۆشیاری نوێ چاوەڕوانی پەسەندکردنە',
-                  subtitle: 'کافێی ڕۆژ لە سلێمانی داواکاری ناردووە',
-                  time: 'پێش ١٢ خولەک',
-                  isUnread: _unreadCount >= 2,
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    if (widget.onGoToStores != null) {
-                      widget.onGoToStores!();
-                    } else {
-                      context.read<AdminNavNotifier>().setTabIndex(4);
-                      context.go('/stores');
-                    }
-                  },
-                ),
-                const Divider(height: 8, color: Color(0xFFF1F5F9)),
+                  // Notification Item 2: Pending Stores
+                  _buildNotificationItem(
+                    icon: Icons.storefront_rounded,
+                    iconColor: const Color(0xFFD97706),
+                    title: 'فرۆشیاری نوێ لە چاوەڕوانیدایە',
+                    subtitle: _pendingStores > 0 ? '$_pendingStores فرۆشگا چاوەڕوانی پەسەندکردنی کارگێڕییە' : 'هەموو فرۆشگاکان چالاککراون',
+                    time: 'ڕاستەوخۆ لە داتابەیس',
+                    isUnread: _unreadCount > 0 && _pendingStores > 0,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      if (widget.onGoToStores != null) {
+                        widget.onGoToStores!();
+                      } else {
+                        context.read<AdminNavNotifier>().setTabIndex(4);
+                        context.go('/stores');
+                      }
+                    },
+                  ),
+                  const Divider(height: 8, color: Color(0xFFF1F5F9)),
 
-                // Notification Item 3: New Courier
-                _buildNotificationItem(
-                  icon: Icons.two_wheeler_rounded,
-                  iconColor: const Color(0xFF16A34A),
-                  title: 'ماتۆرسوار ئامادەی گەیاندنە',
-                  subtitle: 'شوان ئەحمەد لە ناوچەی کەلار هاتە سەر هێڵ',
-                  time: 'پێش ٢٨ خولەک',
-                  isUnread: _unreadCount >= 3,
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    if (widget.onGoToDrivers != null) {
-                      widget.onGoToDrivers!();
-                    } else {
-                      context.read<AdminNavNotifier>().setTabIndex(2);
-                      context.go('/drivers');
-                    }
-                  },
-                ),
+                  // Notification Item 3: Pending KYC Drivers
+                  _buildNotificationItem(
+                    icon: Icons.two_wheeler_rounded,
+                    iconColor: const Color(0xFF16A34A),
+                    title: 'ماتۆرسوار لە چاوەڕوانیدایە',
+                    subtitle: _pendingDrivers > 0 ? '$_pendingDrivers ماتۆرسوار چاوەڕوانی پەسەندکردنی بەڵگەنامەن' : 'هەموو ماتۆرسوارەکان پشتڕاستکراونەتەوە',
+                    time: 'ڕاستەوخۆ لە داتابەیس',
+                    isUnread: _unreadCount > 0 && _pendingDrivers > 0,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      if (widget.onGoToDrivers != null) {
+                        widget.onGoToDrivers!();
+                      } else {
+                        context.read<AdminNavNotifier>().setTabIndex(2);
+                        context.go('/drivers');
+                      }
+                    },
+                  ),
+                ],
                 const SizedBox(height: 16),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 const SizedBox(height: 12),

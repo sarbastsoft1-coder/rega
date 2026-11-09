@@ -57,24 +57,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _totalCustomers = '٠';
   String _totalStores = '٠';
 
-  // Live Stacked Chart Data (Completed, Pending, OnTheWay)
-  List<({String date, double completed, double pending, double onTheWay})> _chartData = [
-    (date: '١٠/٢٨', completed: 110, pending: 45, onTheWay: 65),
-    (date: '١٠/٢٩', completed: 140, pending: 50, onTheWay: 90),
-    (date: '١٠/٣٠', completed: 110, pending: 45, onTheWay: 65),
-    (date: '١٠/٣١', completed: 155, pending: 50, onTheWay: 75),
-    (date: '١١/٠١', completed: 185, pending: 65, onTheWay: 80),
-    (date: '١١/٠٢', completed: 215, pending: 65, onTheWay: 70),
-    (date: '١١/٠٣', completed: 165, pending: 55, onTheWay: 65),
-  ];
+  // Live Stacked Chart Data (Completed, Pending, OnTheWay) from PostgreSQL
+  List<({String date, double completed, double pending, double onTheWay})> _chartData = [];
 
-  // Active Couriers on the Map (Kalar / Kurdistan coordinates)
-  List<LatLng> _courierPositions = const [
-    LatLng(34.6865, 45.3215),
-    LatLng(34.6836, 45.3189),
-    LatLng(34.6912, 45.3264),
-    LatLng(34.6850, 45.3210),
-  ];
+  // Active Couriers on the Map (Kalar / Kurdistan coordinates) from Fleet Radar
+  List<LatLng> _courierPositions = [];
   final LatLng _centerLocus = const LatLng(34.6865, 45.3215);
 
   // Live Recent Orders from real backend
@@ -792,16 +779,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                       ),
-                      // 7 Vertical Stacked Columns
-                      Positioned.fill(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: _chartData.map((d) {
-                            return _buildStackedBarColumn(d);
-                          }).toList(),
+                      // Vertical Stacked Columns
+                      if (_chartData.isEmpty)
+                        const Positioned.fill(
+                          child: Center(
+                            child: Text(
+                              'زانیارییە داراییەکان لە سێرڤەرەوە باردەکرێن...',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        )
+                      else
+                        Positioned.fill(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: _chartData.map((d) {
+                              return _buildStackedBarColumn(d);
+                            }).toList(),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -965,7 +962,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
                       // Table Rows
-                      ..._recentOrders.map((o) => _buildOrderRow(o)),
+                      if (_recentOrders.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 36),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.receipt_long_outlined, size: 36, color: Color(0xFFCBD5E1)),
+                                SizedBox(height: 8),
+                                Text(
+                                  'هیچ داواکارییەکی نوێ نییە',
+                                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        ..._recentOrders.map((o) => _buildOrderRow(o)),
                     ],
                   ),
                 ),
