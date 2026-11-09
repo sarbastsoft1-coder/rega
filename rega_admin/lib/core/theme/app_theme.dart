@@ -3,20 +3,25 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 class RegaColors {
-  // Brand Core
+  // Brand Core - REGA Prime Orange
+  static const Color orange = Color(0xFFEA580C);
+  static const Color orangeDark = Color(0xFFC2410C);
+  static const Color orangeSoft = Color(0xFFFFF7ED);
+  static const Color orangeBorder = Color(0xFFFFEDD5);
+
+  // Legacy accents kept for backward compatibility
   static const Color gold = Color(0xFFFAC800);
   static const Color goldDark = Color(0xFFD97706);
   static const Color goldSoft = Color(0xFFFEF9C3);
 
-  // Screenshot Forest Green Brand Palette
+  // Sidebar Palette
   static const Color forestGreen = Color(0xFF113E2E);
   static const Color forestGreenActive = Color(0xFF1D5540);
-  static const Color forestGreenBtn = Color(0xFF113E2E);
+  static const Color forestGreenBtn = Color(0xFFEA580C);
 
   // Operational Accents (matching rega_froshyar & rega_delivery)
   static const Color emerald = Color(0xFF10B981);
   static const Color emeraldDark = Color(0xFF059669);
-  static const Color orange = Color(0xFFEA580C);
   static const Color blue = Color(0xFF2563EB);
   static const Color purple = Color(0xFF7C3AED);
   static const Color crimson = Color(0xFFE11D48);
@@ -47,11 +52,16 @@ class AppTheme {
       brightness: Brightness.light,
       scaffoldBackgroundColor: RegaColors.lightCanvas,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: RegaColors.gold,
+        seedColor: RegaColors.orange,
         brightness: Brightness.light,
-        primary: const Color(0xFF0F172A),
-        secondary: RegaColors.gold,
+        primary: RegaColors.orange,
+        secondary: const Color(0xFF0F172A),
         surface: Colors.white,
+        surfaceContainerHighest: Colors.white,
+        surfaceContainerHigh: Colors.white,
+        surfaceContainer: Colors.white,
+        surfaceContainerLow: const Color(0xFFF8FAFC),
+        surfaceContainerLowest: Colors.white,
       ),
     );
 
@@ -62,12 +72,19 @@ class AppTheme {
 
     return base.copyWith(
       textTheme: textTheme,
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 10,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      ),
       cardTheme: CardThemeData(
         color: Colors.white,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           side: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
       ),
@@ -85,13 +102,13 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: RegaColors.goldDark, width: 1.8),
+          borderSide: const BorderSide(color: RegaColors.orange, width: 2.0),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: RegaColors.gold,
-          foregroundColor: const Color(0xFF0F172A),
+          backgroundColor: RegaColors.orange,
+          foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           textStyle: GoogleFonts.notoKufiArabic(fontWeight: FontWeight.w700, fontSize: 13),
@@ -107,9 +124,9 @@ class AppTheme {
       brightness: Brightness.dark,
       scaffoldBackgroundColor: RegaColors.darkCanvas,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: RegaColors.gold,
+        seedColor: RegaColors.orange,
         brightness: Brightness.dark,
-        primary: RegaColors.gold,
+        primary: RegaColors.orange,
         secondary: RegaColors.emerald,
         surface: RegaColors.darkSurface,
       ),
@@ -122,12 +139,19 @@ class AppTheme {
 
     return base.copyWith(
       textTheme: textTheme,
+      dialogTheme: DialogThemeData(
+        backgroundColor: RegaColors.darkSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 10,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      ),
       cardTheme: CardThemeData(
         color: RegaColors.darkSurface,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           side: const BorderSide(color: Color(0xFF1F2937)),
         ),
       ),
@@ -145,13 +169,13 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: RegaColors.gold, width: 1.8),
+          borderSide: const BorderSide(color: RegaColors.orange, width: 2.0),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: RegaColors.gold,
-          foregroundColor: const Color(0xFF0F172A),
+          backgroundColor: RegaColors.orange,
+          foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           textStyle: GoogleFonts.notoKufiArabic(fontWeight: FontWeight.w700, fontSize: 13),

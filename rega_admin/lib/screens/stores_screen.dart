@@ -224,240 +224,696 @@ class _StoresScreenState extends State<StoresScreen> {
     String cuisine = existing?.cuisine ?? 'خواردنی کوردی';
     String city = existing?.city ?? 'هەولێر';
     String status = existing?.status ?? 'active';
+    String imageUrl = existing?.imageUrl ?? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&q=80';
+    bool isSaving = false;
+
+    final imagePresets = [
+      {'name': 'خواردنی کوردی', 'url': 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&q=80'},
+      {'name': 'گریل و کەباب', 'url': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&q=80'},
+      {'name': 'پیتزا و فاست فود', 'url': 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=160&q=80'},
+      {'name': 'کافێ و خواردنەوە', 'url': 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=160&q=80'},
+      {'name': 'شیرینی و کێک', 'url': 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=160&q=80'},
+    ];
 
     showDialog(
       context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: Row(
-            children: [
-              Icon(
-                isEdit ? Icons.edit_rounded : Icons.add_business_rounded,
-                color: const Color(0xFF113E2E),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                isEdit ? 'دەستکاریکردنی فرۆشیار' : 'زیادکردنی فرۆشیاری نوێ',
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-              ),
-            ],
+        builder: (ctx, setDialogState) => Dialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          elevation: 16,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: const BorderSide(color: Color(0xFFE2E8F0)),
           ),
-          content: SizedBox(
-            width: 440,
+          child: Container(
+            width: 520,
+            constraints: const BoxConstraints(maxWidth: 520),
+            padding: const EdgeInsets.fromLTRB(26, 24, 26, 22),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextField(
+                  // --- Header ---
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFFFEDD5)),
+                        ),
+                        child: Icon(
+                          isEdit ? Icons.edit_note_rounded : Icons.storefront_rounded,
+                          color: const Color(0xFFEA580C),
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isEdit ? 'دەستکاریکردنی فرۆشیار' : 'زیادکردنی فرۆشیاری نوێ',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 17.5,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              isEdit
+                                  ? 'دەستکاری زانیارییەکانی ئەم فرۆشگایە بکە لە داتابەیسدا'
+                                  : 'زانیارییە سەرەکییەکانی فرۆشگا و چێشتخانە تۆمار بکە',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () => Navigator.pop(ctx),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFF1F5F9),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+                  const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                  const SizedBox(height: 18),
+
+                  // Image Preview & Preset Selector
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          imageUrl,
+                          width: 58,
+                          height: 58,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 58,
+                            height: 58,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: const Icon(Icons.storefront_rounded, color: Color(0xFFEA580C)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'وێنەی ڕووکەشی فرۆشگا',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                            ),
+                            const SizedBox(height: 6),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: imagePresets.map((preset) {
+                                  final isSelected = imageUrl == preset['url'];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(left: 6),
+                                    child: InkWell(
+                                      onTap: () => setDialogState(() => imageUrl = preset['url']!),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: isSelected ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
+                                            width: isSelected ? 1.5 : 1,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          preset['name']!,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                            color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // 1. Store Name
+                  _buildDialogInput(
                     controller: nameCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'ناوی فرۆشیار (چێشتخانە/کافێ) *',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
+                    label: 'ناوی فرۆشیار (چێشتخانە / کافێ) *',
+                    hint: 'بۆ نموونە: چێشتخانەی ئارام، کافێ ڕۆژ',
+                    icon: Icons.storefront_outlined,
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
+
+                  const SizedBox(height: 14),
+
+                  // 2. Subtitle / Description
+                  _buildDialogInput(
                     controller: subtitleCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'پێناسەی کورت (وەک: چێشت و گریل)',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
+                    label: 'پێناسەی کورت (وەک: خواردنی کوردی و گریل)',
+                    hint: 'پێناسەیەکی کورت لەسەر فرۆشگاکە',
+                    icon: Icons.subtitles_outlined,
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
+
+                  const SizedBox(height: 14),
+
+                  // 3. Phone Number
+                  _buildDialogInput(
                     controller: phoneCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'ژمارەی مۆبایل *',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
+                    label: 'ژمارەی مۆبایل *',
+                    hint: '0750 123 4567',
+                    icon: Icons.phone_outlined,
+                    isPhone: true,
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: cuisine,
-                    items: const [
-                      DropdownMenuItem(value: 'خواردنی کوردی', child: Text('خواردنی کوردی')),
-                      DropdownMenuItem(value: 'کافێی خواردنی خێرا', child: Text('کافێی خواردنی خێرا')),
-                      DropdownMenuItem(value: 'پیتزا و خۆراکی خێرا', child: Text('پیتزا و خۆراکی خێرا')),
-                      DropdownMenuItem(value: 'شیرینی و خۆراکی شیرین', child: Text('شیرینی و خۆراکی شیرین')),
+
+                  const SizedBox(height: 14),
+
+                  // 4. Cuisine & City Row
+                  Row(
+                    children: [
+                      // Cuisine
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'جۆری خواردن',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              height: 46,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: cuisine,
+                                  isExpanded: true,
+                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                  items: const [
+                                    DropdownMenuItem(value: 'خواردنی کوردی', child: Text('خواردنی کوردی')),
+                                    DropdownMenuItem(value: 'کافێی خواردنی خێرا', child: Text('کافێی خواردنی خێرا')),
+                                    DropdownMenuItem(value: 'پیتزا و خۆراکی خێرا', child: Text('پیتزا و خۆراکی خێرا')),
+                                    DropdownMenuItem(value: 'شیرینی و خۆراکی شیرین', child: Text('شیرینی و خۆراکی شیرین')),
+                                  ],
+                                  onChanged: (v) => setDialogState(() => cuisine = v ?? 'خواردنی کوردی'),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // City
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'شار',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              height: 46,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: city,
+                                  isExpanded: true,
+                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                                  items: const [
+                                    DropdownMenuItem(value: 'هەولێر', child: Text('هەولێر')),
+                                    DropdownMenuItem(value: 'سلێمانی', child: Text('سلێمانی')),
+                                    DropdownMenuItem(value: 'دهۆک', child: Text('دهۆک')),
+                                    DropdownMenuItem(value: 'کەلار', child: Text('کەلار')),
+                                    DropdownMenuItem(value: 'کەرکووک', child: Text('کەرکووک')),
+                                  ],
+                                  onChanged: (v) => setDialogState(() => city = v ?? 'هەولێر'),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
-                    onChanged: (v) => setDialogState(() => cuisine = v ?? 'خواردنی کوردی'),
-                    decoration: InputDecoration(
-                      labelText: 'جۆری خواردن',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: city,
-                    items: const [
-                      DropdownMenuItem(value: 'هەولێر', child: Text('هەولێر')),
-                      DropdownMenuItem(value: 'سلێمانی', child: Text('سلێمانی')),
-                      DropdownMenuItem(value: 'دهۆک', child: Text('دهۆک')),
-                      DropdownMenuItem(value: 'کەلار', child: Text('کەلار')),
+
+                  const SizedBox(height: 14),
+
+                  // 5. Store Status Selector
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'دۆخی فرۆشیار',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setDialogState(() => status = 'active'),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: status == 'active' ? const Color(0xFFDCFCE7) : const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: status == 'active' ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
+                                    width: status == 'active' ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: status == 'active' ? const Color(0xFF16A34A) : const Color(0xFF94A3B8),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'چالاک (Active)',
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: status == 'active' ? FontWeight.w800 : FontWeight.w600,
+                                        color: status == 'active' ? const Color(0xFF15803D) : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setDialogState(() => status = 'under_review'),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: status == 'under_review' ? const Color(0xFFFEF3C7) : const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: status == 'under_review' ? const Color(0xFFD97706) : const Color(0xFFE2E8F0),
+                                    width: status == 'under_review' ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: status == 'under_review' ? const Color(0xFFD97706) : const Color(0xFF94A3B8),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'چاوەڕوانی پەسەندکردن',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: status == 'under_review' ? FontWeight.w800 : FontWeight.w600,
+                                        color: status == 'under_review' ? const Color(0xFFB45309) : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
-                    onChanged: (v) => setDialogState(() => city = v ?? 'هەولێر'),
-                    decoration: InputDecoration(
-                      labelText: 'شار',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: status,
-                    items: const [
-                      DropdownMenuItem(value: 'active', child: Text('چالاک (Active)')),
-                      DropdownMenuItem(value: 'under_review', child: Text('پێداچوونەوە (Under Review)')),
+
+                  const SizedBox(height: 24),
+                  const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                  const SizedBox(height: 18),
+
+                  // --- Action Buttons ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF64748B),
+                          backgroundColor: const Color(0xFFF8FAFC),
+                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('پاشگەزبوونەوە', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                      ),
+                      const SizedBox(width: 10),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFEA580C),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: Icon(isEdit ? Icons.save_rounded : Icons.add_business_rounded, size: 18),
+                        label: Text(
+                          isEdit ? 'پاشەکەوتکردن' : 'زیادکردنی فرۆشیار',
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                        ),
+                        onPressed: isSaving ? null : () async {
+                          final name = nameCtrl.text.trim();
+                          if (name.isEmpty) return;
+
+                          setDialogState(() => isSaving = true);
+
+                          final phone = phoneCtrl.text.trim();
+                          final subtitle = subtitleCtrl.text.trim();
+
+                          // Persist via API
+                          try {
+                            if (isEdit) {
+                              await widget.api.updateStore(existing.id, {
+                                'name_ku': name,
+                                'phone': phone.isNotEmpty ? phone : '0750 000 0000',
+                                'address_ku': city,
+                                'is_approved': status == 'active',
+                                'is_online': status == 'active',
+                                'cover_url': imageUrl,
+                              });
+                            } else {
+                              await widget.api.createStore({
+                                'name_ku': name,
+                                'phone': phone.isNotEmpty ? phone : '0750 000 0000',
+                                'address_ku': city,
+                                'category_id': 1,
+                                'is_approved': status == 'active',
+                                'is_online': status == 'active',
+                                'cover_url': imageUrl,
+                              });
+                            }
+                          } catch (_) {}
+
+                          if (mounted) {
+                            setState(() {
+                              if (isEdit) {
+                                final idx = _vendors.indexWhere((v) => v.id == existing.id);
+                                if (idx != -1) {
+                                  _vendors[idx] = existing.copyWith(
+                                    name: name,
+                                    subtitle: subtitle,
+                                    phone: phone,
+                                    cuisine: cuisine,
+                                    city: city,
+                                    status: status,
+                                    imageUrl: imageUrl,
+                                  );
+                                }
+                              } else {
+                                _vendors.insert(
+                                  0,
+                                  VendorItem(
+                                    id: DateTime.now().millisecondsSinceEpoch,
+                                    name: name,
+                                    subtitle: subtitle.isNotEmpty ? subtitle : 'خزمەتگوزاری چێشتخانە و فرۆشگا',
+                                    cuisine: cuisine,
+                                    city: city,
+                                    phone: phone.isNotEmpty ? phone : '0750 000 0000',
+                                    todayOrders: 0,
+                                    status: status,
+                                    imageUrl: imageUrl,
+                                  ),
+                                );
+                              }
+                            });
+                          }
+
+                          if (ctx.mounted) {
+                            Navigator.of(ctx).pop();
+                          }
+                          _loadFromBackend(silent: true);
+
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(isEdit ? 'فرۆشیار نوێکرایەوە' : 'فرۆشیاری نوێ بە سەرکەوتوویی زیادکرا'),
+                                backgroundColor: const Color(0xFFEA580C),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            );
+                          }
+                        },
+                      ),
                     ],
-                    onChanged: (v) => setDialogState(() => status = v ?? 'active'),
-                    decoration: InputDecoration(
-                      labelText: 'دۆخی فرۆشیار',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
                   ),
                 ],
               ),
             ),
           ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('پاشگەزبوونەوە', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF113E2E),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              ),
-              onPressed: () {
-                if (nameCtrl.text.trim().isEmpty) return;
-                Navigator.pop(ctx);
-                setState(() {
-                  if (isEdit) {
-                    final idx = _vendors.indexWhere((v) => v.id == existing.id);
-                    if (idx != -1) {
-                      _vendors[idx] = existing.copyWith(
-                        name: nameCtrl.text.trim(),
-                        subtitle: subtitleCtrl.text.trim(),
-                        phone: phoneCtrl.text.trim(),
-                        cuisine: cuisine,
-                        city: city,
-                        status: status,
-                      );
-                    }
-                  } else {
-                    _vendors.insert(
-                      0,
-                      VendorItem(
-                        id: DateTime.now().millisecondsSinceEpoch,
-                        name: nameCtrl.text.trim(),
-                        subtitle: subtitleCtrl.text.trim(),
-                        cuisine: cuisine,
-                        city: city,
-                        phone: phoneCtrl.text.trim(),
-                        todayOrders: 10,
-                        status: status,
-                        imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&q=80',
-                      ),
-                    );
-                  }
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(isEdit ? 'فرۆشیار نوێکرایەوە' : 'فرۆشیاری نوێ زیادکرا'),
-                    backgroundColor: const Color(0xFF16A34A),
-                  ),
-                );
-              },
-              child: Text(isEdit ? 'پاشەکەوتکردن' : 'زیادکردن'),
-            ),
-          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDialogInput({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    bool isPhone = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+        ),
+        const SizedBox(height: 6),
+        Directionality(
+          textDirection: isPhone ? TextDirection.ltr : TextDirection.rtl,
+          child: TextField(
+            controller: controller,
+            keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
+            textAlign: isPhone ? TextAlign.left : TextAlign.right,
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              prefixIcon: Icon(icon, size: 20, color: const Color(0xFF94A3B8)),
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFEA580C), width: 1.8),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   void _showVendorDetailsDialog(VendorItem v) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                v.imageUrl,
-                width: 44,
-                height: 44,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  width: 44,
-                  height: 44,
-                  color: Colors.grey.shade200,
-                  child: const Icon(Icons.storefront_rounded, color: Colors.grey),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(v.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                  Text(v.subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
-                ],
-              ),
-            ),
-            _buildStatusBadge(v.status),
-          ],
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 16,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
-        content: SizedBox(
-          width: 420,
+        child: Container(
+          width: 480,
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildDetailRow('🍔 جۆری خواردن:', v.cuisine),
-              _buildDetailRow('🏙️ شار:', v.city),
-              _buildDetailRow('📱 ژمارەی مۆبایل:', v.phone),
-              _buildDetailRow('📦 داواکارییەکانی ئەمڕۆ:', '${v.todayOrders} داواکاری'),
+              // Header
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      v.imageUrl,
+                      width: 54,
+                      height: 54,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: const Icon(Icons.storefront_rounded, color: Color(0xFFEA580C)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          v.name,
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: Color(0xFF0F172A)),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          v.subtitle.isNotEmpty ? v.subtitle : v.cuisine,
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildStatusBadge(v.status),
+                ],
+              ),
+              const SizedBox(height: 18),
+              const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 16),
+
+              // Details Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    _buildDetailRow('🍔 جۆری خواردن:', v.cuisine),
+                    const Divider(height: 16, thickness: 1, color: Color(0xFFF1F5F9)),
+                    _buildDetailRow('🏙️ شار:', v.city),
+                    const Divider(height: 16, thickness: 1, color: Color(0xFFF1F5F9)),
+                    _buildDetailRow('📱 ژمارەی مۆبایل:', v.phone),
+                    const Divider(height: 16, thickness: 1, color: Color(0xFFF1F5F9)),
+                    _buildDetailRow('📦 داواکارییەکانی ئەمڕۆ:', '${_toKurdishDigits(v.todayOrders)} داواکاری'),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Actions
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF64748B),
+                      backgroundColor: const Color(0xFFF8FAFC),
+                      side: const BorderSide(color: Color(0xFFE2E8F0)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('داخستن', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEA580C),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('دەستکاریکردن', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showAddVendorDialog(existing: v);
+                    },
+                  ),
+                ],
+              ),
             ],
           ),
         ),
-        actions: [
-          OutlinedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _showAddVendorDialog(existing: v);
-            },
-            child: const Text('دەستکاریکردن'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF113E2E),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('داخستن'),
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildDetailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -545,17 +1001,18 @@ class _StoresScreenState extends State<StoresScreen> {
             ),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF113E2E),
+                backgroundColor: const Color(0xFFEA580C),
                 foregroundColor: Colors.white,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shadowColor: const Color(0xFFEA580C).withValues(alpha: 0.3),
               ),
               onPressed: () => _showAddVendorDialog(),
-              icon: const Icon(Icons.add, size: 18, color: Colors.white),
+              icon: const Icon(Icons.add_rounded, size: 20, color: Colors.white),
               label: const Text(
                 'زیادکردنی فرۆشیار',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900),
               ),
             ),
           ],
@@ -1276,8 +1733,8 @@ class _StoresScreenState extends State<StoresScreen> {
         width: 28,
         height: 28,
         decoration: BoxDecoration(
-          color: active ? const Color(0xFF113E2E) : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          color: active ? const Color(0xFFEA580C) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
           child: Text(

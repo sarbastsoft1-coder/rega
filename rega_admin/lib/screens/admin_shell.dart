@@ -187,15 +187,8 @@ class _AdminShellState extends State<AdminShell> {
                 itemBuilder: (ctx, idx) {
                   final item = items[idx];
                   final active = _selectedIndex == idx;
-                  final isOrdersActive = active && idx == 1;
-                  final isCustomerActive = active && idx == 3;
 
-                  Color itemBg = Colors.transparent;
-                  if (active) {
-                    itemBg = isOrdersActive
-                        ? const Color(0xFFEA580C)
-                        : RegaColors.forestGreenActive;
-                  }
+                  final Color itemBg = active ? const Color(0xFFEA580C) : Colors.transparent;
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6),
@@ -203,13 +196,14 @@ class _AdminShellState extends State<AdminShell> {
                       decoration: BoxDecoration(
                         color: itemBg,
                         borderRadius: BorderRadius.circular(10),
-                        border: isCustomerActive
-                            ? const Border(
-                                right: BorderSide(
-                                  color: Color(0xFFFF5722),
-                                  width: 3.5,
+                        boxShadow: active
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFFEA580C).withValues(alpha: 0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
                                 ),
-                              )
+                              ]
                             : null,
                       ),
                       child: Material(
@@ -228,7 +222,7 @@ class _AdminShellState extends State<AdminShell> {
                                 Icon(
                                   item.icon,
                                   size: 21,
-                                  color: isCustomerActive ? const Color(0xFFFF5722) : Colors.white,
+                                  color: active ? Colors.white : Colors.white.withValues(alpha: 0.75),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
@@ -236,8 +230,8 @@ class _AdminShellState extends State<AdminShell> {
                                     item.label,
                                     style: TextStyle(
                                       fontSize: 14,
-                                      fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                                      color: isCustomerActive ? const Color(0xFFFF5722) : Colors.white,
+                                      fontWeight: active ? FontWeight.w900 : FontWeight.w600,
+                                      color: active ? Colors.white : Colors.white.withValues(alpha: 0.85),
                                     ),
                                   ),
                                 ),
