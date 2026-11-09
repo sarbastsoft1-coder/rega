@@ -303,16 +303,9 @@ class VendorAppController extends Controller
             ->orWhere('order_ref', $order->order_number)
             ->update(['status' => 'ready']);
 
-        // Auto-assign nearest driver if order does not already have a driver
-        $dispatchResult = null;
-        if (! $order->driver_id) {
-            $dispatchResult = $dispatchService->autoAssignNearestDriver($order, $request->user());
-        }
-
         return response()->json([
             'success' => true,
-            'message' => $dispatchResult['message'] ?? 'داواکاری ئامادەکرا و نێردرا بۆ شۆفێر.',
-            'dispatch' => $dispatchResult,
+            'message' => 'داواکاری بە سەرکەوتوویی وەک ئامادەکراو دیاریکرا.',
             'data' => $order->fresh(['items', 'driver.driverProfile'])->makeHidden(['handover_pin', 'delivery_pin']),
         ]);
     }

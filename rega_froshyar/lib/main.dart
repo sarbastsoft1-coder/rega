@@ -1031,7 +1031,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       OrdersScreen(
         orders: _orders,
         onUpdateStatus: _updateOrderStatus,
-        onSimulate: _simulateNewOrder,
+        onSimulate: () {
+          if (_soundEnabled) {
+            VendorAudioService.instance.playNewOrderAlert();
+          }
+        },
       ),
     ];
 
@@ -2381,9 +2385,6 @@ class OrdersScreen extends StatelessWidget {
             label: 'ڕادەستکردن بە شۆفێر',
             icon: Icons.delivery_dining_outlined,
             onTap: () {
-              if (order.dbId != null && (order.driverName == null || order.driverName!.isEmpty)) {
-                VendorApiService.instance.dispatchNearestDriver(order.dbId!);
-              }
               _showPinDialog(context, order);
             },
           ),

@@ -387,107 +387,20 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   }
 
   void _maybeAutoAdvanceStageFromGps(LatLng here) {
-    const arriveMeters = 45.0;
-    switch (widget.stage) {
-      case CaptainRouteStage.assigned:
-        // First real phone move => start navigating to store
-        if (_haversineMeters(here, _dispatchOrigin) > 20) {
-          widget.onStageAutoReached(CaptainRouteStage.arrivingPickup);
-        }
-        break;
-      case CaptainRouteStage.arrivingPickup:
-        if (_haversineMeters(here, _storePoint) <= arriveMeters) {
-          widget.onStageAutoReached(CaptainRouteStage.arrivedPickup);
-        }
-        break;
-      case CaptainRouteStage.pickedUp:
-        widget.onStageAutoReached(CaptainRouteStage.onTheWay);
-        break;
-      case CaptainRouteStage.onTheWay:
-        if (_haversineMeters(here, _customerPoint) <= arriveMeters) {
-          widget.onStageAutoReached(CaptainRouteStage.arrivedCustomer);
-          if (!_promptedPinOnce) {
-            _promptedPinOnce = true;
-            Future.delayed(const Duration(milliseconds: 400), () {
-              if (mounted && widget.stage == CaptainRouteStage.arrivedCustomer) {
-                widget.onArrivedPromptPin();
-              }
-            });
-          }
-        }
-        break;
-      default:
-        break;
-    }
+    // Disabled: Stages are only advanced manually by driver action buttons.
   }
 
   void _startOneSecondEngine() {
     _secondTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || !widget.isOnline) return;
       _elapsedSeconds += 1;
-
-      if (_autoDriveSimulation && widget.stage != CaptainRouteStage.delivered) {
-        _stepSimulationOneSecond();
-      } else {
-        _recomputeMetrics();
-      }
-
+      _recomputeMetrics();
       _pushOneSecondTelemetryToBackend();
     });
   }
 
   void _stepSimulationOneSecond() {
-    switch (widget.stage) {
-      case CaptainRouteStage.assigned:
-        // Driver must manually accept and tap heading to store
-        break;
-
-      case CaptainRouteStage.arrivingPickup:
-        _leg1Progress = (_leg1Progress + 0.045).clamp(0.0, 1.0); // ~22s to store
-        final nextPos = _pointAlong(_legToStore, _leg1Progress);
-        _speedKmh = 28.0 + ((_elapsedSeconds % 5) * 1.4);
-        _animateDriverTo(nextPos);
-        if (_leg1Progress >= 1.0) {
-          _speedKmh = 0.0;
-          widget.onStageAutoReached(CaptainRouteStage.arrivedPickup);
-        }
-        break;
-
-      case CaptainRouteStage.arrivedPickup:
-        _speedKmh = 0.0;
-        break;
-
-      case CaptainRouteStage.pickedUp:
-        // Smoothly transition into road navigation after pickup
-        widget.onStageAutoReached(CaptainRouteStage.onTheWay);
-        break;
-
-      case CaptainRouteStage.onTheWay:
-        _leg2Progress = (_leg2Progress + 0.022).clamp(0.0, 1.0); // ~45s real street drive
-        final nextPos = _pointAlong(_legToCustomer, _leg2Progress);
-        _speedKmh = 31.0 + ((_elapsedSeconds % 6) * 1.3);
-        _animateDriverTo(nextPos);
-        if (_leg2Progress >= 1.0) {
-          _speedKmh = 0.0;
-          widget.onStageAutoReached(CaptainRouteStage.arrivedCustomer);
-          if (!_promptedPinOnce) {
-            _promptedPinOnce = true;
-            Future.delayed(const Duration(milliseconds: 500), () {
-              if (mounted && widget.stage == CaptainRouteStage.arrivedCustomer) {
-                widget.onArrivedPromptPin();
-              }
-            });
-          }
-        }
-        break;
-
-      case CaptainRouteStage.arrivedCustomer:
-      case CaptainRouteStage.delivered:
-        _speedKmh = 0.0;
-        break;
-    }
-
-    _recomputeMetrics();
+    // Disabled: No automatic drive simulation.
   }
 
   void _animateDriverTo(LatLng next) {
@@ -1165,23 +1078,6 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                     _followCaptain = true;
                   });
                   await _startRealGpsIfAvailable(requestPermission: true);
-                },
-              ),
-              const SizedBox(height: 8),
-              _MapHudButton(
-                icon: _autoDriveSimulation
-                    ? Icons.pause_circle_filled_rounded
-                    : Icons.play_circle_fill_rounded,
-                active: _autoDriveSimulation,
-                tooltip: _autoDriveSimulation
-                    ? 'دەمۆی خۆکار (پەیس بۆ GPS ی مۆبایل)'
-                    : 'دەستپێکردنی دەمۆی خۆکار',
-                onTap: () async {
-                  final nextSim = !_autoDriveSimulation;
-                  setState(() => _autoDriveSimulation = nextSim);
-                  if (!nextSim) {
-                    await _startRealGpsIfAvailable(requestPermission: true);
-                  }
                 },
               ),
               const SizedBox(height: 8),

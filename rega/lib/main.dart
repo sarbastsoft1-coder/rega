@@ -1373,11 +1373,11 @@ class _MainScreenState extends State<MainScreen> {
             id: m['order_number']?.toString() ?? 'RA-${m['id']}',
             storeName: m['store']?['name_ku']?.toString() ?? 'فرۆشگا',
             totalAmount: ((m['total_amount'] ?? 0) as num).toInt(),
-            status: m['status']?.toString() ?? 'heading_to_store',
+            status: m['status']?.toString() ?? 'pending',
             date: DateTime.tryParse(m['created_at']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
             items: cartEntries,
-            driverName: m['driver']?['name']?.toString() ?? 'کاروان محەمەد',
-            driverPhone: m['driver']?['phone']?.toString() ?? '07702001001',
+            driverName: m['driver']?['name']?.toString() ?? '',
+            driverPhone: m['driver']?['phone']?.toString() ?? '',
             address: m['delivery_address']?.toString() ?? 'کەلار',
             deliveryPin: m['delivery_pin']?.toString() ?? '4821',
             storeLat: ((m['store']?['lat'] ?? 34.6836) as num).toDouble(),
@@ -1881,11 +1881,11 @@ class _MainScreenState extends State<MainScreen> {
                       id: orderCode,
                       storeName: storeName,
                       totalAmount: grandTotal,
-                      status: 'heading_to_store', // Driver starts on the road to vendor store!
+                      status: 'pending',
                       date: DateTime.now(),
                       items: List.from(cartItems),
-                      driverName: 'ئاراس ئەحمەد (ماتۆڕسوار)',
-                      driverPhone: '07709876543',
+                      driverName: '',
+                      driverPhone: '',
                       address: (_deliveryPlaceNote != null && _deliveryPlaceNote!.isNotEmpty)
                           ? '$_deliveryPlaceNote • ${_selectedNeighborhood.name}'
                           : '${_selectedNeighborhood.name} - شاری کەلار',
@@ -1969,14 +1969,11 @@ class _MainScreenState extends State<MainScreen> {
       final realOrderNum = (created['order_number'] ?? fallbackCode).toString();
       final realPin = (created['delivery_pin'] ?? localOrder.deliveryPin).toString();
       final realStatus = (created['status'] ?? 'pending').toString();
-      final effectiveStatus = (realStatus == 'pending' || realStatus == 'accepted' || realStatus == 'preparing')
-          ? 'heading_to_store'
-          : realStatus;
       final syncedOrder = OrderItem(
         id: realOrderNum,
         storeName: localOrder.storeName,
         totalAmount: (created['grand_total'] as num?)?.toInt() ?? grandTotal,
-        status: effectiveStatus,
+        status: realStatus,
         date: DateTime.now(),
         items: localOrder.items,
         driverName: localOrder.driverName,
@@ -6238,13 +6235,13 @@ class _MainScreenState extends State<MainScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      order.driverName,
+                                      order.driverName.isNotEmpty ? order.driverName : 'شۆفێر دیاری نەکراوە',
                                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
-                                      order.driverPhone,
+                                      order.driverPhone.isNotEmpty ? order.driverPhone : 'لە چاوەڕوانی دیاریکردنی شۆفێر',
                                       style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,

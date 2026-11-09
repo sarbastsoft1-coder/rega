@@ -628,11 +628,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
 
       if (_status == 'delivered') return;
 
-      final synced = await _pollBackendOneSecond();
-      if (!synced && _status != 'pending' && _status != 'preparing') {
-        // Local progression only for active in-transit driving if offline
-        _stepLocalOneSecond();
-      }
+      await _pollBackendOneSecond();
     });
   }
 
@@ -698,42 +694,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
   }
 
   void _stepLocalOneSecond() {
-    if (_status == 'delivered') return;
-
-    final storeRatio = _fullRoute.length > 2
-        ? (_storeSplitIndex / (_fullRoute.length - 1))
-        : 0.32;
-
-    if (_status == 'arrived_customer') {
-      // Wait briefly at the customer's door so customer sees the PIN prompt, or auto-complete after 12s
-      _speedKmh = 0;
-      _etaSeconds = 0;
-      _remainingMeters = 0;
-      setState(() {});
-      return;
-    }
-
-    // Advance along real Kalar street polyline every 1.0 second (~65s full visual trip)
-    _localProgress = (_localProgress + 0.0155).clamp(0.0, 1.0);
-    final nextPos = _pointAlong(_fullRoute, _localProgress);
-
-    if (_localProgress < storeRatio - 0.02) {
-      if (_status != 'heading_to_store') _updateStatus('heading_to_store');
-      _speedKmh = 29.0 + ((_secondsSinceOpen % 4) * 1.5);
-    } else if (_localProgress < storeRatio + 0.03) {
-      if (_status != 'picked_up') _updateStatus('picked_up');
-      _speedKmh = 14.0;
-    } else if (_localProgress < 0.995) {
-      if (_status != 'on_the_way') _updateStatus('on_the_way');
-      _speedKmh = 33.0 + ((_secondsSinceOpen % 5) * 1.2);
-    } else {
-      _localProgress = 1.0;
-      _speedKmh = 0.0;
-      _updateStatus('arrived_customer');
-    }
-
-    _glideDriverTo(nextPos);
-    _recomputeLocalMetrics();
+    // Disabled: No artificial status progression or fake driver movement.
+    // Order tracking strictly mirrors real backend telemetry and driver updates.
   }
 
   void _updateStatus(String next) {

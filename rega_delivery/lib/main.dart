@@ -678,6 +678,25 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           });
           _isOrderCardVisible = true;
         }
+      } else {
+        _isOrderCardVisible = false;
+        _activeOrder = OrderModel(
+          id: 'none',
+          orderNumber: '',
+          status: OrderStatus.driverAssigned,
+          merchantName: '',
+          merchantAddress: '',
+          merchantPhone: '',
+          customerName: '',
+          customerAddress: '',
+          customerPhone: '',
+          items: const [],
+          deliveryFee: 0,
+          tip: 0,
+          dbId: null,
+          handoverPin: '',
+          deliveryPin: '',
+        );
       }
 
       if (history.isNotEmpty) {
@@ -832,25 +851,23 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     } else {
       _refreshBackendDriverData();
     }
-    _isOrderCardVisible = true;
+    _isOrderCardVisible = false;
     _activeOrder = OrderModel(
-      id: 'ord_10245',
-      orderNumber: '#10245',
+      id: 'none',
+      orderNumber: '',
       status: OrderStatus.driverAssigned,
-      merchantName: 'چێشتخانەی دیوان',
-      merchantAddress: 'شەقامی ٦٠ مەتری، نزیک پارکی سامی عەبدولڕەحمان',
-      merchantPhone: '0750 444 8899',
-      customerName: 'ئاراس ڕەحمان',
-      customerAddress: 'گەڕەکی بەختیاری، کۆڵانی ١٤، خانوو ٨',
-      customerPhone: '0770 333 1122',
-      items: [
-        const OrderItem(id: '1', name: 'کەبابی کوردی تایبەت (٢ شیش)', quantity: 2, price: 7000),
-        const OrderItem(id: '2', name: 'برنجی کوردی بە پەتاتە', quantity: 1, price: 4000),
-        const OrderItem(id: '3', name: 'دۆی خۆماڵی گەورە', quantity: 2, price: 2000),
-      ],
-      deliveryFee: 3500,
-      tip: 1000,
-      deliveryPin: '4821', // کۆدی OTP بۆ پشتڕاستکردنەوە
+      merchantName: '',
+      merchantAddress: '',
+      merchantPhone: '',
+      customerName: '',
+      customerAddress: '',
+      customerPhone: '',
+      items: const [],
+      deliveryFee: 0,
+      tip: 0,
+      dbId: null,
+      handoverPin: '',
+      deliveryPin: '',
     );
   }
 
@@ -1162,7 +1179,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               ),
             ),
           )
-        else
+        else if (_activeOrder.dbId != null)
           // دوگمەی پیشاندانەوەی کارت کاتێک کارتەکە داخراوە
           Positioned(
             left: 16,
@@ -1184,6 +1201,47 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                   child: const Text(
                     'پیشاندانی بۆکسی زانیارییەکان',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+              ),
+            ),
+          )
+        else
+          // دۆخی چاوەڕوانی: هیچ داواکارییەک لە لایەن ئادمینەوە دیاری نەکراوە
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0, 4)),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.two_wheeler_rounded, color: Color(0xFFEA580C), size: 22),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          _isOnline
+                              ? 'چاوەڕوانی دیاریکردنی داواکاری لە ئادمینەوە...'
+                              : 'ئۆفلاینیت • بۆ وەرگرتنی داواکاری ئۆنلاین بە',
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF0F172A)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
