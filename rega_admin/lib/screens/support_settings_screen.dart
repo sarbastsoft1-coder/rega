@@ -41,6 +41,53 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   bool _notifyNewVendor = true;
 
   @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    try {
+      final res = await widget.api.getSettings();
+      final data = res['data'] as Map<String, dynamic>? ?? {};
+      if (!mounted) return;
+      setState(() {
+        if (data.containsKey('default_delivery_fee')) {
+          _deliveryFeeCtrl.text = data['default_delivery_fee'].toString();
+        }
+        if (data.containsKey('default_commission_rate')) {
+          _commissionCtrl.text = data['default_commission_rate'].toString();
+        }
+        if (data.containsKey('working_hours')) {
+          _hoursCtrl.text = data['working_hours'].toString();
+        }
+        if (data.containsKey('support_phone')) {
+          _phoneCtrl.text = data['support_phone'].toString();
+        }
+        if (data.containsKey('platform_name')) {
+          _platformNameCtrl.text = data['platform_name'].toString();
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveDeliveryAndPlatformSettings(String msg) async {
+    try {
+      await widget.api.updateSettings({
+        'default_delivery_fee': int.tryParse(_deliveryFeeCtrl.text.trim()) ?? 2500,
+        'default_commission_rate': double.tryParse(_commissionCtrl.text.trim()) ?? 10.0,
+        'working_hours': _hoursCtrl.text.trim(),
+        'support_phone': _phoneCtrl.text.trim(),
+        'platform_name': _platformNameCtrl.text.trim(),
+      });
+      _showSaveFeedback('$msg و لە سێرڤەر پاشەکەوت کران ✅');
+      widget.onChanged?.call();
+    } catch (e) {
+      _showSaveFeedback('$msg (لۆکاڵ)');
+    }
+  }
+
+  @override
   void dispose() {
     _searchCtrl.dispose();
     _platformNameCtrl.dispose();
@@ -613,6 +660,17 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 18),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF16A34A),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی دلیڤەری پاشەکەوت کران'),
+            child: const Text('پاشەکەوتکردنی ڕێکخستنی دلیڤەری', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
         ],
       ),
     );
@@ -936,7 +994,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () => _showSaveFeedback('ڕێکخستنەکانی پارەدان و کرێ نوێکرانەوە'),
+            onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی پارەدان و کرێ نوێکرانەوە'),
             child: const Text('پاشەکەوتکردن', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
         ],

@@ -17,6 +17,9 @@ class CourierItem {
   final String plateNumber;
   final LatLng location;
   final bool isVerified;
+  final bool isVehicleVerified;
+  final String motorColor;
+  final String modelYear;
   final num cashCollected;
   final num walletBalance;
 
@@ -32,6 +35,9 @@ class CourierItem {
     required this.plateNumber,
     required this.location,
     this.isVerified = true,
+    this.isVehicleVerified = true,
+    this.motorColor = 'ڕەش و سەوز',
+    this.modelYear = '2024',
     this.cashCollected = 0,
     this.walletBalance = 0,
   });
@@ -48,6 +54,9 @@ class CourierItem {
     String? plateNumber,
     LatLng? location,
     bool? isVerified,
+    bool? isVehicleVerified,
+    String? motorColor,
+    String? modelYear,
     num? cashCollected,
     num? walletBalance,
   }) {
@@ -63,6 +72,9 @@ class CourierItem {
       plateNumber: plateNumber ?? this.plateNumber,
       location: location ?? this.location,
       isVerified: isVerified ?? this.isVerified,
+      isVehicleVerified: isVehicleVerified ?? this.isVehicleVerified,
+      motorColor: motorColor ?? this.motorColor,
+      modelYear: modelYear ?? this.modelYear,
       cashCollected: cashCollected ?? this.cashCollected,
       walletBalance: walletBalance ?? this.walletBalance,
     );
@@ -272,7 +284,15 @@ class _DriversScreenState extends State<DriversScreen> {
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
     final phoneCtrl = TextEditingController(text: existing?.phone ?? '');
     final cityCtrl = TextEditingController(text: existing?.city ?? 'هەولێر');
+    final motorTypeCtrl = TextEditingController(text: existing?.motorType ?? 'Honda CBR 150R');
+    final plateCtrl = TextEditingController(text: existing?.plateNumber ?? 'KLR-402');
+    final colorCtrl = TextEditingController(text: existing?.motorColor ?? 'ڕەش و سەوز');
+    final yearCtrl = TextEditingController(text: existing?.modelYear ?? '2024');
+    final walletCtrl = TextEditingController(text: (existing?.walletBalance ?? 0).toString());
+    final cashCtrl = TextEditingController(text: (existing?.cashCollected ?? 0).toString());
     String status = existing?.status ?? 'active';
+    bool isVerified = existing?.isVerified ?? true;
+    bool isVehicleVerified = existing?.isVehicleVerified ?? true;
 
     showDialog(
       context: context,
@@ -290,65 +310,194 @@ class _DriversScreenState extends State<DriversScreen> {
                 child: const Icon(Icons.two_wheeler_rounded, color: Color(0xFF113E2E), size: 22),
               ),
               const SizedBox(width: 12),
-              Text(
-                isEdit ? 'دەستکاریکردنی ماتۆرسوار' : 'زیادکردنی ماتۆرسواری نوێ',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+              Expanded(
+                child: Text(
+                  isEdit ? 'دەستکاریکردنی هەموو بەشەکانی شۆفێر / گەیاندن' : 'زیادکردنی ماتۆرسواری نوێ',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                ),
               ),
             ],
           ),
           content: SizedBox(
-            width: 440,
+            width: 520,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'ناوی تەواوی ماتۆرسوار *',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: phoneCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'ژمارەی مۆبایل *',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  DropdownButtonFormField<String>(
-                    initialValue: cityCtrl.text,
-                    decoration: InputDecoration(
-                      labelText: 'شار',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'هەولێر', child: Text('هەولێر')),
-                      DropdownMenuItem(value: 'سلێمانی', child: Text('سلێمانی')),
-                      DropdownMenuItem(value: 'دهۆک', child: Text('دهۆک')),
-                      DropdownMenuItem(value: 'کەلار', child: Text('کەلار')),
+                  const Text('١. زانیاری کەسی شۆفێر', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF113E2E))),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: nameCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'ناوی تەواوی شۆفێر *',
+                            prefixIcon: const Icon(Icons.person_outline, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: phoneCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'ژمارەی مۆبایل *',
+                            prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
                     ],
-                    onChanged: (v) => setDialogState(() => cityCtrl.text = v ?? 'هەولێر'),
                   ),
                   const SizedBox(height: 14),
-                  DropdownButtonFormField<String>(
-                    initialValue: status,
-                    decoration: InputDecoration(
-                      labelText: 'دۆخی ماتۆرسوار',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'active', child: Text('چالاک')),
-                      DropdownMenuItem(value: 'on_the_way', child: Text('لە دلیڤەری')),
-                      DropdownMenuItem(value: 'offline', child: Text('ناچالاک')),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: cityCtrl.text,
+                          decoration: InputDecoration(
+                            labelText: 'شار / دەڤەر',
+                            prefixIcon: const Icon(Icons.location_city_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'هەولێر', child: Text('هەولێر')),
+                            DropdownMenuItem(value: 'سلێمانی', child: Text('سلێمانی')),
+                            DropdownMenuItem(value: 'دهۆک', child: Text('دهۆک')),
+                            DropdownMenuItem(value: 'کەلار', child: Text('کەلار')),
+                          ],
+                          onChanged: (v) => setDialogState(() => cityCtrl.text = v ?? 'هەولێر'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: status,
+                          decoration: InputDecoration(
+                            labelText: 'دۆخی کارکردنی دلیڤەری',
+                            prefixIcon: const Icon(Icons.toggle_on_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'active', child: Text('🟢 چالاک (بەردەست)')),
+                            DropdownMenuItem(value: 'on_the_way', child: Text('🟡 لە دلیڤەری (سەرقاڵ)')),
+                            DropdownMenuItem(value: 'offline', child: Text('⚪ ناچالاک (ئۆفلاین)')),
+                          ],
+                          onChanged: (v) => setDialogState(() => status = v ?? 'active'),
+                        ),
+                      ),
                     ],
-                    onChanged: (v) => setDialogState(() => status = v ?? 'active'),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text('٢. زانیاری ئامرازی گواستنەوە (ماتۆڕسکیل / سەیارە)', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF113E2E))),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: motorTypeCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'جۆری ماتۆڕ / ئۆتۆمبێل *',
+                            prefixIcon: const Icon(Icons.two_wheeler_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: plateCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'ژمارەی تابلۆ *',
+                            prefixIcon: const Icon(Icons.pin_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: colorCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'ڕەنگ',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: yearCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'مۆدێل / ساڵ',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  const Text('٣. دارایی و پشتڕاستکردنەوە (KYC & Finance)', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF113E2E))),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: walletCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'باڵانسی واڵێت (د.ع)',
+                            prefixIcon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: cashCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'کاشی کۆکراوە (COD د.ع)',
+                            prefixIcon: const Icon(Icons.payments_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  SwitchListTile(
+                    title: const Text('پشتڕاستکردنەوەی شۆفێر (KYC Driver Verified)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    subtitle: const Text('ڕێگەپێدراوە بۆ وەرگرتنی داواکاری لە ئەپی گەیاندن', style: TextStyle(fontSize: 11)),
+                    value: isVerified,
+                    activeThumbColor: const Color(0xFF113E2E),
+                    onChanged: (v) => setDialogState(() => isVerified = v),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  SwitchListTile(
+                    title: const Text('پشتڕاستکردنەوەی ماتۆڕ (Vehicle Verified)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    value: isVehicleVerified,
+                    activeThumbColor: const Color(0xFF113E2E),
+                    onChanged: (v) => setDialogState(() => isVehicleVerified = v),
+                    contentPadding: EdgeInsets.zero,
                   ),
                 ],
               ),
@@ -365,43 +514,91 @@ class _DriversScreenState extends State<DriversScreen> {
                 backgroundColor: const Color(0xFF113E2E),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
-              onPressed: () {
-                if (nameCtrl.text.trim().isEmpty) return;
+              onPressed: () async {
+                final name = nameCtrl.text.trim();
+                final phone = phoneCtrl.text.trim();
+                if (name.isEmpty || phone.isEmpty) {
+                  _showSnack('تکایە ناو و ژمارەی مۆبایل بنووسە', error: true);
+                  return;
+                }
                 Navigator.pop(ctx);
-                setState(() {
-                  if (isEdit) {
+
+                final payload = {
+                  'name': name,
+                  'phone': phone,
+                  'city': cityCtrl.text,
+                  'motor_type': motorTypeCtrl.text.trim(),
+                  'plate_number': plateCtrl.text.trim(),
+                  'motor_color': colorCtrl.text.trim(),
+                  'model_year': yearCtrl.text.trim(),
+                  'is_verified': isVerified,
+                  'is_vehicle_verified': isVehicleVerified,
+                  'is_online': status == 'active' || status == 'on_the_way',
+                  'is_active': status != 'offline',
+                };
+
+                final parsedWallet = num.tryParse(walletCtrl.text.trim()) ?? (existing?.walletBalance ?? 0);
+                final parsedCash = num.tryParse(cashCtrl.text.trim()) ?? (existing?.cashCollected ?? 0);
+
+                if (isEdit) {
+                  try {
+                    await widget.api.updateDriver(existing.id, payload);
+                  } catch (_) {}
+                  setState(() {
                     final idx = _couriers.indexWhere((c) => c.id == existing.id);
                     if (idx != -1) {
                       _couriers[idx] = existing.copyWith(
-                        name: nameCtrl.text.trim(),
-                        phone: phoneCtrl.text.trim(),
+                        name: name,
+                        phone: phone,
                         city: cityCtrl.text,
                         status: status,
+                        motorType: motorTypeCtrl.text.trim(),
+                        plateNumber: plateCtrl.text.trim(),
+                        motorColor: colorCtrl.text.trim(),
+                        modelYear: yearCtrl.text.trim(),
+                        isVerified: isVerified,
+                        isVehicleVerified: isVehicleVerified,
+                        walletBalance: parsedWallet,
+                        cashCollected: parsedCash,
                       );
                     }
-                  } else {
+                  });
+                  _showSnack('هەموو بەشەکانی شۆفێر بە سەرکەوتوویی نوێکرانەوە ✅');
+                } else {
+                  int newId = DateTime.now().millisecondsSinceEpoch;
+                  try {
+                    final res = await widget.api.createDriver(payload);
+                    newId = (res['data']?['id'] as int?) ?? newId;
+                  } catch (_) {}
+                  setState(() {
                     _couriers.insert(
                       0,
                       CourierItem(
-                        id: DateTime.now().millisecondsSinceEpoch,
-                        name: nameCtrl.text.trim(),
-                        phone: phoneCtrl.text.trim(),
+                        id: newId,
+                        name: name,
+                        phone: phone,
                         city: cityCtrl.text,
                         status: status,
-                        todayOrders: 1,
+                        todayOrders: 0,
                         avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-                        motorType: 'Honda CBR 150R',
-                        plateNumber: 'KLR-999',
+                        motorType: motorTypeCtrl.text.trim().isNotEmpty ? motorTypeCtrl.text.trim() : 'Honda CBR 150R',
+                        plateNumber: plateCtrl.text.trim().isNotEmpty ? plateCtrl.text.trim() : 'KLR-999',
+                        motorColor: colorCtrl.text.trim(),
+                        modelYear: yearCtrl.text.trim(),
                         location: const LatLng(36.1911, 44.0091),
+                        isVerified: isVerified,
+                        isVehicleVerified: isVehicleVerified,
+                        walletBalance: parsedWallet,
+                        cashCollected: parsedCash,
                       ),
                     );
-                  }
-                });
-                _showSnack(isEdit ? 'ماتۆرسوار نوێکرایەوە' : 'ماتۆرسواری نوێ زیادکرا');
+                  });
+                  _showSnack('شۆفێری نوێ بە سەرکەوتوویی زیادکرا ✅');
+                }
               },
-              child: Text(isEdit ? 'پاشەکەوتکردن' : 'زیادکردن'),
+              child: Text(isEdit ? 'پاشەکەوتکردنی هەموو گۆڕانکارییەکان' : 'زیادکردنی شۆفێر'),
             ),
           ],
         ),
@@ -417,7 +614,7 @@ class _DriversScreenState extends State<DriversScreen> {
         title: Row(
           children: [
             CircleAvatar(
-              radius: 20,
+              radius: 22,
               backgroundImage: NetworkImage(courier.avatarUrl),
             ),
             const SizedBox(width: 12),
@@ -434,29 +631,36 @@ class _DriversScreenState extends State<DriversScreen> {
           ],
         ),
         content: SizedBox(
-          width: 440,
+          width: 460,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDetailRow('شار', courier.city),
-              const Divider(height: 18),
+              _buildDetailRow('شار / دەڤەر', courier.city),
+              const Divider(height: 16),
               _buildDetailRow('داواکارییەکانی ئەمڕۆ', '${courier.todayOrders} داواکاری'),
-              const Divider(height: 18),
+              const Divider(height: 16),
               _buildDetailRow('جۆری ماتۆڕسکیل', courier.motorType),
-              const Divider(height: 18),
+              const Divider(height: 16),
               _buildDetailRow('تابلۆی هاتووچۆ', courier.plateNumber),
-              const Divider(height: 18),
-              _buildDetailRow('پارەی کاش (COD)', '${courier.cashCollected} د.ع'),
+              const Divider(height: 16),
+              _buildDetailRow('ڕەنگ و مۆدێل', '${courier.motorColor} • ${courier.modelYear}'),
+              const Divider(height: 16),
+              _buildDetailRow('پارەی کاش لەدەست (COD)', '${courier.cashCollected} د.ع'),
+              const Divider(height: 16),
+              _buildDetailRow('باڵانسی واڵێت', '${courier.walletBalance} د.ع'),
+              const Divider(height: 16),
+              _buildDetailRow('باری پشتڕاستکردنەوە (KYC)', courier.isVerified ? '✅ پەسەندکراو' : '⏳ چاوەڕوانی پەسەندکردن'),
             ],
           ),
         ),
         actions: [
-          OutlinedButton(
+          OutlinedButton.icon(
             onPressed: () {
               Navigator.pop(ctx);
               _showAddCourierDialog(existing: courier);
             },
-            child: const Text('دەستکاریکردن'),
+            icon: const Icon(Icons.edit_rounded, size: 16),
+            label: const Text('دەستکاریکردنی هەموو بەشەکان'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(

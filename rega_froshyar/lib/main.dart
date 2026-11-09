@@ -1801,6 +1801,18 @@ class OrdersScreen extends StatelessWidget {
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           if (constraints.maxWidth >= 720) {
+                            if (activeOrders.length == 1) {
+                              return Align(
+                                alignment: Alignment.topCenter,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 540),
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                    child: _buildOrderCard(context, activeOrders.first),
+                                  ),
+                                ),
+                              );
+                            }
                             final crossAxisCount = constraints.maxWidth >= 1024 ? 3 : 2;
                             return GridView.builder(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

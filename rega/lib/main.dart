@@ -3429,7 +3429,7 @@ class _MainScreenState extends State<MainScreen> {
                         children: [
                           _buildBottomNavItem(0, _t('سەرەکی'), Icons.home_rounded, Icons.home_outlined),
                           _buildBottomNavItem(1, _t('داشکاندن'), Icons.local_offer_rounded, Icons.local_offer_outlined),
-                          _buildBottomNavItem(2, _t('سەبەتە'), Icons.shopping_bag_rounded, Icons.shopping_bag_outlined, isCart: true),
+                          _buildBottomNavItem(2, _t('سەبەتە'), Icons.shopping_cart_rounded, Icons.shopping_cart_outlined, isCart: true),
                           _buildBottomNavItem(3, _t('داواکاری'), Icons.receipt_long_rounded, Icons.receipt_long_outlined),
                           _buildBottomNavItem(4, _t('پڕۆفایل'), Icons.person_rounded, Icons.person_outline_rounded),
                         ],
@@ -3459,6 +3459,53 @@ class _MainScreenState extends State<MainScreen> {
     final bool isSelected = _currentIndex == index;
     const pillYellow = Color(0xFFFAC800);
     const iconColor = Color(0xFF0F172A);
+    final cartCount = isCart
+        ? _cart.fold<int>(0, (sum, e) => sum + e.quantity)
+        : 0;
+
+    Widget iconWidget = Icon(
+      isSelected ? activeIcon : inactiveIcon,
+      color: iconColor,
+      size: 22,
+    );
+
+    // Cart: yellow pill look with red count badge on the cart icon (like design)
+    if (isCart) {
+      iconWidget = Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(
+            isSelected ? activeIcon : inactiveIcon,
+            color: iconColor,
+            size: 22,
+          ),
+          if (cartCount > 0)
+            Positioned(
+              top: -6,
+              right: -8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                child: Text(
+                  cartCount > 99 ? '99+' : '$cartCount',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                    height: 1.15,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
 
     return Expanded(
       child: InkWell(
@@ -3475,77 +3522,44 @@ class _MainScreenState extends State<MainScreen> {
         child: Align(
           alignment: Alignment.center,
           heightFactor: 1.0,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isSelected ? 14 : 12,
-                  vertical: 10,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.symmetric(
+              horizontal: isSelected ? 14 : 12,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected ? pillYellow : Colors.transparent,
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                iconWidget,
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: isSelected
+                      ? Padding(
+                          padding: const EdgeInsetsDirectional.only(start: 8),
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: iconColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
-                decoration: BoxDecoration(
-                  color: isSelected ? pillYellow : Colors.transparent,
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      isSelected ? activeIcon : inactiveIcon,
-                      color: iconColor,
-                      size: 22,
-                    ),
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      child: isSelected
-                          ? Padding(
-                              padding: const EdgeInsetsDirectional.only(start: 8),
-                              child: Text(
-                                label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: iconColor,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ],
-                ),
-              ),
-              if (isCart && _cart.isNotEmpty)
-                Positioned(
-                  top: -2,
-                  right: -2,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEF4444),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: Text(
-                      '',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w900,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -5008,33 +5022,16 @@ class _MainScreenState extends State<MainScreen> {
                                                           category: p.subCategory,
                                                         );
                                                       },
-                                                      child: Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                                        mainAxisSize: MainAxisSize.min,
-                                                        children: [
-                                                          Text(
-                                                            p.name,
-                                                            maxLines: 2,
-                                                            overflow: TextOverflow.ellipsis,
-                                                            style: const TextStyle(
-                                                              fontWeight: FontWeight.bold,
-                                                              fontSize: 11.5,
-                                                              color: Colors.black,
-                                                              height: 1.15,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(height: 2),
-                                                          Text(
-                                                            p.subCategory ?? '',
-                                                            maxLines: 1,
-                                                            overflow: TextOverflow.ellipsis,
-                                                            style: const TextStyle(
-                                                              fontSize: 9.5,
-                                                              color: Color(0xFFD97706),
-                                                              fontWeight: FontWeight.bold,
-                                                            ),
-                                                          ),
-                                                        ],
+                                                      child: Text(
+                                                        p.name,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 11.5,
+                                                          color: Colors.black,
+                                                          height: 1.15,
+                                                        ),
                                                       ),
                                                     ),
 
@@ -5062,17 +5059,17 @@ class _MainScreenState extends State<MainScreen> {
                                                           onTap: () {
                                                             _addToCart(p);
                                                           },
-                                                          borderRadius: BorderRadius.circular(9),
+                                                          borderRadius: BorderRadius.circular(12),
                                                           child: Container(
-                                                            width: 30,
-                                                            height: 30,
+                                                            width: 42,
+                                                            height: 42,
                                                             decoration: BoxDecoration(
                                                               color: const Color(0xFFFAC800),
-                                                              borderRadius: BorderRadius.circular(9),
+                                                              borderRadius: BorderRadius.circular(12),
                                                             ),
                                                             child: const Icon(
                                                               Icons.add,
-                                                              size: 17,
+                                                              size: 24,
                                                               color: Colors.black,
                                                             ),
                                                           ),

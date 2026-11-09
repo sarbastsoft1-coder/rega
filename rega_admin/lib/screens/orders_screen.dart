@@ -335,61 +335,170 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   void _showEditOrderDialog(AdminOrderItem o) {
+    final raw = o.rawOrder ?? {};
     final nameCtrl = TextEditingController(text: o.customerName);
+    final phoneCtrl = TextEditingController(text: raw['customer_phone']?.toString() ?? raw['customer']?['phone']?.toString() ?? '');
     final storeCtrl = TextEditingController(text: o.storeName);
     final driverCtrl = TextEditingController(text: o.driverName);
+    final addressCtrl = TextEditingController(text: raw['delivery_address']?.toString() ?? '');
+    final feeCtrl = TextEditingController(text: (raw['delivery_fee'] ?? 2500).toString());
+    final pinCtrl = TextEditingController(text: raw['delivery_pin']?.toString() ?? '');
     String status = o.status;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: Text('دەستکاریکردنی داواکاری ${o.orderNumber}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEA580C).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.edit_note_rounded, color: Color(0xFFEA580C), size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('دەستکاریکردنی هەموو بەشەکانی داواکاری ${o.orderNumber}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    const Text('دەستکاری کردنی کڕیار، شۆفێر، گەیاندن، ناونیشان و باری داواکاری', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  ],
+                ),
+              ),
+            ],
+          ),
           content: SizedBox(
-            width: 440,
+            width: 520,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text('١. زانیاری کڕیار و فرۆشگا', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: nameCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'ناوی کڕیار *',
+                            prefixIcon: const Icon(Icons.person_outline, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: phoneCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'ژمارەی مۆبایل',
+                            prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: storeCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'ناوی فرۆشگا *',
+                            prefixIcon: const Icon(Icons.storefront_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: driverCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'ناوی شۆفێر',
+                            prefixIcon: const Icon(Icons.two_wheeler_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  const Text('٢. بەشی گەیاندن و ناونیشان (Delivery Part)', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                  const SizedBox(height: 10),
                   TextField(
-                    controller: nameCtrl,
+                    controller: addressCtrl,
                     decoration: InputDecoration(
-                      labelText: 'ناوی کڕیار *',
+                      labelText: 'ناونیشانی گەیاندن (گەڕەک / کۆڵان / شوێن)',
+                      prefixIcon: const Icon(Icons.location_on_outlined, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: storeCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'ناوی فرۆشگا *',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: feeCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'تێچووی گەیاندن (د.ع)',
+                            prefixIcon: const Icon(Icons.monetization_on_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: pinCtrl,
+                          maxLength: 4,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'کۆدی PIN کڕیار',
+                            prefixIcon: const Icon(Icons.pin_outlined, size: 20),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            counterText: '',
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: driverCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'ناوی ماتۆرسوار',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
                     initialValue: status,
                     decoration: InputDecoration(
-                      labelText: 'دۆخی داواکاری',
+                      labelText: 'دۆخی گەیاندنی داواکاری (Delivery Status)',
+                      prefixIcon: const Icon(Icons.timeline_rounded, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'pending', child: Text('چاوەڕوان')),
-                      DropdownMenuItem(value: 'on_the_way', child: Text('لە ڕێگادایە')),
-                      DropdownMenuItem(value: 'delivered', child: Text('تەواوبوو')),
+                      DropdownMenuItem(value: 'pending', child: Text('⏳ لە چاوەڕوانیدا (Pending)')),
+                      DropdownMenuItem(value: 'accepted', child: Text('✅ قبولکراو (Accepted)')),
+                      DropdownMenuItem(value: 'preparing', child: Text('🍳 لە ئامادەکردندایە (Preparing)')),
+                      DropdownMenuItem(value: 'ready', child: Text('📦 ئامادەیە بۆ وەرگرتن (Ready)')),
+                      DropdownMenuItem(value: 'picked_up', child: Text('🛵 کاڵا لەلای شۆفێرە (Picked up)')),
+                      DropdownMenuItem(value: 'on_the_way', child: Text('🚀 لە ڕێگادایە (On the way)')),
+                      DropdownMenuItem(value: 'arrived_customer', child: Text('📍 گەیشتە کڕیار (Arrived)')),
+                      DropdownMenuItem(value: 'delivered', child: Text('🎉 تەواوبوو (Delivered)')),
+                      DropdownMenuItem(value: 'cancelled', child: Text('❌ هەڵوەشاوەتەوە (Cancelled)')),
                     ],
                     onChanged: (v) => setDialogState(() => status = v ?? status),
                   ),
@@ -404,9 +513,24 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 backgroundColor: const Color(0xFFEA580C),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
               ),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(ctx);
+                final parsedFee = int.tryParse(feeCtrl.text.trim()) ?? 2500;
+
+                try {
+                  if (o.rawOrder != null) {
+                    await widget.api.updateOrder(o.id, {
+                      'customer_name': nameCtrl.text.trim(),
+                      'customer_phone': phoneCtrl.text.trim(),
+                      'delivery_address': addressCtrl.text.trim(),
+                      'delivery_fee': parsedFee,
+                      'status': status,
+                    });
+                  }
+                } catch (_) {}
+
                 setState(() {
                   final idx = _orders.indexWhere((x) => x.id == o.id);
                   if (idx != -1) {
@@ -418,9 +542,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     );
                   }
                 });
-                _showSnack('داواکاری نوێکرایەوە ✅');
+
+                widget.onOrderChanged?.call();
+                _showSnack('هەموو بەشەکانی داواکاری ${o.orderNumber} نوێکرانەوە ✅');
               },
-              child: const Text('پاشەکەوتکردن'),
+              child: const Text('پاشەکەوتکردنی هەموو گۆڕانکارییەکان'),
             ),
           ],
         ),
