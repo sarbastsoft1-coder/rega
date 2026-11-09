@@ -298,7 +298,6 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
       if (!enabled) {
-        if (mounted) setState(() => _autoDriveSimulation = true);
         return;
       }
 
@@ -308,7 +307,6 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       }
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
-        if (mounted) setState(() => _autoDriveSimulation = true);
         return;
       }
 
@@ -345,7 +343,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _autoDriveSimulation = true);
+      // Keep real manual progression mode
     }
   }
 
@@ -441,10 +439,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   void _stepSimulationOneSecond() {
     switch (widget.stage) {
       case CaptainRouteStage.assigned:
-        // Auto-begin driving toward restaurant after 2 seconds
-        if (_elapsedSeconds >= 2) {
-          widget.onStageAutoReached(CaptainRouteStage.arrivingPickup);
-        }
+        // Driver must manually accept and tap heading to store
         break;
 
       case CaptainRouteStage.arrivingPickup:

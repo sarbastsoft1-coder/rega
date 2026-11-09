@@ -629,8 +629,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       if (_status == 'delivered') return;
 
       final synced = await _pollBackendOneSecond();
-      if (!synced) {
-        // Seamless local 1-second street progression so user ALWAYS sees sec-by-sec movement!
+      if (!synced && _status != 'pending' && _status != 'preparing') {
+        // Local progression only for active in-transit driving if offline
         _stepLocalOneSecond();
       }
     });
@@ -643,7 +643,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     try {
       final res = await http
           .get(
-            Uri.parse('${widget.apiBaseUrl}/live-telemetry/$cleanRef?auto_progress=1'),
+            Uri.parse('${widget.apiBaseUrl}/live-telemetry/$cleanRef'),
             headers: const {'Accept': 'application/json'},
           )
           .timeout(const Duration(milliseconds: 850));

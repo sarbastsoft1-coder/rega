@@ -768,12 +768,28 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           }).toList()
         : _activeOrder.items;
 
+    final remoteDriverStatus = data['driver_status']?.toString() ?? 'driver_assigned';
+    OrderStatus initialStage = OrderStatus.driverAssigned;
+    if (remoteDriverStatus == 'driver_arriving_pickup') {
+      initialStage = OrderStatus.driverArrivingPickup;
+    } else if (remoteDriverStatus == 'arrived_pickup') {
+      initialStage = OrderStatus.arrivedPickup;
+    } else if (remoteDriverStatus == 'picked_up') {
+      initialStage = OrderStatus.pickedUp;
+    } else if (remoteDriverStatus == 'on_the_way') {
+      initialStage = OrderStatus.onTheWay;
+    } else if (remoteDriverStatus == 'arrived_customer') {
+      initialStage = OrderStatus.arrivedCustomer;
+    } else if (remoteDriverStatus == 'delivered') {
+      initialStage = OrderStatus.delivered;
+    }
+
     setState(() {
       _isOrderCardVisible = true;
       _activeOrder = OrderModel(
         id: 'ord_$ref',
         orderNumber: ref.startsWith('#') ? ref : '#$ref',
-        status: OrderStatus.driverArrivingPickup,
+        status: initialStage,
         merchantName: (store['name'] ?? 'کەبابخانەی کەلار').toString(),
         merchantAddress: (store['address'] ?? 'ناو بازاڕی کەلار').toString(),
         merchantPhone: (store['phone'] ?? '07701112233').toString(),

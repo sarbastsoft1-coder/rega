@@ -198,11 +198,10 @@ class LiveTelemetryController extends Controller
         $ref = $this->normalizeRef($orderRef);
         $session = $this->resolveOrBootstrapSession($ref);
 
-        // If Customer/Admin requests auto_progress=1 and no external driver app pinged in last 4s,
-        // smoothly advance 1 second per second along the Kalar route so standalone tracking is 100% live!
+        // Real orders never auto-progress; only advance if simulated demo without a real database order
         $driverActivelyPinging = $session->driver_pinged_at && $session->driver_pinged_at->diffInSeconds(now()) <= 4;
 
-        if ($request->boolean('auto_progress') && ! $driverActivelyPinging && ! in_array($session->status, ['delivered', 'cancelled'], true)) {
+        if ($request->boolean('auto_progress') && ! $session->order_id && ! $driverActivelyPinging && ! in_array($session->status, ['delivered', 'cancelled'], true)) {
             $this->advanceAutonomousTick($session);
         }
 
