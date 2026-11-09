@@ -74,7 +74,7 @@ def start_backend_thread(base_dir):
         try:
             print("[ONLINE] REGA Backend starting on http://0.0.0.0:8001 ...", flush=True)
             proc = subprocess.Popen(
-                ["php", "artisan", "serve", "--port=8001", "--host=0.0.0.0"],
+                "php artisan serve --port=8001 --host=0.0.0.0",
                 cwd=backend_dir,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
