@@ -14,6 +14,7 @@ class Category extends Model
         'name_en',
         'icon_name',
         'image_url',
+        'secondary_image_url',
         'is_active',
         'is_featured_home',
         'sort_order',

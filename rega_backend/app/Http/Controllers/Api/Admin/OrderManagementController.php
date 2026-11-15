@@ -125,6 +125,7 @@ class OrderManagementController extends Controller
 
         DB::transaction(function () use ($order, $driver, $request) {
             $oldDriverStatus = $order->driver_status;
+            $order->loadMissing('store');
 
             $order->update([
                 'driver_id' => $driver->id,
@@ -148,10 +149,35 @@ class OrderManagementController extends Controller
                 'target_audience' => 'specific_user',
                 'title_ku' => "داواکاری نوێی {$order->order_number} گەیشت",
                 'title_en' => "New Order {$order->order_number} Assigned",
-                'body_ku' => "داواکارییەک لە {$order->store?->name_ku} بۆت دیاریکرا.",
+                'body_ku' => "داواکارییەک لە {$order->store?->name_ku} بۆت دیاریکرا — شوێنی فرۆشگا لەسەر نەخشە دەرکەوتووە.",
                 'tag' => 'گەیاندن',
                 'type' => 'order',
             ]);
+
+            $store = $order->store;
+            LiveTelemetrySession::updateOrCreate(
+                ['order_ref' => $order->order_number],
+                [
+                    'order_id' => $order->id,
+                    'status' => $order->status,
+                    'driver_status' => 'driver_assigned',
+                    'store_name' => $store?->name_ku,
+                    'store_address' => $store?->address_ku,
+                    'store_phone' => $store?->phone,
+                    'store_lat' => (float) ($store?->lat ?? 34.6836),
+                    'store_lng' => (float) ($store?->lng ?? 45.3189),
+                    'customer_name' => $order->customer_name,
+                    'customer_address' => $order->delivery_address,
+                    'customer_phone' => $order->customer_phone,
+                    'customer_lat' => $order->delivery_lat,
+                    'customer_lng' => $order->delivery_lng,
+                    'driver_name' => $driver->name,
+                    'driver_phone' => $driver->phone,
+                    'vehicle_label' => $driver->driverProfile?->motor_type,
+                    'driver_lat' => $driver->driverProfile?->current_lat,
+                    'driver_lng' => $driver->driverProfile?->current_lng,
+                ]
+            );
         });
 
         return response()->json([
@@ -198,12 +224,14 @@ class OrderManagementController extends Controller
                 'cancelled_at' => now(),
                 'cancelled_by' => 'admin',
                 'cancellation_reason' => $validated['reason'] ?? 'هەڵوەشێندرایەوە لەلایەن بەڕێوەبەرایەتی',
+                'is_profit_realized' => false,
             ],
             'rejected' => $updates += [
                 'vendor_status' => 'rejected',
                 'cancelled_at' => now(),
                 'cancelled_by' => 'admin',
                 'cancellation_reason' => $validated['reason'] ?? 'ڕەتکرایەوە',
+                'is_profit_realized' => false,
             ],
             default => null,
         };
@@ -273,7 +301,7 @@ class OrderManagementController extends Controller
             'delivery_address' => ['sometimes', 'string', 'max:255'],
             'customer_notes' => ['nullable', 'string', 'max:500'],
             'delivery_fee' => ['nullable', 'integer', 'min:0'],
-            'payment_method' => ['nullable', 'string', 'in:cash,fib,fastpay,wallet'],
+            'payment_method' => ['nullable', 'string', 'in:cash'],
             'payment_status' => ['nullable', 'string', 'in:pending,paid,refunded'],
             'status' => ['nullable', 'string'],
         ]);

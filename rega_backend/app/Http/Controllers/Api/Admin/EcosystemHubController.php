@@ -215,7 +215,7 @@ class EcosystemHubController extends Controller
             'delivery_address' => ['required', 'string', 'max:255'],
             'delivery_lat' => ['nullable', 'numeric'],
             'delivery_lng' => ['nullable', 'numeric'],
-            'payment_method' => ['nullable', 'string', 'in:cash,fib,fastpay,wallet'],
+            'payment_method' => ['nullable', 'string', 'in:cash'],
             'coupon_code' => ['nullable', 'string'],
             'driver_tip' => ['nullable', 'integer', 'min:0'],
             'customer_notes' => ['nullable', 'string', 'max:500'],
@@ -252,25 +252,18 @@ class EcosystemHubController extends Controller
 
             $deliveryFee = $neighborhood ? (int) $neighborhood->delivery_fee : (int) $store->base_delivery_fee;
 
-            $subtotal = 0;
+            $profitService = app(\App\Services\OrderProfitService::class);
+            $commissionRate = $profitService->globalCommissionPercentage();
             $preparedItems = [];
 
             foreach ($validated['items'] as $entry) {
                 $product = Product::findOrFail($entry['product_id']);
-                $unitPrice = $product->effectivePrice();
-                $qty = (int) $entry['quantity'];
-                $lineTotal = $unitPrice * $qty;
-                $subtotal += $lineTotal;
-
-                $preparedItems[] = [
-                    'product_id' => $product->id,
-                    'product_name' => $product->name_ku,
-                    'product_image' => $product->image_url,
-                    'unit_price' => $unitPrice,
-                    'quantity' => $qty,
-                    'line_total' => $lineTotal,
-                ];
+                $snap = $profitService->buildLineSnapshot($product, (int) $entry['quantity'], $commissionRate);
+                $preparedItems[] = $snap['item'];
             }
+
+            $finance = $profitService->aggregateOrderFinancials($preparedItems, $commissionRate);
+            $subtotal = (int) $finance['subtotal'];
 
             $discountAmount = 0;
             $coupon = null;
@@ -288,9 +281,8 @@ class EcosystemHubController extends Controller
 
             $tip = (int) ($validated['driver_tip'] ?? 0);
             $totalAmount = max(0, $subtotal + $deliveryFee + $tip - $discountAmount);
-            $commissionRate = (float) $store->commission_rate;
-            $commissionAmount = (int) round($subtotal * ($commissionRate / 100));
-            $vendorNetAmount = max(0, $subtotal - $commissionAmount);
+            $commissionAmount = (int) $finance['admin_profit_amount'];
+            $vendorNetAmount = (int) $finance['vendor_net_amount'];
             $driverTotalEarning = $deliveryFee + $tip;
 
             $nextSeq = 10000 + Order::count() + 1;
@@ -326,16 +318,23 @@ class EcosystemHubController extends Controller
                 'handover_pin' => $handoverPin,
                 'delivery_pin' => $deliveryPin,
                 'subtotal' => $subtotal,
+                'total_product_cost' => (int) $finance['total_product_cost'],
+                'total_gross_profit' => (int) $finance['total_gross_profit'],
                 'discount_amount' => $discountAmount,
                 'delivery_fee' => $deliveryFee,
                 'driver_tip' => $tip,
                 'waiting_bonus' => 0,
                 'total_amount' => $totalAmount,
                 'commission_rate' => $commissionRate,
+                'profit_commission_rate' => (float) $finance['profit_commission_rate'],
                 'commission_amount' => $commissionAmount,
+                'admin_profit_amount' => (int) $finance['admin_profit_amount'],
+                'seller_profit_amount' => (int) $finance['seller_profit_amount'],
+                'refunded_amount' => 0,
+                'is_profit_realized' => false,
                 'vendor_net_amount' => $vendorNetAmount,
                 'driver_total_earning' => $driverTotalEarning,
-                'payment_method' => $validated['payment_method'] ?? 'cash',
+                'payment_method' => 'cash',
                 'payment_status' => 'pending',
                 'customer_name' => $validated['customer_name'] ?? $customer?->name ?? 'کڕیار',
                 'customer_phone' => $validated['customer_phone'] ?? $customer?->phone ?? '07700000000',
@@ -348,7 +347,6 @@ class EcosystemHubController extends Controller
                 'distance_remaining_meters' => 1550,
                 'customer_notes' => $validated['customer_notes'] ?? null,
             ]);
-
             foreach ($preparedItems as $itemData) {
                 OrderItem::create(['order_id' => $created->id, ...$itemData]);
             }
@@ -413,21 +411,10 @@ class EcosystemHubController extends Controller
     }
 
     /**
-     * Verify Store -> Driver 4-digit Handover PIN (`handover_pin`).
+     * Store -> Driver handover (no PIN required).
      */
     public function verifyHandoverPin(Request $request, Order $order): JsonResponse
     {
-        $validated = $request->validate([
-            'pin' => ['required', 'string', 'size:4'],
-        ]);
-
-        if ($validated['pin'] !== $order->handover_pin) {
-            return response()->json([
-                'success' => false,
-                'message' => 'کۆدی ڕادەستکردنی شۆفێر (Handover PIN) هەڵەیە!',
-            ], 422);
-        }
-
         $old = $order->status;
         $order->update([
             'status' => 'picked_up',
@@ -442,7 +429,7 @@ class EcosystemHubController extends Controller
             'to_status' => 'picked_up',
             'actor_id' => $request->user()->id,
             'actor_role' => $request->user()->role,
-            'note' => 'بە کۆدی ڕادەستکردنی شۆفێر (Handover PIN) داواکارییەکە ڕادەستی شۆفێر کرا',
+            'note' => 'داواکارییەکە ڕادەستی شۆفێر کرا',
         ]);
 
         LiveTelemetrySession::where('order_id', $order->id)
@@ -454,31 +441,20 @@ class EcosystemHubController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'کۆدی شۆفێر پشتڕاستکرایەوە و داواکارییەکە ڕادەستی شۆفێر کرا ✅',
+            'message' => 'داواکارییەکە ڕادەستی شۆفێر کرا ✅',
             'data' => $order->fresh(['items', 'store', 'customer', 'driver.driverProfile']),
         ]);
     }
 
     /**
-     * Verify Driver -> Customer 4-digit Delivery PIN (`delivery_pin`) and settle financials.
+     * Driver -> Customer delivery complete and settle financials (no PIN required).
      */
     public function verifyDeliveryPin(Request $request, Order $order): JsonResponse
     {
-        $validated = $request->validate([
-            'pin' => ['required', 'string', 'size:4'],
-        ]);
-
-        if ($validated['pin'] !== $order->delivery_pin) {
-            return response()->json([
-                'success' => false,
-                'message' => 'کۆدی وەرگرتنی کڕیار (Delivery PIN) هەڵەیە!',
-            ], 422);
-        }
-
         $settled = $this->settlementService->markDelivered(
             $order,
             $request->user(),
-            'بە کۆدی ٤ ژمارەیی کڕیار گەیاندن تەواوکرا و حسابەکان یەکلاکرانەوە'
+            'گەیاندن تەواوکرا و حسابەکان یەکلاکرانەوە'
         );
 
         LiveTelemetrySession::where('order_id', $order->id)
@@ -493,7 +469,7 @@ class EcosystemHubController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'گەیاندن بە کۆدی کڕیار پشتڕاستکرایەوە و حسابەکان یەکلاکرانەوە ✅',
+            'message' => 'گەیاندن تەواوکرا و حسابەکان یەکلاکرانەوە ✅',
             'data' => $settled,
         ]);
     }

@@ -13,8 +13,15 @@ class OrderItem extends Model
         'product_name',
         'product_image',
         'unit_price',
+        'unit_cost',
         'quantity',
         'line_total',
+        'line_cost',
+        'unit_gross_profit',
+        'line_gross_profit',
+        'commission_rate',
+        'admin_share',
+        'seller_share',
         'special_notes',
     ];
 
@@ -22,8 +29,15 @@ class OrderItem extends Model
     {
         return [
             'unit_price' => 'integer',
+            'unit_cost' => 'integer',
             'quantity' => 'integer',
             'line_total' => 'integer',
+            'line_cost' => 'integer',
+            'unit_gross_profit' => 'integer',
+            'line_gross_profit' => 'integer',
+            'commission_rate' => 'float',
+            'admin_share' => 'integer',
+            'seller_share' => 'integer',
         ];
     }
 

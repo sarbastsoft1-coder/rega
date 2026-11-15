@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\Store;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -44,6 +45,7 @@ class ProductManagementController extends Controller
         }
 
         $products = $query->orderByDesc('sold_count')->latest()->get();
+        $products->each->makeVisible(['cost_price']);
 
         return response()->json([
             'success' => true,
@@ -63,11 +65,19 @@ class ProductManagementController extends Controller
             'description_ar' => ['nullable', 'string'],
             'description_en' => ['nullable', 'string'],
             'price' => ['required', 'integer', 'min:0'],
+            'cost_price' => ['required', 'integer', 'min:0'],
             'discount_price' => ['nullable', 'integer', 'min:0'],
             'image_url' => ['nullable', 'string', 'max:500'],
             'is_available' => ['nullable', 'boolean'],
             'is_featured' => ['nullable', 'boolean'],
         ]);
+
+        if ((int) $validated['cost_price'] >= (int) $validated['price']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'نرخی فرۆشتن دەبێت لە نرخی کڕین زیاتر بێت.',
+            ], 422);
+        }
 
         $product = Product::create([
             ...$validated,
@@ -76,10 +86,12 @@ class ProductManagementController extends Controller
             'is_featured' => $validated['is_featured'] ?? false,
         ]);
 
+        Store::find($product->store_id)?->refreshDiscountBadge();
+
         return response()->json([
             'success' => true,
             'message' => 'بەرهەم بە سەرکەوتوویی زیادکرا.',
-            'data' => $product->load(['store:id,name_ku,name_en', 'storeCategory:id,name_ku']),
+            'data' => $product->makeVisible(['cost_price'])->load(['store:id,name_ku,name_en', 'storeCategory:id,name_ku']),
         ], 201);
     }
 
@@ -95,24 +107,36 @@ class ProductManagementController extends Controller
             'description_ar' => ['nullable', 'string'],
             'description_en' => ['nullable', 'string'],
             'price' => ['sometimes', 'integer', 'min:0'],
+            'cost_price' => ['sometimes', 'integer', 'min:0'],
             'discount_price' => ['nullable', 'integer', 'min:0'],
             'image_url' => ['nullable', 'string', 'max:500'],
             'is_available' => ['nullable', 'boolean'],
             'is_featured' => ['nullable', 'boolean'],
         ]);
 
+        $sell = (int) ($validated['price'] ?? $product->price);
+        $cost = (int) ($validated['cost_price'] ?? $product->cost_price);
+        if ($cost >= $sell) {
+            return response()->json([
+                'success' => false,
+                'message' => 'نرخی فرۆشتن دەبێت لە نرخی کڕین زیاتر بێت.',
+            ], 422);
+        }
+
         $product->update($validated);
+        Store::find($product->store_id)?->refreshDiscountBadge();
 
         return response()->json([
             'success' => true,
             'message' => 'بەرهەم بە سەرکەوتوویی نوێکرایەوە.',
-            'data' => $product->fresh(['store:id,name_ku,name_en', 'storeCategory:id,name_ku']),
+            'data' => $product->fresh(['store:id,name_ku,name_en', 'storeCategory:id,name_ku'])->makeVisible(['cost_price']),
         ]);
     }
 
     public function toggleAvailability(Product $product): JsonResponse
     {
         $product->update(['is_available' => ! $product->is_available]);
+        Store::find($product->store_id)?->refreshDiscountBadge();
 
         return response()->json([
             'success' => true,
@@ -123,7 +147,9 @@ class ProductManagementController extends Controller
 
     public function destroy(Product $product): JsonResponse
     {
+        $storeId = $product->store_id;
         $product->delete();
+        Store::find($storeId)?->refreshDiscountBadge();
 
         return response()->json([
             'success' => true,

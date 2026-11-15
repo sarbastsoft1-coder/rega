@@ -13,6 +13,8 @@ class StoreCategory extends Model
         'name_ku',
         'name_ar',
         'name_en',
+        'image_url',
+        'secondary_image_url',
         'sort_order',
     ];
 

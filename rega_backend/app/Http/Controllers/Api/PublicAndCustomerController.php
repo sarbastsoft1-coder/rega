@@ -27,10 +27,11 @@ class PublicAndCustomerController extends Controller
     public function bootstrap(): JsonResponse
     {
         $neighborhoods = Neighborhood::where('is_active', true)->orderBy('sort_order')->get();
-        $categories = Category::where('is_active', true)->orderBy('sort_order')->get();
-        $banners = Banner::where('is_active', true)->with(['store:id,name_ku,slug', 'category:id,name_ku,slug'])->orderBy('sort_order')->get();
+        // Home grid uses is_featured_home; sort_order controls tile order in admin.
+        $categories = $this->homeCategoriesQuery()->get();
+        $banners = Banner::where('is_active', true)->with(['store:id,name_ku,slug', 'category:id,name_ku,name_ar,name_en,slug'])->orderBy('sort_order')->get();
         $featuredStores = Store::where('is_approved', true)
-            ->with(['category:id,name_ku,name_en', 'neighborhood:id,name_ku'])
+            ->with(['category:id,name_ku,name_ar,name_en', 'neighborhood:id,name_ku'])
             ->orderByDesc('is_featured')
             ->orderByDesc('rating')
             ->limit(20)
@@ -52,6 +53,71 @@ class PublicAndCustomerController extends Controller
                 'stores' => $featuredStores,
                 'settings' => $publicSettings,
             ],
+        ]);
+    }
+
+    /**
+     * Public list of active marketplace categories for the customer home grid.
+     * Query: featured_home=1 (default) returns only is_featured_home tiles.
+     */
+    public function categories(Request $request): JsonResponse
+    {
+        $featuredOnly = $request->boolean('featured_home', true);
+        $query = Category::where('is_active', true);
+
+        if ($featuredOnly) {
+            $query->where('is_featured_home', true);
+        }
+
+        $categories = $query
+            ->when(! $featuredOnly, fn ($q) => $q->orderByDesc('is_featured_home'))
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $categories,
+        ]);
+    }
+
+    private function homeCategoriesQuery()
+    {
+        return Category::query()
+            ->where('is_active', true)
+            ->orderByDesc('is_featured_home')
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    /**
+     * Public support contacts for vendor/customer apps (no auth).
+     * Sourced from PlatformSetting group=support — editable in admin Support settings.
+     */
+    public function supportContacts(): JsonResponse
+    {
+        $keys = [
+            'support_phone',
+            'whatsapp_number',
+            'telegram_number',
+            'telegram_username',
+            'support_email',
+            'driver_hotline',
+        ];
+
+        $out = [];
+        foreach ($keys as $key) {
+            $out[$key] = PlatformSetting::getValue($key);
+        }
+
+        $out['support_phone'] = $out['support_phone'] ?? '0770 000 1122';
+        $out['whatsapp_number'] = $out['whatsapp_number'] ?? '+9647700001122';
+        $out['telegram_number'] = $out['telegram_number'] ?? ($out['support_phone'] ?? '0770 000 1122');
+        $out['telegram_username'] = ltrim((string) ($out['telegram_username'] ?? 'rega_support'), '@');
+
+        return response()->json([
+            'success' => true,
+            'data' => $out,
         ]);
     }
 
@@ -91,7 +157,9 @@ class PublicAndCustomerController extends Controller
             'category',
             'neighborhood',
             'storeCategories.products' => fn ($q) => $q->where('is_available', true),
-            'products' => fn ($q) => $q->where('is_available', true)->with('storeCategory:id,name_ku'),
+            'products' => fn ($q) => $q->where('is_available', true)->with(
+                'storeCategory:id,name_ku,name_ar,name_en,image_url,secondary_image_url,sort_order'
+            ),
         ]);
 
         return response()->json([
@@ -120,7 +188,7 @@ class PublicAndCustomerController extends Controller
             ->get();
 
         $stores = Store::where('is_approved', true)
-            ->with('category:id,name_ku')
+            ->with('category:id,name_ku,name_ar,name_en')
             ->where(fn ($s) => $s->where('name_ku', 'ILIKE', "%{$q}%")->orWhere('name_en', 'ILIKE', "%{$q}%"))
             ->limit(20)
             ->get();
@@ -184,7 +252,7 @@ class PublicAndCustomerController extends Controller
             'delivery_address' => ['required', 'string', 'max:255'],
             'delivery_lat' => ['nullable', 'numeric'],
             'delivery_lng' => ['nullable', 'numeric'],
-            'payment_method' => ['nullable', 'string', 'in:cash,fib,fastpay,wallet'],
+            'payment_method' => ['nullable', 'string', 'in:cash'],
             'coupon_code' => ['nullable', 'string'],
             'driver_tip' => ['nullable', 'integer', 'min:0'],
             'customer_notes' => ['nullable', 'string', 'max:500'],
@@ -211,26 +279,21 @@ class PublicAndCustomerController extends Controller
 
             $deliveryFee = $neighborhood ? (int) $neighborhood->delivery_fee : (int) $store->base_delivery_fee;
 
-            $subtotal = 0;
+            $profitService = app(\App\Services\OrderProfitService::class);
+            $commissionRate = $profitService->globalCommissionPercentage();
             $preparedItems = [];
 
             foreach ($validated['items'] as $entry) {
                 $product = Product::where('store_id', $store->id)->findOrFail($entry['product_id']);
-                $unitPrice = $product->effectivePrice();
-                $qty = (int) $entry['quantity'];
-                $lineTotal = $unitPrice * $qty;
-                $subtotal += $lineTotal;
-
+                $snap = $profitService->buildLineSnapshot($product, (int) $entry['quantity'], $commissionRate);
                 $preparedItems[] = [
-                    'product_id' => $product->id,
-                    'product_name' => $product->name_ku,
-                    'product_image' => $product->image_url,
-                    'unit_price' => $unitPrice,
-                    'quantity' => $qty,
-                    'line_total' => $lineTotal,
+                    ...$snap['item'],
                     'special_notes' => $entry['special_notes'] ?? null,
                 ];
             }
+
+            $finance = $profitService->aggregateOrderFinancials($preparedItems, $commissionRate);
+            $subtotal = (int) $finance['subtotal'];
 
             $coupon = null;
             $discountAmount = 0;
@@ -249,9 +312,8 @@ class PublicAndCustomerController extends Controller
             $tip = (int) ($validated['driver_tip'] ?? 0);
             $totalAmount = max(0, $subtotal + $deliveryFee + $tip - $discountAmount);
 
-            $commissionRate = (float) $store->commission_rate;
-            $commissionAmount = (int) round($subtotal * ($commissionRate / 100));
-            $vendorNetAmount = max(0, $subtotal - $commissionAmount);
+            $commissionAmount = (int) $finance['admin_profit_amount'];
+            $vendorNetAmount = (int) $finance['vendor_net_amount'];
             $driverTotalEarning = $deliveryFee + $tip;
 
             $nextSeq = 10000 + Order::count() + 1;
@@ -275,16 +337,23 @@ class PublicAndCustomerController extends Controller
                 'handover_pin' => $handoverPin,
                 'delivery_pin' => $deliveryPin,
                 'subtotal' => $subtotal,
+                'total_product_cost' => (int) $finance['total_product_cost'],
+                'total_gross_profit' => (int) $finance['total_gross_profit'],
                 'discount_amount' => $discountAmount,
                 'delivery_fee' => $deliveryFee,
                 'driver_tip' => $tip,
                 'waiting_bonus' => 0,
                 'total_amount' => $totalAmount,
                 'commission_rate' => $commissionRate,
+                'profit_commission_rate' => (float) $finance['profit_commission_rate'],
                 'commission_amount' => $commissionAmount,
+                'admin_profit_amount' => (int) $finance['admin_profit_amount'],
+                'seller_profit_amount' => (int) $finance['seller_profit_amount'],
+                'refunded_amount' => 0,
+                'is_profit_realized' => false,
                 'vendor_net_amount' => $vendorNetAmount,
                 'driver_total_earning' => $driverTotalEarning,
-                'payment_method' => $validated['payment_method'] ?? 'cash',
+                'payment_method' => 'cash',
                 'payment_status' => 'pending',
                 'customer_name' => $user->name,
                 'customer_phone' => $user->phone,
@@ -379,7 +448,7 @@ class PublicAndCustomerController extends Controller
             'delivery_lat' => ['nullable', 'numeric'],
             'delivery_lng' => ['nullable', 'numeric'],
             'delivery_fee' => ['nullable', 'integer', 'min:0'],
-            'payment_method' => ['nullable', 'string'],
+            'payment_method' => ['nullable', 'string', 'in:cash'],
             'coupon_code' => ['nullable', 'string'],
             'driver_tip' => ['nullable', 'integer', 'min:0'],
             'customer_notes' => ['nullable', 'string', 'max:500'],
@@ -433,7 +502,8 @@ class PublicAndCustomerController extends Controller
                 ? (int) $validated['delivery_fee']
                 : ($neighborhood ? (int) $neighborhood->delivery_fee : (int) $store->base_delivery_fee);
 
-            $subtotal = 0;
+            $profitService = app(\App\Services\OrderProfitService::class);
+            $commissionRate = $profitService->globalCommissionPercentage();
             $preparedItems = [];
 
             foreach ($validated['items'] as $entry) {
@@ -449,20 +519,39 @@ class PublicAndCustomerController extends Controller
                 }
 
                 $qty = max(1, (int) ($entry['quantity'] ?? 1));
-                $unitPrice = $product ? $product->effectivePrice() : max(0, (int) ($entry['unit_price'] ?? 2500));
-                $lineTotal = $unitPrice * $qty;
-                $subtotal += $lineTotal;
-
-                $preparedItems[] = [
-                    'product_id' => $product?->id,
-                    'product_name' => $product?->name_ku ?? (string) ($entry['product_name'] ?? 'بەرهەم'),
-                    'product_image' => $product?->image_url ?? ($entry['product_image'] ?? null),
-                    'unit_price' => $unitPrice,
-                    'quantity' => $qty,
-                    'line_total' => $lineTotal,
-                    'special_notes' => $entry['special_notes'] ?? null,
-                ];
+                if ($product) {
+                    $snap = $profitService->buildLineSnapshot($product, $qty, $commissionRate);
+                    $preparedItems[] = [
+                        ...$snap['item'],
+                        'special_notes' => $entry['special_notes'] ?? null,
+                    ];
+                } else {
+                    $unitPrice = max(0, (int) ($entry['unit_price'] ?? 2500));
+                    $unitCost = 0;
+                    $lineTotal = $unitPrice * $qty;
+                    $lineGross = $unitPrice * $qty;
+                    $adminShare = (int) round($lineGross * ($commissionRate / 100));
+                    $preparedItems[] = [
+                        'product_id' => null,
+                        'product_name' => (string) ($entry['product_name'] ?? 'بەرهەم'),
+                        'product_image' => $entry['product_image'] ?? null,
+                        'unit_price' => $unitPrice,
+                        'unit_cost' => $unitCost,
+                        'quantity' => $qty,
+                        'line_total' => $lineTotal,
+                        'line_cost' => 0,
+                        'unit_gross_profit' => $unitPrice,
+                        'line_gross_profit' => $lineGross,
+                        'commission_rate' => $commissionRate,
+                        'admin_share' => $adminShare,
+                        'seller_share' => max(0, $lineGross - $adminShare),
+                        'special_notes' => $entry['special_notes'] ?? null,
+                    ];
+                }
             }
+
+            $finance = $profitService->aggregateOrderFinancials($preparedItems, $commissionRate);
+            $subtotal = (int) $finance['subtotal'];
 
             $discountAmount = 0;
             $coupon = null;
@@ -480,9 +569,8 @@ class PublicAndCustomerController extends Controller
 
             $tip = (int) ($validated['driver_tip'] ?? 0);
             $totalAmount = max(0, $subtotal + $deliveryFee + $tip - $discountAmount);
-            $commissionRate = (float) $store->commission_rate;
-            $commissionAmount = (int) round($subtotal * ($commissionRate / 100));
-            $vendorNetAmount = max(0, $subtotal - $commissionAmount);
+            $commissionAmount = (int) $finance['admin_profit_amount'];
+            $vendorNetAmount = (int) $finance['vendor_net_amount'];
             $driverTotalEarning = $deliveryFee + $tip;
 
             $nextSeq = 10000 + Order::count() + 1;
@@ -494,10 +582,7 @@ class PublicAndCustomerController extends Controller
             $handoverPin = (string) random_int(1000, 9999);
             $deliveryPin = (string) random_int(1000, 9999);
 
-            $rawPayMethod = $validated['payment_method'] ?? 'cash';
-            $paymentMethod = in_array($rawPayMethod, ['cash', 'fib', 'fastpay', 'wallet'], true)
-                ? $rawPayMethod
-                : 'cash';
+            $paymentMethod = 'cash';
 
             $sLat = (float) ($store->lat ?? 34.6836);
             $sLng = (float) ($store->lng ?? 45.3189);
@@ -518,13 +603,20 @@ class PublicAndCustomerController extends Controller
                 'handover_pin' => $handoverPin,
                 'delivery_pin' => $deliveryPin,
                 'subtotal' => $subtotal,
+                'total_product_cost' => (int) $finance['total_product_cost'],
+                'total_gross_profit' => (int) $finance['total_gross_profit'],
                 'discount_amount' => $discountAmount,
                 'delivery_fee' => $deliveryFee,
                 'driver_tip' => $tip,
                 'waiting_bonus' => 0,
                 'total_amount' => $totalAmount,
                 'commission_rate' => $commissionRate,
+                'profit_commission_rate' => (float) $finance['profit_commission_rate'],
                 'commission_amount' => $commissionAmount,
+                'admin_profit_amount' => (int) $finance['admin_profit_amount'],
+                'seller_profit_amount' => (int) $finance['seller_profit_amount'],
+                'refunded_amount' => 0,
+                'is_profit_realized' => false,
                 'vendor_net_amount' => $vendorNetAmount,
                 'driver_total_earning' => $driverTotalEarning,
                 'payment_method' => $paymentMethod,
@@ -742,21 +834,125 @@ class PublicAndCustomerController extends Controller
     {
         $userId = $request->user()?->id;
 
+        // Broadcast rows: user_id NULL + audience all/customers.
+        // Personal / fan-out rows: only the owning customer (or authenticated user).
         $list = AppNotification::query()
             ->with('store:id,name_ku,name_en,cover_url')
             ->where(function ($q) use ($userId) {
-                $q->whereIn('target_audience', ['all', 'customers']);
+                $q->where(function ($broadcast) {
+                    $broadcast->whereNull('user_id')
+                        ->whereIn('target_audience', ['all', 'customers']);
+                });
                 if ($userId) {
                     $q->orWhere('user_id', $userId);
                 }
             })
             ->latest()
-            ->limit(50)
+            ->limit(80)
             ->get();
+
+        if ($userId) {
+            // Prefer personal fan-out rows over the campaign's broadcast companion (avoid duplicates).
+            $personalCampaignIds = $list
+                ->where('user_id', $userId)
+                ->whereNotNull('campaign_id')
+                ->pluck('campaign_id')
+                ->flip();
+
+            $list = $list
+                ->reject(function (AppNotification $n) use ($personalCampaignIds) {
+                    return $n->user_id === null
+                        && $n->campaign_id
+                        && $personalCampaignIds->has($n->campaign_id);
+                })
+                ->values();
+
+            $broadcastIds = $list->whereNull('user_id')->pluck('id');
+            $readBroadcastIds = $broadcastIds->isEmpty()
+                ? collect()
+                : DB::table('app_notification_reads')
+                    ->where('user_id', $userId)
+                    ->whereIn('app_notification_id', $broadcastIds)
+                    ->pluck('app_notification_id')
+                    ->flip();
+
+            $list->transform(function (AppNotification $n) use ($readBroadcastIds) {
+                if ($n->user_id === null) {
+                    $n->is_read = $readBroadcastIds->has($n->id);
+                }
+
+                return $n;
+            });
+        }
 
         return response()->json([
             'success' => true,
-            'data' => $list,
+            'data' => $list->take(50)->values(),
+        ]);
+    }
+
+    public function markNotificationsRead(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $validated = $request->validate([
+            'ids' => ['nullable', 'array', 'max:100'],
+            'ids.*' => ['integer'],
+            'all' => ['nullable', 'boolean'],
+        ]);
+
+        $visibleQuery = AppNotification::query()->where(function ($q) use ($user) {
+            $q->where('user_id', $user->id)
+                ->orWhere(function ($broadcast) {
+                    $broadcast->whereNull('user_id')
+                        ->whereIn('target_audience', ['all', 'customers']);
+                });
+        });
+
+        if (! empty($validated['all'])) {
+            $targets = (clone $visibleQuery)->get(['id', 'user_id']);
+        } elseif (! empty($validated['ids'])) {
+            $targets = (clone $visibleQuery)->whereIn('id', $validated['ids'])->get(['id', 'user_id']);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'ids یان all پێویستە.',
+            ], 422);
+        }
+
+        $personalIds = $targets->where('user_id', $user->id)->pluck('id');
+        $broadcastIds = $targets->whereNull('user_id')->pluck('id');
+
+        $updated = 0;
+        if ($personalIds->isNotEmpty()) {
+            $updated += AppNotification::query()
+                ->where('user_id', $user->id)
+                ->whereIn('id', $personalIds)
+                ->where('is_read', false)
+                ->update(['is_read' => true]);
+        }
+
+        if ($broadcastIds->isNotEmpty()) {
+            $now = now();
+            foreach ($broadcastIds as $nid) {
+                $inserted = DB::table('app_notification_reads')->insertOrIgnore([
+                    'app_notification_id' => $nid,
+                    'user_id' => $user->id,
+                    'read_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $updated += (int) $inserted;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ئاگادارییەکان وەک خوێندراوە نیشانکران.',
+            'updated' => $updated,
         ]);
     }
 }

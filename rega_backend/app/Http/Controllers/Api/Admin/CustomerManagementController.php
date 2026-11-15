@@ -54,21 +54,33 @@ class CustomerManagementController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->normalizeCustomerPhoneInput($request);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'phone' => ['required', 'string', 'max:30', 'unique:users,phone'],
+            'phone' => ['required', 'string', 'regex:/^07[0-9]{9}$/', 'unique:users,phone'],
             'email' => ['nullable', 'email', 'max:150', 'unique:users,email'],
-            'password' => ['nullable', 'string', 'min:6'],
+            'password' => ['required', 'string', 'min:6'],
+            'city' => ['nullable', 'string', 'max:80'],
+            'is_active' => ['nullable', 'boolean'],
+        ], [
+            'phone.regex' => 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 07501234567',
+            'phone.unique' => 'ئەم ژمارەی مۆبایلە پێشتر تۆمارکراوە.',
+            'password.required' => 'وشەی نهێنی پێویستە (لانیکەم ٦ پیت).',
+            'password.min' => 'وشەی نهێنی دەبێت لانیکەم ٦ پیت بێت.',
         ]);
 
         $customer = User::create([
             'name' => $validated['name'],
-            'phone' => preg_replace('/\s+/', '', $validated['phone']),
+            'phone' => $validated['phone'],
             'email' => $validated['email'] ?? null,
-            'password' => $validated['password'] ?? 'password123',
+            'password' => $validated['password'],
             'role' => 'customer',
             'language' => 'ku',
-            'is_active' => true,
+            'city' => $validated['city'] ?? null,
+            'is_active' => array_key_exists('is_active', $validated)
+                ? (bool) $validated['is_active']
+                : true,
         ]);
 
         return response()->json([
@@ -80,12 +92,19 @@ class CustomerManagementController extends Controller
 
     public function update(Request $request, User $customer): JsonResponse
     {
+        $this->normalizeCustomerPhoneInput($request);
+
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:120'],
-            'phone' => ['sometimes', 'string', 'max:30', 'unique:users,phone,' . $customer->id],
+            'phone' => ['sometimes', 'string', 'regex:/^07[0-9]{9}$/', 'unique:users,phone,' . $customer->id],
             'email' => ['nullable', 'email', 'max:150', 'unique:users,email,' . $customer->id],
             'is_active' => ['nullable', 'boolean'],
             'password' => ['nullable', 'string', 'min:6'],
+            'language' => ['nullable', 'string', 'in:ku,ar,en'],
+            'city' => ['nullable', 'string', 'max:80'],
+        ], [
+            'phone.regex' => 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 07501234567',
+            'phone.unique' => 'ئەم ژمارەی مۆبایلە پێشتر تۆمارکراوە.',
         ]);
 
         if (empty($validated['password'])) {
@@ -93,6 +112,10 @@ class CustomerManagementController extends Controller
         }
 
         $customer->update($validated);
+
+        if (array_key_exists('is_active', $validated) && ! $validated['is_active']) {
+            $customer->tokens()->delete();
+        }
 
         return response()->json([
             'success' => true,
@@ -111,7 +134,9 @@ class CustomerManagementController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => $customer->is_active ? 'هەژماری کڕیار چالاککرایەوە.' : 'هەژماری کڕیار ڕاگیرا.',
+            'message' => $customer->is_active
+                ? 'هەژماری کڕیار چالاککرایەوە.'
+                : 'هەژماری کڕیار مسدود کرا. دەبێت پەیوەندی بە ئادمین بکات.',
             'data' => $customer,
         ]);
     }
@@ -135,6 +160,23 @@ class CustomerManagementController extends Controller
             'success' => true,
             'message' => 'کڕیار بە سەرکەوتوویی سڕایەوە.',
         ]);
+    }
+
+    /** Strip spaces / +964 country code so unique + regex rules see canonical 07XXXXXXXXX. */
+    private function normalizeCustomerPhoneInput(Request $request): void
+    {
+        if (! $request->has('phone')) {
+            return;
+        }
+
+        $raw = trim((string) $request->input('phone'));
+        $digits = preg_replace('/\D+/', '', $raw) ?? '';
+        if (str_starts_with($digits, '964') && strlen($digits) >= 3) {
+            $digits = '0'.substr($digits, 3);
+        }
+
+        // Keep garbage like "sfs" so `regex` fails with a clear message (not empty→required).
+        $request->merge(['phone' => $digits !== '' ? $digits : $raw]);
     }
 }
 

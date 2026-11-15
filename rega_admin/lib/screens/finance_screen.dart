@@ -2,7 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
+import '../core/localization/app_strings.dart';
+import '../core/services/excel_backup_service.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../widgets/admin_top_header.dart';
+import '../core/theme/app_theme.dart';
 
 class FinanceScreen extends StatefulWidget {
   final ApiClient api;
@@ -16,20 +20,25 @@ class FinanceScreen extends StatefulWidget {
 
 class _FinanceScreenState extends State<FinanceScreen> {
   Timer? _refreshTimer;
-  String _selectedCity = 'هەموو شارەکان';
-  String _selectedPeriod = 'ئەم مانگە';
+  String _selectedCity = 'all';
+  String _selectedPeriod = 'this_month';
 
   // Live KPI Metrics from PostgreSQL database
   String _totalOrders = '٠';
   String _totalRevenue = '٠ د.ع';
-  String _completionRate = '١٠٠٪';
-  String _avgDeliveryTime = '٢٨ خولەک';
+  String _completionRate = '٠٪';
+  String _avgDeliveryTime = '— خولەک';
   List<Map<String, dynamic>> _topDrivers = [];
   List<Map<String, dynamic>> _topStores = [];
+  List<Map<String, dynamic>> _ordersRevenueMonthly = [];
   int _rawTotalOrders = 0;
   int _deliveredCount = 0;
   int _activeCount = 0;
   int _cancelledCount = 0;
+  int _deliveredPct = 0;
+  int _activePct = 0;
+  int _cancelledPct = 0;
+  int _topStoresMax = 1;
 
   static String _toDigits(dynamic input) {
     const en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -54,10 +63,21 @@ class _FinanceScreenState extends State<FinanceScreen> {
     super.dispose();
   }
 
+  static String _formatInt(int n) {
+    return n.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+  }
+
+  static int _niceCeiling(int value) {
+    if (value <= 0) return 1;
+    final mag = math.pow(10, (math.log(value) / math.ln10).floor()).toInt();
+    final step = mag < 1 ? 1 : mag;
+    return ((value / step).ceil() * step).clamp(step, 1 << 30);
+  }
+
   Future<void> _loadData({bool silent = false}) async {
     try {
-      final dash = await widget.api.getDashboard(days: 30);
-      final data = dash['data'] as Map<String, dynamic>? ?? dash;
+      // ApiClient.getDashboard already unwraps `data`
+      final data = await widget.api.getDashboard(days: 30);
       final kpis = data['kpis'] as Map<String, dynamic>? ?? {};
 
       final totalOrders = (kpis['total_orders'] as num?)?.toInt() ?? 0;
@@ -65,23 +85,59 @@ class _FinanceScreenState extends State<FinanceScreen> {
       final activeOrders = (kpis['active_orders_count'] as num?)?.toInt() ?? 0;
       final cancelledOrders = (kpis['cancelled_orders'] as num?)?.toInt() ?? 0;
       final gmv = (kpis['total_gmv'] as num?)?.toInt() ?? 0;
-      final rate = totalOrders > 0 ? ((delivered / totalOrders) * 100).round() : 100;
-      var drivers = data['top_drivers'] as List<dynamic>? ?? [];
+      final rate = (kpis['completion_rate'] as num?)?.toInt() ??
+          (totalOrders > 0 ? ((delivered / totalOrders) * 100).round() : 0);
+      final avgMins = (kpis['avg_delivery_minutes'] as num?)?.toInt() ?? 0;
+
+      var drivers = (data['top_drivers'] as List<dynamic>? ?? [])
+          .map((d) => Map<String, dynamic>.from(d as Map))
+          .toList();
 
       if (drivers.isEmpty) {
         try {
           final resDrivers = await widget.api.getDrivers();
           if (resDrivers.isNotEmpty) {
-            drivers = resDrivers;
+            drivers = resDrivers.map((d) => Map<String, dynamic>.from(d as Map)).toList();
           }
         } catch (_) {}
       }
 
-      List<Map<String, dynamic>> stores = [];
-      try {
-        final resStores = await widget.api.getStores();
-        stores = resStores.map((s) => s as Map<String, dynamic>).toList();
-      } catch (_) {}
+      // Prefer dashboard top_stores (sorted by real delivered orders / revenue)
+      var stores = (data['top_stores'] as List<dynamic>? ?? [])
+          .map((s) => Map<String, dynamic>.from(s as Map))
+          .toList();
+
+      if (stores.isEmpty) {
+        try {
+          final resStores = await widget.api.getStores();
+          stores = resStores.map((s) => Map<String, dynamic>.from(s as Map)).toList();
+          stores.sort((a, b) {
+            final ao = (a['delivered_orders_count'] as num?)?.toInt() ??
+                (a['orders_count'] as num?)?.toInt() ??
+                0;
+            final bo = (b['delivered_orders_count'] as num?)?.toInt() ??
+                (b['orders_count'] as num?)?.toInt() ??
+                0;
+            return bo.compareTo(ao);
+          });
+        } catch (_) {}
+      }
+
+      final monthly = (data['orders_revenue_monthly'] as List<dynamic>? ?? [])
+          .map((m) => Map<String, dynamic>.from(m as Map))
+          .toList();
+
+      final delPct = totalOrders > 0 ? ((delivered / totalOrders) * 100).round() : 0;
+      final actPct = totalOrders > 0 ? ((activeOrders / totalOrders) * 100).round() : 0;
+      final canPct = totalOrders > 0 ? ((cancelledOrders / totalOrders) * 100).round() : 0;
+
+      final storeValues = stores.take(3).map((s) {
+        return (s['gross_sales'] as num?)?.toInt() ??
+            (s['delivered_orders_count'] as num?)?.toInt() ??
+            (s['orders_count'] as num?)?.toInt() ??
+            0;
+      }).toList();
+      final maxStore = storeValues.isEmpty ? 1 : storeValues.reduce(math.max);
 
       if (!mounted) return;
       setState(() {
@@ -89,48 +145,75 @@ class _FinanceScreenState extends State<FinanceScreen> {
         _deliveredCount = delivered;
         _activeCount = activeOrders;
         _cancelledCount = cancelledOrders;
+        _deliveredPct = delPct;
+        _activePct = actPct;
+        _cancelledPct = canPct;
         _totalOrders = _toDigits(totalOrders);
-        final formattedGmv = gmv.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
-        _totalRevenue = '${_toDigits(formattedGmv)} د.ع';
+        _totalRevenue = '${_toDigits(_formatInt(gmv))} د.ع';
         _completionRate = '${_toDigits(rate)}٪';
+        _avgDeliveryTime = avgMins > 0
+            ? '${_toDigits(avgMins)} خولەک'
+            : '— خولەک';
         if (drivers.isNotEmpty) {
-          _topDrivers = drivers.map((d) => d as Map<String, dynamic>).toList();
+          _topDrivers = drivers;
         }
-        if (stores.isNotEmpty) {
-          _topStores = stores;
-        }
+        _topStores = stores;
+        _topStoresMax = _niceCeiling(maxStore);
+        _ordersRevenueMonthly = monthly;
       });
     } catch (_) {}
   }
 
-  void _exportReport() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: const [
-            Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-            SizedBox(width: 10),
-            Text(
-              'ڕاپۆرتی کارایی و داهات هەناردەکرا بە سەرکەوتوویی',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ],
+  bool _exporting = false;
+
+  Future<void> _exportReport() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final name = await ExcelBackupService(widget.api).downloadFullBackup();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${AppStrings.tr('excel_backup_done', widget.lang)}: $name',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF113E2E),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
-        backgroundColor: const Color(0xFF113E2E),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${AppStrings.tr('excel_backup_failed', widget.lang)}: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final padH = AdminBreakpoints.pagePadH(context);
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: widget.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8F9FA),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: EdgeInsets.symmetric(horizontal: padH, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -171,21 +254,21 @@ class _FinanceScreenState extends State<FinanceScreen> {
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
-                  'ڕاپۆرت و شیکاری',
+                  AppStrings.tr('finance_title', widget.lang),
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF111827),
+                    color: AdminSurfaces.of(context).textPrimary,
                   ),
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'پوختەی کارایی و داهاتی خزمەتگوزاری دلیڤەری',
+                  AppStrings.tr('finance_subtitle', widget.lang),
                   style: TextStyle(
                     fontSize: 12.5,
-                    color: Color(0xFF6B7280),
+                    color: AdminSurfaces.of(context).textSecondary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -201,9 +284,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
               ),
               onPressed: _exportReport,
               icon: const Icon(Icons.file_download_outlined, size: 18, color: Colors.white),
-              label: const Text(
-                'هەناردەکردنی ڕاپۆرت',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              label: Text(
+                AppStrings.tr('export_report', widget.lang),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
               ),
             ),
           ],
@@ -218,23 +301,32 @@ class _FinanceScreenState extends State<FinanceScreen> {
             _buildHeaderDropdownPill(
               icon: Icons.calendar_today_outlined,
               value: _selectedPeriod,
-              items: const ['ئەم مانگە', 'مانگی پێشوو', 'ئەمساڵ'],
-              onChanged: (v) => setState(() => _selectedPeriod = v ?? 'ئەم مانگە'),
+              items: const ['this_month', 'last_month', 'this_year'],
+              labels: [
+                AppStrings.tr('this_month', widget.lang),
+                AppStrings.tr('last_month', widget.lang),
+                AppStrings.tr('this_year', widget.lang),
+              ],
+              onChanged: (v) => setState(() => _selectedPeriod = v ?? 'this_month'),
             ),
             _buildHeaderDropdownPill(
               icon: Icons.location_on_outlined,
               value: _selectedCity,
-              items: const ['هەموو شارەکان', 'هەولێر', 'سلێمانی', 'دهۆک', 'کەلار'],
-              onChanged: (v) => setState(() => _selectedCity = v ?? 'هەموو شارەکان'),
+              items: ['all', ...AppStrings.knownCitiesKu],
+              labels: [
+                AppStrings.tr('all_cities', widget.lang),
+                for (final c in AppStrings.knownCitiesKu) AppStrings.cityLabel(c, widget.lang),
+              ],
+              onChanged: (v) => setState(() => _selectedCity = v ?? 'all'),
             ),
           ],
         );
 
-        if (constraints.maxWidth < 650) {
+        if (constraints.maxWidth < AdminBreakpoints.headerCompact) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              topActions,
+              Align(alignment: AlignmentDirectional.centerEnd, child: topActions),
               const SizedBox(height: 12),
               titleAndButton,
               const SizedBox(height: 12),
@@ -245,31 +337,27 @@ class _FinanceScreenState extends State<FinanceScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: titleAndButton),
-                ],
-              ),
+              titleAndButton,
               const SizedBox(height: 12),
-              topActions,
+              Align(alignment: AlignmentDirectional.centerEnd, child: topActions),
               const SizedBox(height: 12),
               filters,
             ],
           );
         } else {
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              titleAndButton,
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  filters,
-                  const SizedBox(width: 16),
+                  Expanded(child: titleAndButton),
+                  const SizedBox(width: 12),
                   topActions,
                 ],
               ),
+              const SizedBox(height: 12),
+              filters,
             ],
           );
         }
@@ -281,13 +369,14 @@ class _FinanceScreenState extends State<FinanceScreen> {
     required IconData icon,
     required String value,
     required List<String> items,
+    List<String>? labels,
     required ValueChanged<String?> onChanged,
   }) {
     return Container(
       height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -300,17 +389,18 @@ class _FinanceScreenState extends State<FinanceScreen> {
             child: DropdownButton<String>(
               value: value,
               icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF334155),
+                color: AdminSurfaces.of(context).textPrimary,
               ),
-              items: items.map((item) {
-                return DropdownMenuItem<String>(
-                  value: item,
-                  child: Text(item),
-                );
-              }).toList(),
+              items: [
+                for (var i = 0; i < items.length; i++)
+                  DropdownMenuItem<String>(
+                    value: items[i],
+                    child: Text(labels != null && i < labels.length ? labels[i] : items[i]),
+                  ),
+              ],
               onChanged: onChanged,
             ),
           ),
@@ -327,9 +417,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final double cardWidth;
-        if (width >= 960) {
+        if (width >= AdminBreakpoints.kpiFourCol) {
           cardWidth = (width - 48) / 4;
-        } else if (width >= 560) {
+        } else if (width >= AdminBreakpoints.kpiTwoCol) {
           cardWidth = (width - 16) / 2;
         } else {
           cardWidth = width;
@@ -342,7 +432,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'کۆی داواکارییەکان',
+                title: AppStrings.tr('kpi_total_orders', widget.lang),
                 value: _totalOrders,
                 icon: Icons.inventory_2_outlined,
                 iconBg: const Color(0xFFFFEDD5),
@@ -353,7 +443,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'داهاتی گشتی',
+                title: AppStrings.tr('kpi_total_revenue', widget.lang),
                 value: _totalRevenue,
                 icon: Icons.monetization_on_outlined,
                 iconBg: const Color(0xFFFFEDD5),
@@ -364,7 +454,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'ڕێژەی تەواوکردن',
+                title: AppStrings.tr('kpi_completion_rate', widget.lang),
                 value: _completionRate,
                 icon: Icons.check_circle_outline_rounded,
                 iconBg: const Color(0xFFDCFCE7),
@@ -375,7 +465,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'کاتی گەیاندنی ناوەند',
+                title: AppStrings.tr('kpi_avg_delivery', widget.lang),
                 value: _avgDeliveryTime,
                 icon: Icons.access_time_rounded,
                 iconBg: const Color(0xFFFFEDD5),
@@ -398,9 +488,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -418,19 +508,19 @@ class _FinanceScreenState extends State<FinanceScreen> {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B7280),
+                  color: AdminSurfaces.of(context).textSecondary,
                 ),
               ),
               const SizedBox(height: 6),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: AdminSurfaces.of(context).textPrimary,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -457,33 +547,52 @@ class _FinanceScreenState extends State<FinanceScreen> {
   Widget _buildMiddleChartsRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth > 950) {
+        final w = constraints.maxWidth;
+
+        // Desktop: Top Sellers | Order Status | Trends side-by-side
+        if (w >= AdminBreakpoints.desktop) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Card 1 (Right): باشترین فرۆشیاران (flex 4)
               Expanded(flex: 4, child: _buildTopVendorsCard()),
               const SizedBox(width: 16),
-
-              // Card 2 (Middle): دۆخی داواکارییەکان (flex 3)
               Expanded(flex: 3, child: _buildOrderStatusDonutCard()),
               const SizedBox(width: 16),
-
-              // Card 3 (Left): ڕەوتی داواکاری و داهات (flex 5)
               Expanded(flex: 5, child: _buildTrendsLineChartCard()),
             ],
           );
-        } else {
+        }
+
+        // Tablet: Top Sellers + Order Status in a row, Trends full-width below
+        if (w >= AdminBreakpoints.chartsTwoCol) {
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildTopVendorsCard(),
-              const SizedBox(height: 16),
-              _buildOrderStatusDonutCard(),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 5, child: _buildTopVendorsCard()),
+                  const SizedBox(width: 16),
+                  Expanded(flex: 4, child: _buildOrderStatusDonutCard()),
+                ],
+              ),
               const SizedBox(height: 16),
               _buildTrendsLineChartCard(),
             ],
           );
         }
+
+        // Phone: stack all charts (wrappers only — chart painters unchanged)
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildTopVendorsCard(),
+            const SizedBox(height: 16),
+            _buildOrderStatusDonutCard(),
+            const SizedBox(height: 16),
+            _buildTrendsLineChartCard(),
+          ],
+        );
       },
     );
   }
@@ -494,9 +603,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
       height: 270,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -508,40 +617,44 @@ class _FinanceScreenState extends State<FinanceScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'باشترین فرۆشیاران',
+          Text(
+            AppStrings.tr('top_vendors', widget.lang),
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF111827),
+              color: AdminSurfaces.of(context).textPrimary,
             ),
           ),
           const SizedBox(height: 16),
           Expanded(
             child: _topStores.isEmpty
-                ? const Center(
-                    child: Text('زانیارییەکان لە سێرڤەرەوە باردەکرێن...', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+                ? Center(
+                    child: Text(AppStrings.tr('loading_from_server', widget.lang), style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
                   )
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: _topStores.take(3).map((s) {
                       final name = s['name_ku']?.toString() ?? s['name_en']?.toString() ?? 'فرۆشگا';
-                      final orders = (s['active_orders_count'] as num?)?.toInt() ?? 10;
-                      return _buildVendorBarRow(name, orders, 50);
+                      // Prefer revenue (gross_sales); fall back to delivered order count
+                      final value = (s['gross_sales'] as num?)?.toInt() ??
+                          (s['delivered_orders_count'] as num?)?.toInt() ??
+                          (s['orders_count'] as num?)?.toInt() ??
+                          0;
+                      return _buildVendorBarRow(name, value, _topStoresMax);
                     }).toList(),
                   ),
           ),
           const SizedBox(height: 12),
-          // X-axis scale labels: 0, 2,000, 4,000, 6,000
+          // X-axis scale labels — scaled to live max
           Padding(
             padding: const EdgeInsets.only(right: 90),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                Text('0', style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                Text('2,000', style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                Text('4,000', style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                Text('6,000', style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
+              children: [
+                Text('0', style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
+                Text(_formatInt((_topStoresMax / 3).round()), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
+                Text(_formatInt(((_topStoresMax * 2) / 3).round()), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
+                Text(_formatInt(_topStoresMax), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -559,10 +672,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
           child: Text(
             name,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF334155),
+              color: AdminSurfaces.of(context).textPrimary,
             ),
           ),
         ),
@@ -573,7 +686,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
               Container(
                 height: 22,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: AdminSurfaces.of(context).chipFill,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -593,9 +706,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
         ),
         const SizedBox(width: 10),
         SizedBox(
-          width: 44,
+          width: 52,
           child: Text(
-            value.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},'),
+            _toDigits(_formatInt(value)),
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
@@ -613,9 +726,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
       height: 270,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -627,12 +740,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'دۆخی داواکارییەکان',
+          Text(
+            AppStrings.tr('order_status_chart', widget.lang),
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF111827),
+              color: AdminSurfaces.of(context).textPrimary,
             ),
           ),
           const SizedBox(height: 10),
@@ -648,18 +761,22 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       size: const Size(120, 120),
                       painter: _DonutChartPainter(
                         slices: [
-                          _Slice(
-                            _rawTotalOrders > 0 ? (_deliveredCount / _rawTotalOrders).clamp(0.01, 1.0) : 1.0,
-                            const Color(0xFF16503B),
-                          ),
-                          _Slice(
-                            _rawTotalOrders > 0 ? (_activeCount / _rawTotalOrders).clamp(0.0, 1.0) : 0.0,
-                            const Color(0xFFEA580C),
-                          ),
-                          _Slice(
-                            _rawTotalOrders > 0 ? (_cancelledCount / _rawTotalOrders).clamp(0.0, 1.0) : 0.0,
-                            const Color(0xFFCBD5E1),
-                          ),
+                          if (_rawTotalOrders <= 0)
+                            const _Slice(1.0, Color(0xFFE2E8F0))
+                          else ...[
+                            _Slice(
+                              (_deliveredCount / _rawTotalOrders).clamp(0.0, 1.0),
+                              const Color(0xFF16503B),
+                            ),
+                            _Slice(
+                              (_activeCount / _rawTotalOrders).clamp(0.0, 1.0),
+                              const Color(0xFFEA580C),
+                            ),
+                            _Slice(
+                              (_cancelledCount / _rawTotalOrders).clamp(0.0, 1.0),
+                              const Color(0xFFCBD5E1),
+                            ),
+                          ],
                         ],
                         strokeWidth: 16,
                       ),
@@ -669,17 +786,17 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       children: [
                         Text(
                           _totalOrders,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
-                            color: Color(0xFF0F172A),
+                            color: AdminSurfaces.of(context).textPrimary,
                           ),
                         ),
-                        const Text(
+                        Text(
                           'داواکاری',
                           style: TextStyle(
                             fontSize: 10,
-                            color: Color(0xFF94A3B8),
+                            color: AdminSurfaces.of(context).textTertiary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -699,13 +816,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          // Legend
+          // Legend — live percentages from DB status counts
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildDonutLegendItem(const Color(0xFF16503B), 'تەواوبوو', '٩٦٪'),
-              _buildDonutLegendItem(const Color(0xFFEA580C), 'لە ڕێگادایە', '٣٪'),
-              _buildDonutLegendItem(const Color(0xFFCBD5E1), 'هەڵوەشایەوە', '١٪'),
+              _buildDonutLegendItem(const Color(0xFF16503B), AppStrings.tr('legend_delivered', widget.lang), '${_toDigits(_deliveredPct)}٪'),
+              _buildDonutLegendItem(const Color(0xFFEA580C), AppStrings.tr('legend_on_way', widget.lang), '${_toDigits(_activePct)}٪'),
+              _buildDonutLegendItem(const Color(0xFFCBD5E1), AppStrings.tr('legend_cancelled', widget.lang), '${_toDigits(_cancelledPct)}٪'),
             ],
           ),
         ],
@@ -742,9 +859,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
       height: 270,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -756,32 +873,56 @@ class _FinanceScreenState extends State<FinanceScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'ڕەوتی داواکاری و داهات',
+          Text(
+            AppStrings.tr('orders_revenue_trend', widget.lang),
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF111827),
+              color: AdminSurfaces.of(context).textPrimary,
             ),
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: CustomPaint(
-              painter: _DualAxisLineChartPainter(),
-            ),
+            child: _ordersRevenueMonthly.isEmpty
+                ? Center(
+                    child: Text(
+                      AppStrings.tr('loading_from_server', widget.lang),
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                    ),
+                  )
+                : CustomPaint(
+                    painter: _DualAxisLineChartPainter(
+                      series: _ordersRevenueMonthly,
+                      lang: widget.lang,
+                      gridColor: AdminSurfaces.of(context).hairline,
+                      labelColor: AdminSurfaces.of(context).textSecondary,
+                      mutedColor: AdminSurfaces.of(context).textTertiary,
+                    ),
+                  ),
           ),
           const SizedBox(height: 6),
           // Legend below chart matching screenshot
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.circle, size: 8, color: Color(0xFF16503B)),
-              SizedBox(width: 6),
-              Text('ژمارەی داواکارییەکان', style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
-              SizedBox(width: 20),
-              Icon(Icons.circle, size: 8, color: Color(0xFFEA580C)),
-              SizedBox(width: 6),
-              Text('داهات (ع.د)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 14,
+            runSpacing: 6,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.circle, size: 8, color: Color(0xFF16503B)),
+                  SizedBox(width: 6),
+                  Text(AppStrings.tr('orders_axis', widget.lang), style: TextStyle(fontSize: 11, color: AdminSurfaces.of(context).textSecondary, fontWeight: FontWeight.w600)),
+                ],
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.circle, size: 8, color: Color(0xFFEA580C)),
+                  SizedBox(width: 6),
+                  Text(AppStrings.tr('revenue_axis', widget.lang), style: TextStyle(fontSize: 11, color: AdminSurfaces.of(context).textSecondary, fontWeight: FontWeight.w600)),
+                ],
+              ),
             ],
           ),
         ],
@@ -795,9 +936,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
   Widget _buildDriverPerformanceCard() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -811,18 +952,58 @@ class _FinanceScreenState extends State<FinanceScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
-            child: const Text(
-              'کارایی ماتۆرسواران',
+            child: Text(
+              AppStrings.tr('courier_performance', widget.lang),
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF111827),
+                color: AdminSurfaces.of(context).textPrimary,
               ),
             ),
           ),
 
           LayoutBuilder(
             builder: (context, constraints) {
+              if (constraints.maxWidth < AdminBreakpoints.phone) {
+                if (_topDrivers.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+                    child: Center(
+                      child: Text(
+                        AppStrings.tr('no_courier_data', widget.lang),
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                      ),
+                    ),
+                  );
+                }
+                return Column(
+                  children: _topDrivers.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final d = entry.value;
+                    final name = (d['name'] ?? d['full_name'] ?? 'ماتۆرسوار').toString();
+                    final completedRaw = (d['completed_deliveries'] as num?)?.toInt() ??
+                        (d['total_deliveries'] as num?)?.toInt() ??
+                        (d['total_orders'] as num?)?.toInt() ??
+                        0;
+                    final avgMins = (d['avg_delivery_minutes'] as num?)?.toInt() ?? 0;
+                    final ratingVal = d['rating'] != null ? d['rating'].toString() : '0';
+                    final star = (double.tryParse(ratingVal) ?? 0).round().clamp(0, 5);
+                    return Column(
+                      children: [
+                        _buildDriverMobileCard(
+                          rank: _toDigits(i + 1),
+                          name: name,
+                          completedOrders: _toDigits(completedRaw),
+                          avgTime: avgMins > 0 ? '${_toDigits(avgMins)} خولەک' : '— خولەک',
+                          rating: ratingVal,
+                          starCount: star,
+                        ),
+                        if (i < _topDrivers.length - 1) Divider(height: 1, color: AdminSurfaces.of(context).hairline),
+                      ],
+                    );
+                  }).toList(),
+                );
+              }
               final tableWidth = constraints.maxWidth > 580 ? constraints.maxWidth : 580.0;
               return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -833,19 +1014,19 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       // Table Header
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFAFAFA),
+                        decoration: BoxDecoration(
+                          color: AdminSurfaces.of(context).mutedFill,
                           border: Border(
-                            top: BorderSide(color: Color(0xFFF1F5F9)),
-                            bottom: BorderSide(color: Color(0xFFF1F5F9)),
+                            top: BorderSide(color: AdminSurfaces.of(context).hairline),
+                            bottom: BorderSide(color: AdminSurfaces.of(context).hairline),
                           ),
                         ),
                         child: Row(
-                          children: const [
-                            Expanded(flex: 4, child: Text('ماتۆرسوار', textAlign: TextAlign.right, style: _tableHeaderStyle)),
-                            Expanded(flex: 3, child: Text('داواکاریی تەواوکراو', textAlign: TextAlign.center, style: _tableHeaderStyle)),
-                            Expanded(flex: 3, child: Text('کاتی ناوەند', textAlign: TextAlign.center, style: _tableHeaderStyle)),
-                            Expanded(flex: 3, child: Text('هەڵسەنگاندن', textAlign: TextAlign.left, style: _tableHeaderStyle)),
+                          children: [
+                            Expanded(flex: 4, child: Text(AppStrings.tr('col_courier', widget.lang), textAlign: TextAlign.right, style: _tableHeaderStyle)),
+                            Expanded(flex: 3, child: Text(AppStrings.tr('col_completed_orders', widget.lang), textAlign: TextAlign.center, style: _tableHeaderStyle)),
+                            Expanded(flex: 3, child: Text(AppStrings.tr('col_avg_time', widget.lang), textAlign: TextAlign.center, style: _tableHeaderStyle)),
+                            Expanded(flex: 3, child: Text(AppStrings.tr('col_rating', widget.lang), textAlign: TextAlign.left, style: _tableHeaderStyle)),
                           ],
                         ),
                       ),
@@ -855,31 +1036,37 @@ class _FinanceScreenState extends State<FinanceScreen> {
                           final i = entry.key;
                           final d = entry.value;
                           final name = (d['name'] ?? d['full_name'] ?? 'ماتۆرسوار').toString();
-                          final completed = _toDigits(d['completed_deliveries'] ?? d['total_orders'] ?? (15 - i * 3));
-                          final ratingVal = d['rating'] != null ? d['rating'].toString() : '4.9';
-                          final star = (double.tryParse(ratingVal) ?? 4.8).round();
+                          final completedRaw = (d['completed_deliveries'] as num?)?.toInt() ??
+                              (d['total_deliveries'] as num?)?.toInt() ??
+                              (d['total_orders'] as num?)?.toInt() ??
+                              0;
+                          final avgMins = (d['avg_delivery_minutes'] as num?)?.toInt() ?? 0;
+                          final ratingVal = d['rating'] != null ? d['rating'].toString() : '0';
+                          final star = (double.tryParse(ratingVal) ?? 0).round().clamp(0, 5);
                           return Column(
                             children: [
                               _buildDriverRow(
                                 rank: _toDigits(i + 1),
                                 name: name,
-                                completedOrders: completed,
-                                avgTime: '٢٨ خولەک',
+                                completedOrders: _toDigits(completedRaw),
+                                avgTime: avgMins > 0
+                                    ? '${_toDigits(avgMins)} خولەک'
+                                    : '— خولەک',
                                 rating: ratingVal,
                                 starCount: star,
                               ),
                               if (i < _topDrivers.length - 1)
-                                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                                Divider(height: 1, color: AdminSurfaces.of(context).hairline),
                             ],
                           );
                         })
                       else
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 36),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 36),
                           child: Center(
                             child: Text(
-                              'هیچ زانیارییەکی ماتۆرسوار لە سیستەمدا بەردەست نییە',
-                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                              AppStrings.tr('no_courier_data', widget.lang),
+                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
                             ),
                           ),
                         ),
@@ -894,11 +1081,60 @@ class _FinanceScreenState extends State<FinanceScreen> {
     );
   }
 
-  static const TextStyle _tableHeaderStyle = TextStyle(
+  TextStyle get _tableHeaderStyle => TextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w700,
-    color: Color(0xFF64748B),
+    color: AdminSurfaces.of(context).textSecondary,
   );
+
+  Widget _buildDriverMobileCard({
+    required String rank,
+    required String name,
+    required String completedOrders,
+    required String avgTime,
+    required String rating,
+    required int starCount,
+  }) {
+    final surfaces = AdminSurfaces.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(rank, style: TextStyle(fontSize: 12, color: surfaces.textTertiary, fontWeight: FontWeight.w800)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(
+                  5,
+                  (i) => Icon(
+                    i < starCount ? Icons.star_rounded : Icons.star_border_rounded,
+                    size: 14,
+                    color: const Color(0xFFF59E0B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: [
+              Text('تەواو: $completedOrders', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: surfaces.textPrimary)),
+              Text('کات: $avgTime', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary)),
+              Text('هەڵسەنگاندن: $rating', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildDriverRow({
     required String rank,
@@ -921,14 +1157,14 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   width: 20,
                   child: Text(
                     rank,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w700),
+                    style: TextStyle(fontSize: 12, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w700),
                   ),
                 ),
                 Container(
                   width: 32,
                   height: 32,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF1F5F9),
+                  decoration: BoxDecoration(
+                    color: AdminSurfaces.of(context).chipFill,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.person_rounded, size: 18, color: Color(0xFF94A3B8)),
@@ -952,10 +1188,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
             child: Text(
               completedOrders,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF0F172A),
+                color: AdminSurfaces.of(context).textPrimary,
               ),
             ),
           ),
@@ -966,10 +1202,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
             child: Text(
               avgTime,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF475569),
+                color: AdminSurfaces.of(context).textSecondary,
               ),
             ),
           ),
@@ -994,10 +1230,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 const SizedBox(width: 8),
                 Text(
                   rating,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
+                    color: AdminSurfaces.of(context).textPrimary,
                   ),
                 ),
               ],
@@ -1050,149 +1286,172 @@ class _DonutChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DonutChartPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DonutChartPainter oldDelegate) {
+    if (oldDelegate.slices.length != slices.length) return true;
+    for (int i = 0; i < slices.length; i++) {
+      if (oldDelegate.slices[i].ratio != slices[i].ratio ||
+          oldDelegate.slices[i].color != slices[i].color) {
+        return true;
+      }
+    }
+    return oldDelegate.strokeWidth != strokeWidth;
+  }
 }
 
 // ============================================================================
-// CUSTOM PAINTER: DUAL-AXIS LINE CHART
+// CUSTOM PAINTER: DUAL-AXIS LINE CHART (live monthly series)
 // ============================================================================
 class _DualAxisLineChartPainter extends CustomPainter {
+  final List<Map<String, dynamic>> series;
+  final String lang;
+  final Color gridColor;
+  final Color labelColor;
+  final Color mutedColor;
+
+  _DualAxisLineChartPainter({
+    required this.series,
+    required this.lang,
+    required this.gridColor,
+    required this.labelColor,
+    required this.mutedColor,
+  });
+
+  static String _fmt(int n) {
+    if (n >= 1000000) {
+      final m = n / 1000000;
+      return m == m.roundToDouble() ? '${m.toInt()}M' : '${m.toStringAsFixed(1)}M';
+    }
+    if (n >= 1000) {
+      return '${(n / 1000).toStringAsFixed(n % 1000 == 0 ? 0 : 1)}K';
+    }
+    return n.toString();
+  }
+
+  static int _niceMax(int value) {
+    if (value <= 0) return 1;
+    final mag = math.pow(10, (math.log(value) / math.ln10).floor()).toDouble();
+    final step = mag < 1 ? 1.0 : mag;
+    return ((value / step).ceil() * step).toInt().clamp(1, 1 << 30);
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
-    const leftPadding = 55.0;
-    const rightPadding = 65.0;
+    const leftPadding = 42.0;
+    const rightPadding = 48.0;
     const topPadding = 24.0;
     const bottomPadding = 25.0;
 
     final chartWidth = size.width - leftPadding - rightPadding;
     final chartHeight = size.height - topPadding - bottomPadding;
 
-    if (chartWidth <= 0 || chartHeight <= 0) return;
+    if (chartWidth <= 0 || chartHeight <= 0 || series.isEmpty) return;
 
-    // Draw horizontal grid lines & Y labels
+    final orders = series.map((e) => (e['orders_count'] as num?)?.toInt() ?? 0).toList();
+    final gmvs = series.map((e) => (e['gmv'] as num?)?.toInt() ?? 0).toList();
+    final labels = series.map((e) {
+      final m = (e['month'] as num?)?.toInt();
+      if (m != null) return AppStrings.monthLabel(m, lang);
+      return e['label_ku']?.toString() ?? '';
+    }).toList();
+
+    final maxOrders = _niceMax(orders.fold<int>(0, math.max));
+    final maxGmv = _niceMax(gmvs.fold<int>(0, math.max));
+
     final gridPaint = Paint()
-      ..color = const Color(0xFFF1F5F9)
+      ..color = gridColor
       ..strokeWidth = 1;
 
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
-    final leftYLabels = ['0', '5,000', '10,000', '15,000', '20,000'];
-    final rightYLabels = ['0', '20,000,000', '40,000,000', '60,000,000', '80,000,000'];
-
-    // Axis titles
-    textPainter.text = const TextSpan(
-      text: 'داواکارییەکان',
-      style: TextStyle(fontSize: 9.5, color: Color(0xFF64748B), fontWeight: FontWeight.w700),
+    textPainter.text = TextSpan(
+      text: AppStrings.tr('orders_axis', lang),
+      style: TextStyle(fontSize: 9.5, color: labelColor, fontWeight: FontWeight.w700),
     );
     textPainter.layout();
-    textPainter.paint(canvas, Offset(leftPadding - textPainter.width + 6, topPadding - 18));
+    textPainter.paint(canvas, Offset(leftPadding - 4, topPadding - 18));
 
-    textPainter.text = const TextSpan(
-      text: 'داهات (ع.د)',
+    textPainter.text = TextSpan(
+      text: AppStrings.tr('revenue_axis', lang),
       style: TextStyle(fontSize: 9.5, color: Color(0xFFEA580C), fontWeight: FontWeight.w700),
     );
     textPainter.layout();
-    textPainter.paint(canvas, Offset(leftPadding + chartWidth - 10, topPadding - 18));
+    textPainter.paint(canvas, Offset(leftPadding + chartWidth - textPainter.width + 4, topPadding - 18));
 
     for (int i = 0; i < 5; i++) {
       final y = topPadding + chartHeight - (i * chartHeight / 4);
-
-      // Grid line
       canvas.drawLine(Offset(leftPadding, y), Offset(leftPadding + chartWidth, y), gridPaint);
 
-      // Left Y Label (داواکارییەکان)
+      final leftVal = ((maxOrders * i) / 4).round();
       textPainter.text = TextSpan(
-        text: leftYLabels[i],
-        style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+        text: _fmt(leftVal),
+        style: TextStyle(fontSize: 9.5, color: mutedColor, fontWeight: FontWeight.w600),
       );
       textPainter.layout();
       textPainter.paint(canvas, Offset(leftPadding - textPainter.width - 6, y - textPainter.height / 2));
 
-      // Right Y Label (داهات)
+      final rightVal = ((maxGmv * i) / 4).round();
       textPainter.text = TextSpan(
-        text: rightYLabels[i],
+        text: _fmt(rightVal),
         style: const TextStyle(fontSize: 9, color: Color(0xFFEA580C), fontWeight: FontWeight.w600),
       );
       textPainter.layout();
       textPainter.paint(canvas, Offset(leftPadding + chartWidth + 6, y - textPainter.height / 2));
     }
 
-    // X month labels: ئایار, حوزەیران, تەمموز, ئاب
-    final months = ['ئایار', 'حوزەیران', 'تەمموز', 'ئاب'];
+    final count = series.length;
     final xCoords = <double>[];
-    for (int i = 0; i < months.length; i++) {
-      final x = leftPadding + (i * chartWidth / (months.length - 1));
+    for (int i = 0; i < count; i++) {
+      final x = count == 1
+          ? leftPadding + chartWidth / 2
+          : leftPadding + (i * chartWidth / (count - 1));
       xCoords.add(x);
 
       textPainter.text = TextSpan(
-        text: months[i],
-        style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w700),
+        text: labels[i],
+        style: TextStyle(fontSize: 9.5, color: labelColor, fontWeight: FontWeight.w700),
       );
       textPainter.layout();
       textPainter.paint(canvas, Offset(x - textPainter.width / 2, size.height - bottomPadding + 6));
     }
 
-    // Green line (Orders): 7,500, 11,200, 15,100, 19,300 (out of 20,000 max)
-    final greenRatios = [7500 / 20000, 11200 / 20000, 15100 / 20000, 19300 / 20000];
     final greenPoints = <Offset>[];
-    for (int i = 0; i < months.length; i++) {
-      final y = topPadding + chartHeight - (greenRatios[i] * chartHeight);
-      greenPoints.add(Offset(xCoords[i], y));
-    }
-
-    // Orange line (Revenue): 18M, 36M, 52M, 70M (out of 80M max)
-    final orangeRatios = [18.0 / 80.0, 36.0 / 80.0, 52.0 / 80.0, 70.0 / 80.0];
     final orangePoints = <Offset>[];
-    for (int i = 0; i < months.length; i++) {
-      final y = topPadding + chartHeight - (orangeRatios[i] * chartHeight);
-      orangePoints.add(Offset(xCoords[i], y));
+    for (int i = 0; i < count; i++) {
+      final gy = topPadding + chartHeight - ((orders[i] / maxOrders) * chartHeight);
+      final oy = topPadding + chartHeight - ((gmvs[i] / maxGmv) * chartHeight);
+      greenPoints.add(Offset(xCoords[i], gy));
+      orangePoints.add(Offset(xCoords[i], oy));
     }
 
-    // Draw green line
-    final greenPaint = Paint()
-      ..color = const Color(0xFF16503B)
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke;
-    final greenDotPaint = Paint()
-      ..color = const Color(0xFF16503B)
-      ..style = PaintingStyle.fill;
-
-    final greenPath = Path();
-    for (int i = 0; i < greenPoints.length; i++) {
-      if (i == 0) {
-        greenPath.moveTo(greenPoints[i].dx, greenPoints[i].dy);
-      } else {
-        greenPath.lineTo(greenPoints[i].dx, greenPoints[i].dy);
+    void drawSeries(List<Offset> points, Color color) {
+      if (points.isEmpty) return;
+      final paint = Paint()
+        ..color = color
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      final dot = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
+      final path = Path()..moveTo(points.first.dx, points.first.dy);
+      for (int i = 1; i < points.length; i++) {
+        path.lineTo(points[i].dx, points[i].dy);
+      }
+      canvas.drawPath(path, paint);
+      for (final pt in points) {
+        canvas.drawCircle(pt, 4.0, dot);
       }
     }
-    canvas.drawPath(greenPath, greenPaint);
-    for (final pt in greenPoints) {
-      canvas.drawCircle(pt, 4.5, greenDotPaint);
-    }
 
-    // Draw orange line
-    final orangePaint = Paint()
-      ..color = const Color(0xFFEA580C)
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke;
-    final orangeDotPaint = Paint()
-      ..color = const Color(0xFFEA580C)
-      ..style = PaintingStyle.fill;
-
-    final orangePath = Path();
-    for (int i = 0; i < orangePoints.length; i++) {
-      if (i == 0) {
-        orangePath.moveTo(orangePoints[i].dx, orangePoints[i].dy);
-      } else {
-        orangePath.lineTo(orangePoints[i].dx, orangePoints[i].dy);
-      }
-    }
-    canvas.drawPath(orangePath, orangePaint);
-    for (final pt in orangePoints) {
-      canvas.drawCircle(pt, 4.5, orangeDotPaint);
-    }
+    drawSeries(greenPoints, const Color(0xFF16503B));
+    drawSeries(orangePoints, const Color(0xFFEA580C));
   }
 
   @override
-  bool shouldRepaint(covariant _DualAxisLineChartPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DualAxisLineChartPainter oldDelegate) {
+    return oldDelegate.series != series ||
+        oldDelegate.gridColor != gridColor ||
+        oldDelegate.labelColor != labelColor ||
+        oldDelegate.mutedColor != mutedColor;
+  }
 }

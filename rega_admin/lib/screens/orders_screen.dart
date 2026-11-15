@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/api/api_client.dart';
+import '../core/iraq_phone_formatter.dart';
+import '../core/localization/app_strings.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/admin_top_header.dart';
 import 'live_radar_dialog.dart';
@@ -16,7 +20,7 @@ class AdminOrderItem {
   final String totalAmount;
   final String orderTime;
   final String orderDate;
-  final String status; // 'pending' (چاوەڕوان), 'on_the_way' (لە ڕێگادایە), 'delivered' (تەواوبوو)
+  final String status; // real backend status: pending|preparing|ready|picked_up|on_the_way|arrived_customer|delivered|cancelled|rejected
   final Map<String, dynamic>? rawOrder;
 
   AdminOrderItem({
@@ -142,10 +146,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
           final driver = m['driver'] as Map<String, dynamic>?;
           final cust = m['customer'] as Map<String, dynamic>?;
           
+          // Keep real backend status so admin sees every step.
           String st = m['status']?.toString() ?? 'pending';
-          if (st == 'preparing' || st == 'ready') st = 'pending';
-          if (st == 'picked_up' || st == 'in_transit' || st == 'arrived_customer') st = 'on_the_way';
           if (st == 'completed') st = 'delivered';
+          if (st == 'in_transit') st = 'on_the_way';
 
           final createdAt = m['created_at']?.toString() ?? '';
           String timeStr = '١٤:٠٠';
@@ -174,10 +178,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
           );
         }).toList();
 
-        final totalCount = mapped.length;
-        final pendingCount = mapped.where((x) => x.status == 'pending').length;
-        final inTransitCount = mapped.where((x) => x.status == 'on_the_way').length;
-        final deliveredCount = mapped.where((x) => x.status == 'delivered').length;
+        final counts = ordersRes['counts'] as Map<String, dynamic>?;
+        final totalCount = counts?['all'] ?? mapped.length;
+        final pendingCount = counts?['pending'] ??
+            mapped.where((x) => x.status == 'pending' || x.status == 'preparing' || x.status == 'ready').length;
+        final inTransitCount = counts?['in_transit'] ??
+            mapped.where((x) =>
+                x.status == 'picked_up' ||
+                x.status == 'on_the_way' ||
+                x.status == 'arrived_customer').length;
+        final deliveredCount = counts?['delivered'] ??
+            mapped.where((x) => x.status == 'delivered').length;
 
         setState(() {
           _orders = mapped;
@@ -220,8 +231,20 @@ class _OrdersScreenState extends State<OrdersScreen> {
       }
 
       if (_selectedStatus == 'چاوەڕوان' && o.status != 'pending') return false;
-      if (_selectedStatus == 'لە ڕێگادایە' && o.status != 'on_the_way') return false;
+      if (_selectedStatus == 'ئامادەکردن' && o.status != 'preparing') return false;
+      if (_selectedStatus == 'ئامادەیە' && o.status != 'ready') return false;
+      if (_selectedStatus == 'وەرگیرا' && o.status != 'picked_up') return false;
+      if (_selectedStatus == 'لە ڕێگادایە' &&
+          o.status != 'on_the_way' &&
+          o.status != 'arrived_customer') {
+        return false;
+      }
       if (_selectedStatus == 'تەواوبوو' && o.status != 'delivered') return false;
+      if (_selectedStatus == 'هەڵوەشاوە' &&
+          o.status != 'cancelled' &&
+          o.status != 'rejected') {
+        return false;
+      }
 
       return true;
     }).toList();
@@ -245,10 +268,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text('دیاریکردنی شۆفێر بۆ ${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         content: SizedBox(
-          width: 440,
+          width: AdminBreakpoints.dialogWidth(ctx, max: 440),
           child: _drivers.isEmpty
               ? const Text('هیچ شۆفێرێکی پشتڕاستکراو بەردەست نییە.')
               : ListView.separated(
@@ -286,14 +310,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             widget.onOrderChanged?.call();
                             _load();
                           } catch (e) {
-                            // Update local demo state
-                            setState(() {
-                              final idx = _orders.indexWhere((x) => x.id == order.id);
-                              if (idx != -1) {
-                                _orders[idx] = _orders[idx].copyWith(driverName: u['name']?.toString() ?? 'شۆفێری نوێ');
-                              }
-                            });
-                            _showSnack('شۆفێر ${u['name']} دیاریکرا بۆ ${order.orderNumber} ✅');
+                            _showSnack('دیاریکردنی شۆفێر سەرکەوتوو نەبوو', error: true);
                           }
                         },
                         child: Text(online ? 'دیاریکردن (ئۆنلاین)' : 'دیاریکردن'),
@@ -312,12 +329,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
   void _showEditOrderDialog(AdminOrderItem o) {
     final raw = o.rawOrder ?? {};
     final nameCtrl = TextEditingController(text: o.customerName);
-    final phoneCtrl = TextEditingController(text: raw['customer_phone']?.toString() ?? raw['customer']?['phone']?.toString() ?? '');
+    final phoneCtrl = TextEditingController(
+      text: IraqPhoneFormatter.format(
+        raw['customer_phone']?.toString() ?? raw['customer']?['phone']?.toString() ?? '',
+      ),
+    );
     final storeCtrl = TextEditingController(text: o.storeName);
     final driverCtrl = TextEditingController(text: o.driverName);
     final addressCtrl = TextEditingController(text: raw['delivery_address']?.toString() ?? '');
     final feeCtrl = TextEditingController(text: (raw['delivery_fee'] ?? 2500).toString());
-    final pinCtrl = TextEditingController(text: raw['delivery_pin']?.toString() ?? '');
     String status = o.status;
 
     showDialog(
@@ -348,7 +368,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             ],
           ),
           content: SizedBox(
-            width: 520,
+            width: (MediaQuery.sizeOf(context).width * 0.92).clamp(280.0, 520.0),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -371,13 +391,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: TextField(
-                          controller: phoneCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'ژمارەی مۆبایل',
-                            prefixIcon: const Icon(Icons.phone_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        child: Directionality(
+                          textDirection: TextDirection.ltr,
+                          child: TextField(
+                            controller: phoneCtrl,
+                            keyboardType: TextInputType.phone,
+                            textDirection: TextDirection.ltr,
+                            textAlign: TextAlign.left,
+                            inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
+                            decoration: InputDecoration(
+                              labelText: 'ژمارەی مۆبایل',
+                              hintText: IraqPhoneFormatter.hint,
+                              prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
                           ),
                         ),
                       ),
@@ -424,56 +452,41 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: feeCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: 'تێچووی گەیاندن (د.ع)',
-                            prefixIcon: const Icon(Icons.monetization_on_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: pinCtrl,
-                          maxLength: 4,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: 'کۆدی PIN کڕیار',
-                            prefixIcon: const Icon(Icons.pin_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            counterText: '',
-                          ),
-                        ),
-                      ),
-                    ],
+                  TextField(
+                    controller: feeCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'تێچووی گەیاندن (د.ع)',
+                      prefixIcon: const Icon(Icons.monetization_on_outlined, size: 20),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
                   ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
                     initialValue: status,
                     decoration: InputDecoration(
-                      labelText: 'دۆخی گەیاندنی داواکاری (Delivery Status)',
+                      labelText: AppStrings.tr('delivery_status', widget.lang),
                       prefixIcon: const Icon(Icons.timeline_rounded, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
-                    items: const [
-                      DropdownMenuItem(value: 'pending', child: Text('⏳ لە چاوەڕوانیدا (Pending)')),
-                      DropdownMenuItem(value: 'accepted', child: Text('✅ قبولکراو (Accepted)')),
-                      DropdownMenuItem(value: 'preparing', child: Text('🍳 لە ئامادەکردندایە (Preparing)')),
-                      DropdownMenuItem(value: 'ready', child: Text('📦 ئامادەیە بۆ وەرگرتن (Ready)')),
-                      DropdownMenuItem(value: 'picked_up', child: Text('🛵 کاڵا لەلای شۆفێرە (Picked up)')),
-                      DropdownMenuItem(value: 'on_the_way', child: Text('🚀 لە ڕێگادایە (On the way)')),
-                      DropdownMenuItem(value: 'arrived_customer', child: Text('📍 گەیشتە کڕیار (Arrived)')),
-                      DropdownMenuItem(value: 'delivered', child: Text('🎉 تەواوبوو (Delivered)')),
-                      DropdownMenuItem(value: 'cancelled', child: Text('❌ هەڵوەشاوەتەوە (Cancelled)')),
+                    items: [
+                      for (final s in const [
+                        'pending',
+                        'accepted',
+                        'preparing',
+                        'ready',
+                        'picked_up',
+                        'on_the_way',
+                        'arrived_customer',
+                        'delivered',
+                        'cancelled',
+                      ])
+                        DropdownMenuItem(
+                          value: s,
+                          child: Text(AppStrings.statusLabel(s == 'accepted' ? 'approved' : s, widget.lang)),
+                        ),
                     ],
                     onChanged: (v) => setDialogState(() => status = v ?? status),
                   ),
@@ -571,29 +584,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ],
         ),
         content: SizedBox(
-          width: 520,
+          width: (MediaQuery.sizeOf(context).width * 0.92).clamp(280.0, 520.0),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // PIN Security Box
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF3C7),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFDE68A)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('🔐 کۆدی ڕادەستکردن: 9042', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: Color(0xFF92400E))),
-                      Text('🛡️ کۆدی گەیاندن: 4021', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: Color(0xFF16A34A))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
                 _buildInfoLine('👤 کڕیار:', o.customerName),
                 _buildInfoLine('🏪 فرۆشیار:', o.storeName),
                 _buildInfoLine('🛵 ماتۆرسوار:', o.driverName),
@@ -680,9 +676,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8F9FA),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: EdgeInsets.symmetric(horizontal: AdminBreakpoints.pagePadH(context), vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -716,13 +712,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
         final isNarrow = constraints.maxWidth < 760;
         final titleWidget = Column(
           crossAxisAlignment: CrossAxisAlignment.end,
-          children: const [
+          children: [
             Text(
               'بەڕێوەبردنی داواکارییەکان',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF111827),
+                color: AdminSurfaces.of(context).textPrimary,
               ),
             ),
             SizedBox(height: 2),
@@ -730,7 +726,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               'چاوەدێری و بەڕێوەبردنی هەموو داواکارییەکانی دلیڤەری',
               style: TextStyle(
                 fontSize: 12.5,
-                color: Color(0xFF6B7280),
+                color: AdminSurfaces.of(context).textSecondary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -743,11 +739,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
           onSearchChanged: (_) => setState(() {}),
         );
 
-        if (constraints.maxWidth < 650) {
+        if (constraints.maxWidth < AdminBreakpoints.headerCompact) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              topActions,
+              Align(alignment: AlignmentDirectional.centerEnd, child: topActions),
               const SizedBox(height: 12),
               titleWidget,
             ],
@@ -756,14 +752,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: titleWidget),
-                ],
-              ),
+              titleWidget,
               const SizedBox(height: 12),
-              topActions,
+              Align(alignment: AlignmentDirectional.centerEnd, child: topActions),
             ],
           );
         } else {
@@ -771,7 +762,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              titleWidget,
+              Flexible(child: titleWidget),
+              const SizedBox(width: 12),
               topActions,
             ],
           );
@@ -864,9 +856,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -894,10 +886,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B7280),
+                  color: AdminSurfaces.of(context).textSecondary,
                 ),
               ),
               const SizedBox(height: 6),
@@ -928,13 +920,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
+          color: AdminSurfaces.of(context).chipFill,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: const [
+          children: [
             Icon(Icons.close_rounded, size: 15, color: Color(0xFF64748B)),
             SizedBox(width: 6),
             Text(
@@ -942,7 +934,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF475569),
+                color: AdminSurfaces.of(context).textSecondary,
               ),
             ),
           ],
@@ -960,7 +952,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
       _buildDropdownPill(
         icon: Icons.format_list_bulleted_rounded,
         value: _selectedStatus,
-        items: const ['هەموو دۆخەکان', 'چاوەڕوان', 'لە ڕێگادایە', 'تەواوبوو'],
+        items: const [
+          'هەموو دۆخەکان',
+          'چاوەڕوان',
+          'ئامادەکردن',
+          'ئامادەیە',
+          'وەرگیرا',
+          'لە ڕێگادایە',
+          'تەواوبوو',
+          'هەڵوەشاوە',
+        ],
         onChanged: (v) => setState(() => _selectedStatus = v ?? 'هەموو دۆخەکان'),
       ),
       _buildDropdownPill(
@@ -973,7 +974,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth >= 640) {
+        if (constraints.maxWidth >= AdminBreakpoints.phone) {
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1017,7 +1018,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -1025,10 +1026,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
         child: DropdownButton<String>(
           value: value,
           icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF334155),
+            color: AdminSurfaces.of(context).textPrimary,
           ),
           items: items.map((item) {
             return DropdownMenuItem<String>(
@@ -1055,9 +1056,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   Widget _buildOrdersTableCard(List<AdminOrderItem> orders) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -1068,6 +1069,22 @@ class _OrdersScreenState extends State<OrdersScreen> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          if (constraints.maxWidth < AdminBreakpoints.phone) {
+            return Column(
+              children: [
+                if (orders.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(
+                      child: Text('هیچ داواکارییەک بەردەست نییە', style: TextStyle(color: Color(0xFF94A3B8))),
+                    ),
+                  )
+                else
+                  ...orders.map(_buildOrderMobileCard),
+                _ordersTablePaginationFooter(orders),
+              ],
+            );
+          }
           final tableWidth = constraints.maxWidth < 880 ? 880.0 : constraints.maxWidth;
           return Column(
             children: [
@@ -1080,13 +1097,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       // Table Headers
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFAFAFA),
+                        decoration: BoxDecoration(
+                          color: AdminSurfaces.of(context).mutedFill,
                           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                          border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+                          border: Border(bottom: BorderSide(color: AdminSurfaces.of(context).hairline)),
                         ),
                         child: Row(
-                          children: const [
+                          children: [
                             Expanded(flex: 2, child: Text('ژمارەی داواکاری', textAlign: TextAlign.right, style: _headerStyle)),
                             Expanded(flex: 3, child: Text('کڕیار', textAlign: TextAlign.right, style: _headerStyle)),
                             Expanded(flex: 3, child: Text('فرۆشیار', textAlign: TextAlign.right, style: _headerStyle)),
@@ -1112,7 +1129,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: orders.length,
-              separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
               itemBuilder: (context, index) {
                 final o = orders[index];
                 return Padding(
@@ -1141,8 +1158,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             Container(
                               width: 26,
                               height: 26,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFF1F5F9),
+                              decoration: BoxDecoration(
+                                color: AdminSurfaces.of(context).chipFill,
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(Icons.person_outline_rounded, size: 15, color: Color(0xFF94A3B8)),
@@ -1171,8 +1188,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             Container(
                               width: 26,
                               height: 26,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFF1F5F9),
+                              decoration: BoxDecoration(
+                                color: AdminSurfaces.of(context).chipFill,
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(Icons.storefront_outlined, size: 15, color: Color(0xFF94A3B8)),
@@ -1203,8 +1220,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 Container(
                                   width: 26,
                                   height: 26,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFF1F5F9),
+                                  decoration: BoxDecoration(
+                                    color: AdminSurfaces.of(context).chipFill,
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(Icons.person_outline_rounded, size: 15, color: Color(0xFF94A3B8)),
@@ -1271,9 +1288,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             ),
                             Text(
                               o.orderDate,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 10.5,
-                                color: Color(0xFF94A3B8),
+                                color: AdminSurfaces.of(context).textTertiary,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -1380,55 +1397,216 @@ class _OrdersScreenState extends State<OrdersScreen> {
               ),
             ),
 
-          // Table Pagination Footer
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
-            ),
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 10,
-              children: [
-                // Right side in RTL: dynamic orders count
-                Text(
-                  'نیشاندانی ${_toDigits(orders.length)} لە کۆی ${_toDigits(_orders.length)} داواکاری',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-
-                // Left side in RTL: Pagination Buttons < 5 4 3 2 [1] >
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildPageNavBtn(icon: Icons.chevron_left_rounded, onTap: () {}),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 1, active: _currentPage == 1),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 2, active: _currentPage == 2),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 3, active: _currentPage == 3),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 4, active: _currentPage == 4),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 5, active: _currentPage == 5),
-                    const SizedBox(width: 4),
-                    _buildPageNavBtn(icon: Icons.chevron_right_rounded, onTap: () {}),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          _ordersTablePaginationFooter(orders),
         ],
       );
     },
   ),
 );
+  }
+
+  Widget _ordersTablePaginationFooter(List<AdminOrderItem> orders) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: AdminSurfaces.of(context).hairline)),
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        runSpacing: 10,
+        children: [
+          Text(
+            'نیشاندانی ${_toDigits(orders.length)} لە کۆی ${_toDigits(_orders.length)} داواکاری',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AdminSurfaces.of(context).textSecondary,
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildPageNavBtn(icon: Icons.chevron_left_rounded, onTap: () {}),
+                const SizedBox(width: 4),
+                _buildPageNumberBtn(page: 1, active: _currentPage == 1),
+                const SizedBox(width: 4),
+                _buildPageNumberBtn(page: 2, active: _currentPage == 2),
+                const SizedBox(width: 4),
+                _buildPageNumberBtn(page: 3, active: _currentPage == 3),
+                const SizedBox(width: 4),
+                _buildPageNumberBtn(page: 4, active: _currentPage == 4),
+                const SizedBox(width: 4),
+                _buildPageNumberBtn(page: 5, active: _currentPage == 5),
+                const SizedBox(width: 4),
+                _buildPageNavBtn(icon: Icons.chevron_right_rounded, onTap: () {}),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderRowActions(AdminOrderItem o) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (_) => AdminLiveRadarDialog(api: widget.api),
+            );
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: const Padding(
+            padding: EdgeInsets.all(4),
+            child: Icon(Icons.location_on_outlined, size: 18, color: Color(0xFF475569)),
+          ),
+        ),
+        const SizedBox(width: 4),
+        InkWell(
+          onTap: () => _showOrderDetailsModal(o),
+          borderRadius: BorderRadius.circular(6),
+          child: const Padding(
+            padding: EdgeInsets.all(4),
+            child: Icon(Icons.visibility_outlined, size: 18, color: Color(0xFF475569)),
+          ),
+        ),
+        const SizedBox(width: 4),
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert_rounded, size: 18, color: Color(0xFF475569)),
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          onSelected: (val) {
+            if (val == 'assign') {
+              _showAssignDriverDialog(o);
+            } else if (val == 'edit') {
+              _showEditOrderDialog(o);
+            } else if (val == 'delete') {
+              _confirmDeleteOrder(o);
+            }
+          },
+          itemBuilder: (ctx) => [
+            const PopupMenuItem(
+              value: 'assign',
+              child: Row(
+                children: [
+                  Icon(Icons.two_wheeler_rounded, size: 17, color: Color(0xFF113E2E)),
+                  SizedBox(width: 8),
+                  Text('دیاریکردنی ماتۆرسوار', style: TextStyle(fontSize: 12.5)),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'edit',
+              child: Row(
+                children: [
+                  Icon(Icons.edit_outlined, size: 17, color: Color(0xFF2563EB)),
+                  SizedBox(width: 8),
+                  Text('دەستکاریکردن', style: TextStyle(fontSize: 12.5)),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline_rounded, size: 17, color: Color(0xFFDC2626)),
+                  SizedBox(width: 8),
+                  Text('سڕینەوە', style: TextStyle(fontSize: 12.5, color: Color(0xFFDC2626))),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOrderMobileCard(AdminOrderItem o) {
+    final surfaces = AdminSurfaces.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: surfaces.hairline)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  o.orderNumber,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: surfaces.textPrimary,
+                  ),
+                ),
+              ),
+              _buildStatusBadge(o.status),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            o.customerName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            o.storeName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: surfaces.textSecondary),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(
+                Icons.two_wheeler_rounded,
+                size: 14,
+                color: o.isDriverOnline ? const Color(0xFF10B981) : surfaces.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  o.driverName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text(
+                o.totalAmount,
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFFB45309)),
+              ),
+              const Spacer(),
+              Text(
+                '${o.orderTime} • ${o.orderDate}',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: surfaces.textTertiary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Align(alignment: AlignmentDirectional.centerEnd, child: _buildOrderRowActions(o)),
+        ],
+      ),
+    );
   }
 
   Widget _buildStatusBadge(String status) {
@@ -1437,15 +1615,41 @@ class _OrdersScreenState extends State<OrdersScreen> {
     Color text;
 
     switch (status) {
+      case 'preparing':
+        label = 'ئامادەکردن';
+        bg = const Color(0xFFFFEDD5);
+        text = const Color(0xFFEA580C);
+        break;
+      case 'ready':
+        label = 'ئامادەیە';
+        bg = const Color(0xFFE0E7FF);
+        text = const Color(0xFF4F46E5);
+        break;
+      case 'picked_up':
+        label = 'وەرگیرا';
+        bg = const Color(0xFFCCFBF1);
+        text = const Color(0xFF0F766E);
+        break;
       case 'on_the_way':
         label = 'لە ڕێگادایە';
         bg = const Color(0xFFEFF6FF);
         text = const Color(0xFF2563EB);
         break;
+      case 'arrived_customer':
+        label = 'گەیشتە کڕیار';
+        bg = const Color(0xFFDBEAFE);
+        text = const Color(0xFF1D4ED8);
+        break;
       case 'delivered':
         label = 'تەواوبوو';
         bg = const Color(0xFFDCFCE7);
         text = const Color(0xFF16A34A);
+        break;
+      case 'cancelled':
+      case 'rejected':
+        label = 'هەڵوەشاوە';
+        bg = const Color(0xFFFEE2E2);
+        text = const Color(0xFFDC2626);
         break;
       case 'pending':
       default:
@@ -1515,9 +1719,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
-  static const TextStyle _headerStyle = TextStyle(
+  TextStyle get _headerStyle => TextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w800,
-    color: Color(0xFF64748B),
+    color: AdminSurfaces.of(context).textSecondary,
   );
 }

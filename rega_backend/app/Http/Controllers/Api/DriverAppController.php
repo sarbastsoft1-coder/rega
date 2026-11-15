@@ -41,6 +41,8 @@ class DriverAppController extends Controller
         $profile = $this->resolveDriverProfile($request);
         $validated = $request->validate([
             'is_online' => ['required', 'boolean'],
+            'lat' => ['nullable', 'numeric'],
+            'lng' => ['nullable', 'numeric'],
         ]);
 
         $goingOnline = (bool) $validated['is_online'];
@@ -54,10 +56,16 @@ class DriverAppController extends Controller
                 'online_since' => null,
             ]);
         } elseif ($goingOnline) {
-            $profile->update([
+            $updates = [
                 'is_online' => true,
                 'online_since' => $profile->online_since ?? now(),
-            ]);
+            ];
+            if (isset($validated['lat'], $validated['lng'])) {
+                $updates['current_lat'] = $validated['lat'];
+                $updates['current_lng'] = $validated['lng'];
+                $updates['last_ping_at'] = now();
+            }
+            $profile->update($updates);
         }
 
         return response()->json([
@@ -72,14 +80,78 @@ class DriverAppController extends Controller
         $validated = $request->validate([
             'lat' => ['required', 'numeric'],
             'lng' => ['required', 'numeric'],
+            'heading' => ['nullable', 'numeric'],
+            'speed_kmh' => ['nullable', 'numeric'],
         ]);
 
-        $profile->update([
+        $updates = [
             'current_lat' => $validated['lat'],
             'current_lng' => $validated['lng'],
-        ]);
+            'last_ping_at' => now(),
+        ];
+        if (array_key_exists('heading', $validated) && $validated['heading'] !== null) {
+            $updates['heading'] = $validated['heading'];
+        }
+        if (array_key_exists('speed_kmh', $validated) && $validated['speed_kmh'] !== null) {
+            $updates['speed_kmh'] = $validated['speed_kmh'];
+        }
 
-        return response()->json(['success' => true]);
+        $profile->update($updates);
+
+        // Mirror onto active order + live telemetry so seller/customer maps move live.
+        $activeOrder = Order::query()
+            ->where('driver_id', $request->user()->id)
+            ->whereNotIn('status', ['delivered', 'cancelled', 'rejected'])
+            ->latest()
+            ->first();
+
+        if ($activeOrder) {
+            $orderUpdates = [
+                'driver_lat' => $validated['lat'],
+                'driver_lng' => $validated['lng'],
+                'last_telemetry_at' => now(),
+            ];
+            if (isset($validated['heading'])) {
+                $orderUpdates['driver_heading'] = $validated['heading'];
+            }
+            if (isset($validated['speed_kmh'])) {
+                $orderUpdates['driver_speed_kmh'] = $validated['speed_kmh'];
+            }
+            $activeOrder->update($orderUpdates);
+
+            $orderRef = strtoupper(ltrim((string) ($activeOrder->order_number ?? ''), '#'));
+            $session = LiveTelemetrySession::query()
+                ->where(function ($q) use ($activeOrder, $orderRef) {
+                    $q->where('order_id', $activeOrder->id);
+                    if ($orderRef !== '') {
+                        $q->orWhere('order_ref', $orderRef);
+                    }
+                })
+                ->latest('updated_at')
+                ->first();
+            if ($session) {
+                $session->update([
+                    'driver_lat' => $validated['lat'],
+                    'driver_lng' => $validated['lng'],
+                    'driver_heading' => $validated['heading'] ?? $session->driver_heading,
+                    'driver_speed_kmh' => $validated['speed_kmh'] ?? $session->driver_speed_kmh,
+                    'driver_pinged_at' => now(),
+                    'driver_name' => $session->driver_name ?: $request->user()->name,
+                    'driver_phone' => $session->driver_phone ?: $request->user()->phone,
+                    'status' => $activeOrder->status ?: $session->status,
+                    'driver_status' => $activeOrder->driver_status ?: $session->driver_status,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'lat' => (float) $profile->current_lat,
+                'lng' => (float) $profile->current_lng,
+                'is_online' => (bool) $profile->is_online,
+            ],
+        ]);
     }
 
     public function activeOrder(Request $request): JsonResponse
@@ -92,8 +164,7 @@ class DriverAppController extends Controller
             ->first();
 
         if ($order) {
-            // Driver sees handover_pin (to give to vendor), NOT delivery_pin (customer holds delivery_pin)
-            $order->makeHidden(['delivery_pin']);
+            $order->makeHidden(['delivery_pin', 'handover_pin']);
         }
 
         return response()->json([
@@ -116,7 +187,7 @@ class DriverAppController extends Controller
             $query->whereIn('status', ['cancelled', 'rejected']);
         }
 
-        $orders = $query->get()->makeHidden(['delivery_pin']);
+        $orders = $query->get()->makeHidden(['delivery_pin', 'handover_pin']);
 
         return response()->json([
             'success' => true,
@@ -174,7 +245,7 @@ class DriverAppController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $order->fresh(['items', 'store:id,name_ku,phone,address_ku,lat,lng'])->makeHidden(['delivery_pin']),
+            'data' => $order->fresh(['items', 'store:id,name_ku,phone,address_ku,lat,lng'])->makeHidden(['delivery_pin', 'handover_pin']),
         ]);
     }
 
@@ -184,21 +255,10 @@ class DriverAppController extends Controller
             abort(403);
         }
 
-        $validated = $request->validate([
-            'pin' => ['required', 'string', 'size:4'],
-        ]);
-
-        if ($validated['pin'] !== $order->delivery_pin) {
-            return response()->json([
-                'success' => false,
-                'message' => 'کۆدی پاراستنی کڕیار هەڵەیە! تکایە دووبارە دڵنیابەرەوە.',
-            ], 422);
-        }
-
         $settled = $this->settlementService->markDelivered(
             $order,
             $request->user(),
-            'بە کۆدی پاراستنی ٤ ژمارەیی کڕیار گەیاندن تەواوکرا'
+            'گەیاندن تەواوکرا'
         );
 
         LiveTelemetrySession::where('order_id', $order->id)

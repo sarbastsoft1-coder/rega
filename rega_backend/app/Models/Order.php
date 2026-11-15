@@ -21,13 +21,20 @@ class Order extends Model
         'handover_pin',
         'delivery_pin',
         'subtotal',
+        'total_product_cost',
+        'total_gross_profit',
         'discount_amount',
         'delivery_fee',
         'driver_tip',
         'waiting_bonus',
         'total_amount',
         'commission_rate',
+        'profit_commission_rate',
         'commission_amount',
+        'admin_profit_amount',
+        'seller_profit_amount',
+        'refunded_amount',
+        'is_profit_realized',
         'vendor_net_amount',
         'driver_total_earning',
         'payment_method',
@@ -62,13 +69,20 @@ class Order extends Model
     {
         return [
             'subtotal' => 'integer',
+            'total_product_cost' => 'integer',
+            'total_gross_profit' => 'integer',
             'discount_amount' => 'integer',
             'delivery_fee' => 'integer',
             'driver_tip' => 'integer',
             'waiting_bonus' => 'integer',
             'total_amount' => 'integer',
             'commission_rate' => 'float',
+            'profit_commission_rate' => 'float',
             'commission_amount' => 'integer',
+            'admin_profit_amount' => 'integer',
+            'seller_profit_amount' => 'integer',
+            'refunded_amount' => 'integer',
+            'is_profit_realized' => 'boolean',
             'vendor_net_amount' => 'integer',
             'driver_total_earning' => 'integer',
             'delivery_lat' => 'float',
@@ -125,6 +139,11 @@ class Order extends Model
     public function statusLogs(): HasMany
     {
         return $this->hasMany(OrderStatusLog::class)->orderBy('created_at');
+    }
+
+    public function refundTransactions(): HasMany
+    {
+        return $this->hasMany(AccountingRefundTransaction::class)->latest();
     }
 }
 

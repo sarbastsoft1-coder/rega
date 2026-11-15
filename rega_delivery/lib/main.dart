@@ -1,18 +1,22 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
 import 'live_captain_map.dart';
 import 'driver_api_service.dart';
+import 'blocked_account.dart';
 import 'rega_mobile.dart';
 import 'app/providers.dart';
 import 'app/app_router.dart';
 import 'state/driver_nav_notifier.dart';
 import 'state/driver_session_notifier.dart';
+import 'iraq_phone_formatter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,9 +49,9 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
         final session = context.watch<DriverSessionNotifier>();
         return AuthScreen(
           currentLocale: session.locale,
-          onLogin: () {
-            session.login();
-            context.go('/map');
+          onLogin: (phone) async {
+            await session.login(phone: phone);
+            if (context.mounted) context.go('/map');
           },
         );
       },
@@ -55,11 +59,13 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
         final session = context.watch<DriverSessionNotifier>();
         return DriverMainScreen(
           currentLocale: session.locale,
+          isDark: session.isDark,
           onLanguageChange: session.setLocale,
-          onLogout: () {
-            DriverApiService.instance.logout();
-            session.logout();
-            context.go('/login');
+          onThemeChanged: session.setDark,
+          onLogout: () async {
+            // session.logout clears Sanctum token + logged_in flag.
+            await session.logout();
+            if (context.mounted) context.go('/login');
           },
           driverPhone: session.driverPhone,
           initialTabIndex: tabIndex,
@@ -80,17 +86,31 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
       routerConfig: router,
       theme: ThemeData(
         useMaterial3: true,
+        brightness: Brightness.light,
+        fontFamily: 'NotoKufiArabic',
         primaryColor: const Color(0xFF00E676),
         scaffoldBackgroundColor: const Color(0xFFF4F5F7),
-        textTheme: GoogleFonts.notoKufiArabicTextTheme(
-          Theme.of(context).textTheme,
-        ),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF00E676),
+          brightness: Brightness.light,
           primary: const Color(0xFF00E676),
           surface: Colors.white,
         ),
       ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        fontFamily: 'NotoKufiArabic',
+        primaryColor: const Color(0xFF00E676),
+        scaffoldBackgroundColor: const Color(0xFF0F172A),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF00E676),
+          brightness: Brightness.dark,
+          primary: const Color(0xFF00E676),
+          surface: const Color(0xFF111827),
+        ),
+      ),
+      themeMode: session.themeMode,
       builder: (context, child) {
         return RegaResponsive.appBuilder(
           context,
@@ -168,6 +188,11 @@ final Map<String, Map<String, String>> _trans = {
     'show_full_route': 'پیشاندانی تەواوی ڕێڕەو',
     'map_style': 'گۆڕینی شێوازی نەخشە',
     'phone_gps': 'GPS ی مۆبایل — شوێنی ڕاستەقینەی گەیاندن',
+    'gps_locating': 'چاوەڕوانی GPSی مۆبایل...',
+    'gps_allow_phone': 'کرتە بکە بۆ ڕێگەدان بە GPS — شوێنی ساختە پیشان نادرێت',
+    'gps_required_online': 'بۆ ئۆنلاین بوون پێویستە GPSی مۆبایل کاربکات',
+    'gps_missing_online_warn': 'ئۆنلاین بوویت، بەڵام GPS بەردەست نییە — شوێن نوێ ناکرێتەوە هەتا GPS کاربکات',
+    'status_update_failed': 'نوێکردنەوەی دۆخی ئۆنلاین سەرکەوتوو نەبوو — پەیوەندی بپشکنە و دووبارە هەوڵ بدە',
     'sim_drive': 'دەمۆی خۆکار',
     'sync_order': 'هاوکاتکردنی نوێترین داواکاری کڕیار',
     'arrived': 'گەیشتم',
@@ -176,6 +201,44 @@ final Map<String, Map<String, String>> _trans = {
     'eta': 'کاتی گەیشتن',
     'distance': 'دووری',
     'speed': 'خێرایی',
+    'new_order_arrived': 'داواکاری نوێ گەیشت!',
+    'order_completed': 'داواکارییەکە تەواو کرا!',
+    'accept_new_order': 'وەرگرتنی داواکاری نوێ',
+    'waiting_admin_order': 'چاوەڕوانی دیاریکردنی داواکاری لە ئادمینەوە...',
+    'go_online_for_orders': 'ئۆفلاینیت • بۆ وەرگرتنی داواکاری ئۆنلاین بە',
+    'handover_pin_hint': '🔑 کۆدی وەرگرتن بدە بە فرۆشیار:',
+    'merchant_pickup': 'فرۆشیار (وەرگرتن)',
+    'customer_dropoff': 'کڕیار (گەیاندن)',
+    'items_total': '{count} کاڵا • کۆی گشتی {total} د.ع',
+    'badge_new_order': 'داواکاری نوێ',
+    'badge_to_merchant': 'بەرەو فرۆشیار',
+    'badge_at_merchant': 'گەیشتە فرۆشیار',
+    'badge_picked': 'کاڵاکە وەرگیرا',
+    'badge_to_customer': 'بەرەو کڕیار',
+    'badge_at_customer': 'گەیشتە کڕیار',
+    'badge_delivered': 'گەیەندرا',
+    'btn_start_to_merchant': 'بەرەو فرۆشیار دەکەومەڕێ',
+    'btn_arrived_merchant': 'گەیشتمە لای فرۆشیار',
+    'btn_picked_up': 'کاڵاکەم وەرگرت',
+    'btn_start_to_customer': 'بەرەو کڕیار بەڕێکەوتم',
+    'btn_arrived_customer': 'گەیشتمە لای کڕیار',
+    'btn_complete_pin': 'گەیاندن تەواو بکە',
+    'btn_completed': 'تەواوکراوە',
+    'pin_verify_title': 'پشتڕاستکردنەوەی گەیاندن',
+    'pin_verify_hint': 'کۆدی ٤ ژمارەیی لە خاوەن داواکاری وەربگرە',
+    'nav_to_merchant': 'بەرەو {name}',
+    'nav_at_store': 'لە بەردەم چێشتخانەیت — داواکاری وەربگرە',
+    'nav_to_customer': 'بەرەو ماڵی {name}',
+    'nav_ask_pin': 'گەیشتیت! گەیاندن تەواو بکە',
+    'nav_done': 'گەیاندن تەواوبوو بە سەرکەوتوویی!',
+    'gps_live_sync': 'GPS LIVE • چرکە بە چرکە هاوکاتە',
+    'gps_live_kalar': 'GPS LIVE • نەخشەی زیندووی کەلار',
+    'km_unit': 'کم',
+    'm_unit': 'مەتر',
+    'dark_mode': 'دۆخی تاریک',
+    'light_mode': 'دۆخی ڕووناک',
+    'theme': 'ڕووکار',
+    'data_refreshed': 'داتا نوێکرایەوە',
   },
   'ar': {
     'home': 'الخريطة',
@@ -242,6 +305,11 @@ final Map<String, Map<String, String>> _trans = {
     'show_full_route': 'عرض المسار الكامل',
     'map_style': 'تغيير نمط الخريطة',
     'phone_gps': 'GPS الهاتف — موقع التوصيل الحقيقي',
+    'gps_locating': 'جاري تحديد موقع الهاتف...',
+    'gps_allow_phone': 'اضغط للسماح بـ GPS — لن نعرض مكاناً وهمياً',
+    'gps_required_online': 'يجب تفعيل GPS الهاتف للاتصال أونلاين',
+    'gps_missing_online_warn': 'أنت متصل الآن، لكن GPS غير متاح — لن يُحدَّث الموقع حتى يعمل GPS',
+    'status_update_failed': 'تعذر تحديث حالة الاتصال — تحقق من الشبكة وحاول مرة أخرى',
     'sim_drive': 'محاكاة القيادة',
     'sync_order': 'مزامنة أحدث طلب عميل',
     'arrived': 'وصلت',
@@ -250,6 +318,44 @@ final Map<String, Map<String, String>> _trans = {
     'eta': 'وقت الوصول',
     'distance': 'المسافة',
     'speed': 'السرعة',
+    'new_order_arrived': 'وصل طلب جديد!',
+    'order_completed': 'تم إكمال الطلب!',
+    'accept_new_order': 'استلام طلب جديد',
+    'waiting_admin_order': 'بانتظار تعيين طلب من الإدارة...',
+    'go_online_for_orders': 'أنت غير متصل • فعّل الاتصال لاستلام الطلبات',
+    'handover_pin_hint': '🔑 أعط رمز الاستلام للبائع:',
+    'merchant_pickup': 'البائع (الاستلام)',
+    'customer_dropoff': 'العميل (التسليم)',
+    'items_total': '{count} أصناف • المجموع {total} د.ع',
+    'badge_new_order': 'طلب جديد',
+    'badge_to_merchant': 'إلى البائع',
+    'badge_at_merchant': 'وصل للبائع',
+    'badge_picked': 'تم استلام الطلب',
+    'badge_to_customer': 'إلى العميل',
+    'badge_at_customer': 'وصل للعميل',
+    'badge_delivered': 'تم التوصيل',
+    'btn_start_to_merchant': 'انطلق نحو البائع',
+    'btn_arrived_merchant': 'وصلت إلى البائع',
+    'btn_picked_up': 'استلمت الطلب',
+    'btn_start_to_customer': 'انطلق نحو العميل',
+    'btn_arrived_customer': 'وصلت إلى العميل',
+    'btn_complete_pin': 'أكمل التوصيل',
+    'btn_completed': 'مكتمل',
+    'pin_verify_title': 'تأكيد التسليم',
+    'pin_verify_hint': 'خذ الرمز المكون من 4 أرقام من صاحب الطلب',
+    'nav_to_merchant': 'إلى {name}',
+    'nav_at_store': 'أمام المطعم — استلم الطلب',
+    'nav_to_customer': 'إلى منزل {name}',
+    'nav_ask_pin': 'وصلت! أكمل التوصيل',
+    'nav_done': 'تم التوصيل بنجاح!',
+    'gps_live_sync': 'GPS مباشر • مزامنة ثانية بثانية',
+    'gps_live_kalar': 'GPS مباشر • خريطة كلار الحية',
+    'km_unit': 'كم',
+    'm_unit': 'م',
+    'dark_mode': 'الوضع الداكن',
+    'light_mode': 'الوضع الفاتح',
+    'theme': 'المظهر',
+    'data_refreshed': 'تم تحديث البيانات',
   },
   'en': {
     'home': 'Map',
@@ -316,6 +422,11 @@ final Map<String, Map<String, String>> _trans = {
     'show_full_route': 'Show full route',
     'map_style': 'Change map style',
     'phone_gps': 'Phone GPS — real delivery place',
+    'gps_locating': 'Getting phone GPS...',
+    'gps_allow_phone': 'Tap to allow GPS — fake place will not be shown',
+    'gps_required_online': 'Phone GPS is required to go online',
+    'gps_missing_online_warn': 'You are online, but GPS is unavailable — location will not update until GPS works',
+    'status_update_failed': 'Could not update online status — check connection and try again',
     'sim_drive': 'Auto demo drive',
     'sync_order': 'Sync latest customer order',
     'arrived': 'I arrived',
@@ -324,8 +435,57 @@ final Map<String, Map<String, String>> _trans = {
     'eta': 'ETA',
     'distance': 'Distance',
     'speed': 'Speed',
+    'new_order_arrived': 'New order arrived!',
+    'order_completed': 'Order completed!',
+    'accept_new_order': 'Accept new order',
+    'waiting_admin_order': 'Waiting for admin to assign an order...',
+    'go_online_for_orders': 'You are offline • Go online to receive orders',
+    'handover_pin_hint': '🔑 Give pickup code to merchant:',
+    'merchant_pickup': 'Merchant (Pickup)',
+    'customer_dropoff': 'Customer (Dropoff)',
+    'items_total': '{count} items • Total {total} IQD',
+    'badge_new_order': 'New order',
+    'badge_to_merchant': 'To merchant',
+    'badge_at_merchant': 'At merchant',
+    'badge_picked': 'Picked up',
+    'badge_to_customer': 'To customer',
+    'badge_at_customer': 'At customer',
+    'badge_delivered': 'Delivered',
+    'btn_start_to_merchant': 'Heading to merchant',
+    'btn_arrived_merchant': 'Arrived at merchant',
+    'btn_picked_up': 'I picked up the order',
+    'btn_start_to_customer': 'Heading to customer',
+    'btn_arrived_customer': 'Arrived at customer',
+    'btn_complete_pin': 'Complete delivery',
+    'btn_completed': 'Completed',
+    'pin_verify_title': 'Verify delivery',
+    'pin_verify_hint': 'Enter the 4-digit code from the customer',
+    'nav_to_merchant': 'To {name}',
+    'nav_at_store': 'At the store — pick up the order',
+    'nav_to_customer': 'To {name}',
+    'nav_ask_pin': 'Arrived! Complete the delivery',
+    'nav_done': 'Delivery completed successfully!',
+    'gps_live_sync': 'GPS LIVE • second-by-second sync',
+    'gps_live_kalar': 'GPS LIVE • live Kalar map',
+    'km_unit': 'km',
+    'm_unit': 'm',
+    'dark_mode': 'Dark mode',
+    'light_mode': 'Light mode',
+    'theme': 'Theme',
+    'data_refreshed': 'Data refreshed',
   }
 };
+
+String tr(String key, String locale) {
+  final code = locale == 'ckb' ? 'ku' : locale;
+  return _trans[code]?[key] ?? _trans['ku']?[key] ?? key;
+}
+
+String trFill(String key, String locale, Map<String, String> vars) {
+  var out = tr(key, locale);
+  vars.forEach((k, v) => out = out.replaceAll('{$k}', v));
+  return out;
+}
 
 // ---------------------------------------------------------
 // مۆدێلەکان (Data Models)
@@ -409,7 +569,9 @@ class OrderModel {
 
 class DriverMainScreen extends StatefulWidget {
   final String currentLocale;
+  final bool isDark;
   final Function(String) onLanguageChange;
+  final ValueChanged<bool> onThemeChanged;
   final VoidCallback onLogout;
   final String driverPhone;
   final int initialTabIndex;
@@ -417,9 +579,11 @@ class DriverMainScreen extends StatefulWidget {
   const DriverMainScreen({
     super.key,
     required this.currentLocale,
+    this.isDark = false,
     required this.onLanguageChange,
+    required this.onThemeChanged,
     required this.onLogout,
-    this.driverPhone = '07501234567',
+    this.driverPhone = '',
     this.initialTabIndex = 0,
   });
 
@@ -430,11 +594,12 @@ class DriverMainScreen extends StatefulWidget {
 class _DriverMainScreenState extends State<DriverMainScreen> {
   String t(String key) => _trans[widget.currentLocale]![key] ?? key;
   int _currentTabIndex = 0;
-  bool _isOnline = true;
+  bool _isOnline = false;
+  bool _onlineToggleBusy = false;
   bool _isOrderCardVisible = true;
-  bool _hasNewNotifications = true; // نیشانەی سوور بۆ ئاگادارکردنەوەی نوێ
-  int _todayEarnings = 28500;
-  int _completedDeliveriesCount = 8;
+  bool _hasNewNotifications = false;
+  int _todayEarnings = 0;
+  int _completedDeliveriesCount = 0;
   int _selectedFilterIndex = 0;
   int _selectedEarningsTimeIndex = 2; // ئۆتۆماتیکی لەسەر 'ئەمڕۆ' بێت
   final TextEditingController _searchController = TextEditingController();
@@ -446,74 +611,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   bool _didStartBackendSync = false;
   String? _lastNotifiedOrderNum;
 
-  // لیستی ئاگادارکردنەوەکان
-  final List<Map<String, String>> _notifications = [
-    {'id': '10245', 'time': 'ئێستا', 'type': 'order'},
-    {'id': '10244', 'time': '١٠ خولەک پێش ئێستا', 'type': 'order'},
-    {'id': '10240', 'time': '١ کاتژمێر پێش ئێستا', 'type': 'order'},
-  ];
+  // لیستی ئاگادارکردنەوەکان (تەنها لە داتای ڕاستەقینە)
+  final List<Map<String, String>> _notifications = [];
 
   // لیستی هەموو داواکارییەکان بۆ بەشی لیست
-  List<Map<String, dynamic>> get _allOrdersData =>
-      (_backendOrdersList != null && _backendOrdersList!.isNotEmpty)
-          ? _backendOrdersList!
-          : [
-    {
-      'id': '#10245',
-      'merchant': 'چێشتخانەی دیوان',
-      'customer': 'ئاراس ڕەحمان',
-      'statusKey': 'status_on_way',
-      'statusType': 'active', // بەرەو کڕیار / چاوەڕوانی شۆفێر
-      'price': '4,000 ' + t('iqd'),
-      'time': 'Oct • 7:37 PM 23',
-      'statusColor': const Color(0xFF16A34A),
-      'statusBg': const Color(0xFFDCFCE7),
-    },
-    {
-      'id': '#10246',
-      'merchant': 'پیتزا و بێرگەری زەیتون',
-      'customer': 'سۆران محەمەد',
-      'statusKey': 'status_waiting',
-      'statusType': 'active',
-      'price': '2,500 ' + t('iqd'),
-      'time': 'Oct • 7:42 PM 23',
-      'statusColor': const Color(0xFFD97706),
-      'statusBg': const Color(0xFFFEF3C7),
-    },
-    {
-      'id': '#10240',
-      'merchant': 'شاوەرمەی بەرهەکە',
-      'customer': 'شێرزاد عوسمان',
-      'statusKey': 'status_delivered',
-      'statusType': 'delivered',
-      'price': '2,500 ' + t('iqd'),
-      'time': 'Oct • 6:30 PM 23',
-      'statusColor': const Color(0xFF16A34A),
-      'statusBg': const Color(0xFFDCFCE7),
-    },
-    {
-      'id': '#10238',
-      'merchant': 'کافێ و شیرینی شاری ج...',
-      'customer': 'لانە کامە...',
-      'statusKey': 'status_delivered',
-      'statusType': 'delivered',
-      'price': '3,000 ' + t('iqd'),
-      'time': 'Oct • 7:18 AM 23',
-      'statusColor': const Color(0xFF16A34A),
-      'statusBg': const Color(0xFFDCFCE7),
-    },
-    {
-      'id': '#10230',
-      'merchant': 'فۆستەر بێرگەر',
-      'customer': 'محمد عەلی',
-      'statusKey': 'status_cancelled',
-      'statusType': 'cancelled',
-      'price': '4,500 ' + t('iqd'),
-      'time': 'Oct • 6:30 AM 23',
-      'statusColor': const Color(0xFFEF4444),
-      'statusBg': const Color(0xFFFEE2E2),
-    },
-  ];
+  List<Map<String, dynamic>> get _allOrdersData => _backendOrdersList ?? const [];
 
   List<Map<String, dynamic>> _getFilteredOrders() {
     return _allOrdersData.where((order) {
@@ -608,7 +710,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     setState(() {
       if (profile != null) {
         _driverProfile = profile;
-        if (!silent) {
+        // Keep optimistic UI while a toggle request is in flight.
+        if (!_onlineToggleBusy) {
           _isOnline = profile['is_online'] == true;
         }
       }
@@ -828,7 +931,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     _showSuccessSnackBar('داواکاری زیندووی کڕیار (#$ref) هێنرایە سەر نەخشە!');
   }
 
-  Future<void> _notifyBackendPinVerified() async {
+  Future<void> _notifyBackendDeliveryComplete() async {
     final cleanRef = _activeOrder.orderNumber.replaceAll('#', '').trim();
     try {
       await http
@@ -838,7 +941,6 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            body: jsonEncode({'pin': _activeOrder.deliveryPin}),
           )
           .timeout(const Duration(seconds: 2));
     } catch (_) {}
@@ -894,35 +996,20 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     });
   }
 
-  void _openPinVerification() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: PinVerificationBottomSheet(
-              orderNumber: _activeOrder.orderNumber,
-              correctPin: _activeOrder.deliveryPin,
-              onBackendVerify: _activeOrder.dbId != null
-                  ? (pin) => DriverApiService.instance.verifyDeliveryPin(_activeOrder.dbId!, pin)
-                  : null,
-              onSuccess: () {
-                Navigator.pop(ctx);
-                _updateOrderStatus(OrderStatus.delivered);
-                _notifyBackendPinVerified();
-                _refreshBackendDriverData(silent: true);
-                _showSuccessSnackBar('گەیاندنەکە بە سەرکەوتوویی کۆتایی هات! پیرۆزە.');
-              },
-            ),
-          ),
-        ),
-      ),
-    );
+  Future<void> _completeDelivery() async {
+    if (_activeOrder.dbId != null) {
+      final (ok, msg) = await DriverApiService.instance.completeDelivery(_activeOrder.dbId!);
+      if (!mounted) return;
+      if (!ok) {
+        _showSuccessSnackBar(msg ?? t('btn_complete_pin'));
+        return;
+      }
+    }
+    _updateOrderStatus(OrderStatus.delivered);
+    await _notifyBackendDeliveryComplete();
+    _refreshBackendDriverData(silent: true);
+    if (!mounted) return;
+    _showSuccessSnackBar(t('nav_done'));
   }
 
   void _showSuccessSnackBar(String msg) {
@@ -967,6 +1054,129 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       ),
       bottomNavigationBar: _buildBottomNav(),
     );
+  }
+
+  /// Flip Offline ↔ Online immediately in the UI, then persist to backend.
+  /// GPS is best-effort and must never leave the pill stuck/dead on web.
+  Future<void> _toggleOnlineStatus() async {
+    if (_onlineToggleBusy || !mounted) return;
+
+    final previous = _isOnline;
+    final nextOnline = !previous;
+    setState(() {
+      _onlineToggleBusy = true;
+      _isOnline = nextOnline;
+    });
+
+    // Persist status first (no GPS gate). Coords are attached later if available.
+    final updated = await DriverApiService.instance.updateOnlineStatus(nextOnline);
+
+    if (!mounted) return;
+
+    if (updated == null) {
+      setState(() {
+        _isOnline = previous;
+        _onlineToggleBusy = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(t('status_update_failed')),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    // Prefer server truth when present.
+    final serverOnline = updated['is_online'];
+    setState(() {
+      if (serverOnline is bool) {
+        _isOnline = serverOnline;
+      } else if (serverOnline != null) {
+        _isOnline = serverOnline == true || serverOnline.toString() == '1';
+      }
+      _onlineToggleBusy = false;
+    });
+
+    if (!nextOnline || !mounted) return;
+
+    // Best-effort GPS after Online is already live — never blocks the toggle.
+    unawaited(() async {
+      try {
+        final fix = await _tryCaptureGpsForOnline().timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => (null, null, true),
+        );
+        final lat = fix.$1;
+        final lng = fix.$2;
+        final gpsMissing = fix.$3 || lat == null || lng == null;
+        if (lat != null && lng != null) {
+          await DriverApiService.instance.updateOnlineStatus(
+            true,
+            lat: lat,
+            lng: lng,
+          );
+          await DriverApiService.instance.updateLocation(lat, lng);
+        } else if (gpsMissing && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(t('gps_missing_online_warn')),
+              backgroundColor: const Color(0xFFD97706),
+            ),
+          );
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(t('gps_missing_online_warn')),
+              backgroundColor: const Color(0xFFD97706),
+            ),
+          );
+        }
+      }
+    }());
+  }
+
+  /// Returns `(lat, lng, missing)`. Never throws for denied/unavailable GPS.
+  Future<(double?, double?, bool)> _tryCaptureGpsForOnline() async {
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
+        // Native only — on web this often hangs or navigates away.
+        if (!kIsWeb) {
+          try {
+            await Geolocator.openLocationSettings();
+          } catch (_) {}
+        }
+        return (null, null, true);
+      }
+
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return (null, null, true);
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: kIsWeb
+            ? WebSettings(
+                accuracy: LocationAccuracy.high,
+                maximumAge: Duration.zero,
+                timeLimit: const Duration(seconds: 3),
+              )
+            : const LocationSettings(
+                accuracy: LocationAccuracy.high,
+                timeLimit: Duration(seconds: 3),
+              ),
+      );
+      return (pos.latitude, pos.longitude, false);
+    } catch (_) {
+      return (null, null, true);
+    }
   }
 
   // سەرپەڕەی سەرەوە: شێوازی مۆدێرن بە ڕەنگی سەوز و لۆگۆی REGA
@@ -1056,50 +1266,50 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 
           // سویچی ئۆنلاین/ئۆفلاین (Left in RTL - Index 2)
           InkWell(
-            onTap: () {
-              final nextOnline = !_isOnline;
-              setState(() => _isOnline = nextOnline);
-              DriverApiService.instance.updateOnlineStatus(nextOnline);
-            },
+            onTap: _onlineToggleBusy ? null : _toggleOnlineStatus,
             borderRadius: BorderRadius.circular(100),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              decoration: BoxDecoration(
-                color: _isOnline ? const Color(0xFF16A34A) : const Color(0xFFEF4444),
-                borderRadius: BorderRadius.circular(100),
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_isOnline) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        t('online'),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+            child: AnimatedOpacity(
+              opacity: _onlineToggleBusy ? 0.75 : 1,
+              duration: const Duration(milliseconds: 150),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _isOnline ? const Color(0xFF16A34A) : const Color(0xFFEF4444),
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isOnline) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          t('online'),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
                       ),
-                    ),
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                    ),
-                  ] else ...[
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        t('offline'),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                       ),
-                    ),
+                    ] else ...[
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          t('offline'),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -1114,7 +1324,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   Widget _buildHomeMapScreen() {
     return Stack(
       children: [
-        // نەخشەی نەخشێندراوی تایبەت (Simulated interactive map canvas)
+        // Real phone GPS Mapbox map (no fake place / no auto-drive)
         Positioned.fill(
           child: CaptainLiveMapWidget(
             orderNumber: _activeOrder.orderNumber,
@@ -1129,29 +1339,31 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             customerLat: _activeOrder.customerLat,
             customerLng: _activeOrder.customerLng,
             isOnline: _isOnline,
+            hasActiveOrder: _activeOrder.dbId != null,
+            locale: widget.currentLocale,
+            translate: t,
             onStageAutoReached: (nextStage) {
               _updateOrderStatus(_fromCaptainStage(nextStage));
             },
-            onArrivedPromptPin: _openPinVerification,
+            onArrivedPromptPin: _completeDelivery,
             onNewBackendOrderFound: _applySyncedBackendOrder,
           ),
         ),
 
-        // دوگمەی سەر نەخشە بۆ ڕیسێت / داواکاری نوێ
+        // Refresh live driver/order data from backend
         Positioned(
           top: 96,
           left: 16,
           child: FloatingActionButton.small(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black87,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
             elevation: 3,
-            tooltip: 'داواکاری نوێ',
-            onPressed: () {
-              setState(() {
-                _resetActiveOrder();
-              });
+            tooltip: t('sync_order'),
+            onPressed: () async {
+              await _refreshBackendDriverData();
+              if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('داواکاری نوێ گەیشت!'), duration: Duration(seconds: 1)),
+                SnackBar(content: Text(t('data_refreshed')), duration: const Duration(seconds: 1)),
               );
             },
             child: const Icon(Icons.refresh),
@@ -1172,8 +1384,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                     ? _buildCompletedCard()
                     : ActiveOrderCard(
                         order: _activeOrder,
+                        locale: widget.currentLocale,
                         onUpdateStatus: _updateOrderStatus,
-                        onRequestPinVerification: _openPinVerification,
+                        onRequestPinVerification: _completeDelivery,
                         onClose: () => setState(() => _isOrderCardVisible = false),
                       ),
               ),
@@ -1198,9 +1411,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                     elevation: 4,
                   ),
                   onPressed: () => setState(() => _isOrderCardVisible = true),
-                  child: const Text(
-                    'پیشاندانی بۆکسی زانیارییەکان',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  child: Text(
+                    t('show_info'),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ),
               ),
@@ -1234,8 +1447,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       Flexible(
                         child: Text(
                           _isOnline
-                              ? 'چاوەڕوانی دیاریکردنی داواکاری لە ئادمینەوە...'
-                              : 'ئۆفلاینیت • بۆ وەرگرتنی داواکاری ئۆنلاین بە',
+                              ? t('waiting_admin_order')
+                              : t('go_online_for_orders'),
                           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF0F172A)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1272,7 +1485,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             child: const Icon(Icons.check_circle_outline, color: Color(0xFF00C853), size: 36),
           ),
           const SizedBox(height: 12),
-          const Text('داواکارییەکە تەواو کرا!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(t('order_completed'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 4),
           Text(
             'بڕی ${_formatMoney(_activeOrder.totalEarnings)} د.ع زیادکرا بۆ باڵانسەکەت',
@@ -1291,7 +1504,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               onPressed: () {
                 setState(() => _resetActiveOrder());
               },
-              child: const Text('وەرگرتنی داواکاری نوێ', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: Text(t('accept_new_order'), style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
           )
         ],
@@ -1305,7 +1518,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.symmetric(
+            horizontal: RegaResponsive.pagePadding(context),
+            vertical: 16,
+          ),
           children: [
             // ١. سەردێڕ و دەقی لاوەکی
             Column(
@@ -1355,11 +1571,26 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             ),
             const SizedBox(height: 16),
 
-            // ٦. لیستی داواکارییەکان
-            _buildEarningsHistoryItem('#10240', 'PM 2:25 • ${t('today')}', '4,000 ${t('iqd')}', '2,500 ${t('iqd')} + 500 ${t('iqd')}'),
-            _buildEarningsHistoryItem('#10238', 'PM 1:10 • ${t('today')}', '3,000 ${t('iqd')}', '3,000 ${t('iqd')}'),
-            _buildEarningsHistoryItem('#10235', 'AM 11:45 • ${t('today')}', '2,500 ${t('iqd')}', '2,500 ${t('iqd')}'),
-            _buildEarningsHistoryItem('#10232', 'AM 10:15 • ${t('today')}', '5,000 ${t('iqd')}', '4,500 ${t('iqd')} + 500 ${t('iqd')}'),
+            // ٦. لیستی داواکارییەکان (تەنها لە API)
+            if ((_selectedLiveEarnings?['recent'] as List?)?.isNotEmpty == true)
+              ...((_selectedLiveEarnings!['recent'] as List).take(10).map((row) {
+                final m = Map<String, dynamic>.from(row as Map);
+                final id = (m['order_number'] ?? m['id'] ?? '-').toString();
+                final time = (m['delivered_at'] ?? m['time'] ?? '').toString();
+                final total = '${_formatMoney((m['driver_earning'] as num?)?.toInt() ?? (m['amount'] as num?)?.toInt() ?? 0)} ${t('iqd')}';
+                final detail = (m['detail'] ?? total).toString();
+                return _buildEarningsHistoryItem(id.startsWith('#') ? id : '#$id', time, total, detail);
+              }))
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text(
+                    t('no_orders').contains('no_orders') ? 'هیچ داهاتێک نییە' : t('no_orders'),
+                    style: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -1374,25 +1605,24 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   }
 
   Widget _buildMainEarningsCard() {
-    String total = '25,000 دینار';
-    String bonus = '5,000 دینار';
-    String avg = '2,083 دینار';
-    String count = '12';
     String label = '${t('total_earnings')} ${t('today')}';
-
     if (_selectedEarningsTimeIndex == 1) {
-      total = '145,000 ${t('iqd')}';
-      bonus = '25,000 ${t('iqd')}';
-      avg = '2,132 ${t('iqd')}';
-      count = '68';
       label = '${t('total_earnings')} ${t('this_week')}';
     } else if (_selectedEarningsTimeIndex == 0) {
-      total = '620,000 ${t('iqd')}';
-      bonus = '85,000 ${t('iqd')}';
-      avg = '2,214 ${t('iqd')}';
-      count = '280';
       label = '${t('total_earnings')} ${t('this_month')}';
     }
+    final total = _selectedLiveEarnings != null
+        ? '${_formatMoney((_selectedLiveEarnings!['total_earnings'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
+        : '0 ${t('iqd')}';
+    final bonus = _selectedLiveEarnings != null
+        ? '${_formatMoney((_selectedLiveEarnings!['bonus'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
+        : '0 ${t('iqd')}';
+    final avg = _selectedLiveEarnings != null
+        ? '${_formatMoney((_selectedLiveEarnings!['avg_per_delivery'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
+        : '0 ${t('iqd')}';
+    final count = _selectedLiveEarnings != null
+        ? '${_selectedLiveEarnings!['total_deliveries'] ?? 0}'
+        : '0';
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1429,9 +1659,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            _selectedLiveEarnings != null
-                ? '${_formatMoney((_selectedLiveEarnings!['total_earnings'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
-                : total,
+            total,
             style: const TextStyle(
               fontSize: 48,
               fontWeight: FontWeight.w900,
@@ -1443,33 +1671,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(
-                child: _statItemEarnings(
-                  t('total_deliveries'),
-                  _selectedLiveEarnings != null
-                      ? '${_selectedLiveEarnings!['total_deliveries'] ?? 0}'
-                      : count,
-                ),
-              ),
+              Expanded(child: _statItemEarnings(t('total_deliveries'), count)),
               Container(width: 1, height: 40, color: const Color(0xFFF1F5F9)),
-              Expanded(
-                child: _statItemEarnings(
-                  t('avg_delivery'),
-                  _selectedLiveEarnings != null
-                      ? '${_formatMoney((_selectedLiveEarnings!['avg_per_delivery'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
-                      : avg,
-                ),
-              ),
+              Expanded(child: _statItemEarnings(t('avg_delivery'), avg)),
               Container(width: 1, height: 40, color: const Color(0xFFF1F5F9)),
-              Expanded(
-                child: _statItemEarnings(
-                  '${t('bonus')} (Bonus)',
-                  _selectedLiveEarnings != null
-                      ? '${_formatMoney((_selectedLiveEarnings!['bonus'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
-                      : bonus,
-                  isGreen: true,
-                ),
-              ),
+              Expanded(child: _statItemEarnings('${t('bonus')} (Bonus)', bonus, isGreen: true)),
             ],
           ),
         ],
@@ -1478,16 +1684,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   }
 
   Widget _buildEarningsSecondaryStats() {
-    String hours = '6.5 کاتژمێر';
-    String tips = '4,000 دینار';
-
-    if (_selectedEarningsTimeIndex == 1) {
-      hours = '42 کاتژمێر';
-      tips = '24,500 دینار';
-    } else if (_selectedEarningsTimeIndex == 0) {
-      hours = '168 کاتژمێر';
-      tips = '92,000 دینار';
-    }
+    final hours = '${(_selectedLiveEarnings?['online_hours'] as num?)?.toString() ?? '0'} ${t('hours').contains('hours') ? 'کاتژمێر' : t('hours')}';
+    final tips = '${_formatMoney((_selectedLiveEarnings?['tips'] as num?)?.toInt() ?? 0)} ${t('iqd')}';
 
     return Row(
       children: [
@@ -1664,7 +1862,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 720),
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.symmetric(
+            horizontal: RegaResponsive.pagePadding(context),
+            vertical: 16,
+          ),
           children: [
             // ١. کارتی زانیاری کەسی (Header Card)
             _buildProfileHeaderCard(),
@@ -1680,6 +1881,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 
             // ٤. کارتی زمانەکان
             _buildLanguageSelectionCard(),
+            const SizedBox(height: 16),
+            _buildThemeSelectionCard(),
             const SizedBox(height: 16),
 
             // ٥. پشتیوانی خێرای شۆفێران
@@ -1740,11 +1943,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          const FittedBox(
+          FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              'ڕەوەند کەریم',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+              (_driverProfile?['user']?['name'] ?? _driverProfile?['name'] ?? '-').toString(),
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
             ),
           ),
           const SizedBox(height: 6),
@@ -1755,7 +1958,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)),
                 child: Text(
-                  (_driverProfile?['driver_code'] ?? 'RA-884').toString(),
+                  (_driverProfile?['driver_code'] ?? '-').toString(),
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
                 ),
               ),
@@ -1763,9 +1966,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 10),
                 child: Text('•', style: TextStyle(color: Color(0xFFCBD5E1))),
               ),
-              const Text(
-                '0750 123 4567',
-                style: TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+              Text(
+                (_driverProfile?['user']?['phone'] ?? _driverProfile?['phone'] ?? widget.driverPhone).toString(),
+                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -1776,7 +1979,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               Expanded(
                 child: _buildHeaderStat(
                   'تەواوکردن',
-                  '${_driverProfile?['completion_rate'] ?? '99.2'}%',
+                  '${_driverProfile?['completion_rate'] ?? 0}%',
                   valueColor: const Color(0xFF16A34A),
                 ),
               ),
@@ -1784,21 +1987,17 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               Expanded(
                 child: _buildHeaderStat(
                   'کۆی گەیاندن',
-                  '${_driverProfile?['total_deliveries'] ?? 1482}',
+                  '${_driverProfile?['total_deliveries'] ?? 0}',
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildHeaderStat(
                   'هەڵسەنگاندن',
-                  '${_driverProfile?['rating'] ?? '4.94'}',
+                  '${_driverProfile?['rating'] ?? 0}',
                   isRating: true,
                 ),
               ),
-              const SizedBox(width: 12),
-
-              const SizedBox(width: 12),
-
             ],
           ),
         ],
@@ -1894,10 +2093,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             crossAxisSpacing: 12,
             childAspectRatio: 2.0,
             children: [
-              _buildMotorStatItem(t('motor_type'), (_driverProfile?['motor_type'] ?? 'هۆندا CBR 150R').toString()),
-              _buildMotorStatItem(t('motor_id'), (_driverProfile?['plate_number'] ?? 'B-84729-21').toString()),
-              _buildMotorStatItem(t('motor_model'), (_driverProfile?['model_year'] ?? '2023').toString()),
-              _buildMotorStatItem(t('motor_color'), (_driverProfile?['motor_color'] ?? 'ڕەش و سەوز').toString()),
+              _buildMotorStatItem(t('motor_type'), (_driverProfile?['motor_type'] ?? '-').toString()),
+              _buildMotorStatItem(t('motor_id'), (_driverProfile?['plate_number'] ?? '-').toString()),
+              _buildMotorStatItem(t('motor_model'), (_driverProfile?['model_year'] ?? '-').toString()),
+              _buildMotorStatItem(t('motor_color'), (_driverProfile?['motor_color'] ?? '-').toString()),
 
 
 
@@ -2004,6 +2203,67 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildThemeSelectionCard() {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: widget.isDark ? const Color(0xFF1E293B) : const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  widget.isDark ? t('dark_mode') : t('light_mode'),
+                  style: TextStyle(
+                    color: widget.isDark ? const Color(0xFF00E676) : const Color(0xFF16A34A),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(t('theme'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: theme.colorScheme.onSurface)),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: widget.isDark ? const Color(0xFF1E293B) : const Color(0xFFF0FDF4),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  widget.isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                  color: const Color(0xFF16A34A),
+                  size: 24,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              widget.isDark ? t('dark_mode') : t('light_mode'),
+              style: TextStyle(fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
+            ),
+            value: widget.isDark,
+            activeColor: const Color(0xFF00E676),
+            onChanged: widget.onThemeChanged,
+          ),
+        ],
       ),
     );
   }
@@ -2689,22 +2949,31 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         children: [
           // ١. بەشی سەرەوە: باری داواکاری (چەپ) و ژمارەی داواکاری (ڕاست)
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  color: statusBg,
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: statusColor),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: statusBg,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text(
+                    status,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: statusColor),
+                  ),
                 ),
               ),
-              Text(
-                id,
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF1E293B)),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  id,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF1E293B)),
+                ),
               ),
             ],
           ),
@@ -2762,7 +3031,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     );
   }
 
-  // شریتی خوارەوەی ئەپ — yellow pill active tab (icon + label)
+  // شریتی خوارەوەی ئەپ — brand-green pill active tab (icon + label)
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
@@ -2832,7 +3101,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     required String label,
   }) {
     final isSelected = _currentTabIndex == index;
-    const pillYellow = Color(0xFFFAC800);
+    // Same green as Online header / primary chrome (#16A34A)
+    const pillGreen = Color(0xFF16A34A);
     const iconColor = Color(0xFF0F172A);
 
     return Expanded(
@@ -2841,7 +3111,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           HapticFeedback.selectionClick();
           _goTab(index);
         },
-        splashColor: pillYellow.withOpacity(0.2),
+        splashColor: pillGreen.withOpacity(0.2),
         highlightColor: Colors.transparent,
         borderRadius: BorderRadius.circular(50),
         child: Align(
@@ -2855,7 +3125,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               vertical: 10,
             ),
             decoration: BoxDecoration(
-              color: isSelected ? pillYellow : Colors.transparent,
+              color: isSelected ? pillGreen : Colors.transparent,
               borderRadius: BorderRadius.circular(50),
             ),
             child: Row(
@@ -2864,7 +3134,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               children: [
                 Icon(
                   isSelected ? activeIcon : icon,
-                  color: iconColor,
+                  color: isSelected ? Colors.white : iconColor,
                   size: 22,
                 ),
                 AnimatedSize(
@@ -2878,7 +3148,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: iconColor,
+                              color: Colors.white,
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -0.2,
@@ -2902,6 +3172,7 @@ class ActiveOrderCard extends StatefulWidget {
   final ValueChanged<OrderStatus> onUpdateStatus;
   final VoidCallback onRequestPinVerification;
   final VoidCallback? onClose;
+  final String locale;
 
   const ActiveOrderCard({
     super.key,
@@ -2909,6 +3180,7 @@ class ActiveOrderCard extends StatefulWidget {
     required this.onUpdateStatus,
     required this.onRequestPinVerification,
     this.onClose,
+    this.locale = 'ku',
   });
 
   @override
@@ -2917,6 +3189,8 @@ class ActiveOrderCard extends StatefulWidget {
 
 class _ActiveOrderCardState extends State<ActiveOrderCard> {
   bool _isItemsExpanded = false;
+
+  String _t(String key) => tr(key, widget.locale);
 
   // دیاریکردنی قۆناغ: ئایا لە قۆناغی فرۆشیارە یان کڕیار
   bool get _isPickupStage =>
@@ -2948,37 +3222,45 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
         children: [
           // ١. سەرپەڕەی کارت (Card Header) - بە پێچەوانەکراوی وەک داواکاری بەکارهێنەر
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // بەشی لای ڕاست: تاگی باری داواکاری و نرخ
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusConfig.badgeBg,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: statusConfig.badgeBorder),
-                    ),
-                    child: Text(
-                      statusConfig.badgeLabel,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: statusConfig.badgeTextColor,
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusConfig.badgeBg,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: statusConfig.badgeBorder),
+                        ),
+                        child: Text(
+                          statusConfig.badgeLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: statusConfig.badgeTextColor,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${_formatMoney(widget.order.totalEarnings)} د.ع',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF16A34A),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '${_formatMoney(widget.order.totalEarnings)} د.ع',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF16A34A),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
 
               // بەشی لای چەپ: دوگمەی داخستن (X)
@@ -3002,30 +3284,6 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
 
           // ٢. بەشی زانیاری فرۆشیار / کڕیار (styled-box)
           _buildEntityInfoBox(),
-          if (_isPickupStage && widget.order.handoverPin.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF86EFAC)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '🔑 کۆدی وەرگرتن بدە بە فرۆشیار:',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF166534)),
-                  ),
-                  Text(
-                    widget.order.handoverPin,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFF15803D)),
-                  ),
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: 12),
 
           // ٣. بەشی کورتەی بەرهەمەکان (Accordion)
@@ -3041,66 +3299,110 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
 
   // زانیاری شوێن و فرۆشیار/کڕیار
   Widget _buildEntityInfoBox() {
-    final title = _isPickupStage ? 'فرۆشیار (وەرگرتن)' : 'کڕیار (گەیاندن)';
+    final title = _isPickupStage ? _t('merchant_pickup') : _t('customer_dropoff');
     final name = _isPickupStage ? widget.order.merchantName : widget.order.customerName;
     final address = _isPickupStage ? widget.order.merchantAddress : widget.order.customerAddress;
+    final lat = _isPickupStage ? widget.order.storeLat : widget.order.customerLat;
+    final lng = _isPickupStage ? widget.order.storeLng : widget.order.customerLng;
+
+    Widget infoBlock() {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: _isPickupStage ? const Color(0xFFC2410C) : Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            name,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF14532D)),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Icon(Icons.location_on, size: 12, color: _isPickupStage ? const Color(0xFFEA580C) : Colors.grey.shade500),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  address,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _isPickupStage ? const Color(0xFF9A3412) : Colors.grey.shade600,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          if (_isPickupStage) ...[
+            const SizedBox(height: 4),
+            Text(
+              'GPS فرۆشگا: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}',
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFEA580C)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      );
+    }
+
+  final contactActions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildCircularIconButton(Icons.phone, () {
+          final phone = _isPickupStage ? widget.order.merchantPhone : widget.order.customerPhone;
+          launchUrl(Uri.parse('tel:$phone'));
+        }),
+        const SizedBox(width: 8),
+        _buildCircularIconButton(Icons.navigation, () async {
+          final uri = Uri.parse(
+            'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
+          );
+          final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+          if (!ok && mounted) {
+            _showActionToast('نەتوانرا نەخشە بکرێتەوە');
+          }
+        }),
+      ],
+    );
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FA),
-        border: Border.all(color: Colors.grey.shade300),
+        color: _isPickupStage ? const Color(0xFFFFF7ED) : const Color(0xFFF8F9FA),
+        border: Border.all(color: _isPickupStage ? const Color(0xFFFED7AA) : Colors.grey.shade300),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 520) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  title,
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  name,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF14532D)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(Icons.location_on, size: 12, color: Colors.grey.shade500),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        address,
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
+                infoBlock(),
+                const SizedBox(height: 10),
+                Align(alignment: AlignmentDirectional.centerEnd, child: contactActions),
               ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          // ئایکۆنەکانی پەیوەندی و نەخشە
-          Row(
+            );
+          }
+          return Row(
             children: [
-              _buildCircularIconButton(Icons.phone, () {
-                _showActionToast('پەیوەندی بە ${_isPickupStage ? "فرۆشیار" : "کڕیار"} دەکرێت...');
-              }),
+              Expanded(child: infoBlock()),
               const SizedBox(width: 8),
-              _buildCircularIconButton(Icons.navigation, () {
-                _showActionToast('نەخشەی ڕێگا دەکرێتەوە...');
-              }),
+              contactActions,
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -3137,11 +3439,17 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    '${widget.order.items.length} کاڵا • کۆی گشتی ${_formatMoney(widget.order.itemsTotal)} د.ع',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
+                  Expanded(
+                    child: Text(
+                      trFill('items_total', widget.locale, {
+                        'count': '${widget.order.items.length}',
+                        'total': _formatMoney(widget.order.itemsTotal),
+                      }),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
+                    ),
                   ),
                   AnimatedRotation(
                     turns: _isItemsExpanded ? 0.5 : 0.0,
@@ -3186,9 +3494,14 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
                             ],
                           ),
                         ),
-                        Text(
-                          '${_formatMoney(item.price * item.quantity)} د.ع',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF16A34A)),
+                        Flexible(
+                          child: Text(
+                            '${_formatMoney(item.price * item.quantity)} د.ع',
+                            textAlign: TextAlign.end,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF16A34A)),
+                          ),
                         ),
                       ],
                     ),
@@ -3221,9 +3534,14 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
           children: [
             Icon(config.buttonIcon, size: 20),
             const SizedBox(width: 8),
-            Text(
-              config.buttonLabel,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            Flexible(
+              child: Text(
+                config.buttonLabel,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
             ),
           ],
         ),
@@ -3264,77 +3582,77 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
     switch (status) {
       case OrderStatus.driverAssigned:
         return _StatusConfig(
-          badgeLabel: 'داواکاری نوێ',
+          badgeLabel: _t('badge_new_order'),
           badgeBg: const Color(0xFFE8F5E9),
           badgeBorder: const Color(0xFFBBF7D0),
           badgeTextColor: const Color(0xFF16A34A),
-          buttonLabel: 'بەرەو فرۆشیار دەکەومەڕێ',
+          buttonLabel: _t('btn_start_to_merchant'),
           buttonBg: const Color(0xFF22C55E),
           buttonTextColor: Colors.white,
           buttonIcon: Icons.arrow_back,
         );
       case OrderStatus.driverArrivingPickup:
         return _StatusConfig(
-          badgeLabel: 'بەرەو فرۆشیار',
+          badgeLabel: _t('badge_to_merchant'),
           badgeBg: const Color(0xFFEFF6FF),
           badgeBorder: const Color(0xFFBFDBFE),
           badgeTextColor: const Color(0xFF2563EB),
-          buttonLabel: 'گەیشتمە لای فرۆشیار',
+          buttonLabel: _t('btn_arrived_merchant'),
           buttonBg: const Color(0xFF2563EB),
           buttonTextColor: Colors.white,
           buttonIcon: Icons.store,
         );
       case OrderStatus.arrivedPickup:
         return _StatusConfig(
-          badgeLabel: 'گەیشتە فرۆشیار',
+          badgeLabel: _t('badge_at_merchant'),
           badgeBg: const Color(0xFFFFF7ED),
           badgeBorder: const Color(0xFFFED7AA),
           badgeTextColor: const Color(0xFFEA580C),
-          buttonLabel: 'کاڵاکەم وەرگرت',
+          buttonLabel: _t('btn_picked_up'),
           buttonBg: const Color(0xFFEA580C),
           buttonTextColor: Colors.white,
           buttonIcon: Icons.shopping_bag,
         );
       case OrderStatus.pickedUp:
         return _StatusConfig(
-          badgeLabel: 'کاڵاکە وەرگیرا',
+          badgeLabel: _t('badge_picked'),
           badgeBg: const Color(0xFFF5F3FF),
           badgeBorder: const Color(0xFFDDD6FE),
           badgeTextColor: const Color(0xFF7C3AED),
-          buttonLabel: 'بەرەو کڕیار بەڕێکەوتم',
+          buttonLabel: _t('btn_start_to_customer'),
           buttonBg: const Color(0xFF7C3AED),
           buttonTextColor: Colors.white,
           buttonIcon: Icons.navigation,
         );
       case OrderStatus.onTheWay:
         return _StatusConfig(
-          badgeLabel: 'بەرەو کڕیار',
+          badgeLabel: _t('badge_to_customer'),
           badgeBg: const Color(0xFFF0F9FF),
           badgeBorder: const Color(0xFFBAE6FD),
           badgeTextColor: const Color(0xFF0284C7),
-          buttonLabel: 'گەیشتمە لای کڕیار',
+          buttonLabel: _t('btn_arrived_customer'),
           buttonBg: const Color(0xFF0284C7),
           buttonTextColor: Colors.white,
           buttonIcon: Icons.home,
         );
       case OrderStatus.arrivedCustomer:
         return _StatusConfig(
-          badgeLabel: 'گەیشتە کڕیار',
+          badgeLabel: _t('badge_at_customer'),
           badgeBg: const Color(0xFFECFDF5),
           badgeBorder: const Color(0xFFA7F3D0),
           badgeTextColor: const Color(0xFF059669),
-          buttonLabel: 'گەیاندن تەواو بکە (کۆدی پاراستن)',
+          buttonLabel: _t('btn_complete_pin'),
           buttonBg: const Color(0xFF059669),
           buttonTextColor: Colors.white,
-          buttonIcon: Icons.security,
+          buttonIcon: Icons.check_circle,
         );
       case OrderStatus.delivered:
         return _StatusConfig(
-          badgeLabel: 'گەیەندرا',
+          badgeLabel: _t('badge_delivered'),
           badgeBg: const Color(0xFFE8F5E9),
           badgeBorder: const Color(0xFFBBF7D0),
           badgeTextColor: const Color(0xFF16A34A),
-          buttonLabel: 'تەواوکراوە',
+          buttonLabel: _t('btn_completed'),
           buttonBg: const Color(0xFF16A34A),
           buttonTextColor: Colors.white,
           buttonIcon: Icons.check,
@@ -3365,368 +3683,6 @@ class _StatusConfig {
   });
 }
 
-// ---------------------------------------------------------
-// بۆکسی پشتڕاستکردنەوەی گەیاندن (OTP Verification Modal)
-// بە کیبۆردی تایبەت و بەشی سەرەوە بە پێچەوانەکراوی (swapped)
-// ---------------------------------------------------------
-
-class PinVerificationBottomSheet extends StatefulWidget {
-  final String orderNumber;
-  final String correctPin;
-  final Future<(bool, String?)> Function(String pin)? onBackendVerify;
-  final VoidCallback onSuccess;
-
-  const PinVerificationBottomSheet({
-    super.key,
-    required this.orderNumber,
-    required this.correctPin,
-    this.onBackendVerify,
-    required this.onSuccess,
-  });
-
-  @override
-  State<PinVerificationBottomSheet> createState() => _PinVerificationBottomSheetState();
-}
-
-class _PinVerificationBottomSheetState extends State<PinVerificationBottomSheet> {
-  String _enteredPin = '';
-  String? _errorMessage;
-  bool _isLoading = false;
-  bool _isSuccess = false;
-
-  void _onKeyPress(String digit) {
-    if (_isLoading || _isSuccess) return;
-    if (_enteredPin.length < 4) {
-      setState(() {
-        _enteredPin += digit;
-        _errorMessage = null;
-      });
-
-      if (_enteredPin.length == 4) {
-        _verifyPin(_enteredPin);
-      }
-    }
-  }
-
-  void _onDeletePress() {
-    if (_isLoading || _isSuccess) return;
-    if (_enteredPin.isNotEmpty) {
-      setState(() {
-        _enteredPin = _enteredPin.substring(0, _enteredPin.length - 1);
-        _errorMessage = null;
-      });
-    }
-  }
-
-  Future<void> _verifyPin(String pin) async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    // پەسەندکردنی کۆد (یاخود کۆدی نموونەیی 1234 / 4821)
-    if (widget.onBackendVerify != null) {
-      final (ok, backendMsg) = await widget.onBackendVerify!(pin);
-      if (ok) {
-        setState(() {
-          _isSuccess = true;
-          _isLoading = false;
-        });
-        await Future.delayed(const Duration(milliseconds: 600));
-        widget.onSuccess();
-        return;
-      } else if (backendMsg != null) {
-        setState(() {
-          _errorMessage = backendMsg;
-          _enteredPin = '';
-          _isLoading = false;
-        });
-        return;
-      }
-    }
-    if (pin == widget.correctPin || pin == '1234' || pin == '4821') {
-      setState(() {
-        _isSuccess = true;
-        _isLoading = false;
-      });
-      await Future.delayed(const Duration(milliseconds: 700));
-      widget.onSuccess();
-    } else {
-      setState(() {
-        _errorMessage = 'کۆدی داخڵکراو هەڵەیە، تکایە دڵنیابەرەوە';
-        _enteredPin = '';
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
-          BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.15),
-            blurRadius: 40,
-            offset: Offset(0, 20),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // بەشی سەرەوە: دوگمەی داخستن و تاگی کۆد (بە پێچەوانەکراوی وەک داواکاری بەکارهێنەر)
-          // بە پێچەوانە: داخستن بەلای ڕاست و تاگی ژمارە بەلای چەپ لە ڕووکاری کوردی
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // دوگمەی داخستن
-              InkWell(
-                onTap: () => Navigator.pop(context),
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFEE2E2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Center(
-                    child: Text('✕', style: TextStyle(color: Color(0xFFEF4444), fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ),
-
-              // تاگی ژمارەی داواکاری
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDF4),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFBBF7D0)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      widget.orderNumber,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF166534)),
-                    ),
-                    const SizedBox(width: 4),
-                    const Text('🔑', style: TextStyle(fontSize: 13)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // ئایکۆنی پاراستن
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0FDF4),
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFBBF7D0), width: 1.5),
-            ),
-            child: Center(
-              child: _isSuccess
-                  ? const Icon(Icons.check, color: Color(0xFF166534), size: 28)
-                  : const Text('🛡️', style: TextStyle(fontSize: 24)),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // دەقەکان
-          const Text(
-            'پشتڕاستکردنەوەی گەیاندن',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'کۆدی ٤ ژمارەیی لە خاوەن داواکاری وەربگرە و داخڵی بکە',
-            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-
-          // خانەکانی کۆدی ٤ ژمارەیی (بە ئاڕاستەی ژمارەیی LTR)
-          Directionality(
-            textDirection: TextDirection.ltr,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(4, (index) {
-                final isFilled = index < _enteredPin.length;
-                final isActive = index == _enteredPin.length;
-                final char = isFilled ? _enteredPin[index] : '•';
-
-                Color borderColor = const Color(0xFFE2E8F0);
-                Color bgColor = const Color(0xFFF8FAFC);
-                Color textColor = const Color(0xFF94A3B8);
-
-                if (_isSuccess) {
-                  borderColor = const Color(0xFF00E676);
-                  bgColor = const Color(0xFFF0FDF4);
-                  textColor = const Color(0xFF166534);
-                } else if (isActive) {
-                  borderColor = const Color(0xFF00E676);
-                  bgColor = const Color(0xFFF0FDF4);
-                  textColor = const Color(0xFF166534);
-                } else if (isFilled) {
-                  borderColor = const Color(0xFFBBF7D0);
-                  bgColor = const Color(0xFFF8FAFC);
-                  textColor = const Color(0xFF166534);
-                }
-
-                return Container(
-                  width: 52,
-                  height: 52,
-                  margin: const EdgeInsets.symmetric(horizontal: 5),
-                  decoration: BoxDecoration(
-                    color: bgColor,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: borderColor, width: 1.5),
-                    boxShadow: isActive
-                        ? [
-                            const BoxShadow(
-                              color: Color.fromRGBO(0, 230, 118, 0.2),
-                              blurRadius: 6,
-                              spreadRadius: 1,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Center(
-                    child: Text(
-                      char,
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-
-          // پەیامی هەڵە
-          if (_errorMessage != null) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFECACA)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline, size: 16, color: Colors.red),
-                  const SizedBox(width: 6),
-                  Text(_errorMessage!, style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ],
-
-          const SizedBox(height: 16),
-
-          // کیبۆردی ژمارەکان (Keypad)
-          Directionality(
-            textDirection: TextDirection.ltr,
-            child: Column(
-              children: [
-                _buildKeypadRow(['1', '2', '3']),
-                const SizedBox(height: 10),
-                _buildKeypadRow(['4', '5', '6']),
-                const SizedBox(height: 10),
-                _buildKeypadRow(['7', '8', '9']),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // بۆشی خاڵی بۆ ڕێکخستنی شێواز
-                    const Expanded(child: SizedBox(height: 50)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _buildKeyButton('0')),
-                    const SizedBox(width: 10),
-                    Expanded(child: _buildDeleteButton()),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildKeypadRow(List<String> digits) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(child: _buildKeyButton(digits[0])),
-        const SizedBox(width: 10),
-        Expanded(child: _buildKeyButton(digits[1])),
-        const SizedBox(width: 10),
-        Expanded(child: _buildKeyButton(digits[2])),
-      ],
-    );
-  }
-
-  Widget _buildKeyButton(String text) {
-    return InkWell(
-      onTap: () => _onKeyPress(text),
-      borderRadius: BorderRadius.circular(14),
-      splashColor: const Color(0xFF00E676),
-      child: Container(
-        height: 50,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
-        ),
-        child: Center(
-          child: Text(
-            text,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDeleteButton() {
-    return InkWell(
-      onTap: _onDeletePress,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        height: 50,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
-        ),
-        child: const Center(
-          child: Text(
-            '⌫',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------
 // نەخشەی نەخشێندراوی تایبەت (Custom Map Painter)
 // ---------------------------------------------------------
 
@@ -3966,7 +3922,7 @@ class PositionMesh extends StatelessWidget {
 
 class AuthScreen extends StatefulWidget {
   final String currentLocale;
-  final VoidCallback onLogin;
+  final Future<void> Function(String phone) onLogin;
 
   const AuthScreen({
     super.key,
@@ -3979,12 +3935,14 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  final TextEditingController _authPhoneCtrl = TextEditingController(text: '07501234567');
+  final TextEditingController _authPhoneCtrl = TextEditingController();
+  final TextEditingController _authPasswordCtrl = TextEditingController();
   bool _isAuthenticating = false;
 
   @override
   void dispose() {
     _authPhoneCtrl.dispose();
+    _authPasswordCtrl.dispose();
     super.dispose();
   }
   String t(String key) => _trans[widget.currentLocale]![key] ?? key;
@@ -3993,11 +3951,17 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: RegaResponsive.pagePadding(context),
+              vertical: 40,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 440),
+              ),
             child: Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
@@ -4065,15 +4029,53 @@ class _AuthScreenState extends State<AuthScreen> {
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
                       ),
+                      child: Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: TextField(
+                          controller: _authPhoneCtrl,
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1),
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [IraqPhoneFormatter()],
+                          decoration: const InputDecoration(
+                            hintText: IraqPhoneFormatter.hint,
+                            border: InputBorder.none,
+                            suffixIcon: Icon(Icons.phone_android_rounded, color: Color(0xFF94A3B8)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t('password_label').contains('password_label') ? 'وشەی تێپەڕ' : t('password_label'),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+                      ),
                       child: TextField(
-                        controller: _authPhoneCtrl,
-                        textAlign: TextAlign.left,
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1),
-                        keyboardType: TextInputType.phone,
-                        decoration: InputDecoration(
-                          hintText: '0750 123 4567',
+                        controller: _authPasswordCtrl,
+                        obscureText: true,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        decoration: const InputDecoration(
+                          hintText: '••••••••',
                           border: InputBorder.none,
-                          suffixIcon: Icon(Icons.phone_android_rounded, color: Color(0xFF94A3B8)),
+                          suffixIcon: Icon(Icons.lock_outline_rounded, color: Color(0xFF94A3B8)),
                         ),
                       ),
                     ),
@@ -4096,12 +4098,26 @@ class _AuthScreenState extends State<AuthScreen> {
                         ? null
                         : () async {
                             setState(() => _isAuthenticating = true);
-                            await DriverApiService.instance.ensureAuthenticated(
-                              phone: _authPhoneCtrl.text,
-                            );
-                            if (mounted) {
+                            try {
+                              final ok = await DriverApiService.instance.ensureAuthenticated(
+                                phone: _authPhoneCtrl.text,
+                                password: _authPasswordCtrl.text,
+                              );
+                              if (!mounted) return;
                               setState(() => _isAuthenticating = false);
-                              widget.onLogin();
+                              if (ok) {
+                                await widget.onLogin(_authPhoneCtrl.text.trim());
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(t('login_failed') == 'login_failed'
+                                      ? 'چوونە ژوورەوە سەرکەوتوو نەبوو'
+                                      : t('login_failed'))),
+                                );
+                              }
+                            } on AccountBlockedException catch (e) {
+                              if (!mounted) return;
+                              setState(() => _isAuthenticating = false);
+                              await BlockedAccountContacts.show(context, e);
                             }
                           },
                     child: Row(
@@ -4142,6 +4158,7 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         ),
+      ),
       ),
     ),
   );

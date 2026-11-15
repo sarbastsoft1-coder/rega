@@ -29,7 +29,21 @@
 
 ## Quick Start
 
-### One-Click Full Ecosystem Launch (Windows PowerShell)
+### 🚀 1-Click Production VPS Deployment (Linux Ubuntu / Debian / Docker)
+To deploy all 5 parts of the ecosystem on any VPS server with a single command:
+```bash
+git clone https://github.com/sarbastsoft1-coder/rega.git
+cd rega
+chmod +x deploy_vps.sh
+sudo ./deploy_vps.sh
+```
+Or with Docker Compose:
+```bash
+docker compose up -d --build
+```
+> See the complete Kurdish & English deployment guide in [VPS_DEPLOYMENT.md](VPS_DEPLOYMENT.md).
+
+### One-Click Local Ecosystem Launch (Windows PowerShell)
 ```powershell
 .\run_all_rega.ps1
 ```

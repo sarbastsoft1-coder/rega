@@ -1,10 +1,14 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AdminInboxController;
+use App\Http\Controllers\Api\Admin\AdminStaffController;
+use App\Http\Controllers\Api\Admin\BackupController;
 use App\Http\Controllers\Api\Admin\CatalogAndZonesController;
 use App\Http\Controllers\Api\Admin\CustomerManagementController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\DriverManagementController;
 use App\Http\Controllers\Api\Admin\EcosystemHubController;
+use App\Http\Controllers\Api\Admin\AccountingController;
 use App\Http\Controllers\Api\Admin\FinanceAndSupportController;
 use App\Http\Controllers\Api\Admin\MarketingController;
 use App\Http\Controllers\Api\Admin\OrderManagementController;
@@ -14,6 +18,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DriverAppController;
 use App\Http\Controllers\Api\LiveTelemetryController;
 use App\Http\Controllers\Api\PublicAndCustomerController;
+use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\VendorAppController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -37,9 +42,15 @@ Route::get('/health', function () {
 });
 
 Route::prefix('v1')->group(function () {
+    // Public media (CORS-safe for Flutter web CanvasKit)
+    Route::get('/media/{path}', [MediaController::class, 'show'])
+        ->where('path', '.*');
+
     // --- Public Catalog & Bootstrap (Customer App `rega`) ---
     Route::prefix('public')->group(function () {
         Route::get('/bootstrap', [PublicAndCustomerController::class, 'bootstrap']);
+        Route::get('/categories', [PublicAndCustomerController::class, 'categories']);
+        Route::get('/support-contacts', [PublicAndCustomerController::class, 'supportContacts']);
         Route::get('/stores', [PublicAndCustomerController::class, 'stores']);
         Route::get('/stores/{store}', [PublicAndCustomerController::class, 'storeDetails']);
         Route::get('/search', [PublicAndCustomerController::class, 'search']);
@@ -63,7 +74,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/login', [AuthController::class, 'login']);
         Route::post('/register', [AuthController::class, 'register']);
 
-        Route::middleware('auth:sanctum')->group(function () {
+        Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/me', [AuthController::class, 'me']);
             Route::put('/profile', [AuthController::class, 'updateProfile']);
             Route::post('/change-password', [AuthController::class, 'changePassword']);
@@ -72,7 +83,7 @@ Route::prefix('v1')->group(function () {
     });
 
     // --- Authenticated Customer App (`rega`) ---
-    Route::middleware('auth:sanctum')->prefix('customer')->group(function () {
+    Route::middleware(['auth:sanctum', 'active'])->prefix('customer')->group(function () {
         Route::post('/coupons/validate', [PublicAndCustomerController::class, 'validateCoupon']);
         Route::post('/orders', [PublicAndCustomerController::class, 'placeOrder']);
         Route::get('/orders', [PublicAndCustomerController::class, 'customerOrders']);
@@ -82,6 +93,7 @@ Route::prefix('v1')->group(function () {
         Route::delete('/addresses/{address}', [PublicAndCustomerController::class, 'deleteAddress']);
         Route::post('/favorites/{store}', [PublicAndCustomerController::class, 'toggleFavorite']);
         Route::get('/notifications', [PublicAndCustomerController::class, 'notifications']);
+        Route::post('/notifications/mark-read', [PublicAndCustomerController::class, 'markNotificationsRead']);
     });
 
     // --- Vendor / Seller App (`rega_froshyar`) ---
@@ -89,6 +101,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/store', [VendorAppController::class, 'storeProfile']);
         Route::patch('/store', [VendorAppController::class, 'updateStore']);
         Route::patch('/store/status', [VendorAppController::class, 'updateOnlineStatus']);
+        Route::post('/store/discount', [VendorAppController::class, 'applyStoreDiscount']);
 
         Route::get('/categories', [VendorAppController::class, 'categories']);
         Route::post('/categories', [VendorAppController::class, 'addCategory']);
@@ -99,13 +112,16 @@ Route::prefix('v1')->group(function () {
         Route::put('/products/{product}', [VendorAppController::class, 'updateProduct']);
         Route::patch('/products/{product}/availability', [VendorAppController::class, 'toggleProductAvailability']);
         Route::delete('/products/{product}', [VendorAppController::class, 'deleteProduct']);
+        Route::post('/upload', [VendorAppController::class, 'uploadMedia']);
 
         Route::get('/orders', [VendorAppController::class, 'orders']);
         Route::post('/orders/{order}/accept', [VendorAppController::class, 'acceptOrder']);
         Route::post('/orders/{order}/reject', [VendorAppController::class, 'rejectOrder']);
         Route::post('/orders/{order}/ready', [VendorAppController::class, 'markReady']);
         Route::post('/orders/{order}/dispatch-driver', [VendorAppController::class, 'dispatchNearestDriver']);
+        Route::post('/orders/{order}/assign-driver', [VendorAppController::class, 'assignDriver']);
         Route::post('/orders/{order}/handover', [VendorAppController::class, 'handoverToDriver']);
+        Route::get('/nearby-drivers', [VendorAppController::class, 'nearbyDrivers']);
 
         Route::get('/analytics/revenue', [VendorAppController::class, 'revenueAnalytics']);
     });
@@ -133,6 +149,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/ecosystem-hubs', [EcosystemHubController::class, 'overview']);
         Route::get('/live-radar', [LiveTelemetryController::class, 'adminRadar']);
 
+        // Admin work inbox (live pending orders / stores / drivers / tickets)
+        Route::get('/inbox', [AdminInboxController::class, 'index']);
+        Route::get('/inbox/unread-count', [AdminInboxController::class, 'unreadCount']);
+        Route::post('/inbox/mark-read', [AdminInboxController::class, 'markRead']);
+        Route::post('/inbox/mark-all-read', [AdminInboxController::class, 'markAllRead']);
+
         // Orders & Dispatch
         Route::get('/orders', [OrderManagementController::class, 'index']);
         Route::post('/orders', [EcosystemHubController::class, 'createOrder']);
@@ -152,7 +174,10 @@ Route::prefix('v1')->group(function () {
         Route::put('/stores/{store}', [StoreManagementController::class, 'update']);
         Route::patch('/stores/{store}/toggle', [StoreManagementController::class, 'toggleStatus']);
         Route::delete('/stores/{store}', [StoreManagementController::class, 'destroy']);
+        Route::get('/store-categories', [StoreManagementController::class, 'storeCategoriesIndex']);
         Route::post('/stores/{store}/categories', [StoreManagementController::class, 'addStoreCategory']);
+        Route::put('/store-categories/reorder', [StoreManagementController::class, 'reorderStoreCategories']);
+        Route::put('/store-categories/{storeCategory}', [StoreManagementController::class, 'updateStoreCategory']);
         Route::delete('/store-categories/{storeCategory}', [StoreManagementController::class, 'deleteStoreCategory']);
 
         // Products
@@ -168,7 +193,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/drivers/{driverProfile}', [DriverManagementController::class, 'show']);
         Route::put('/drivers/{driverProfile}', [DriverManagementController::class, 'update']);
         Route::patch('/drivers/{driverProfile}/toggle', [DriverManagementController::class, 'toggleStatus']);
+        Route::patch('/drivers/{driverProfile}/toggle-active', [DriverManagementController::class, 'toggleActive']);
+        Route::get('/drivers/{driverProfile}/documents', [DriverManagementController::class, 'documents']);
         Route::patch('/driver-documents/{document}/verify', [DriverManagementController::class, 'verifyDocument']);
+        Route::post('/driver-documents/{document}/upload', [DriverManagementController::class, 'uploadDocument']);
+        Route::match(['put', 'patch', 'post'], '/driver-documents/{document}', [DriverManagementController::class, 'updateDocument']);
 
         // Customers
         Route::get('/customers', [CustomerManagementController::class, 'index']);
@@ -181,6 +210,7 @@ Route::prefix('v1')->group(function () {
         // Categories & Kalar Neighborhoods
         Route::get('/categories', [CatalogAndZonesController::class, 'categoriesIndex']);
         Route::post('/categories', [CatalogAndZonesController::class, 'categoriesStore']);
+        Route::put('/categories/reorder', [CatalogAndZonesController::class, 'categoriesReorder']);
         Route::put('/categories/{category}', [CatalogAndZonesController::class, 'categoriesUpdate']);
         Route::delete('/categories/{category}', [CatalogAndZonesController::class, 'categoriesDestroy']);
 
@@ -210,6 +240,19 @@ Route::prefix('v1')->group(function () {
         Route::post('/payouts', [FinanceAndSupportController::class, 'payoutsStore']);
         Route::patch('/payouts/{payout}/status', [FinanceAndSupportController::class, 'payoutsUpdateStatus']);
 
+        // Accounting & Profit Management
+        Route::get('/accounting/dashboard', [AccountingController::class, 'dashboard']);
+        Route::get('/accounting/shops', [AccountingController::class, 'shopIndex']);
+        Route::get('/accounting/shops/{store}', [AccountingController::class, 'shopShow']);
+        Route::get('/accounting/orders', [AccountingController::class, 'ordersIndex']);
+        Route::get('/accounting/orders/{order}', [AccountingController::class, 'orderShow']);
+        Route::post('/accounting/orders/{order}/refund', [AccountingController::class, 'refundOrder']);
+        Route::get('/accounting/profit-settings', [AccountingController::class, 'profitSettings']);
+        Route::put('/accounting/profit-settings', [AccountingController::class, 'updateProfitSettings']);
+        Route::get('/accounting/reports', [AccountingController::class, 'reports']);
+        Route::get('/accounting/reports/export', [AccountingController::class, 'exportReport']);
+        Route::get('/accounting/transactions', [AccountingController::class, 'transactions']);
+
         Route::get('/tickets', [FinanceAndSupportController::class, 'ticketsIndex']);
         Route::post('/tickets', [FinanceAndSupportController::class, 'ticketsStore']);
         Route::patch('/tickets/{ticket}', [FinanceAndSupportController::class, 'ticketsUpdate']);
@@ -218,5 +261,18 @@ Route::prefix('v1')->group(function () {
         Route::put('/settings', [FinanceAndSupportController::class, 'settingsUpdate']);
 
         Route::post('/upload', [FinanceAndSupportController::class, 'uploadMedia']);
+
+        // Excel backups (manual download + scheduled weekly/monthly files)
+        Route::get('/backup/export', [BackupController::class, 'export']);
+        Route::post('/backup/export', [BackupController::class, 'export']);
+        Route::get('/backups', [BackupController::class, 'index']);
+        Route::get('/backups/{file}', [BackupController::class, 'download']);
+
+        // Admin staff accounts (create / edit / deactivate)
+        Route::get('/staff', [AdminStaffController::class, 'index']);
+        Route::post('/staff', [AdminStaffController::class, 'store']);
+        Route::put('/staff/{adminUser}', [AdminStaffController::class, 'update']);
+        Route::patch('/staff/{adminUser}/toggle-active', [AdminStaffController::class, 'toggleActive']);
+        Route::delete('/staff/{adminUser}', [AdminStaffController::class, 'destroy']);
     });
 });

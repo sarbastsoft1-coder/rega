@@ -41,6 +41,57 @@ class RegaEcosystemApiTest extends TestCase
         $this->assertCount(9, $boot->json('data.categories'));
         $this->assertNotEmpty($boot->json('data.stores'));
         $this->assertEquals('0750 000 9372', $boot->json('data.settings.driver_hotline'));
+
+        $homeCats = $this->getJson('/api/v1/public/categories')
+            ->assertOk()
+            ->assertJsonPath('success', true);
+        $this->assertCount(8, $homeCats->json('data'));
+        $this->assertTrue(collect($homeCats->json('data'))->every(fn ($c) => $c['is_featured_home'] === true));
+
+        $contacts = $this->getJson('/api/v1/public/support-contacts')
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertNotEmpty($contacts->json('data.whatsapp_number'));
+        $this->assertNotEmpty($contacts->json('data.telegram_username'));
+        $this->assertNotEmpty($contacts->json('data.support_phone'));
+    }
+
+    public function test_admin_can_crud_home_categories(): void
+    {
+        $adminToken = $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@rega.iq',
+            'password' => 'password123',
+        ])->json('data.token');
+
+        $created = $this->withToken($adminToken)->postJson('/api/v1/admin/categories', [
+            'name_ku' => 'بەشی تاقیکردنەوە',
+            'name_ar' => 'قسم تجريبي',
+            'name_en' => 'Test Category',
+            'is_featured_home' => true,
+            'is_active' => true,
+            'sort_order' => 99,
+        ])->assertCreated();
+
+        $id = $created->json('data.id');
+        $this->assertNotEmpty($id);
+        $this->assertNull($created->json('data.image_url'));
+
+        $this->withToken($adminToken)->putJson("/api/v1/admin/categories/{$id}", [
+            'name_ku' => 'بەشی نوێکراو',
+            'image_url' => 'https://example.com/cat.jpg',
+            'secondary_image_url' => 'https://example.com/cat-sec.jpg',
+            'sort_order' => 50,
+        ])->assertOk()
+            ->assertJsonPath('data.name_ku', 'بەشی نوێکراو')
+            ->assertJsonPath('data.secondary_image_url', 'https://example.com/cat-sec.jpg');
+
+        $this->withToken($adminToken)->deleteJson("/api/v1/admin/categories/{$id}")
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->getJson('/api/v1/public/categories?featured_home=1')
+            ->assertOk();
     }
 
     public function test_admin_auth_dashboard_and_rbac_protection(): void
@@ -117,7 +168,7 @@ class RegaEcosystemApiTest extends TestCase
 
         $this->assertEquals($newStoreId, $vendorLogin->json('data.user.owned_store.id'));
 
-        // Onboard unverified driver and approve all 3 KYC docs
+        // Onboard unverified driver and approve all 4 KYC docs
         $driverRes = $this->withToken($adminToken)->postJson('/api/v1/admin/drivers', [
             'name' => 'دانا کەمال',
             'phone' => '07712223344',
@@ -129,8 +180,34 @@ class RegaEcosystemApiTest extends TestCase
 
         $driverProfileId = $driverRes->json('data.id');
         $docs = $driverRes->json('data.documents');
-        $this->assertCount(3, $docs);
+        $this->assertCount(4, $docs);
         $this->assertFalse($driverRes->json('data.is_verified'));
+
+        $listed = $this->withToken($adminToken)
+            ->getJson("/api/v1/admin/drivers/{$driverProfileId}/documents")
+            ->assertOk()
+            ->json('data');
+        $this->assertCount(4, $listed);
+
+        $firstDocId = $docs[0]['id'];
+        $fake = \Illuminate\Http\UploadedFile::fake()->create('national-id.pdf', 120, 'application/pdf');
+        $uploadRes = $this->withToken($adminToken)
+            ->post("/api/v1/admin/driver-documents/{$firstDocId}/upload", [
+                'file' => $fake,
+                'document_number' => 'NID-EDIT-100',
+                'status' => 'pending',
+            ], ['Accept' => 'application/json'])
+            ->assertOk();
+        $this->assertNotEmpty($uploadRes->json('data.file_url'));
+        $this->assertEquals('NID-EDIT-100', $uploadRes->json('data.document_number'));
+
+        $this->withToken($adminToken)
+            ->patchJson("/api/v1/admin/driver-documents/{$firstDocId}", [
+                'document_number' => 'NID-EDIT-200',
+                'status' => 'pending',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.document_number', 'NID-EDIT-200');
 
         foreach ($docs as $doc) {
             $this->withToken($adminToken)
@@ -200,17 +277,13 @@ class RegaEcosystemApiTest extends TestCase
         $this->asBearer($vendorToken)->postJson("/api/v1/vendor/orders/{$orderId}/accept")->assertOk();
         $this->asBearer($vendorToken)->postJson("/api/v1/vendor/orders/{$orderId}/ready")->assertOk();
 
-        // 4. Vendor handover fails with wrong PIN, succeeds with real driver handover_pin
+        // 4. Vendor handover (no PIN required)
         $this->asBearer($vendorToken)
-            ->postJson("/api/v1/vendor/orders/{$orderId}/handover", ['pin' => '0000'])
-            ->assertStatus(422);
-
-        $this->asBearer($vendorToken)
-            ->postJson("/api/v1/vendor/orders/{$orderId}/handover", ['pin' => $orderModel->handover_pin])
+            ->postJson("/api/v1/vendor/orders/{$orderId}/handover")
             ->assertOk()
             ->assertJsonPath('data.status', 'picked_up');
 
-        // 5. Driver advances to on_the_way -> arrived_customer -> verifies customer's delivery_pin
+        // 5. Driver advances to on_the_way -> arrived_customer -> completes delivery
         $this->asBearer($driverToken)
             ->patchJson("/api/v1/driver/orders/{$orderId}/status", ['driver_status' => 'on_the_way'])
             ->assertOk();
@@ -220,11 +293,7 @@ class RegaEcosystemApiTest extends TestCase
             ->assertOk();
 
         $this->asBearer($driverToken)
-            ->postJson("/api/v1/driver/orders/{$orderId}/verify-delivery", ['pin' => '0000'])
-            ->assertStatus(422);
-
-        $this->asBearer($driverToken)
-            ->postJson("/api/v1/driver/orders/{$orderId}/verify-delivery", ['pin' => $orderModel->delivery_pin])
+            ->postJson("/api/v1/driver/orders/{$orderId}/verify-delivery")
             ->assertOk()
             ->assertJsonPath('data.status', 'delivered');
 
@@ -302,9 +371,8 @@ class RegaEcosystemApiTest extends TestCase
 
         $this->assertEqualsWithDelta(34.6875, $poll->json('data.driver.lat'), 0.0001);
 
-        // 4. Verify 4-digit PIN completes delivery
-        $this->postJson('/api/v1/live-telemetry/RA-99001/verify-pin', ['pin' => '0000'])->assertStatus(422);
-        $this->postJson('/api/v1/live-telemetry/RA-99001/verify-pin', ['pin' => '7392'])
+        // 4. Complete delivery (no PIN required)
+        $this->postJson('/api/v1/live-telemetry/RA-99001/verify-pin')
             ->assertOk()
             ->assertJsonPath('data.status', 'delivered')
             ->assertJsonPath('data.eta_seconds', 0);
@@ -330,7 +398,7 @@ class RegaEcosystemApiTest extends TestCase
         $this->assertNotEmpty($hubs->json('data.delivery_part.drivers'));
         $this->assertGreaterThan(0, $hubs->json('data.delivery_part.kpis.total_drivers'));
 
-        // 2. Admin creates a live order from Customer Hub -> verify PIN handover & delivery
+        // 2. Admin creates a live order from Customer Hub -> handover & delivery (no PIN)
         $store = Store::with('products')->firstOrFail();
         $product = $store->products->firstOrFail();
 
@@ -347,16 +415,14 @@ class RegaEcosystemApiTest extends TestCase
         ])->assertCreated();
 
         $orderId = $adminCreated->json('data.id');
-        $handoverPin = $adminCreated->json('data.handover_pin');
-        $deliveryPin = $adminCreated->json('data.delivery_pin');
 
         $this->asBearer($adminToken)
-            ->postJson("/api/v1/admin/orders/{$orderId}/verify-handover", ['pin' => $handoverPin])
+            ->postJson("/api/v1/admin/orders/{$orderId}/verify-handover")
             ->assertOk()
             ->assertJsonPath('data.status', 'picked_up');
 
         $this->asBearer($adminToken)
-            ->postJson("/api/v1/admin/orders/{$orderId}/verify-delivery", ['pin' => $deliveryPin])
+            ->postJson("/api/v1/admin/orders/{$orderId}/verify-delivery")
             ->assertOk()
             ->assertJsonPath('data.status', 'delivered');
 

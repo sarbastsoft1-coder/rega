@@ -34,9 +34,10 @@ class OrderSettlementService
                 'driver_total_earning' => $driverEarning,
                 'payment_status' => 'paid',
                 'delivered_at' => now(),
+                'is_profit_realized' => true,
             ]);
 
-            // Credit store net profit (subtotal - commission)
+            // Credit store: product costs recovered + seller profit share (vendor_net_amount).
             if ($locked->store) {
                 $locked->store->increment('wallet_balance', (int) $locked->vendor_net_amount);
             }

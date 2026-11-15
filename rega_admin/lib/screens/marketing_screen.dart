@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+
+enum MarketingMode { all, notifications }
 
 class MarketingScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
+  final MarketingMode mode;
+  final int initialTab;
 
-  const MarketingScreen({super.key, required this.api, required this.lang});
+  const MarketingScreen({
+    super.key,
+    required this.api,
+    required this.lang,
+    this.mode = MarketingMode.all,
+    this.initialTab = 0,
+  });
 
   @override
   State<MarketingScreen> createState() => _MarketingScreenState();
@@ -16,23 +27,31 @@ class MarketingScreen extends StatefulWidget {
 
 class _MarketingScreenState extends State<MarketingScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabCtrl;
+  TabController? _tabCtrl;
   bool _loading = true;
   String? _error;
   List<dynamic> _coupons = [];
   List<dynamic> _banners = [];
   List<dynamic> _notifications = [];
 
+  bool get _notificationsOnly => widget.mode == MarketingMode.notifications;
+
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    if (!_notificationsOnly) {
+      _tabCtrl = TabController(
+        length: 3,
+        vsync: this,
+        initialIndex: widget.initialTab.clamp(0, 2),
+      );
+    }
     _load();
   }
 
   @override
   void dispose() {
-    _tabCtrl.dispose();
+    _tabCtrl?.dispose();
     super.dispose();
   }
 
@@ -42,17 +61,22 @@ class _MarketingScreenState extends State<MarketingScreen>
       _error = null;
     });
     try {
-      final results = await Future.wait([
-        widget.api.getCoupons(),
-        widget.api.getBanners(),
-        widget.api.getNotifications(),
-      ]);
-      if (mounted) {
-        setState(() {
-          _coupons = results[0];
-          _banners = results[1];
-          _notifications = results[2];
-        });
+      if (_notificationsOnly) {
+        final notifs = await widget.api.getNotifications();
+        if (mounted) setState(() => _notifications = notifs);
+      } else {
+        final results = await Future.wait([
+          widget.api.getCoupons(),
+          widget.api.getBanners(),
+          widget.api.getNotifications(),
+        ]);
+        if (mounted) {
+          setState(() {
+            _coupons = results[0];
+            _banners = results[1];
+            _notifications = results[2];
+          });
+        }
       }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -84,9 +108,10 @@ class _MarketingScreenState extends State<MarketingScreen>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
+          insetPadding: AdminBreakpoints.dialogInset(ctx),
           title: Text(isEdit ? 'دەستکاریکردنی کۆدی داشکاندن' : 'دروستکردنی کۆدی داشکاندنی نوێ (Coupon)'),
           content: SizedBox(
-            width: 440,
+            width: AdminBreakpoints.dialogWidth(ctx, max: 440),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -111,24 +136,36 @@ class _MarketingScreenState extends State<MarketingScreen>
                   onChanged: (v) => setDialogState(() => type = v ?? 'fixed'),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: valCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'بڕی داشکاندن'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: minCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'کەمترین بڕی داواکاری (د.ع)'),
-                      ),
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stack = constraints.maxWidth < AdminBreakpoints.phone;
+                    final discountField = TextField(
+                      controller: valCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'بڕی داشکاندن'),
+                    );
+                    final minOrderField = TextField(
+                      controller: minCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'کەمترین بڕی داواکاری (د.ع)'),
+                    );
+                    if (stack) {
+                      return Column(
+                        children: [
+                          discountField,
+                          const SizedBox(height: 12),
+                          minOrderField,
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: discountField),
+                        const SizedBox(width: 12),
+                        Expanded(child: minOrderField),
+                      ],
+                    );
+                  },
                 ),
                 if (isEdit) ...[
                   const SizedBox(height: 10),
@@ -191,9 +228,10 @@ class _MarketingScreenState extends State<MarketingScreen>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
+          insetPadding: AdminBreakpoints.dialogInset(ctx),
           title: Text(isEdit ? 'دەستکاریکردنی بانەری ڕێکلام' : 'زیادکردنی بانەری نوێ بۆ ئەپی کڕیار'),
           content: SizedBox(
-            width: 440,
+            width: AdminBreakpoints.dialogWidth(ctx, max: 440),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -251,63 +289,302 @@ class _MarketingScreenState extends State<MarketingScreen>
     );
   }
 
-  void _showBroadcastDialog() {
+  Future<void> _showBroadcastDialog() async {
     final titleCtrl = TextEditingController();
     final bodyCtrl = TextEditingController();
-    String audience = 'all';
+    final badgeCtrl = TextEditingController();
+    final searchCtrl = TextEditingController();
+    String audience = 'customers'; // customers | selected
+    String notifType = 'discount'; // discount | general | other
+    bool saving = false;
+    bool loadingCustomers = true;
+    List<Map<String, dynamic>> customers = [];
+    final Set<int> selectedIds = {};
+
+    try {
+      final raw = await widget.api.getCustomers(isActive: true);
+      customers = raw
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (_) {
+      customers = [];
+    }
+    loadingCustomers = false;
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('ناردنی ئاگادارکردنەوەی گشتی (Broadcast)'),
-          content: SizedBox(
-            width: 440,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: audience,
-                  decoration: const InputDecoration(labelText: 'ئاراستەکراو بۆ'),
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('هەموو بەکارهێنەران (All Apps)')),
-                    DropdownMenuItem(value: 'customers', child: Text('تەنها کڕیاران (Customer App)')),
-                    DropdownMenuItem(value: 'vendors', child: Text('تەنها فرۆشیاران (Vendor App)')),
-                    DropdownMenuItem(value: 'drivers', child: Text('تەنها شۆفێران (Driver App)')),
+        builder: (ctx, setDialogState) {
+          final q = searchCtrl.text.trim().toLowerCase();
+          final filtered = customers.where((c) {
+            if (q.isEmpty) return true;
+            final name = c['name']?.toString().toLowerCase() ?? '';
+            final phone = c['phone']?.toString().toLowerCase() ?? '';
+            return name.contains(q) || phone.contains(q);
+          }).toList();
+
+          return AlertDialog(
+            insetPadding: AdminBreakpoints.dialogInset(ctx),
+            title: const Text('ناردنی ئاگاداری بۆ کڕیاران'),
+            content: SizedBox(
+              width: AdminBreakpoints.dialogWidth(ctx, max: 520),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'ئەم نامەیە جیاوازە لە زەنگی ناوخۆیی ئەدمین — ڕاستەوخۆ دەچێتە سندوقی ئاگاداری ئەپی کڕیار (داشکاندن / پرۆمۆشن / نامەی تایبەت).',
+                      style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.35),
+                    ),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue: audience,
+                      decoration: const InputDecoration(labelText: 'ئامانجی وەرگر'),
+                      items: const [
+                        DropdownMenuItem(value: 'customers', child: Text('هەموو کڕیاران')),
+                        DropdownMenuItem(value: 'selected', child: Text('کڕیاری هەڵبژێردراو')),
+                      ],
+                      onChanged: (v) => setDialogState(() => audience = v ?? 'customers'),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: notifType,
+                      decoration: const InputDecoration(labelText: 'جۆری ئاگاداری'),
+                      items: const [
+                        DropdownMenuItem(value: 'discount', child: Text('داشکاندن / پرۆمۆشن')),
+                        DropdownMenuItem(value: 'general', child: Text('گشتی')),
+                        DropdownMenuItem(value: 'other', child: Text('ئەویتر / تایبەت')),
+                      ],
+                      onChanged: (v) => setDialogState(() => notifType = v ?? 'discount'),
+                    ),
+                    if (audience == 'selected') ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: searchCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'گەڕان بە ناو یان مۆبایل',
+                          prefixIcon: Icon(Icons.search_rounded, size: 18),
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        loadingCustomers
+                            ? 'بارکردنی کڕیاران...'
+                            : '${selectedIds.length} کڕیار هەڵبژێردرا · ${filtered.length} نیشان دراو',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 180,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.black12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: loadingCustomers
+                            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                            : filtered.isEmpty
+                                ? const Center(child: Text('هیچ کڕیارێک نەدۆزرایەوە'))
+                                : ListView.builder(
+                                    itemCount: filtered.length,
+                                    itemBuilder: (_, i) {
+                                      final c = filtered[i];
+                                      final id = (c['id'] as num?)?.toInt();
+                                      if (id == null) return const SizedBox.shrink();
+                                      final checked = selectedIds.contains(id);
+                                      return CheckboxListTile(
+                                        dense: true,
+                                        value: checked,
+                                        title: Text(
+                                          c['name']?.toString() ?? '—',
+                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                        ),
+                                        subtitle: Text(c['phone']?.toString() ?? ''),
+                                        onChanged: (v) {
+                                          setDialogState(() {
+                                            if (v == true) {
+                                              selectedIds.add(id);
+                                            } else {
+                                              selectedIds.remove(id);
+                                            }
+                                          });
+                                        },
+                                      );
+                                    },
+                                  ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: titleCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'سەردێڕ *',
+                        hintText: 'نموونە: داشکاندنی %30 ئەمڕۆ',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: bodyCtrl,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'ناوەڕۆک / نامە *',
+                        hintText: 'هەر نامەیەک کە دەتەوێت بۆ کڕیار بنێریت...',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: badgeCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'باجی داشکاندن (ئارەزوومەندانە)',
+                        hintText: 'نموونە: %30 OFF یان 5,000 د.ع',
+                      ),
+                    ),
                   ],
-                  onChanged: (v) => setDialogState(() => audience = v ?? 'all'),
                 ),
-                const SizedBox(height: 12),
-                TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'سەردێڕی نامە *')),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: bodyCtrl,
-                  maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'ناوەڕۆکی ئاگادارکردنەوە *'),
-                ),
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
-            ElevatedButton.icon(
-              onPressed: () async {
-                if (titleCtrl.text.trim().isEmpty || bodyCtrl.text.trim().isEmpty) return;
-                Navigator.pop(ctx);
-                await widget.api.sendNotification({
-                  'target_audience': audience,
-                  'title_ku': titleCtrl.text.trim(),
-                  'body_ku': bodyCtrl.text.trim(),
-                });
-                _showSnack('ئاگادارکردنەوە نێردرا 🔔');
-                _load();
-              },
-              icon: const Icon(Icons.send_rounded, size: 16),
-              label: const Text('ناردنی ڕاستەوخۆ'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(ctx),
+                child: Text(AppStrings.tr('cancel', widget.lang)),
+              ),
+              ElevatedButton.icon(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        if (titleCtrl.text.trim().isEmpty || bodyCtrl.text.trim().isEmpty) {
+                          _showSnack('سەردێڕ و ناوەڕۆک پێویستن', error: true);
+                          return;
+                        }
+                        if (audience == 'selected' && selectedIds.isEmpty) {
+                          _showSnack('تکایە لانیکەم یەک کڕیار هەڵبژێرە', error: true);
+                          return;
+                        }
+                        setDialogState(() => saving = true);
+                        try {
+                          await widget.api.sendNotification({
+                            'target_audience': audience,
+                            'title_ku': titleCtrl.text.trim(),
+                            'body_ku': bodyCtrl.text.trim(),
+                            'type': notifType,
+                            if (audience == 'selected') 'user_ids': selectedIds.toList(),
+                            if (badgeCtrl.text.trim().isNotEmpty) 'discount_badge': badgeCtrl.text.trim(),
+                          });
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          _showSnack('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت');
+                          _load();
+                        } catch (e) {
+                          setDialogState(() => saving = false);
+                          _showSnack(e.toString(), error: true);
+                        }
+                      },
+                icon: const Icon(Icons.send_rounded, size: 16),
+                label: const Text('ناردن بۆ کڕیاران'),
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildNotificationsPanel() {
+    final customerNotifs = _notifications.where((raw) {
+      final n = raw as Map<String, dynamic>;
+      final aud = n['target_audience']?.toString() ?? '';
+      final type = n['type']?.toString() ?? '';
+      if (type == 'order') return false;
+      if (aud == 'customers' || aud == 'all') return true;
+      // Selected-customer campaigns (fan-out) — ignore operational specific_user rows.
+      if (aud == 'specific_user') {
+        return n['campaign_id'] != null || type == 'general';
+      }
+      return false;
+    }).toList();
+
+    final pad = AdminBreakpoints.pagePadH(context);
+    return ListView(
+      padding: EdgeInsets.all(pad),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: RegaColors.gold.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: RegaColors.gold.withValues(alpha: 0.35)),
+          ),
+          child: const Text(
+            'ناردنی ئاگاداری (Outbound) — داشکاندن، پرۆمۆشن یان نامەی تایبەت بۆ کڕیاران. جیاوازە لە زەنگی چاوەڕوانی ناوخۆیی ئەدمین.',
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.35),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: ElevatedButton.icon(
+            onPressed: _showBroadcastDialog,
+            icon: const Icon(Icons.campaign_rounded, size: 18),
+            label: const Text('ناردنی ئاگاداری نوێ'),
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (customerNotifs.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: Text(
+                'هیچ ئاگادارییەک نەنێردراوە — یەکەم ئاگاداری بنێرە',
+                style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black54),
+              ),
+            ),
+          )
+        else
+          ...customerNotifs.map((raw) {
+            final n = raw as Map<String, dynamic>;
+            final aud = n['target_audience']?.toString() ?? 'customers';
+            final recipients = (n['recipient_count'] as num?)?.toInt() ?? 1;
+            final audienceLabel = aud == 'specific_user'
+                ? 'کڕیاری هەڵبژێردراو ($recipients)'
+                : aud == 'all'
+                    ? 'هەموو بەکارهێنەران'
+                    : 'هەموو کڕیاران ($recipients)';
+            final id = (n['id'] as num?)?.toInt();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Card(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFFEF3C7),
+                    child: Icon(Icons.campaign_rounded, color: RegaColors.goldDark),
+                  ),
+                  title: Text(
+                    n['title_ku']?.toString() ?? '',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(
+                    '${n['tag'] ?? 'ئاگاداری'}  •  $audienceLabel\n'
+                    '${n['body_ku'] ?? ''}'
+                    '${n['discount_badge'] != null ? '  •  ${n['discount_badge']}' : ''}',
+                  ),
+                  isThreeLine: true,
+                  trailing: id == null
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
+                          onPressed: () async {
+                            await widget.api.deleteNotification(id);
+                            _load();
+                          },
+                        ),
+                ),
+              ),
+            );
+          }),
+      ],
     );
   }
 
@@ -318,29 +595,36 @@ class _MarketingScreenState extends State<MarketingScreen>
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
           child: SectionHeader(
-            title: AppStrings.tr('nav_marketing', widget.lang),
-            subtitle: 'بەڕێوەبردنی کۆدەکانی داشکاندن، بانەرەکانی ئەپ و ناردنی نامەی گشتی',
+            title: _notificationsOnly ? 'ئاگاداری بۆ ئەپی کڕیار' : AppStrings.tr('nav_marketing', widget.lang),
+            subtitle: _notificationsOnly
+                ? 'ناردنی داشکاندن و ئاگاداری — دەردەکەوێت لە نۆتیفیکەیشنی ئەپی کڕیار'
+                : 'بەڕێوەبردنی کۆدەکانی داشکاندن، بانەرەکانی ئەپ و ناردنی نامەی گشتی',
           ),
         ),
-        TabBar(
-          controller: _tabCtrl,
-          tabs: [
-            Tab(text: '🎟️ کۆدەکانی داشکاندن (${_coupons.length})'),
-            Tab(text: '🖼️ بانەرەکان (${_banners.length})'),
-            Tab(text: '🔔 ئاگادارکردنەوەکان (${_notifications.length})'),
-          ],
-        ),
+        if (!_notificationsOnly && _tabCtrl != null)
+          TabBar(
+            controller: _tabCtrl,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [
+              Tab(text: '🎟️ کۆدەکانی داشکاندن (${_coupons.length})'),
+              Tab(text: '🖼️ بانەرەکان (${_banners.length})'),
+              Tab(text: '🔔 ئاگادارکردنەوەکان (${_notifications.length})'),
+            ],
+          ),
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
                   ? ErrorRetryView(message: _error!, onRetry: _load)
-                  : TabBarView(
+                  : _notificationsOnly
+                      ? _buildNotificationsPanel()
+                      : TabBarView(
                       controller: _tabCtrl,
                       children: [
                         // Coupons
                         ListView(
-                          padding: const EdgeInsets.all(24),
+                          padding: EdgeInsets.all(AdminBreakpoints.pagePadH(context)),
                           children: [
                             Align(
                               alignment: AlignmentDirectional.centerEnd,
@@ -354,56 +638,100 @@ class _MarketingScreenState extends State<MarketingScreen>
                             ..._coupons.map((raw) {
                               final c = raw as Map<String, dynamic>;
                               final active = c['is_active'] == true;
+                              final phone = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
+                              final actions = Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_rounded, color: RegaColors.blue, size: 20),
+                                    tooltip: 'دەستکاریکردن',
+                                    onPressed: () => _showCouponDialog(existing: c),
+                                  ),
+                                  Switch(
+                                    value: active,
+                                    onChanged: (v) async {
+                                      await widget.api.updateCoupon(c['id'] as int, {'is_active': v});
+                                      _load();
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
+                                    onPressed: () async {
+                                      await widget.api.deleteCoupon(c['id'] as int);
+                                      _load();
+                                    },
+                                  ),
+                                ],
+                              );
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 10),
                                 child: Card(
-                                  child: ListTile(
-                                    leading: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: RegaColors.gold,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(
-                                        c['code']?.toString() ?? '',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w900,
-                                          color: Color(0xFF0F172A),
+                                  child: phone
+                                      ? Padding(
+                                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                    decoration: BoxDecoration(
+                                                      color: RegaColors.gold,
+                                                      borderRadius: BorderRadius.circular(10),
+                                                    ),
+                                                    child: Text(
+                                                      c['code']?.toString() ?? '',
+                                                      style: const TextStyle(
+                                                        fontWeight: FontWeight.w900,
+                                                        color: Color(0xFF0F172A),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  Expanded(
+                                                    child: Text(
+                                                      c['title_ku']?.toString() ?? '',
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(fontWeight: FontWeight.w800),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'بەکارهاتووە: ${c['used_count'] ?? 0} جار  •  کەمترین داواکاری: ${formatIqd(c['min_order_amount'] as num?, lang: widget.lang)}',
+                                                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                              ),
+                                              Align(alignment: AlignmentDirectional.centerEnd, child: actions),
+                                            ],
+                                          ),
+                                        )
+                                      : ListTile(
+                                          leading: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            decoration: BoxDecoration(
+                                              color: RegaColors.gold,
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Text(
+                                              c['code']?.toString() ?? '',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w900,
+                                                color: Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                          ),
+                                          title: Text(
+                                            c['title_ku']?.toString() ?? '',
+                                            style: const TextStyle(fontWeight: FontWeight.w800),
+                                          ),
+                                          subtitle: Text(
+                                            'بەکارهاتووە: ${c['used_count'] ?? 0} جار  •  کەمترین داواکاری: ${formatIqd(c['min_order_amount'] as num?, lang: widget.lang)}',
+                                          ),
+                                          trailing: actions,
                                         ),
-                                      ),
-                                    ),
-                                    title: Text(
-                                      c['title_ku']?.toString() ?? '',
-                                      style: const TextStyle(fontWeight: FontWeight.w800),
-                                    ),
-                                    subtitle: Text(
-                                      'بەکارهاتووە: ${c['used_count'] ?? 0} جار  •  کەمترین داواکاری: ${formatIqd(c['min_order_amount'] as num?, lang: widget.lang)}',
-                                    ),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(Icons.edit_rounded, color: RegaColors.blue, size: 20),
-                                          tooltip: 'دەستکاریکردن',
-                                          onPressed: () => _showCouponDialog(existing: c),
-                                        ),
-                                        Switch(
-                                          value: active,
-                                          onChanged: (v) async {
-                                            await widget.api.updateCoupon(c['id'] as int, {'is_active': v});
-                                            _load();
-                                          },
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
-                                          onPressed: () async {
-                                            await widget.api.deleteCoupon(c['id'] as int);
-                                            _load();
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
                                 ),
                               );
                             }),
@@ -412,7 +740,7 @@ class _MarketingScreenState extends State<MarketingScreen>
 
                         // Banners
                         ListView(
-                          padding: const EdgeInsets.all(24),
+                          padding: EdgeInsets.all(AdminBreakpoints.pagePadH(context)),
                           children: [
                             Align(
                               alignment: AlignmentDirectional.centerEnd,
@@ -479,46 +807,7 @@ class _MarketingScreenState extends State<MarketingScreen>
                         ),
 
                         // Notifications
-                        ListView(
-                          padding: const EdgeInsets.all(24),
-                          children: [
-                            Align(
-                              alignment: AlignmentDirectional.centerEnd,
-                              child: ElevatedButton.icon(
-                                onPressed: _showBroadcastDialog,
-                                icon: const Icon(Icons.campaign_rounded, size: 18),
-                                label: const Text('ناردنی ئاگادارکردنەوەی نوێ'),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            ..._notifications.map((raw) {
-                              final n = raw as Map<String, dynamic>;
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: Card(
-                                  child: ListTile(
-                                    leading: const CircleAvatar(
-                                      backgroundColor: Color(0xFFFEF3C7),
-                                      child: Icon(Icons.notifications_active_rounded, color: RegaColors.goldDark),
-                                    ),
-                                    title: Text(
-                                      '[${n['target_audience']}] ${n['title_ku'] ?? ''}',
-                                      style: const TextStyle(fontWeight: FontWeight.w800),
-                                    ),
-                                    subtitle: Text(n['body_ku']?.toString() ?? ''),
-                                    trailing: IconButton(
-                                      icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
-                                      onPressed: () async {
-                                        await widget.api.deleteNotification(n['id'] as int);
-                                        _load();
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }),
-                          ],
-                        ),
+                        _buildNotificationsPanel(),
                       ],
                     ),
         ),

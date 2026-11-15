@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/api/api_client.dart';
+import '../core/iraq_phone_formatter.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import 'products_screen.dart';
@@ -34,7 +36,9 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
   List<dynamic> _stores = [];
   List<dynamic> _kitchenOrders = [];
   List<dynamic> _vendorPayouts = [];
+  List<dynamic> _drivers = [];
   int? _selectedStoreFilter;
+  int? _selectedOrderId;
 
   @override
   void initState() {
@@ -65,6 +69,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
       final results = await Future.wait([
         widget.api.getEcosystemHubs(),
         widget.api.getPayouts(recipientType: 'vendor'),
+        widget.api.getDrivers(isVerified: true),
       ]);
       final hubs = results[0] as Map<String, dynamic>;
       final vp = hubs['vendor_part'] as Map<String, dynamic>? ?? {};
@@ -74,6 +79,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
         _stores = vp['stores'] as List<dynamic>? ?? [];
         _kitchenOrders = vp['kitchen_orders'] as List<dynamic>? ?? [];
         _vendorPayouts = results[1] as List<dynamic>;
+        _drivers = results[2] as List<dynamic>;
       });
     } catch (e) {
       if (mounted && !silent) setState(() => _error = e.toString());
@@ -103,57 +109,85 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
     }
   }
 
-  void _showHandoverPinDialog(Map<String, dynamic> order) {
-    final pinCtrl = TextEditingController(text: order['handover_pin']?.toString() ?? '');
+  Future<void> _handoverToDriver(Map<String, dynamic> order) async {
+    try {
+      await widget.api.verifyHandoverPin(order['id'] as int);
+      _showSnack('داواکارییەکە بە سەرکەوتوویی ڕادەستی شۆفێر کرا ✅');
+      widget.onDataChanged?.call();
+      _load(silent: true);
+    } catch (e) {
+      _showSnack(e.toString(), error: true);
+    }
+  }
+
+  List<Map<String, dynamic>> get _sortedDrivers {
+    final list = _drivers.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    list.sort((a, b) {
+      final ao = a['is_online'] == true ? 0 : 1;
+      final bo = b['is_online'] == true ? 0 : 1;
+      if (ao != bo) return ao.compareTo(bo);
+      final an = (a['user'] as Map?)?['name']?.toString() ?? '';
+      final bn = (b['user'] as Map?)?['name']?.toString() ?? '';
+      return an.compareTo(bn);
+    });
+    return list;
+  }
+
+  Future<void> _assignDriverToOrder(Map<String, dynamic> order, Map<String, dynamic> driverProfile) async {
+    final user = driverProfile['user'] as Map<String, dynamic>? ?? {};
+    final driverUserId = (user['id'] as num?)?.toInt() ?? (driverProfile['user_id'] as num?)?.toInt();
+    final orderId = order['id'] as int?;
+    if (orderId == null || driverUserId == null) return;
+    try {
+      await widget.api.assignDriver(orderId, driverUserId);
+      _showSnack('ماتۆرسوار (${user['name'] ?? ''}) بۆ ${order['order_number']} دیاریکرا ✅');
+      widget.onDataChanged?.call();
+      _load(silent: true);
+    } catch (e) {
+      _showSnack(e.toString(), error: true);
+    }
+  }
+
+  Future<void> _showAssignDriverDialog(Map<String, dynamic> order) async {
+    setState(() => _selectedOrderId = order['id'] as int?);
+    final drivers = _sortedDrivers;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('پشتڕاستکردنەوەی کۆدی شۆفێر — ${order['order_number']}'),
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('دیاریکردنی ماتۆرسوار بۆ ${order['order_number']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         content: SizedBox(
-          width: 380,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'کاتێک شۆفێر دەگاتە فرۆشگا، کۆدی ٤ ژمارەیی ڕادەستکردن (Handover PIN) دڵنیا دەکرێتەوە:',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: pinCtrl,
-                maxLength: 4,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 10),
-                decoration: const InputDecoration(labelText: 'کۆدی ٤ ژمارەیی شۆفێر (PIN)'),
-              ),
-            ],
-          ),
+          width: AdminBreakpoints.dialogWidth(ctx, max: 460),
+          height: AdminBreakpoints.dialogMaxHeight(ctx, fraction: 0.75),
+          child: drivers.isEmpty
+              ? const Center(child: Text('هیچ ماتۆرسوارێک تۆمار نەکراوە'))
+              : ListView.separated(
+                  itemCount: drivers.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, idx) {
+                    final dp = drivers[idx];
+                    final u = dp['user'] as Map<String, dynamic>? ?? {};
+                    final online = dp['is_online'] == true;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.two_wheeler_rounded, color: online ? RegaColors.emeraldDark : Colors.grey),
+                      title: Text('${u['name'] ?? ''} (${dp['driver_code'] ?? ''})', style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text('${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${u['phone'] ?? ''}'),
+                      trailing: ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: RegaColors.emeraldDark, foregroundColor: Colors.white),
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await _assignDriverToOrder(order, dp);
+                        },
+                        child: Text(online ? 'پێدان' : 'دیاریکردن'),
+                      ),
+                    );
+                  },
+                ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('داخستن')),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: RegaColors.orange,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () async {
-              final pin = pinCtrl.text.trim();
-              if (pin.length != 4) return;
-              Navigator.pop(ctx);
-              try {
-                await widget.api.verifyHandoverPin(order['id'] as int, pin);
-                _showSnack('داواکارییەکە بە سەرکەوتوویی ڕادەستی شۆفێر کرا ✅');
-                widget.onDataChanged?.call();
-                _load(silent: true);
-              } catch (e) {
-                _showSnack(e.toString(), error: true);
-              }
-            },
-            icon: const Icon(Icons.verified_rounded, size: 18),
-            label: const Text('ڕادەستکردن بە شۆفێر'),
-          ),
         ],
       ),
     );
@@ -167,9 +201,10 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
         title: Text('تۆمارکردنی حەواڵەی فرۆشیار — ${store['name_ku']}'),
         content: SizedBox(
-          width: 420,
+          width: AdminBreakpoints.dialogWidth(ctx, max: 420),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -227,7 +262,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
         // Top Vendor Hub Brand Header (Froshyar Style)
         Container(
           width: double.infinity,
-          margin: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+          margin: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 16, AdminBreakpoints.pagePadH(context), 0),
           padding: const EdgeInsets.fromLTRB(22, 16, 22, 16),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
@@ -358,9 +393,10 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
   }
 
   Widget _buildFroshyarNavBar({required bool isDark, required int activeKitchenCount}) {
+    final phone = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(24, 12, 24, 6),
+      margin: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 12, AdminBreakpoints.pagePadH(context), 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
@@ -387,6 +423,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
               label: 'داواکارییەکان',
               badgeCount: activeKitchenCount,
               isDark: isDark,
+              iconOnly: phone,
             ),
           ),
           Expanded(
@@ -396,6 +433,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
               inactiveIcon: Icons.restaurant_menu_outlined,
               label: 'مێنۆ',
               isDark: isDark,
+              iconOnly: phone,
             ),
           ),
           Expanded(
@@ -405,6 +443,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
               inactiveIcon: Icons.auto_graph_outlined,
               label: 'داهات',
               isDark: isDark,
+              iconOnly: phone,
             ),
           ),
           Expanded(
@@ -414,6 +453,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
               inactiveIcon: Icons.storefront_outlined,
               label: 'فرۆشگاکان',
               isDark: isDark,
+              iconOnly: phone,
             ),
           ),
           Expanded(
@@ -423,6 +463,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
               inactiveIcon: Icons.account_balance_wallet_outlined,
               label: 'پاکتاو',
               isDark: isDark,
+              iconOnly: phone,
             ),
           ),
         ],
@@ -437,6 +478,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
     required String label,
     int badgeCount = 0,
     required bool isDark,
+    bool iconOnly = false,
   }) {
     final bool isSelected = _tabController.index == index;
     const pillYellow = Color(0xFFFAC800);
@@ -451,7 +493,9 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
       borderRadius: BorderRadius.circular(50),
       splashColor: pillYellow.withValues(alpha: 0.2),
       highlightColor: Colors.transparent,
-      child: Center(
+      child: Tooltip(
+        message: label,
+        child: Center(
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -459,8 +503,8 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
               padding: EdgeInsets.symmetric(
-                horizontal: isSelected ? 14 : 12,
-                vertical: 10,
+                horizontal: iconOnly ? 8 : (isSelected ? 14 : 12),
+                vertical: iconOnly ? 8 : 10,
               ),
               decoration: BoxDecoration(
                 color: isSelected ? pillYellow : Colors.transparent,
@@ -473,27 +517,28 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
                   Icon(
                     isSelected ? activeIcon : inactiveIcon,
                     color: isSelected ? const Color(0xFF0F172A) : iconColor,
-                    size: 22,
+                    size: iconOnly ? 20 : 22,
                   ),
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    child: isSelected
-                        ? Padding(
-                            padding: const EdgeInsetsDirectional.only(start: 8),
-                            child: Text(
-                              label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xFF0F172A),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
+                  if (!iconOnly)
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      child: isSelected
+                          ? Padding(
+                              padding: const EdgeInsetsDirectional.only(start: 8),
+                              child: Text(
+                                label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF0F172A),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
                 ],
               ),
             ),
@@ -524,15 +569,18 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
           ],
         ),
       ),
+      ),
     );
   }
 
   Widget _buildOverviewTab(bool isDark) {
+    final screenW = MediaQuery.sizeOf(context).width;
+    final kpiCols = screenW < AdminBreakpoints.phone ? 1 : (screenW > 1200 ? 3 : 2);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+      padding: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 8, AdminBreakpoints.pagePadH(context), 28),
       children: [
         GridView.count(
-          crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+          crossAxisCount: kpiCols,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 14,
@@ -700,42 +748,150 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
     final filtered = _selectedStoreFilter == null
         ? _kitchenOrders
         : _kitchenOrders.where((o) => (o as Map<String, dynamic>)['store_id'] == _selectedStoreFilter).toList();
+    final drivers = _sortedDrivers;
+    final onlineCount = drivers.where((d) => d['is_online'] == true).length;
 
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 300,
-                child: DropdownButtonFormField<int?>(
-                  initialValue: _selectedStoreFilter,
-                  decoration: const InputDecoration(labelText: 'فلتەرکردن بەپێی فرۆشگا'),
-                  items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('هەموو فرۆشگاکان')),
-                    ..._stores.map((s) {
-                      final m = s as Map<String, dynamic>;
-                      return DropdownMenuItem<int?>(
-                        value: m['id'] as int,
-                        child: Text(m['name_ku']?.toString() ?? ''),
-                      );
-                    }),
+          padding: EdgeInsets.fromLTRB(
+            AdminBreakpoints.pagePadH(context),
+            8,
+            AdminBreakpoints.pagePadH(context),
+            8,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final phone = constraints.maxWidth < AdminBreakpoints.phone;
+              final dropdown = DropdownButtonFormField<int?>(
+                isExpanded: phone,
+                initialValue: _selectedStoreFilter,
+                decoration: const InputDecoration(labelText: 'فلتەرکردن بەپێی فرۆشگا'),
+                items: [
+                  const DropdownMenuItem<int?>(value: null, child: Text('هەموو فرۆشگاکان')),
+                  ..._stores.map((s) {
+                    final m = s as Map<String, dynamic>;
+                    return DropdownMenuItem<int?>(
+                      value: m['id'] as int,
+                      child: Text(m['name_ku']?.toString() ?? ''),
+                    );
+                  }),
+                ],
+                onChanged: (v) => setState(() => _selectedStoreFilter = v),
+              );
+              if (phone) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    dropdown,
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: IconButton.filledTonal(
+                        onPressed: () => _load(),
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ),
                   ],
-                  onChanged: (v) => setState(() => _selectedStoreFilter = v),
-                ),
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: dropdown),
+                  const SizedBox(width: 12),
+                  IconButton.filledTonal(
+                    onPressed: () => _load(),
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        Container(
+          height: 140,
+          margin: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 0, AdminBreakpoints.pagePadH(context), 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFBBF7D0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.two_wheeler_rounded, color: Color(0xFF16A34A)),
+                  const SizedBox(width: 8),
+                  const Expanded(child: Text('ماتۆرسوارەکان', style: TextStyle(fontWeight: FontWeight.w900))),
+                  Text('$onlineCount ئۆنلاین / ${drivers.length}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFF166534))),
+                ],
               ),
-              const SizedBox(width: 12),
-              IconButton.filledTonal(
-                onPressed: () => _load(),
-                icon: const Icon(Icons.refresh_rounded),
+              const SizedBox(height: 4),
+              Text(
+                _selectedOrderId == null
+                    ? 'سەرەتا داواکارییەک هەڵبژێرە، پاشان ماتۆرسوار دەست لێدە'
+                    : 'داواکاری هەڵبژێردراو — ماتۆرسوارێک دەست لێدە بۆ پێدان',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _selectedOrderId == null ? Colors.grey.shade600 : RegaColors.orange),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: drivers.isEmpty
+                    ? const Center(child: Text('هیچ ماتۆرسوارێک نییە'))
+                    : ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: drivers.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (_, idx) {
+                          final dp = drivers[idx];
+                          final u = dp['user'] as Map<String, dynamic>? ?? {};
+                          final online = dp['is_online'] == true;
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () async {
+                              Map<String, dynamic>? order;
+                              for (final raw in _kitchenOrders) {
+                                final m = Map<String, dynamic>.from(raw as Map);
+                                if (m['id'] == _selectedOrderId) {
+                                  order = m;
+                                  break;
+                                }
+                              }
+                              if (order == null) {
+                                _showSnack('سەرەتا داواکارییەک هەڵبژێرە', error: true);
+                                return;
+                              }
+                              await _assignDriverToOrder(order, dp);
+                            },
+                            child: Container(
+                              width: 150,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: online ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: online ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(Icons.two_wheeler_rounded, color: online ? RegaColors.emeraldDark : Colors.grey, size: 18),
+                                  const Spacer(),
+                                  Text('${u['name'] ?? '—'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
+                                  Text(online ? 'ئۆنلاین' : 'ئۆفلاین', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: online ? RegaColors.emeraldDark : Colors.grey)),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
         ),
         Expanded(
           child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            padding: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 8, AdminBreakpoints.pagePadH(context), 24),
             itemCount: filtered.length,
             separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (_, idx) {
@@ -745,113 +901,108 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
               final itemsSummary = items
                   .map((it) => '${(it as Map<String, dynamic>)['quantity']}x ${it['product_name']}')
                   .join(' ، ');
+              final selected = o['id'] == _selectedOrderId;
 
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 8,
-                        alignment: WrapAlignment.spaceBetween,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${o['order_number']}',
-                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-                              ),
-                              const SizedBox(width: 10),
-                              StatusBadge(status: status, lang: widget.lang),
-                              const SizedBox(width: 10),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: RegaColors.orange.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(10),
+              return InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => setState(() => _selectedOrderId = o['id'] as int?),
+                child: Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: selected ? RegaColors.emeraldDark : Colors.transparent, width: selected ? 1.6 : 0),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${o['order_number']}',
+                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                                 ),
-                                child: Text(
-                                  '🔑 کۆدی شۆفێر (PIN): ${o['handover_pin'] ?? '----'}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 12,
-                                    color: RegaColors.orange,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            formatIqd(o['total_amount'] as num?, lang: widget.lang),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
-                              color: RegaColors.emeraldDark,
+                                const SizedBox(width: 10),
+                                StatusBadge(status: status, lang: widget.lang),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '🏪 ${o['store']?['name_ku'] ?? '-'}  •  👤 کڕیار: ${o['customer_name'] ?? '-'} (${o['customer_phone'] ?? '-'})  •  🛵 شۆفێر: ${o['driver']?['name'] ?? 'دیاری نەکراوە'}',
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                      ),
-                      const SizedBox(height: 6),
-                      Text('🍲 پێکهاتەکان: $itemsSummary', style: const TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          if (status == 'pending')
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: RegaColors.blue,
-                                foregroundColor: Colors.white,
+                            Text(
+                              formatIqd(o['total_amount'] as num?, lang: widget.lang),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                color: RegaColors.emeraldDark,
                               ),
-                              onPressed: () => _updateVendorOrderStatus(o['id'] as int, 'preparing'),
-                              icon: const Icon(Icons.check_circle_outline_rounded, size: 17),
-                              label: const Text('قبوڵکردن و ئامادەکردن'),
-                            ),
-                          if (status == 'pending' || status == 'preparing')
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF0D9488),
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () => _updateVendorOrderStatus(o['id'] as int, 'ready'),
-                              icon: const Icon(Icons.done_all_rounded, size: 17),
-                              label: const Text('ئامادەیە بۆ شۆفێر'),
-                            ),
-                          if (status == 'ready' || status == 'preparing') ...[
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: RegaColors.orange,
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () => _showHandoverPinDialog(o),
-                              icon: const Icon(Icons.pin_rounded, size: 17),
-                              label: const Text('ڕادەستکردن بە شۆفێر (PIN)'),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => _updateVendorOrderStatus(o['id'] as int, 'picked_up'),
-                              icon: const Icon(Icons.check_rounded, size: 17),
-                              label: const Text('ڕادەستکردنی دەستبەجێ'),
                             ),
                           ],
-                          if (status == 'pending')
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '🏪 ${o['store']?['name_ku'] ?? '-'}  •  👤 کڕیار: ${o['customer_name'] ?? '-'} (${IraqPhoneFormatter.display((o['customer_phone'] ?? '').toString())})  •  🛵 شۆفێر: ${o['driver']?['name'] ?? 'دیاری نەکراوە'}',
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                        ),
+                        const SizedBox(height: 6),
+                        Text('🍲 پێکهاتەکان: $itemsSummary', style: const TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            if (status == 'pending')
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: RegaColors.emeraldDark,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => _updateVendorOrderStatus(o['id'] as int, 'preparing'),
+                                icon: const Icon(Icons.check_circle_outline_rounded, size: 17),
+                                label: const Text('قبوڵکردن و ئامادەکردن'),
+                              ),
+                            if (status == 'pending' || status == 'preparing')
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: RegaColors.emeraldDark,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => _updateVendorOrderStatus(o['id'] as int, 'ready'),
+                                icon: const Icon(Icons.done_all_rounded, size: 17),
+                                label: const Text('ئامادەیە بۆ شۆفێر'),
+                              ),
                             OutlinedButton.icon(
-                              onPressed: () => _updateVendorOrderStatus(o['id'] as int, 'rejected'),
-                              icon: const Icon(Icons.close_rounded, size: 17, color: RegaColors.crimson),
-                              label: const Text('ڕەتکردنەوە', style: TextStyle(color: RegaColors.crimson)),
+                              onPressed: () => _showAssignDriverDialog(o),
+                              icon: const Icon(Icons.two_wheeler_rounded, size: 17),
+                              label: Text(
+                                o['driver'] == null ? 'ناردنی ماتۆرسوار' : 'گۆڕینی شۆفێر',
+                                style: const TextStyle(fontWeight: FontWeight.w800),
+                              ),
                             ),
-                        ],
-                      ),
-                    ],
+                            if (status == 'ready' || status == 'preparing')
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: RegaColors.emeraldDark,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => _handoverToDriver(o),
+                                icon: const Icon(Icons.delivery_dining_rounded, size: 17),
+                                label: const Text('ڕادەستکردن بە شۆفێر'),
+                              ),
+                            if (status == 'pending')
+                              OutlinedButton.icon(
+                                onPressed: () => _updateVendorOrderStatus(o['id'] as int, 'rejected'),
+                                icon: const Icon(Icons.close_rounded, size: 17, color: RegaColors.crimson),
+                                label: const Text('ڕەتکردنەوە', style: TextStyle(color: RegaColors.crimson)),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -864,7 +1015,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
 
   Widget _buildVendorPayoutsTab() {
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+      padding: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 12, AdminBreakpoints.pagePadH(context), 24),
       itemCount: _vendorPayouts.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (_, idx) {

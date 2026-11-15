@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/api/api_client.dart';
+import '../core/localization/app_strings.dart';
+import '../core/theme/admin_breakpoints.dart';
+import '../core/theme/app_theme.dart';
+import '../map/mapbox_tiles.dart';
 import '../widgets/admin_top_header.dart';
 
 /// Representation of a dashboard recent order
@@ -48,8 +52,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Timer? _refreshTimer;
   bool _isLoading = true;
 
-  String _selectedDays = '٧ ڕۆژی ڕابردوو';
-  String _selectedOrderFilter = 'هەموو';
+  String _selectedDays = 'days_7';
+  String _selectedOrderFilter = 'filter_all';
 
   // Live KPI Metrics updated directly from PostgreSQL database
   String _todayOrders = '٠';
@@ -62,7 +66,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Active Couriers on the Map (Kalar / Kurdistan coordinates) from Fleet Radar
   List<LatLng> _courierPositions = [];
-  final LatLng _centerLocus = const LatLng(34.6865, 45.3215);
+  // Real Kalar city center (Mapbox geocode) — old 34.6865 was north near سید خلیل
+  final LatLng _centerLocus = const LatLng(34.6295, 45.3159);
 
   // Live Recent Orders from real backend
   List<RecentOrderEntry> _recentOrders = [];
@@ -110,17 +115,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final totalCustomersCount = (kpis['total_customers'] as num?)?.toInt() ?? 0;
       final totalStoresCount = (kpis['total_stores'] as num?)?.toInt() ?? (kpis['online_stores'] as num?)?.toInt() ?? 0;
 
-      // 2. Real Revenue / Order chart
+      // 2. Real daily order-status chart (zeros when empty — no demo padding)
       final revChart = data['revenue_chart'] as List<dynamic>? ?? [];
       final List<({String date, double completed, double pending, double onTheWay})> mappedChart = [];
       if (revChart.isNotEmpty) {
         for (final item in revChart) {
           final m = item as Map<String, dynamic>;
           final label = _toDigits(m['label']?.toString() ?? '');
-          final total = (m['orders_count'] as num?)?.toDouble() ?? 0.0;
-          final completed = (m['gmv'] != null && (m['gmv'] as num) > 0) ? (total * 0.7).clamp(1.0, 100.0) : (total > 0 ? total : 20.0);
-          final pending = (total * 0.15).clamp(0.0, 50.0);
-          final onTheWay = (total * 0.15).clamp(0.0, 50.0);
+          final completed = (m['delivered_count'] as num?)?.toDouble() ?? 0.0;
+          final pending = (m['pending_count'] as num?)?.toDouble() ??
+              (m['active_count'] as num?)?.toDouble() ??
+              0.0;
+          final onTheWay = (m['on_the_way_count'] as num?)?.toDouble() ?? 0.0;
           mappedChart.add((date: label, completed: completed, pending: pending, onTheWay: onTheWay));
         }
       }
@@ -134,9 +140,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final store = m['store'] as Map<String, dynamic>? ?? {};
         final driver = m['driver'] as Map<String, dynamic>? ?? {};
         final orderNum = m['order_number']?.toString() ?? '#RA-${m['id']}';
-        final custName = cust['name']?.toString() ?? m['customer_name']?.toString() ?? 'کڕیار';
-        final storeName = store['name_ku']?.toString() ?? store['name_en']?.toString() ?? 'فرۆشگا';
-        final driverName = driver['name']?.toString() ?? 'چاوەڕوانی شۆفێر';
+        final custName = cust['name']?.toString() ?? m['customer_name']?.toString() ?? AppStrings.tr('customer_fallback', widget.lang);
+        final storeName = store['name_ku']?.toString() ?? store['name_en']?.toString() ?? AppStrings.tr('store_fallback', widget.lang);
+        final driverName = driver['name']?.toString() ?? AppStrings.tr('waiting_driver', widget.lang);
         final st = m['status']?.toString() ?? 'pending';
         final createdAt = m['created_at']?.toString() ?? '';
         String timeStr = 'ئێستا';
@@ -192,12 +198,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final width = MediaQuery.sizeOf(context).width;
+    final padH = width < AdminBreakpoints.phone ? 14.0 : (width < AdminBreakpoints.tablet ? 18.0 : 24.0);
+
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: widget.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8F9FA),
+        backgroundColor: theme.scaffoldBackgroundColor,
         body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: EdgeInsets.symmetric(horizontal: padH, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -233,25 +243,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildTopHeader() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 760;
+        final isNarrow = constraints.maxWidth < AdminBreakpoints.headerInline;
 
         final title = Column(
-          crossAxisAlignment: isNarrow ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-          children: const [
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              'داشبۆردی بەڕێوەبەرایەتی',
+              AppStrings.tr('dashboard_title', widget.lang),
               style: TextStyle(
-                fontSize: 22,
+                fontSize: constraints.maxWidth < AdminBreakpoints.phone ? 18 : 22,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF111827),
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
-            SizedBox(height: 2),
+            const SizedBox(height: 2),
             Text(
-              'بەڕێوەبردنی یەکگرتووی خزمەتگوزاریی دلیڤەری',
+              AppStrings.tr('dashboard_subtitle', widget.lang),
               style: TextStyle(
                 fontSize: 12.5,
-                color: Color(0xFF6B7280),
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF94A3B8)
+                    : const Color(0xFF6B7280),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -260,15 +272,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         final topActions = AdminTopBarRow(
           searchCtrl: _topSearchCtrl,
-          hintText: '...گەڕان لە سیستەمدا',
+          hintText: AppStrings.tr('dashboard_search_hint', widget.lang),
           onSearchChanged: (_) => setState(() {}),
         );
 
-        if (constraints.maxWidth < 650) {
+        if (constraints.maxWidth < AdminBreakpoints.headerCompact) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              topActions,
+              Align(alignment: AlignmentDirectional.centerEnd, child: topActions),
               const SizedBox(height: 12),
               title,
             ],
@@ -277,14 +289,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: title),
-                ],
-              ),
+              title,
               const SizedBox(height: 12),
-              topActions,
+              Align(alignment: AlignmentDirectional.centerEnd, child: topActions),
             ],
           );
         } else {
@@ -292,7 +299,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              title,
+              Flexible(child: title),
+              const SizedBox(width: 12),
               topActions,
             ],
           );
@@ -308,68 +316,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        final gap = width < AdminBreakpoints.phone ? 10.0 : 16.0;
         final double cardWidth;
-        if (width >= 960) {
-          cardWidth = (width - 48) / 4;
-        } else if (width >= 560) {
-          cardWidth = (width - 16) / 2;
+        if (width >= AdminBreakpoints.kpiFourCol) {
+          cardWidth = (width - gap * 3) / 4;
+        } else if (width >= AdminBreakpoints.kpiTwoCol) {
+          cardWidth = (width - gap) / 2;
         } else {
           cardWidth = width;
         }
         return Wrap(
-          spacing: 16,
-          runSpacing: 16,
+          spacing: gap,
+          runSpacing: gap,
           children: [
             // Card 1: داواکاریی ئەمڕۆ (Rightmost)
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'داواکارییەکانی سیستم',
+                title: AppStrings.tr('dashboard_kpi_system_orders', widget.lang),
                 value: _todayOrders,
-                trend: '📊 کۆی گشتی داواکارییەکان',
+                trend: AppStrings.tr('dashboard_kpi_system_orders_trend', widget.lang),
                 icon: Icons.receipt_long_rounded,
                 iconBg: const Color(0xFFFFEDD5),
                 iconColor: const Color(0xFFEA580C),
-                onTap: () => widget.onNavigateTab(1),
+                onTap: () => widget.onNavigateTab(1), // وەرگرتنی طلب
               ),
             ),
             // Card 2: ماتۆرسوارانی چالاک
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'ماتۆرسوارانی چالاک',
+                title: AppStrings.tr('dashboard_kpi_active_couriers', widget.lang),
                 value: _activeCouriers,
-                trend: '🛵 شۆفێری بەردەست لە کەلار',
+                trend: AppStrings.tr('dashboard_kpi_active_couriers_trend', widget.lang),
                 icon: Icons.two_wheeler_rounded,
                 iconBg: const Color(0xFFE8F5E9),
                 iconColor: const Color(0xFF16A34A),
-                onTap: () => widget.onNavigateTab(2),
+                onTap: () => widget.onNavigateTab(3),
               ),
             ),
             // Card 3: کڕیاران
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'کڕیاران',
+                title: AppStrings.tr('dashboard_kpi_customers_title', widget.lang),
                 value: _totalCustomers,
-                trend: '👤 هەژماری کڕیارانی تۆمارکراو',
+                trend: AppStrings.tr('dashboard_kpi_customers_trend', widget.lang),
                 icon: Icons.groups_rounded,
                 iconBg: const Color(0xFFE0F2FE),
                 iconColor: const Color(0xFF0284C7),
-                onTap: () => widget.onNavigateTab(3),
+                onTap: () => widget.onNavigateTab(4),
               ),
             ),
             // Card 4: فرۆشیاران (Leftmost)
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'فرۆشیاران و دوکانەکان',
+                title: AppStrings.tr('dashboard_kpi_vendors_stores', widget.lang),
                 value: _totalStores,
-                trend: '🏪 فرۆشگای ئۆنلاین لە سیستم',
+                trend: AppStrings.tr('dashboard_kpi_vendors_trend', widget.lang),
                 icon: Icons.storefront_rounded,
                 iconBg: const Color(0xFFF3E8FF),
                 iconColor: const Color(0xFF9333EA),
-                onTap: () => widget.onNavigateTab(4),
+                onTap: () => widget.onNavigateTab(5),
               ),
             ),
           ],
@@ -387,20 +396,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required Color iconColor,
     VoidCallback? onTap,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
-          boxShadow: const [
+          border: Border.all(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFF1F5F9)),
+          boxShadow: [
             BoxShadow(
-              color: Color(0x06000000),
+              color: isDark ? Colors.black26 : const Color(0x06000000),
               blurRadius: 10,
-              offset: Offset(0, 3),
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -410,12 +421,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF4B5563),
+              Flexible(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B5563),
+                  ),
                 ),
               ),
               Container(
@@ -432,10 +445,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF111827),
+              color: theme.colorScheme.onSurface,
               letterSpacing: -0.5,
             ),
           ),
@@ -464,51 +477,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildMiddleCardsRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 900;
-        final halfWidth = (constraints.maxWidth - 16) / 2;
+        final isWide = constraints.maxWidth >= AdminBreakpoints.chartsSideBySide;
+        final phone = constraints.maxWidth < AdminBreakpoints.phone;
+        final chartH = phone ? 280.0 : (constraints.maxWidth < AdminBreakpoints.tablet ? 320.0 : 340.0);
 
-        return isWide
-            ? Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Left Card in RTL (Chart Card)
-                  SizedBox(
-                    width: halfWidth,
-                    height: 340,
-                    child: _buildChartCard(),
-                  ),
-                  const SizedBox(width: 16),
-                  // Right Card in RTL (Map Card)
-                  SizedBox(
-                    width: halfWidth,
-                    height: 340,
-                    child: _buildMapCard(),
-                  ),
-                ],
-              )
-            : Column(
-                children: [
-                  SizedBox(height: 340, child: _buildMapCard()),
-                  const SizedBox(height: 16),
-                  SizedBox(height: 340, child: _buildChartCard()),
-                ],
-              );
+        if (isWide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: SizedBox(height: chartH, child: _buildChartCard())),
+              const SizedBox(width: 16),
+              Expanded(child: SizedBox(height: chartH, child: _buildMapCard())),
+            ],
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(height: phone ? 260.0 : chartH, child: _buildMapCard()),
+            const SizedBox(height: 16),
+            SizedBox(height: chartH, child: _buildChartCard()),
+          ],
+        );
       },
     );
   }
 
   // --- Right Card: شوێنی دلیڤەرییەکان (Live Map) ---
   Widget _buildMapCard() {
+    final surfaces = AdminSurfaces.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: surfaces.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: const [
+        border: Border.all(color: surfaces.hairline),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: surfaces.shadow,
             blurRadius: 10,
-            offset: Offset(0, 3),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -517,32 +525,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           // Map Card Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              alignment: WrapAlignment.spaceBetween,
               children: [
-                const Text(
-                  'شوێنی دلیڤەرییەکان',
+                Text(
+                  AppStrings.tr('dashboard_delivery_map', widget.lang),
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF111827),
+                    color: surfaces.textPrimary,
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFDCFCE7),
+                    color: surfaces.successSoft,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Icon(Icons.circle, size: 7, color: Color(0xFF16A34A)),
-                      SizedBox(width: 5),
+                    children: [
+                      const Icon(Icons.circle, size: 7, color: Color(0xFF16A34A)),
+                      const SizedBox(width: 5),
                       Text(
-                        '٥ ماتۆرسوار لەسەر کارن',
-                        style: TextStyle(
+                        AppStrings.tr('dashboard_delivery_riders_on_duty', widget.lang),
+                        style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                           color: Color(0xFF16A34A),
@@ -554,7 +565,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: AdminSurfaces.of(context).hairline),
 
           // Interactive Map Area
           Expanded(
@@ -566,13 +577,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     mapController: _mapController,
                     options: MapOptions(
                       initialCenter: _centerLocus,
-                      initialZoom: 13.5,
+                      initialZoom: 14.2,
                       minZoom: 10.0,
                       maxZoom: 18.0,
                     ),
                     children: [
-                      TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      MapboxTiles.layer(
+                        style: MapboxStyle.streets,
                         userAgentPackageName: 'iq.rega.admin',
                       ),
                       // Center radar pulse zone
@@ -604,11 +615,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: AdminSurfaces.of(context).card,
                                     borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
                                     boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                                   ),
-                                  child: const Text('هەولێر', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900)),
+                                  child: Text(
+                                    'کەلار',
+                                    style: TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w900,
+                                      // Explicit dark ink: Marker subtree can inherit light
+                                      // DefaultTextStyle (e.g. dark theme) → white-on-white.
+                                      color: AdminSurfaces.of(context).textPrimary,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -640,7 +661,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     bottom: 12,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AdminSurfaces.of(context).card,
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
                       ),
@@ -658,7 +679,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           const Divider(height: 1),
                           InkWell(
-                            onTap: () => _mapController.move(_centerLocus, 13.5),
+                            onTap: () => _mapController.move(_centerLocus, 14.2),
                             child: const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.my_location_rounded, size: 16)),
                           ),
                         ],
@@ -676,73 +697,96 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // --- Left Card: چالاکیی داواکارییەکان (Stacked Bar Chart) ---
   Widget _buildChartCard() {
+    final surfaces = AdminSurfaces.of(context);
+    final days7 = AppStrings.tr('days_7', widget.lang);
+    final days14 = AppStrings.tr('days_14', widget.lang);
+    final days30 = AppStrings.tr('days_30', widget.lang);
+    final dayKey = (_selectedDays == 'days_14' || _selectedDays == days14)
+        ? 'days_14'
+        : (_selectedDays == 'days_30' || _selectedDays == days30)
+            ? 'days_30'
+            : 'days_7';
+    final dayValue = AppStrings.tr(dayKey, widget.lang);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: surfaces.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: const [
+        border: Border.all(color: surfaces.hairline),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: surfaces.shadow,
             blurRadius: 10,
-            offset: Offset(0, 3),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 12 : 20,
+        vertical: 14,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header with Title & Legend & Days Dropdown
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: WrapAlignment.spaceBetween,
             children: [
-              // Title & Legend (Right in RTL)
-              Row(
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 10,
+                runSpacing: 8,
                 children: [
-                  const Text(
-                    'چالاکیی داواکارییەکان',
+                  Text(
+                    AppStrings.tr('dashboard_order_activity', widget.lang),
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF111827),
+                      color: surfaces.textPrimary,
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  // Legend
-                  _buildLegendDot(const Color(0xFF166534), 'تەواوبوو'),
-                  const SizedBox(width: 10),
-                  _buildLegendDot(const Color(0xFFEA580C), 'چاوەڕوان'),
-                  const SizedBox(width: 10),
-                  _buildLegendDot(const Color(0xFFCBD5E1), 'لە ڕێگادایە'),
+                  _buildLegendDot(const Color(0xFF166534), AppStrings.tr('chart_legend_delivered', widget.lang)),
+                  _buildLegendDot(const Color(0xFFEA580C), AppStrings.tr('chart_legend_pending', widget.lang)),
+                  _buildLegendDot(const Color(0xFFCBD5E1), AppStrings.tr('chart_legend_on_the_way', widget.lang)),
                 ],
               ),
-
-              // Dropdown (Left in RTL)
               Container(
                 height: 32,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  border: Border.all(color: surfaces.border),
+                  color: surfaces.mutedFill,
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: _selectedDays,
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16),
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF4B5563)),
-                    items: const [
-                      DropdownMenuItem(value: '٧ ڕۆژی ڕابردوو', child: Text('٧ ڕۆژی ڕابردوو')),
-                      DropdownMenuItem(value: '١٤ ڕۆژی ڕابردوو', child: Text('١٤ ڕۆژی ڕابردوو')),
-                      DropdownMenuItem(value: '٣٠ ڕۆژی ڕابردوو', child: Text('٣٠ ڕۆژی ڕابردوو')),
+                    value: dayValue,
+                    isDense: true,
+                    icon: Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: surfaces.textSecondary),
+                    dropdownColor: surfaces.card,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
+                    items: [
+                      DropdownMenuItem(value: days7, child: Text(days7)),
+                      DropdownMenuItem(value: days14, child: Text(days14)),
+                      DropdownMenuItem(value: days30, child: Text(days30)),
                     ],
-                    onChanged: (v) => setState(() => _selectedDays = v ?? '٧ ڕۆژی ڕابردوو'),
+                    onChanged: (v) {
+                      if (v == days14) {
+                        setState(() => _selectedDays = 'days_14');
+                      } else if (v == days30) {
+                        setState(() => _selectedDays = 'days_30');
+                      } else {
+                        setState(() => _selectedDays = 'days_7');
+                      }
+                    },
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
 
           // Custom Stacked Bar Chart with Gridlines
           Expanded(
@@ -774,18 +818,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             5,
                             (index) => Container(
                               height: 1,
-                              color: const Color(0xFFF1F5F9),
+                              color: AdminSurfaces.of(context).chipFill,
                             ),
                           ),
                         ),
                       ),
                       // Vertical Stacked Columns
                       if (_chartData.isEmpty)
-                        const Positioned.fill(
+                        Positioned.fill(
                           child: Center(
                             child: Text(
                               'زانیارییە داراییەکان لە سێرڤەرەوە باردەکرێن...',
-                              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                              style: TextStyle(fontSize: 12, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600),
                             ),
                           ),
                         )
@@ -811,6 +855,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildLegendDot(Color color, String label) {
+    final surfaces = AdminSurfaces.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -822,7 +867,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(width: 4),
         Text(
           label,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF6B7280)),
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
         ),
       ],
     );
@@ -830,7 +875,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildStackedBarColumn(({String date, double completed, double pending, double onTheWay}) d) {
     const double maxScale = 400.0;
-    const double chartMaxHeight = 175.0;
+    final narrow = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
+    final chartMaxHeight = narrow ? 140.0 : 175.0;
+    final barW = narrow ? 18.0 : 26.0;
 
     final hCompleted = (d.completed / maxScale) * chartMaxHeight;
     final hPending = (d.pending / maxScale) * chartMaxHeight;
@@ -839,9 +886,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        // Stacked Bar Container
         Container(
-          width: 26,
+          width: barW,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
@@ -849,32 +895,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Top Segment: لە ڕێگادایە (Grey)
-              Container(
-                height: hOnTheWay,
-                color: const Color(0xFFCBD5E1),
-              ),
-              // Middle Segment: چاوەڕوان (Orange)
-              Container(
-                height: hPending,
-                color: const Color(0xFFEA580C),
-              ),
-              // Bottom Segment: تەواوبوو (Green)
-              Container(
-                height: hCompleted,
-                color: const Color(0xFF166534),
-              ),
+              Container(height: hOnTheWay, color: const Color(0xFFCBD5E1)),
+              Container(height: hPending, color: const Color(0xFFEA580C)),
+              Container(height: hCompleted, color: const Color(0xFF166534)),
             ],
           ),
         ),
         const SizedBox(height: 6),
-        // Date Label below bar
         Text(
           d.date,
-          style: const TextStyle(
-            fontSize: 10,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: narrow ? 9 : 10,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF6B7280),
+            color: AdminSurfaces.of(context).textSecondary,
           ),
         ),
       ],
@@ -885,16 +920,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // 4. BOTTOM CARD: داواکارییە نوێترینەکان (LATEST ORDERS TABLE)
   // ============================================================================
   Widget _buildLatestOrdersCard() {
+    final surfaces = AdminSurfaces.of(context);
+    TextStyle headerStyle() => TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 12.5,
+          color: surfaces.textSecondary,
+        );
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: surfaces.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: const [
+        border: Border.all(color: surfaces.hairline),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: surfaces.shadow,
             blurRadius: 10,
-            offset: Offset(0, 3),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -903,41 +944,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           // Header with Title & Filter Pills
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 10,
+            padding: EdgeInsets.symmetric(
+              horizontal: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 12 : 20,
+              vertical: 14,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Filter Tabs on Left in RTL
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    _buildFilterPill('فرۆشیار'),
-                    _buildFilterPill('کڕیار'),
-                    _buildFilterPill('ماتۆرسوار'),
-                    _buildFilterPill('هەموو'),
-                  ],
-                ),
-
-                // Title on Right in RTL
-                const Text(
-                  'داواکارییە نوێترینەکان',
+                Text(
+                  AppStrings.tr('dashboard_recent_orders', widget.lang),
                   style: TextStyle(
                     fontSize: 15.5,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF111827),
+                    color: surfaces.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterPill('filter_all'),
+                      const SizedBox(width: 6),
+                      _buildFilterPill('col_vendor'),
+                      const SizedBox(width: 6),
+                      _buildFilterPill('col_customer'),
+                      const SizedBox(width: 6),
+                      _buildFilterPill('col_courier'),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: surfaces.hairline),
 
           LayoutBuilder(
             builder: (context, constraints) {
+              if (_recentOrders.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 36),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.receipt_long_outlined, size: 36, color: Color(0xFFCBD5E1)),
+                        SizedBox(height: 8),
+                        Text(
+                          'هیچ داواکارییەکی نوێ نییە',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              // Phones: stacked cards (no horizontal table scroll).
+              if (constraints.maxWidth < AdminBreakpoints.phone) {
+                return Column(
+                  children: _recentOrders.map(_buildOrderMobileCard).toList(),
+                );
+              }
+
               final tableWidth = constraints.maxWidth > 720 ? constraints.maxWidth : 720.0;
               return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -945,42 +1014,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   width: tableWidth,
                   child: Column(
                     children: [
-                      // Table Header
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                         child: Row(
-                          children: const [
-                            Expanded(flex: 2, child: Text('داواکاری', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
-                            Expanded(flex: 2, child: Text('کڕیار', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
-                            Expanded(flex: 2, child: Text('فرۆشیار', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
-                            Expanded(flex: 2, child: Text('ماتۆرسوار', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
-                            Expanded(flex: 2, child: Text('دۆخ', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
-                            Expanded(flex: 1, child: Text('کات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF6B7280)))),
+                          children: [
+                            Expanded(flex: 2, child: Text(AppStrings.tr('col_order', widget.lang), style: headerStyle())),
+                            Expanded(flex: 2, child: Text(AppStrings.tr('col_customer', widget.lang), style: headerStyle())),
+                            Expanded(flex: 2, child: Text(AppStrings.tr('col_vendor', widget.lang), style: headerStyle())),
+                            Expanded(flex: 2, child: Text(AppStrings.tr('col_courier', widget.lang), style: headerStyle())),
+                            Expanded(flex: 2, child: Text(AppStrings.tr('col_status', widget.lang), style: headerStyle())),
+                            Expanded(flex: 1, child: Text(AppStrings.tr('col_time', widget.lang), style: headerStyle())),
                           ],
                         ),
                       ),
-                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
-
-                      // Table Rows
-                      if (_recentOrders.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 36),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.receipt_long_outlined, size: 36, color: Color(0xFFCBD5E1)),
-                                SizedBox(height: 8),
-                                Text(
-                                  'هیچ داواکارییەکی نوێ نییە',
-                                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      else
-                        ..._recentOrders.map((o) => _buildOrderRow(o)),
+                      Divider(height: 1, color: surfaces.hairline),
+                      ..._recentOrders.map((o) => _buildOrderRow(o)),
                     ],
                   ),
                 ),
@@ -992,35 +1040,118 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildFilterPill(String label) {
-    final active = _selectedOrderFilter == label;
+  Widget _buildFilterPill(String key) {
+    final surfaces = AdminSurfaces.of(context);
+    final active = _selectedOrderFilter == key;
     return InkWell(
-      onTap: () => setState(() => _selectedOrderFilter = label),
+      onTap: () => setState(() => _selectedOrderFilter = key),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: active ? const Color(0xFF113E2E) : const Color(0xFFF1F5F9),
+          color: active ? const Color(0xFF113E2E) : surfaces.chipFill,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
-          label,
+          AppStrings.tr(key, widget.lang),
           style: TextStyle(
             fontSize: 12,
             fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-            color: active ? Colors.white : const Color(0xFF6B7280),
+            color: active ? Colors.white : surfaces.textSecondary,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildOrderRow(RecentOrderEntry o) {
+  Widget _buildOrderMobileCard(RecentOrderEntry o) {
+    final surfaces = AdminSurfaces.of(context);
     return InkWell(
       onTap: () => widget.onNavigateTab(1),
       child: Container(
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: Color(0xFFF8FAFC))),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: surfaces.hairline)),
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    o.orderCode,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: surfaces.textPrimary,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
+                  decoration: BoxDecoration(
+                    color: _statusBg(o.status),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    _statusLabel(o.status),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: _statusFg(o.status),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              o.customerName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: surfaces.textPrimary),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              o.storeName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: surfaces.textSecondary),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.two_wheeler_rounded, size: 14, color: surfaces.textSecondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    o.courierName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textPrimary),
+                  ),
+                ),
+                Text(
+                  o.time,
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderRow(RecentOrderEntry o) {
+    final surfaces = AdminSurfaces.of(context);
+    return InkWell(
+      onTap: () => widget.onNavigateTab(1),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: surfaces.hairline)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
@@ -1032,14 +1163,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Text(
                   o.orderCode,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF111827),
+                    color: surfaces.textPrimary,
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_left_rounded, size: 16, color: Color(0xFF9CA3AF)),
+                Icon(Icons.chevron_left_rounded, size: 16, color: surfaces.textTertiary),
               ],
             ),
           ),
@@ -1049,10 +1180,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             flex: 2,
             child: Text(
               o.customerName,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF374151),
+                color: surfaces.textPrimary,
               ),
             ),
           ),
@@ -1062,10 +1193,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             flex: 2,
             child: Text(
               o.storeName,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF4B5563),
+                color: surfaces.textSecondary,
               ),
             ),
           ),
@@ -1085,8 +1216,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     errorBuilder: (_, _, _) => Container(
                       width: 24,
                       height: 24,
-                      color: const Color(0xFFE5E7EB),
-                      child: const Icon(Icons.two_wheeler_rounded, size: 14, color: Color(0xFF6B7280)),
+                      color: surfaces.chipFill,
+                      child: Icon(Icons.two_wheeler_rounded, size: 14, color: surfaces.textSecondary),
                     ),
                   ),
                 ),
@@ -1096,10 +1227,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     o.courierName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF111827),
+                      color: surfaces.textPrimary,
                     ),
                   ),
                 ),
@@ -1135,10 +1266,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             flex: 1,
             child: Text(
               o.time,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF6B7280),
+                color: AdminSurfaces.of(context).textSecondary,
               ),
             ),
           ),
@@ -1147,27 +1278,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ),
   );
 }
-
-  Color _statusBg(String status) {
-    switch (status) {
-      case 'delivered':
-      case 'completed':
-        return const Color(0xFFDCFCE7);
-      case 'on_the_way':
-      case 'arrived_customer':
-      case 'picked_up':
-        return const Color(0xFFFFEDD5);
-      case 'preparing':
-      case 'ready':
-        return const Color(0xFFE0E7FF);
-      case 'cancelled':
-      case 'rejected':
-        return const Color(0xFFFEE2E2);
-      case 'pending':
-      default:
-        return const Color(0xFFFEF3C7);
-    }
-  }
 
   Color _statusFg(String status) {
     switch (status) {
@@ -1191,26 +1301,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   String _statusLabel(String status) {
+    if (status == 'completed') return AppStrings.statusLabel('delivered', widget.lang);
+    return AppStrings.statusLabel(status, widget.lang);
+  }
+
+  Color _statusBg(String status) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     switch (status) {
       case 'delivered':
       case 'completed':
-        return 'تەواوبوو';
+        return dark ? const Color(0xFF14532D) : const Color(0xFFDCFCE7);
       case 'on_the_way':
-        return 'لە ڕێگادایە';
       case 'arrived_customer':
-        return 'گەیشتە کڕیار';
       case 'picked_up':
-        return 'کاڵا وەرگیرا';
+        return dark ? const Color(0xFF3B2112) : const Color(0xFFFFEDD5);
       case 'preparing':
-        return 'لە ئامادەکردندایە';
       case 'ready':
-        return 'ئامادەیە بۆ وەرگرتن';
+        return dark ? const Color(0xFF1E1B4B) : const Color(0xFFE0E7FF);
       case 'cancelled':
       case 'rejected':
-        return 'هەڵوەشاوەتەوە';
+        return dark ? const Color(0xFF3F1D1D) : const Color(0xFFFEE2E2);
       case 'pending':
       default:
-        return 'چاوەڕوان';
+        return dark ? const Color(0xFF422006) : const Color(0xFFFEF3C7);
     }
   }
 }

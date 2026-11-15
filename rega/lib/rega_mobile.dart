@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -57,6 +59,11 @@ class RegaResponsive {
     if (w < RegaBreakpoints.phone) return 14;
     if (w < RegaBreakpoints.tablet) return 20;
     return 28;
+  }
+
+  static double dialogMaxWidth(BuildContext context, {double cap = 640}) {
+    final w = sizeOf(context).width;
+    return math.min(w * 0.92, cap);
   }
 
   static double scale(BuildContext context, double base) {

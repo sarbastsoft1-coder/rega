@@ -75,6 +75,8 @@ class StoreManagementController extends Controller
             'base_delivery_fee' => ['nullable', 'integer', 'min:0'],
             'commission_rate' => ['nullable', 'numeric', 'min:0', 'max:50'],
             'discount_badge' => ['nullable', 'string', 'max:80'],
+            'rating' => ['nullable', 'numeric', 'min:0', 'max:10'],
+            'review_count' => ['nullable', 'integer', 'min:0'],
             'open_time' => ['nullable', 'string', 'max:20'],
             'close_time' => ['nullable', 'string', 'max:20'],
             'is_online' => ['nullable', 'boolean'],
@@ -104,6 +106,15 @@ class StoreManagementController extends Controller
                     'language' => 'ku',
                     'is_active' => true,
                 ]);
+            } elseif (! empty($validated['owner_password'])) {
+                // Reuse existing phone account but refresh login credentials when admin sets a password.
+                $owner->update([
+                    'password' => $validated['owner_password'],
+                    'name' => $validated['owner_name'] ?? $owner->name,
+                    'role' => 'vendor',
+                    'is_active' => true,
+                ]);
+                $owner->tokens()->delete();
             }
 
             $baseSlug = Str::slug($validated['name_en'] ?? $validated['name_ku']) ?: 'store';
@@ -129,6 +140,8 @@ class StoreManagementController extends Controller
                 'base_delivery_fee' => $validated['base_delivery_fee'] ?? 1500,
                 'commission_rate' => $validated['commission_rate'] ?? 12.00,
                 'discount_badge' => $validated['discount_badge'] ?? null,
+                'rating' => $validated['rating'] ?? 9.60,
+                'review_count' => $validated['review_count'] ?? 0,
                 'open_time' => $validated['open_time'] ?? '09:00 AM',
                 'close_time' => $validated['close_time'] ?? '11:00 PM',
                 'is_online' => $validated['is_online'] ?? true,
@@ -201,18 +214,51 @@ class StoreManagementController extends Controller
             'base_delivery_fee' => ['nullable', 'integer', 'min:0'],
             'commission_rate' => ['nullable', 'numeric', 'min:0', 'max:50'],
             'discount_badge' => ['nullable', 'string', 'max:80'],
+            'rating' => ['nullable', 'numeric', 'min:0', 'max:10'],
+            'review_count' => ['nullable', 'integer', 'min:0'],
             'open_time' => ['nullable', 'string', 'max:20'],
             'close_time' => ['nullable', 'string', 'max:20'],
             'is_online' => ['nullable', 'boolean'],
             'is_approved' => ['nullable', 'boolean'],
             'is_featured' => ['nullable', 'boolean'],
+            'owner_name' => ['nullable', 'string', 'max:120'],
+            'owner_phone' => ['nullable', 'string', 'max:30'],
+            'owner_email' => ['nullable', 'email', 'max:150'],
             'owner_password' => ['nullable', 'string', 'min:6'],
+            'owner_is_active' => ['nullable', 'boolean'],
         ]);
 
-        if (! empty($validated['owner_password']) && $store->owner) {
-            $store->owner->update(['password' => $validated['owner_password']]);
+        if ($store->owner) {
+            $ownerUpdates = [];
+            if (! empty($validated['owner_name'])) {
+                $ownerUpdates['name'] = $validated['owner_name'];
+            }
+            if (! empty($validated['owner_phone'])) {
+                $ownerUpdates['phone'] = preg_replace('/\s+/', '', $validated['owner_phone']);
+            }
+            if (array_key_exists('owner_email', $validated)) {
+                $ownerUpdates['email'] = $validated['owner_email'] ?: null;
+            }
+            if (! empty($validated['owner_password'])) {
+                $ownerUpdates['password'] = $validated['owner_password'];
+            }
+            if (array_key_exists('owner_is_active', $validated) && $validated['owner_is_active'] !== null) {
+                $ownerUpdates['is_active'] = (bool) $validated['owner_is_active'];
+            }
+            if (! empty($ownerUpdates)) {
+                $store->owner->update($ownerUpdates);
+                if (array_key_exists('is_active', $ownerUpdates) && ! $ownerUpdates['is_active']) {
+                    $store->owner->tokens()->delete();
+                }
+            }
         }
-        unset($validated['owner_password']);
+        unset(
+            $validated['owner_name'],
+            $validated['owner_phone'],
+            $validated['owner_email'],
+            $validated['owner_password'],
+            $validated['owner_is_active']
+        );
 
         $store->update($validated);
 
@@ -258,12 +304,47 @@ class StoreManagementController extends Controller
         ]);
     }
 
+    public function storeCategoriesIndex(Request $request): JsonResponse
+    {
+        $query = StoreCategory::query()
+            ->with([
+                'store:id,name_ku,name_en,category_id',
+                'store.category:id,name_ku,name_en',
+            ])
+            ->withCount('products')
+            ->orderBy('sort_order')
+            ->orderBy('id');
+
+        if ($request->filled('store_id')) {
+            $query->where('store_id', $request->integer('store_id'));
+        }
+
+        if ($request->filled('category_id')) {
+            $query->whereHas('store', fn ($q) => $q->where('category_id', $request->integer('category_id')));
+        }
+
+        if ($request->filled('search')) {
+            $s = trim((string) $request->string('search'));
+            $query->where(fn ($q) => $q
+                ->where('name_ku', 'ILIKE', "%{$s}%")
+                ->orWhere('name_ar', 'ILIKE', "%{$s}%")
+                ->orWhere('name_en', 'ILIKE', "%{$s}%"));
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $query->get(),
+        ]);
+    }
+
     public function addStoreCategory(Request $request, Store $store): JsonResponse
     {
         $validated = $request->validate([
             'name_ku' => ['required', 'string', 'max:100'],
             'name_ar' => ['nullable', 'string', 'max:100'],
             'name_en' => ['nullable', 'string', 'max:100'],
+            'image_url' => ['nullable', 'string', 'max:500'],
+            'secondary_image_url' => ['nullable', 'string', 'max:500'],
             'sort_order' => ['nullable', 'integer'],
         ]);
 
@@ -271,14 +352,57 @@ class StoreManagementController extends Controller
             'name_ku' => $validated['name_ku'],
             'name_ar' => $validated['name_ar'] ?? $validated['name_ku'],
             'name_en' => $validated['name_en'] ?? null,
+            'image_url' => $validated['image_url'] ?? null,
+            'secondary_image_url' => $validated['secondary_image_url'] ?? null,
             'sort_order' => $validated['sort_order'] ?? ($store->storeCategories()->count() + 1),
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'بەشی ناوخۆیی فرۆشگا زیادکرا.',
-            'data' => $cat,
+            'data' => $cat->load(['store:id,name_ku,category_id', 'store.category:id,name_ku']),
         ], 201);
+    }
+
+    public function updateStoreCategory(Request $request, StoreCategory $storeCategory): JsonResponse
+    {
+        $validated = $request->validate([
+            'store_id' => ['sometimes', 'exists:stores,id'],
+            'name_ku' => ['sometimes', 'string', 'max:100'],
+            'name_ar' => ['nullable', 'string', 'max:100'],
+            'name_en' => ['nullable', 'string', 'max:100'],
+            'image_url' => ['nullable', 'string', 'max:500'],
+            'secondary_image_url' => ['nullable', 'string', 'max:500'],
+            'sort_order' => ['nullable', 'integer'],
+        ]);
+
+        $storeCategory->update($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'بەشی ناوخۆیی نوێکرایەوە.',
+            'data' => $storeCategory->fresh()->load([
+                'store:id,name_ku,category_id',
+                'store.category:id,name_ku',
+            ])->loadCount('products'),
+        ]);
+    }
+
+    public function reorderStoreCategories(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order' => ['required', 'array', 'min:1'],
+            'order.*' => ['integer', 'exists:store_categories,id'],
+        ]);
+
+        foreach (array_values($validated['order']) as $index => $id) {
+            StoreCategory::where('id', $id)->update(['sort_order' => $index + 1]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ڕیزبەندی بەشەکانی مێنیو نوێکرایەوە.',
+        ]);
     }
 
     public function deleteStoreCategory(StoreCategory $storeCategory): JsonResponse

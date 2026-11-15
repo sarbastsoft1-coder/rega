@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/api/api_client.dart';
+import '../core/iraq_phone_formatter.dart';
+import '../core/localization/app_strings.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
+import '../map/mapbox_tiles.dart';
 import '../widgets/common_widgets.dart';
 import 'drivers_screen.dart';
 import 'orders_screen.dart';
@@ -115,103 +120,71 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
       _showSnack('هیچ شۆفێرێک بەردەست نییە', error: true);
       return;
     }
-    int selectedUserId = ((_drivers.first as Map<String, dynamic>)['user_id'] as int);
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('ناردنی شۆفێر بۆ داواکاری ${order['order_number']}'),
-          content: SizedBox(
-            width: 420,
-            child: DropdownButtonFormField<int>(
-              initialValue: selectedUserId,
-              decoration: const InputDecoration(labelText: 'هەڵبژاردنی شۆفێری ماتۆڕسکیل'),
-              items: _drivers.map((d) {
-                final m = d as Map<String, dynamic>;
-                final online = m['is_online'] == true ? '🟢 ئۆنلاین' : '⚪ ئۆفلاین';
-                return DropdownMenuItem<int>(
-                  value: m['user_id'] as int,
-                  child: Text('${m['user']?['name'] ?? ''} (${m['driver_code']}) — $online'),
-                );
-              }).toList(),
-              onChanged: (v) {
-                if (v != null) setDialogState(() => selectedUserId = v);
-              },
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('داخستن')),
-            ElevatedButton.icon(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                try {
-                  await widget.api.assignDriver(order['id'] as int, selectedUserId);
-                  _showSnack('شۆفێر بە سەرکەوتوویی دیاریکرا ✅');
-                  widget.onDataChanged?.call();
-                  _load(silent: true);
-                } catch (e) {
-                  _showSnack(e.toString(), error: true);
-                }
-              },
-              icon: const Icon(Icons.two_wheeler_rounded, size: 18),
-              label: const Text('دیاریکردنی شۆفێر'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showVerifyDeliveryPinDialog(Map<String, dynamic> order) {
-    final pinCtrl = TextEditingController(text: order['delivery_pin']?.toString() ?? '');
+    final drivers = _drivers.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+      ..sort((a, b) {
+        final ao = a['is_online'] == true ? 0 : 1;
+        final bo = b['is_online'] == true ? 0 : 1;
+        return ao.compareTo(bo);
+      });
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('پشتڕاستکردنەوەی کۆدی کڕیار — ${order['order_number']}'),
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('دیاریکردنی ماتۆرسوار بۆ ${order['order_number']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         content: SizedBox(
-          width: 380,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('کۆدی ٤ ژمارەیی وەرگرتنی کڕیار (Delivery PIN) بۆ تەواوکردنی گەیاندن:'),
-              const SizedBox(height: 12),
-              TextField(
-                controller: pinCtrl,
-                maxLength: 4,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 10),
-                decoration: const InputDecoration(labelText: 'کۆدی ٤ ژمارەیی کڕیار (PIN)'),
-              ),
-            ],
+          width: AdminBreakpoints.dialogWidth(ctx, max: 460),
+          height: 420,
+          child: ListView.separated(
+            itemCount: drivers.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (_, idx) {
+              final dp = drivers[idx];
+              final u = dp['user'] as Map<String, dynamic>? ?? {};
+              final online = dp['is_online'] == true;
+              final userId = (u['id'] as num?)?.toInt() ?? (dp['user_id'] as num?)?.toInt();
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.two_wheeler_rounded, color: online ? RegaColors.emeraldDark : Colors.grey),
+                title: Text('${u['name'] ?? dp['name'] ?? ''} (${dp['driver_code'] ?? ''})', style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text('${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${u['phone'] ?? dp['phone'] ?? ''}'),
+                trailing: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: RegaColors.emeraldDark, foregroundColor: Colors.white),
+                  onPressed: userId == null
+                      ? null
+                      : () async {
+                          Navigator.pop(ctx);
+                          try {
+                            await widget.api.assignDriver(order['id'] as int, userId);
+                            _showSnack('ماتۆرسوار دیاریکرا ✅');
+                            widget.onDataChanged?.call();
+                            _load(silent: true);
+                          } catch (e) {
+                            _showSnack(e.toString(), error: true);
+                          }
+                        },
+                  child: Text(online ? 'پێدان' : 'دیاریکردن'),
+                ),
+              );
+            },
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('داخستن')),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: RegaColors.emeraldDark,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () async {
-              final pin = pinCtrl.text.trim();
-              if (pin.length != 4) return;
-              Navigator.pop(ctx);
-              try {
-                await widget.api.verifyDeliveryPin(order['id'] as int, pin);
-                _showSnack('گەیاندن تەواوکرا و حسابەکان لە PostgreSQL یەکلاکرانەوە ✅');
-                widget.onDataChanged?.call();
-                _load(silent: true);
-              } catch (e) {
-                _showSnack(e.toString(), error: true);
-              }
-            },
-            icon: const Icon(Icons.verified_rounded, size: 18),
-            label: const Text('تەواوکردنی گەیاندن'),
-          ),
         ],
       ),
     );
+  }
+
+  Future<void> _completeDelivery(Map<String, dynamic> order) async {
+    try {
+      await widget.api.verifyDeliveryPin(order['id'] as int);
+      _showSnack('گەیاندن تەواوکرا و حسابەکان لە PostgreSQL یەکلاکرانەوە ✅');
+      widget.onDataChanged?.call();
+      _load(silent: true);
+    } catch (e) {
+      _showSnack(e.toString(), error: true);
+    }
   }
 
   void _showSettleDriverCodDialog(Map<String, dynamic> driverProfile) {
@@ -224,9 +197,10 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
         title: Text('پاکتاوکردنی کاشی شۆفێر — ${driverProfile['user']?['name'] ?? ''}'),
         content: SizedBox(
-          width: 420,
+          width: AdminBreakpoints.dialogWidth(ctx, max: 420),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -275,10 +249,11 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
 
   void _showEditDeliveryOrderDialog(Map<String, dynamic> order) {
     final nameCtrl = TextEditingController(text: order['customer_name']?.toString() ?? '');
-    final phoneCtrl = TextEditingController(text: order['customer_phone']?.toString() ?? '');
+    final phoneCtrl = TextEditingController(
+      text: IraqPhoneFormatter.format(order['customer_phone']?.toString() ?? ''),
+    );
     final addressCtrl = TextEditingController(text: order['delivery_address']?.toString() ?? '');
     final feeCtrl = TextEditingController(text: (order['delivery_fee'] ?? 2500).toString());
-    final pinCtrl = TextEditingController(text: order['delivery_pin']?.toString() ?? '');
     final notesCtrl = TextEditingController(text: order['customer_notes']?.toString() ?? '');
     String status = order['status']?.toString() ?? 'pending';
 
@@ -314,7 +289,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
             ],
           ),
           content: SizedBox(
-            width: 520,
+            width: (MediaQuery.sizeOf(context).width * 0.92).clamp(280.0, 520.0),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -350,21 +325,27 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                   DropdownButtonFormField<String>(
                     initialValue: status,
                     decoration: InputDecoration(
-                      labelText: 'دۆخی گەیاندن (Status)',
+                      labelText: AppStrings.tr('delivery_status', widget.lang),
                       prefixIcon: const Icon(Icons.timeline_rounded, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
-                    items: const [
-                      DropdownMenuItem(value: 'pending', child: Text('⏳ لە چاوەڕوانیدا (Pending)')),
-                      DropdownMenuItem(value: 'accepted', child: Text('✅ قبولکراو (Accepted)')),
-                      DropdownMenuItem(value: 'preparing', child: Text('🍳 لە ئامادەکردندایە (Preparing)')),
-                      DropdownMenuItem(value: 'ready', child: Text('📦 ئامادەیە بۆ وەرگرتن (Ready)')),
-                      DropdownMenuItem(value: 'picked_up', child: Text('🛵 کاڵا لەلای شۆفێرە (Picked up)')),
-                      DropdownMenuItem(value: 'on_the_way', child: Text('🚀 لە ڕێگادایە بۆ کڕیار (On the way)')),
-                      DropdownMenuItem(value: 'arrived_customer', child: Text('📍 گەیشتە بەردەم کڕیار (Arrived)')),
-                      DropdownMenuItem(value: 'delivered', child: Text('🎉 تەواوبوو و گەیەندرا (Delivered)')),
-                      DropdownMenuItem(value: 'cancelled', child: Text('❌ هەڵوەشاوەتەوە (Cancelled)')),
+                    items: [
+                      for (final s in const [
+                        'pending',
+                        'accepted',
+                        'preparing',
+                        'ready',
+                        'picked_up',
+                        'on_the_way',
+                        'arrived_customer',
+                        'delivered',
+                        'cancelled',
+                      ])
+                        DropdownMenuItem(
+                          value: s,
+                          child: Text(AppStrings.statusLabel(s == 'accepted' ? 'approved' : s, widget.lang)),
+                        ),
                     ],
                     onChanged: (v) => setDialogState(() => status = v ?? 'pending'),
                   ),
@@ -386,13 +367,21 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: TextField(
-                          controller: phoneCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'ژمارەی مۆبایلی کڕیار',
-                            prefixIcon: const Icon(Icons.phone_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        child: Directionality(
+                          textDirection: TextDirection.ltr,
+                          child: TextField(
+                            controller: phoneCtrl,
+                            keyboardType: TextInputType.phone,
+                            textDirection: TextDirection.ltr,
+                            textAlign: TextAlign.left,
+                            inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
+                            decoration: InputDecoration(
+                              labelText: 'ژمارەی مۆبایلی کڕیار',
+                              hintText: IraqPhoneFormatter.hint,
+                              prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
                           ),
                         ),
                       ),
@@ -409,38 +398,17 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const Text('٣. تێچووی دلیڤەری و کۆدی PIN', style: TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark)),
+                  const Text('٣. تێچووی دلیڤەری', style: TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark)),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: feeCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: 'نرخی گەیاندن (د.ع)',
-                            prefixIcon: const Icon(Icons.monetization_on_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: pinCtrl,
-                          maxLength: 4,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: 'کۆدی پشتڕاستکردنەوە (PIN)',
-                            prefixIcon: const Icon(Icons.pin_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            counterText: '',
-                          ),
-                        ),
-                      ),
-                    ],
+                  TextField(
+                    controller: feeCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'نرخی گەیاندن (د.ع)',
+                      prefixIcon: const Icon(Icons.monetization_on_outlined, size: 20),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -509,7 +477,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
   void _showQuickDeliverySettingsDialog() async {
     int fee = 2500;
     String hours = '09:00 - 23:00';
-    String phone = '0750 123 4567';
+    String phone = '0750 000 0000';
     String hotline = '0750 999 8877';
 
     try {
@@ -539,6 +507,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
@@ -555,7 +524,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
           ],
         ),
         content: SizedBox(
-          width: 440,
+          width: AdminBreakpoints.dialogWidth(ctx, max: 440),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -563,10 +532,31 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                 controller: feeCtrl,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: 'تێچووی بنەڕەتی گەیاندن بۆ هەموو داواکارییەکان (د.ع) *',
-                  prefixIcon: const Icon(Icons.monetization_on_outlined, size: 20),
+                  labelText: 'نرخی گەیاندنی ماتۆرسوار (د.ع) *',
+                  prefixIcon: const Icon(Icons.two_wheeler_rounded, size: 20),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
+              ),
+              const SizedBox(height: 10),
+              StatefulBuilder(
+                builder: (ctx2, setChipState) {
+                  const presets = [1000, 1500, 2000, 2500, 3000];
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: presets.map((p) {
+                      final selected = feeCtrl.text.trim() == p.toString();
+                      return ChoiceChip(
+                        label: Text('$p د.ع'),
+                        selected: selected,
+                        onSelected: (_) {
+                          feeCtrl.text = p.toString();
+                          setChipState(() {});
+                        },
+                      );
+                    }).toList(),
+                  );
+                },
               ),
               const SizedBox(height: 14),
               TextField(
@@ -643,7 +633,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
         // Delivery Hub Header Banner
         Container(
           width: double.infinity,
-          margin: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+          margin: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 18, AdminBreakpoints.pagePadH(context), 0),
           padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
@@ -785,9 +775,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
 
   Widget _buildLiveMapAndDispatchTab() {
     final isWide = MediaQuery.of(context).size.width > 1050;
-    final tileUrl = _darkMap
-        ? 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-        : 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+    final mapStyle = _darkMap ? MapboxStyle.dark : MapboxStyle.streets;
 
     final polylines = <Polyline>[];
     final markers = <Marker>[];
@@ -879,15 +867,17 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
     for (final d in _radarDrivers) {
       final dm = d as Map<String, dynamic>;
       if (dm['is_online'] != true) continue;
-      final lat = (dm['lat'] as num?)?.toDouble() ?? 34.6845;
-      final lng = (dm['lng'] as num?)?.toDouble() ?? 45.3195;
+      final lat = (dm['current_lat'] as num?)?.toDouble() ?? (dm['lat'] as num?)?.toDouble();
+      final lng = (dm['current_lng'] as num?)?.toDouble() ?? (dm['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+      final label = (dm['name'] ?? dm['user']?['name'] ?? dm['code'] ?? dm['driver_code'] ?? 'Captain').toString();
       markers.add(
         Marker(
           point: LatLng(lat, lng),
-          width: 32,
-          height: 32,
+          width: 36,
+          height: 36,
           child: Tooltip(
-            message: '${dm['name'] ?? ''} (${dm['code'] ?? ''})',
+            message: label,
             child: Container(
               decoration: BoxDecoration(
                 color: RegaColors.gold,
@@ -908,11 +898,15 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
           FlutterMap(
             mapController: _mapController,
             options: const MapOptions(
-              initialCenter: LatLng(34.6865, 45.3215),
+              initialCenter: LatLng(34.6295, 45.3159),
               initialZoom: 14.5,
             ),
             children: [
-              TileLayer(urlTemplate: tileUrl, userAgentPackageName: 'iq.rega.admin.delivery'),
+              MapboxTiles.layer(
+                key: ValueKey(_darkMap),
+                style: mapStyle,
+                userAgentPackageName: 'iq.rega.admin.delivery',
+              ),
               if (polylines.isNotEmpty) PolylineLayer(polylines: polylines),
               if (markers.isNotEmpty) MarkerLayer(markers: markers),
             ],
@@ -981,7 +975,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                             const SizedBox(height: 6),
                             Text('🏪 ${o['store']?['name_ku'] ?? '-'}  →  👤 ${o['customer_name'] ?? '-'}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                             Text(
-                              '🛵 شۆفێر: ${o['driver']?['name'] ?? 'دیاری نەکراوە'}  |  🔐 PIN کڕیار: ${o['delivery_pin'] ?? '----'}',
+                              '🛵 شۆفێر: ${o['driver']?['name'] ?? 'دیاری نەکراوە'}',
                               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                             ),
                             const SizedBox(height: 8),
@@ -1024,9 +1018,9 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                                     backgroundColor: RegaColors.emeraldDark,
                                     foregroundColor: Colors.white,
                                   ),
-                                  onPressed: () => _showVerifyDeliveryPinDialog(o),
-                                  icon: const Icon(Icons.pin_rounded, size: 15),
-                                  label: const Text('تەواوکردن بە PIN'),
+                                  onPressed: () => _completeDelivery(o),
+                                  icon: const Icon(Icons.check_circle_rounded, size: 15),
+                                  label: const Text('تەواوکردنی گەیاندن'),
                                 ),
                               ],
                             ),
@@ -1041,7 +1035,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
     );
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 6, 24, 20),
+      padding: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 6, AdminBreakpoints.pagePadH(context), 20),
       child: isWide
           ? Row(
               children: [
@@ -1062,10 +1056,15 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
 
   Widget _buildDriverCodAndEarningsTab() {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+      padding: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 8, AdminBreakpoints.pagePadH(context), 28),
       children: [
         GridView.count(
-          crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+          crossAxisCount: () {
+            final w = MediaQuery.sizeOf(context).width;
+            if (w < AdminBreakpoints.phone) return 1;
+            if (w > 1200) return 3;
+            return 2;
+          }(),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 14,

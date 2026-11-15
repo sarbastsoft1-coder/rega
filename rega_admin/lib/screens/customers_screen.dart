@@ -1,7 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/api/api_client.dart';
+import '../core/iraq_phone_formatter.dart';
+import '../core/localization/app_strings.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../widgets/admin_top_header.dart';
+import '../core/theme/app_theme.dart';
 
 /// Representation of a customer item matching the exact design in the screenshot
 class CustomerItem {
@@ -66,25 +71,39 @@ class _CustomersScreenState extends State<CustomersScreen> {
   final TextEditingController _topSearchCtrl = TextEditingController();
   Timer? _refreshTimer;
 
-  String _selectedCity = 'هەموو شارەکان';
-  String _selectedStatus = 'دۆخی کڕیار';
-  String _selectedPeriod = 'ئەم مانگە';
+  /// Stable filter keys (not localized) so EN/AR/KU switches don't break filters.
+  String _selectedCity = 'all'; // 'all' | DB city (KU)
+  String _selectedStatus = 'all'; // all | active | inactive
+  String _selectedPeriod = 'this_month'; // this_month | last_month | this_year
   int _currentPage = 1;
 
-  // Live KPI Metrics from PostgreSQL database
-  String _totalCustomers = '٠';
-  String _activeCustomers = '٠';
-  String _newThisMonth = '٠';
-  String _todayOrders = '٠';
+  // Live KPI Metrics from PostgreSQL database (formatted in build via lang)
+  int _totalCustomers = 0;
+  int _activeCustomers = 0;
+  int _newThisMonth = 0;
+  int _todayOrders = 0;
 
-  static String _toDigits(dynamic input) {
-    const en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-    const ku = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-    String s = input.toString();
-    for (int i = 0; i < 10; i++) {
-      s = s.replaceAll(en[i], ku[i]);
-    }
-    return s;
+  /// Last 6 months new-customer series from `/admin/dashboard`
+  List<Map<String, dynamic>> _newCustomersChart = [];
+  int _newCustomersYMax = 4;
+
+  String get _lang => widget.lang;
+
+  String _d(dynamic input) => AppStrings.digits(input, _lang);
+
+  static int _niceCeiling(int value) {
+    if (value <= 0) return 4;
+    if (value <= 4) return 4;
+    final step = value <= 20
+        ? 5
+        : value <= 100
+            ? 10
+            : value <= 500
+                ? 50
+                : value <= 2000
+                    ? 100
+                    : 500;
+    return ((value / step).ceil() * step);
   }
 
   List<CustomerItem> _customers = [];
@@ -110,19 +129,44 @@ class _CustomersScreenState extends State<CustomersScreen> {
     }
     try {
       final res = await widget.api.getCustomers();
+
+      // Live new-customers monthly series + KPIs from dashboard analytics
+      List<Map<String, dynamic>> chartSeries = _newCustomersChart;
+      int newThisMonthCount = -1;
+      int todayOrdersKpi = -1;
+      try {
+        final dash = await widget.api.getDashboard(days: 30);
+        final rawChart = dash['new_customers_chart'] as List<dynamic>? ?? [];
+        chartSeries = rawChart.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        final kpis = dash['kpis'] as Map<String, dynamic>? ?? {};
+        newThisMonthCount = (kpis['new_customers_this_month'] as num?)?.toInt() ??
+            (chartSeries.isNotEmpty ? ((chartSeries.last['count'] as num?)?.toInt() ?? 0) : 0);
+        todayOrdersKpi = (kpis['today_orders'] as num?)?.toInt() ?? -1;
+      } catch (_) {}
+
       if (!mounted) return;
 
       final mapped = res.map((m) {
         final map = m as Map<String, dynamic>;
         final addresses = map['addresses'] as List<dynamic>? ?? [];
-        final city = addresses.isNotEmpty
-            ? (addresses.first as Map<String, dynamic>)['city']?.toString() ?? 'کەلار'
-            : 'کەلار';
-        final orderCount = (map['orders_count'] as num?)?.toInt() ?? 0;
+        final rawCity = map['city']?.toString();
+        final addrCity = addresses.isNotEmpty
+            ? (addresses.first as Map<String, dynamic>)['city']?.toString()
+            : null;
+        final city = AppStrings.cityDbValue(
+          (rawCity != null && rawCity.trim().isNotEmpty)
+              ? rawCity
+              : (addrCity != null && addrCity.trim().isNotEmpty)
+                  ? addrCity
+                  : 'کەلار',
+        );
+        final orderCount = (map['orders_count'] as num?)?.toInt() ??
+            (map['customer_orders_count'] as num?)?.toInt() ??
+            0;
         final createdAt = map['created_at']?.toString() ?? '2026-11-09';
         return CustomerItem(
-          id: map['id'] as int? ?? 1,
-          name: map['name']?.toString() ?? 'کڕیار',
+          id: (map['id'] as num?)?.toInt() ?? 0,
+          name: map['name']?.toString() ?? AppStrings.tr('customer_fallback', _lang),
           phone: map['phone']?.toString() ?? '0750 000 ****',
           city: city,
           totalOrders: orderCount,
@@ -134,13 +178,17 @@ class _CustomersScreenState extends State<CustomersScreen> {
       final totalCount = mapped.length;
       final activeCount = mapped.where((c) => c.isActive).length;
       final totalOrders = mapped.fold<int>(0, (sum, c) => sum + c.totalOrders);
+      final counts = chartSeries.map((e) => (e['count'] as num?)?.toInt() ?? 0).toList();
+      final yMax = _niceCeiling(counts.isEmpty ? 0 : counts.reduce((a, b) => a > b ? a : b));
 
       setState(() {
         _customers = mapped;
-        _totalCustomers = _toDigits(totalCount);
-        _activeCustomers = _toDigits(activeCount);
-        _newThisMonth = _toDigits(totalCount);
-        _todayOrders = _toDigits(totalOrders);
+        _totalCustomers = totalCount;
+        _activeCustomers = activeCount;
+        _newThisMonth = newThisMonthCount >= 0 ? newThisMonthCount : 0;
+        _todayOrders = todayOrdersKpi >= 0 ? todayOrdersKpi : totalOrders;
+        _newCustomersChart = chartSeries;
+        _newCustomersYMax = yMax;
         _isLoading = false;
       });
     } catch (_) {
@@ -169,145 +217,376 @@ class _CustomersScreenState extends State<CustomersScreen> {
         final matchCity = c.city.toLowerCase().contains(query);
         if (!matchName && !matchPhone && !matchCity) return false;
       }
-      if (_selectedCity != 'هەموو شارەکان' && c.city != _selectedCity) return false;
-      if (_selectedStatus == 'چالاک' && !c.isActive) return false;
-      if (_selectedStatus == 'ناچالاک' && c.isActive) return false;
+      if (_selectedCity != 'all' && c.city != _selectedCity) return false;
+      if (_selectedStatus == 'active' && !c.isActive) return false;
+      if (_selectedStatus == 'inactive' && c.isActive) return false;
       return true;
     }).toList();
   }
 
   void _showAddCustomerDialog({CustomerItem? existing}) {
     final isEdit = existing != null;
+    final lang = _lang;
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
     final phoneCtrl = TextEditingController(text: existing?.phone ?? '');
-    String city = existing?.city ?? 'هەولێر';
+    final emailCtrl = TextEditingController();
+    final passwordCtrl = TextEditingController();
+    final rawCity = AppStrings.cityDbValue(existing?.city ?? 'کەلار');
+    String city = AppStrings.knownCitiesKu.contains(rawCity) ? rawCity : 'کەلار';
     bool isActive = existing?.isActive ?? true;
+    bool saving = false;
+    String? formError;
+
+    void dialogSnack(BuildContext dialogCtx, String msg, {bool error = false}) {
+      ScaffoldMessenger.of(dialogCtx).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: error ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
 
     showDialog(
       context: context,
+      barrierDismissible: !saving,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: Row(
-            children: [
-              Icon(
-                isEdit ? Icons.edit_rounded : Icons.person_add_rounded,
-                color: const Color(0xFF113E2E),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                isEdit ? 'دەستکاریکردنی کڕیار' : 'زیادکردنی کڕیاری نوێ',
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 440,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'ناوی کڕیار *',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: phoneCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'ژمارەی مۆبایل *',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  DropdownButtonFormField<String>(
-                    initialValue: city,
-                    items: const [
-                      DropdownMenuItem(value: 'هەولێر', child: Text('هەولێر')),
-                      DropdownMenuItem(value: 'سلێمانی', child: Text('سلێمانی')),
-                      DropdownMenuItem(value: 'دهۆک', child: Text('دهۆک')),
-                      DropdownMenuItem(value: 'کەلار', child: Text('کەلار')),
-                    ],
-                    onChanged: (v) => setDialogState(() => city = v ?? 'هەولێر'),
-                    decoration: InputDecoration(
-                      labelText: 'شار',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  SwitchListTile(
-                    value: isActive,
-                    activeTrackColor: const Color(0xFF86EFAC),
-                    activeThumbColor: const Color(0xFF16A34A),
-                    onChanged: (v) => setDialogState(() => isActive = v),
-                    title: const Text('دۆخی کڕیار (چالاک)', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('پاشگەزبوونەوە', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF113E2E),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              ),
-              onPressed: () {
-                if (nameCtrl.text.trim().isEmpty || phoneCtrl.text.trim().isEmpty) return;
-                Navigator.pop(ctx);
-                setState(() {
-                  if (isEdit) {
-                    final idx = _customers.indexWhere((c) => c.id == existing.id);
-                    if (idx != -1) {
-                      _customers[idx] = existing.copyWith(
-                        name: nameCtrl.text.trim(),
-                        phone: phoneCtrl.text.trim(),
-                        city: city,
-                        isActive: isActive,
-                      );
-                    }
-                  } else {
-                    _customers.insert(
-                      0,
-                      CustomerItem(
-                        id: DateTime.now().millisecondsSinceEpoch,
-                        name: nameCtrl.text.trim(),
-                        phone: phoneCtrl.text.trim(),
-                        city: city,
-                        totalOrders: 1,
-                        registerDate: '2024-06-15',
-                        isActive: isActive,
+        builder: (ctx, setDialogState) {
+          return ScaffoldMessenger(
+            child: Builder(
+              builder: (messengerCtx) {
+                // Prefer in-dialog messenger so errors are visible above the modal.
+                void showDialogError(String msg) => dialogSnack(messengerCtx, msg, error: true);
+
+                return Scaffold(
+                  backgroundColor: Colors.transparent,
+                  body: AlertDialog(
+                  insetPadding: AdminBreakpoints.dialogInset(ctx),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  title: Row(
+                    children: [
+                      Icon(
+                        isEdit ? Icons.edit_rounded : Icons.person_add_rounded,
+                        color: const Color(0xFF113E2E),
                       ),
-                    );
-                  }
-                });
-                _showSnack(isEdit ? 'کڕیار نوێکرایەوە' : 'کڕیاری نوێ زیادکرا');
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isEdit
+                              ? AppStrings.tr('edit_customer', lang)
+                              : AppStrings.tr('add_customer_new', lang),
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                        ),
+                      ),
+                    ],
+                  ),
+                  content: SizedBox(
+                    width: AdminBreakpoints.dialogWidth(ctx, max: 440),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (formError != null) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEE2E2),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFFFECACA)),
+                              ),
+                              child: Text(
+                                formError!,
+                                style: const TextStyle(
+                                  color: Color(0xFFB91C1C),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          TextField(
+                            controller: nameCtrl,
+                            enabled: !saving,
+                            textInputAction: TextInputAction.next,
+                            decoration: InputDecoration(
+                              labelText: AppStrings.tr('customer_name_label', lang),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Directionality(
+                            textDirection: TextDirection.ltr,
+                            child: TextField(
+                              controller: phoneCtrl,
+                              enabled: !saving,
+                              keyboardType: TextInputType.phone,
+                              textInputAction: TextInputAction.next,
+                              textAlign: TextAlign.left,
+                              inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
+                              decoration: InputDecoration(
+                                labelText: AppStrings.tr('mobile_label', lang),
+                                hintText: '0750 000 0000',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          TextField(
+                            controller: emailCtrl,
+                            enabled: !saving,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            decoration: InputDecoration(
+                              labelText: AppStrings.tr('email_optional', lang),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          TextField(
+                            controller: passwordCtrl,
+                            enabled: !saving,
+                            obscureText: true,
+                            decoration: InputDecoration(
+                              labelText: AppStrings.tr(
+                                isEdit ? 'password_new_optional' : 'password_required_label',
+                                lang,
+                              ),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          DropdownButtonFormField<String>(
+                            initialValue: city,
+                            items: [
+                              for (final c in AppStrings.knownCitiesKu)
+                                DropdownMenuItem(
+                                  value: c,
+                                  child: Text(AppStrings.cityLabel(c, lang)),
+                                ),
+                            ],
+                            onChanged: saving
+                                ? null
+                                : (v) => setDialogState(() => city = v ?? 'کەلار'),
+                            decoration: InputDecoration(
+                              labelText: AppStrings.tr('city', lang),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          SwitchListTile(
+                            value: !isActive,
+                            activeTrackColor: const Color(0xFFFECACA),
+                            activeThumbColor: const Color(0xFFDC2626),
+                            onChanged: saving
+                                ? null
+                                : (v) => setDialogState(() => isActive = !v),
+                            title: Text(
+                              AppStrings.tr('block_account', lang),
+                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            subtitle: Text(
+                              isActive
+                                  ? AppStrings.tr('account_active', lang)
+                                  : AppStrings.tr('account_blocked_hint', lang),
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  actions: [
+                    if (isEdit)
+                      TextButton(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                // Re-bind snack helper for nested confirm flow.
+                                final confirmed = await showDialog<bool>(
+                                  context: ctx,
+                                  builder: (confirmCtx) => AlertDialog(
+                                    title: Text(AppStrings.tr('confirm_delete_customer_title', lang)),
+                                    content: Text(AppStrings.tr('confirm_delete_customer_body', lang)),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(confirmCtx, false),
+                                        child: Text(AppStrings.tr('cancel', lang)),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(confirmCtx, true),
+                                        child: Text(
+                                          AppStrings.tr('delete', lang),
+                                          style: const TextStyle(
+                                            color: Color(0xFFDC2626),
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirmed != true || !ctx.mounted) return;
+                                setDialogState(() {
+                                  saving = true;
+                                  formError = null;
+                                });
+                                var deleted = false;
+                                try {
+                                  await widget.api.deleteCustomer(existing.id);
+                                  deleted = true;
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  _showSnack(AppStrings.tr('customer_deleted', lang));
+                                  try {
+                                    await _loadFromBackend();
+                                  } catch (_) {}
+                                } catch (e) {
+                                  if (!ctx.mounted) return;
+                                  setDialogState(() => formError = e.toString());
+                                  showDialogError(e.toString());
+                                } finally {
+                                  if (!deleted && ctx.mounted) {
+                                    setDialogState(() => saving = false);
+                                  }
+                                }
+                              },
+                        child: Text(
+                          AppStrings.tr('delete', lang),
+                          style: const TextStyle(color: Color(0xFFDC2626)),
+                        ),
+                      ),
+                    TextButton(
+                      onPressed: saving ? null : () => Navigator.pop(ctx),
+                      child: Text(
+                        AppStrings.tr('cancel', lang),
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF16A34A),
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: const Color(0xFF16A34A).withValues(alpha: 0.5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              final name = nameCtrl.text.trim();
+                              final phoneRaw = phoneCtrl.text.trim();
+                              final phone = IraqPhoneFormatter.digitsOnly(phoneRaw);
+                              final email = emailCtrl.text.trim();
+                              final password = passwordCtrl.text.trim();
+
+                              if (name.isEmpty || phoneRaw.isEmpty) {
+                                final msg = AppStrings.tr('customer_name_phone_required', lang);
+                                setDialogState(() => formError = msg);
+                                showDialogError(msg);
+                                return;
+                              }
+                              if (!IraqPhoneFormatter.isValidIraqMobile(phoneRaw)) {
+                                final msg = AppStrings.tr('customer_phone_invalid', lang);
+                                setDialogState(() => formError = msg);
+                                showDialogError(msg);
+                                return;
+                              }
+                              if (isEdit && existing.id <= 0) {
+                                final msg = AppStrings.tr('customer_invalid_id', lang);
+                                setDialogState(() => formError = msg);
+                                showDialogError(msg);
+                                return;
+                              }
+                              if (!isEdit && password.isEmpty) {
+                                final msg = AppStrings.tr('customer_password_required', lang);
+                                setDialogState(() => formError = msg);
+                                showDialogError(msg);
+                                return;
+                              }
+                              if ((!isEdit || password.isNotEmpty) && password.length < 6) {
+                                final msg = AppStrings.tr('customer_password_min', lang);
+                                setDialogState(() => formError = msg);
+                                showDialogError(msg);
+                                return;
+                              }
+
+                              setDialogState(() {
+                                saving = true;
+                                formError = null;
+                              });
+                              var succeeded = false;
+                              try {
+                                final payload = <String, dynamic>{
+                                  'name': name,
+                                  'phone': phone,
+                                  'city': city,
+                                  'is_active': isActive,
+                                  if (email.isNotEmpty) 'email': email,
+                                  if (password.isNotEmpty) 'password': password,
+                                };
+                                if (isEdit) {
+                                  await widget.api.updateCustomer(existing.id, payload);
+                                } else {
+                                  await widget.api.createCustomer(payload);
+                                }
+                                succeeded = true;
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                _showSnack(
+                                  AppStrings.tr(isEdit ? 'customer_updated' : 'customer_created', lang),
+                                );
+                                // Reload after close so a slow list fetch never holds the spinner.
+                                try {
+                                  await _loadFromBackend();
+                                } catch (_) {}
+                              } catch (e) {
+                                if (!ctx.mounted) return;
+                                final msg = e.toString();
+                                setDialogState(() => formError = msg);
+                                showDialogError(msg);
+                              } finally {
+                                // Always clear spinner on error; on success dialog is already closed.
+                                if (!succeeded && ctx.mounted) {
+                                  setDialogState(() => saving = false);
+                                }
+                              }
+                            },
+                      child: saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : Text(AppStrings.tr(isEdit ? 'save' : 'add', lang)),
+                    ),
+                  ],
+                ),
+                );
               },
-              child: Text(isEdit ? 'پاشەکەوتکردن' : 'زیادکردن'),
             ),
-          ],
-        ),
+          );
+        },
       ),
-    );
+    ).whenComplete(() {
+      nameCtrl.dispose();
+      phoneCtrl.dispose();
+      emailCtrl.dispose();
+      passwordCtrl.dispose();
+    });
   }
 
   void _showCustomerDetailsDialog(CustomerItem c) {
+    final lang = _lang;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Row(
           children: [
@@ -321,7 +600,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(c.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                  Text(c.city, style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+                  Text(AppStrings.cityLabel(c.city, lang), style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
                 ],
               ),
             ),
@@ -329,15 +608,18 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ],
         ),
         content: SizedBox(
-          width: 420,
+          width: AdminBreakpoints.dialogWidth(ctx, max: 420),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildDetailRow('📱 مۆبایل:', c.phone),
-              _buildDetailRow('🏙️ شار:', c.city),
-              _buildDetailRow('🛍️ کۆی داواکارییەکان:', '${c.totalOrders} داواکاری'),
-              _buildDetailRow('📅 بەرواری تۆمارکردن:', c.registerDate),
+              _buildDetailRow('📱 ${AppStrings.tr('phone', lang)}:', c.phone),
+              _buildDetailRow('🏙️ ${AppStrings.tr('city', lang)}:', AppStrings.cityLabel(c.city, lang)),
+              _buildDetailRow(
+                '🛍️ ${AppStrings.tr('total_orders_label', lang)}:',
+                '${_d(c.totalOrders)} ${AppStrings.tr('orders_count_suffix', lang)}',
+              ),
+              _buildDetailRow('📅 ${AppStrings.tr('col_register_date', lang)}:', c.registerDate),
             ],
           ),
         ),
@@ -347,7 +629,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
               Navigator.pop(ctx);
               _showAddCustomerDialog(existing: c);
             },
-            child: const Text('دەستکاریکردن'),
+            child: Text(AppStrings.tr('edit', lang)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -355,7 +637,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('داخستن'),
+            child: Text(AppStrings.tr('close', lang)),
           ),
         ],
       ),
@@ -385,12 +667,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
   Widget build(BuildContext context) {
     final filtered = _filteredCustomers;
 
+    final width = MediaQuery.sizeOf(context).width;
+    final padH = width < AdminBreakpoints.phone ? 14.0 : (width < AdminBreakpoints.tablet ? 18.0 : 24.0);
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: widget.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8F9FA),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: EdgeInsets.symmetric(horizontal: padH, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -430,21 +714,21 @@ class _CustomersScreenState extends State<CustomersScreen> {
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
-                  'بەڕێوەبردنی کڕیاران',
+                  AppStrings.tr('customers_title', _lang),
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF111827),
+                    color: AdminSurfaces.of(context).textPrimary,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                  'زانیاری و چالاکیی کڕیارەکانی خزمەتگوزاری دلیڤەری',
+                  AppStrings.tr('customers_subtitle', _lang),
                   style: TextStyle(
                     fontSize: 12.5,
-                    color: Color(0xFF6B7280),
+                    color: AdminSurfaces.of(context).textSecondary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -460,9 +744,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
               ),
               onPressed: () => _showAddCustomerDialog(),
               icon: const Icon(Icons.add, size: 18, color: Colors.white),
-              label: const Text(
-                'زیادکردنی کڕیار',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              label: Text(
+                AppStrings.tr('add_customer', _lang),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
               ),
             ),
           ],
@@ -470,7 +754,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
         final topActions = AdminTopBarRow(
           searchCtrl: _topSearchCtrl,
-          hintText: '...گەڕان بە ناوی کڕیار',
+          hintText: AppStrings.tr('search_customer', _lang),
           onSearchChanged: (_) => setState(() {}),
         );
 
@@ -519,56 +803,53 @@ class _CustomersScreenState extends State<CustomersScreen> {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final double cardWidth;
-        if (width >= 960) {
+        if (width >= AdminBreakpoints.kpiFourCol) {
           cardWidth = (width - 48) / 4;
-        } else if (width >= 560) {
+        } else if (width >= AdminBreakpoints.kpiTwoCol) {
           cardWidth = (width - 16) / 2;
         } else {
           cardWidth = width;
         }
+        final lang = _lang;
         return Wrap(
           spacing: 16,
           runSpacing: 16,
           children: [
-            // Card 1: کۆی کڕیاران (Rightmost)
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'کۆی کڕیاران',
-                value: _totalCustomers,
+                title: AppStrings.tr('kpi_total_customers', lang),
+                value: _d(_totalCustomers),
                 icon: Icons.person_rounded,
                 iconBg: const Color(0xFFFFEDD5),
                 iconColor: const Color(0xFFEA580C),
               ),
             ),
-            // Card 2: کڕیاری چالاک
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'کڕیاری چالاک',
-                value: _activeCustomers,
+                title: AppStrings.tr('kpi_active_customers', lang),
+                value: _d(_activeCustomers),
                 icon: Icons.groups_rounded,
                 iconBg: const Color(0xFFEFF6FF),
                 iconColor: const Color(0xFF2563EB),
               ),
             ),
-            // Card 3: نوێی ئەم مانگە
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'نوێی ئەم مانگە',
-                value: _newThisMonth,
+                title: AppStrings.tr('kpi_new_this_month', lang),
+                value: _d(_newThisMonth),
                 icon: Icons.person_add_rounded,
                 iconBg: const Color(0xFFDCFCE7),
                 iconColor: const Color(0xFF16A34A),
               ),
             ),
-            // Card 4: داواکاریی ئەمڕۆ (Leftmost)
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'داواکاریی ئەمڕۆ',
-                value: _todayOrders,
+                title: AppStrings.tr('kpi_today_orders', lang),
+                value: _d(_todayOrders),
                 icon: Icons.shopping_cart_outlined,
                 iconBg: const Color(0xFFFFEDD5),
                 iconColor: const Color(0xFFEA580C),
@@ -590,9 +871,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -620,19 +901,19 @@ class _CustomersScreenState extends State<CustomersScreen> {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B7280),
+                  color: AdminSurfaces.of(context).textSecondary,
                 ),
               ),
               const SizedBox(height: 6),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: AdminSurfaces.of(context).textPrimary,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -649,68 +930,73 @@ class _CustomersScreenState extends State<CustomersScreen> {
   Widget _buildMiddleSection() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 900;
+        final isWide = constraints.maxWidth >= AdminBreakpoints.chartsSideBySide;
         if (isWide) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Right side in RTL (child 0): Filter Dropdowns near sidebar
               Expanded(
                 flex: 48,
                 child: Align(
-                  alignment: Alignment.centerRight,
+                  alignment: AlignmentDirectional.centerStart,
                   child: _buildFilterBar(),
                 ),
               ),
               const SizedBox(width: 20),
-              // Left side in RTL (child 1): Curved Area Chart Card
               Expanded(
                 flex: 52,
                 child: _buildNewCustomersChartCard(),
               ),
             ],
           );
-        } else {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildFilterBar(),
-              const SizedBox(height: 14),
-              _buildNewCustomersChartCard(),
-            ],
-          );
         }
+        // Narrow: New Customers chart stacks below filters
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildFilterBar(),
+            const SizedBox(height: 14),
+            _buildNewCustomersChartCard(),
+          ],
+        );
       },
     );
   }
 
   Widget _buildFilterBar() {
+    final lang = _lang;
     return Wrap(
       spacing: 10,
       runSpacing: 8,
       children: [
-        // Period: ئەم مانگە
         _buildDropdownPill(
           icon: Icons.calendar_today_outlined,
           value: _selectedPeriod,
-          items: const ['ئەم مانگە', 'مانگی ڕابردوو', 'ئەمساڵ'],
-          onChanged: (v) => setState(() => _selectedPeriod = v ?? 'ئەم مانگە'),
+          items: [
+            ('this_month', AppStrings.tr('this_month', lang)),
+            ('last_month', AppStrings.tr('last_month', lang)),
+            ('this_year', AppStrings.tr('this_year', lang)),
+          ],
+          onChanged: (v) => setState(() => _selectedPeriod = v ?? 'this_month'),
         ),
-
-        // Status: دۆخی کڕیار
         _buildDropdownPill(
           icon: Icons.person_outline_rounded,
           value: _selectedStatus,
-          items: const ['دۆخی کڕیار', 'چالاک', 'ناچالاک'],
-          onChanged: (v) => setState(() => _selectedStatus = v ?? 'دۆخی کڕیار'),
+          items: [
+            ('all', AppStrings.tr('customer_status_filter', lang)),
+            ('active', AppStrings.tr('active', lang)),
+            ('inactive', AppStrings.tr('inactive', lang)),
+          ],
+          onChanged: (v) => setState(() => _selectedStatus = v ?? 'all'),
         ),
-
-        // City: هەموو شارەکان
         _buildDropdownPill(
           icon: Icons.location_on_outlined,
           value: _selectedCity,
-          items: const ['هەموو شارەکان', 'هەولێر', 'سلێمانی', 'دهۆک', 'کەلار'],
-          onChanged: (v) => setState(() => _selectedCity = v ?? 'هەموو شارەکان'),
+          items: [
+            ('all', AppStrings.tr('all_cities', lang)),
+            for (final c in AppStrings.knownCitiesKu) (c, AppStrings.cityLabel(c, lang)),
+          ],
+          onChanged: (v) => setState(() => _selectedCity = v ?? 'all'),
         ),
       ],
     );
@@ -719,14 +1005,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
   Widget _buildDropdownPill({
     required IconData icon,
     required String value,
-    required List<String> items,
+    required List<(String, String)> items,
     required ValueChanged<String?> onChanged,
   }) {
     return Container(
       height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -734,20 +1020,20 @@ class _CustomersScreenState extends State<CustomersScreen> {
         child: DropdownButton<String>(
           value: value,
           icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF334155),
+            color: AdminSurfaces.of(context).textPrimary,
           ),
           items: items.map((item) {
             return DropdownMenuItem<String>(
-              value: item,
+              value: item.$1,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(icon, size: 15, color: const Color(0xFF64748B)),
                   const SizedBox(width: 6),
-                  Text(item),
+                  Text(item.$2),
                 ],
               ),
             );
@@ -759,15 +1045,28 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }
 
   // ============================================================================
-  // New Customers Curved Area Line Chart
+  // New Customers Curved Area Line Chart (live last-6-months series)
   // ============================================================================
   Widget _buildNewCustomersChartCard() {
+    final counts = _newCustomersChart
+        .map((e) => (e['count'] as num?)?.toInt() ?? 0)
+        .toList();
+    final labels = _newCustomersChart
+        .map((e) {
+          final m = (e['month'] as num?)?.toInt();
+          if (m != null) return AppStrings.monthLabel(m, _lang);
+          return e['label_ku']?.toString() ?? '';
+        })
+        .toList();
+    final yMax = _newCustomersYMax;
+    final yTicks = List<int>.generate(5, (i) => ((yMax * (4 - i)) / 4).round());
+
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -779,12 +1078,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          const Text(
-            'کڕیارانی نوێ',
+          Text(
+            AppStrings.tr('new_customers_chart', _lang),
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
+              color: AdminSurfaces.of(context).textPrimary,
             ),
           ),
           const SizedBox(height: 10),
@@ -794,48 +1093,168 @@ class _CustomersScreenState extends State<CustomersScreen> {
               height: 110,
               child: Row(
                 children: [
-                  // Y-axis labels
+                  // Y-axis labels — scaled to real max
                   Column(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.end,
-                    children: const [
-                      Text('2,000', style: TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                      Text('1,500', style: TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                      Text('1,000', style: TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                      Text('500', style: TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                      Text('0', style: TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                    ],
+                    children: yTicks
+                        .map(
+                          (v) => Text(
+                            v >= 1000
+                                ? '${(v / 1000).toStringAsFixed(v % 1000 == 0 ? 0 : 1)}k'
+                                : '$v',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              color: AdminSurfaces.of(context).textTertiary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
                   const SizedBox(width: 8),
-                  // Area Chart Canvas
                   Expanded(
-                    child: CustomPaint(
-                      painter: _CustomersChartPainter(),
-                      size: Size.infinite,
-                    ),
+                    child: counts.isEmpty
+                        ? const Center(
+                            child: Text(
+                              '...',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                            ),
+                          )
+                        : CustomPaint(
+                            painter: _CustomersChartPainter(
+                              values: counts,
+                              yMax: yMax,
+                              gridColor: AdminSurfaces.of(context).hairline,
+                            ),
+                            size: Size.infinite,
+                          ),
                   ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 6),
-          // X-axis Month Labels (LTR: کانوونی دووەم to حوزەیران)
+          // X-axis Month Labels — actual last 6 calendar months (ku)
           Directionality(
             textDirection: TextDirection.ltr,
             child: Padding(
               padding: const EdgeInsets.only(left: 36),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text('کانوونی دووەم', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                  Text('شوبات', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                  Text('ئازار', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                  Text('نیسان', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                  Text('ئایار', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                  Text('حوزەیران', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                ],
+                children: (labels.isEmpty
+                        ? const ['—', '—', '—', '—', '—', '—']
+                        : labels)
+                    .map(
+                      (label) => Flexible(
+                        child: Text(
+                          label,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            color: AdminSurfaces.of(context).textTertiary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomerMobileCard(CustomerItem c) {
+    final surfaces = AdminSurfaces.of(context);
+    final lang = _lang;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: surfaces.hairline)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: surfaces.chipFill,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  c.isFemale ? Icons.face_3_rounded : Icons.person_rounded,
+                  size: 18,
+                  color: surfaces.textTertiary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  c.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildStatusBadge(c.isActive),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Directionality(
+                textDirection: TextDirection.ltr,
+                child: Text(
+                  c.phone,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                ),
+              ),
+              Text(
+                AppStrings.cityLabel(c.city, lang),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
+              ),
+              Text(
+                '${_d(c.totalOrders)} ${AppStrings.tr('orders_count_suffix', lang)}',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFFEA580C)),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: () => _showCustomerDetailsDialog(c),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
+                      child: const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF475569)),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () => _showAddCustomerDialog(existing: c),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
+                      child: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF475569)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -851,9 +1270,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -866,6 +1285,31 @@ class _CustomersScreenState extends State<CustomersScreen> {
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
+              if (constraints.maxWidth < 720) {
+                return Column(
+                  children: [
+                    if (list.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 40),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.people_outline_rounded, size: 40, color: Color(0xFFCBD5E1)),
+                              const SizedBox(height: 10),
+                              Text(
+                                AppStrings.tr('no_customers', _lang),
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      ...pagedList.map(_buildCustomerMobileCard),
+                  ],
+                );
+              }
               final tableWidth = constraints.maxWidth > 780 ? constraints.maxWidth : 780.0;
               return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -876,20 +1320,20 @@ class _CustomersScreenState extends State<CustomersScreen> {
                       // Table Headers
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFAFAFA),
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                          border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+                        decoration: BoxDecoration(
+                          color: AdminSurfaces.of(context).mutedFill,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                          border: Border(bottom: BorderSide(color: AdminSurfaces.of(context).hairline)),
                         ),
                         child: Row(
-                          children: const [
-                            Expanded(flex: 3, child: Text('کڕیار', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text('ژمارەی مۆبایل', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('شار', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('کۆی داواکاری', textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text('بەرواری تۆمارکردن', textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
+                          children: [
+                            Expanded(flex: 3, child: Text(AppStrings.tr('col_customer', _lang), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text(AppStrings.tr('col_mobile', _lang), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(AppStrings.tr('city', _lang), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(AppStrings.tr('col_total_orders', _lang), textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text(AppStrings.tr('col_register_date', _lang), textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(AppStrings.tr('col_status', _lang), textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(AppStrings.tr('col_action', _lang), textAlign: TextAlign.left, style: _headerStyle)),
                           ],
                         ),
                       ),
@@ -901,12 +1345,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
                           child: Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.people_outline_rounded, size: 40, color: Color(0xFFCBD5E1)),
-                                SizedBox(height: 10),
+                              children: [
+                                const Icon(Icons.people_outline_rounded, size: 40, color: Color(0xFFCBD5E1)),
+                                const SizedBox(height: 10),
                                 Text(
-                                  'هیچ کڕیارێک لە سیستەمدا نییە',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                                  AppStrings.tr('no_customers', _lang),
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
                                 ),
                               ],
                             ),
@@ -917,7 +1361,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: pagedList.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                        separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
                         itemBuilder: (context, index) {
                           final c = pagedList[index];
                           return Padding(
@@ -932,14 +1376,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                       Container(
                                         width: 28,
                                         height: 28,
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xFFF1F5F9),
+                                        decoration: BoxDecoration(
+                                          color: AdminSurfaces.of(context).chipFill,
                                           shape: BoxShape.circle,
                                         ),
                                         child: Icon(
                                           c.isFemale ? Icons.face_3_rounded : Icons.person_rounded,
                                           size: 16,
-                                          color: const Color(0xFF94A3B8),
+                                          color: AdminSurfaces.of(context).textTertiary,
                                         ),
                                       ),
                                       const SizedBox(width: 8),
@@ -964,10 +1408,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                   child: Text(
                                     c.phone,
                                     textAlign: TextAlign.right,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
-                                      color: Color(0xFF334155),
+                                      color: AdminSurfaces.of(context).textPrimary,
                                     ),
                                   ),
                                 ),
@@ -976,12 +1420,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                 Expanded(
                                   flex: 2,
                                   child: Text(
-                                    c.city,
+                                    AppStrings.cityLabel(c.city, _lang),
                                     textAlign: TextAlign.right,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
-                                      color: Color(0xFF334155),
+                                      color: AdminSurfaces.of(context).textPrimary,
                                     ),
                                   ),
                                 ),
@@ -992,10 +1436,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                   child: Text(
                                     '${c.totalOrders}',
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w800,
-                                      color: Color(0xFF0F172A),
+                                      color: AdminSurfaces.of(context).textPrimary,
                                     ),
                                   ),
                                 ),
@@ -1006,10 +1450,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                   child: Text(
                                     c.registerDate,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
-                                      color: Color(0xFF64748B),
+                                      color: AdminSurfaces.of(context).textSecondary,
                                     ),
                                   ),
                                 ),
@@ -1033,7 +1477,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                         child: Container(
                                           padding: const EdgeInsets.all(5),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFFF1F5F9),
+                                            color: AdminSurfaces.of(context).chipFill,
                                             borderRadius: BorderRadius.circular(6),
                                           ),
                                           child: const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF475569)),
@@ -1047,7 +1491,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                         child: Container(
                                           padding: const EdgeInsets.all(5),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFFF1F5F9),
+                                            color: AdminSurfaces.of(context).chipFill,
                                             borderRadius: BorderRadius.circular(6),
                                           ),
                                           child: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF475569)),
@@ -1071,8 +1515,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
           // Pagination Footer
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AdminSurfaces.of(context).hairline)),
             ),
             child: Wrap(
               alignment: WrapAlignment.spaceBetween,
@@ -1081,11 +1525,11 @@ class _CustomersScreenState extends State<CustomersScreen> {
               runSpacing: 10,
               children: [
                 Text(
-                  'نمایش ${_toDigits(pagedList.length)} لە ${_toDigits(list.length)} کڕیار',
-                  style: const TextStyle(
+                  AppStrings.trParams('showing_of', _lang, {'shown': _d(pagedList.length), 'total': _d(list.length), 'unit': AppStrings.tr('nav_customers', _lang)}),
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF64748B),
+                    color: AdminSurfaces.of(context).textSecondary,
                   ),
                 ),
 
@@ -1124,7 +1568,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
-        isActive ? 'چالاک' : 'ناچالاک',
+        isActive ? AppStrings.tr('active', _lang) : AppStrings.tr('inactive', _lang),
         style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w800,
@@ -1177,20 +1621,29 @@ class _CustomersScreenState extends State<CustomersScreen> {
     );
   }
 
-  static const TextStyle _headerStyle = TextStyle(
+  TextStyle get _headerStyle => TextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w800,
-    color: Color(0xFF64748B),
+    color: AdminSurfaces.of(context).textSecondary,
   );
 }
 
-/// Custom painter for the New Customers curved area line chart
+/// Custom painter for the New Customers curved area line chart (live values)
 class _CustomersChartPainter extends CustomPainter {
+  final List<int> values;
+  final int yMax;
+  final Color gridColor;
+
+  _CustomersChartPainter({
+    required this.values,
+    required this.yMax,
+    required this.gridColor,
+  });
+
   @override
   void paint(Canvas canvas, Size size) {
-    // Grid horizontal lines
     final gridPaint = Paint()
-      ..color = const Color(0xFFF1F5F9)
+      ..color = gridColor
       ..strokeWidth = 1.0;
 
     for (int i = 0; i <= 4; i++) {
@@ -1198,18 +1651,18 @@ class _CustomersChartPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    // Normalized points for months (Jan to June):
-    // 350, 700, 1000, 1000, 1400, 1750 (out of 2000 max)
-    final values = [0.18, 0.35, 0.50, 0.50, 0.70, 0.88];
-    final points = <Offset>[];
+    if (values.isEmpty || yMax <= 0) return;
 
+    final points = <Offset>[];
     for (int i = 0; i < values.length; i++) {
-      final x = size.width * (i / (values.length - 1));
-      final y = size.height * (1.0 - values[i]);
+      final x = values.length == 1
+          ? size.width / 2
+          : size.width * (i / (values.length - 1));
+      final ratio = (values[i] / yMax).clamp(0.0, 1.0);
+      final y = size.height * (1.0 - ratio);
       points.add(Offset(x, y));
     }
 
-    // Path for line and filled area
     final linePath = Path();
     linePath.moveTo(points[0].dx, points[0].dy);
 
@@ -1225,7 +1678,6 @@ class _CustomersChartPainter extends CustomPainter {
     areaPath.lineTo(0, size.height);
     areaPath.close();
 
-    // Area Gradient Fill (Teal/Emerald)
     final gradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
@@ -1241,7 +1693,6 @@ class _CustomersChartPainter extends CustomPainter {
 
     canvas.drawPath(areaPath, areaPaint);
 
-    // Line Stroke
     final linePaint = Paint()
       ..color = const Color(0xFF0D9488)
       ..strokeWidth = 2.5
@@ -1250,7 +1701,6 @@ class _CustomersChartPainter extends CustomPainter {
 
     canvas.drawPath(linePath, linePaint);
 
-    // Draw dots at points
     final dotPaint = Paint()..color = const Color(0xFF0D9488);
     final dotWhite = Paint()..color = Colors.white;
 
@@ -1261,5 +1711,9 @@ class _CustomersChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _CustomersChartPainter oldDelegate) {
+    return oldDelegate.values != values ||
+        oldDelegate.yMax != yMax ||
+        oldDelegate.gridColor != gridColor;
+  }
 }

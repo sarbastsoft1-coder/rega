@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Models\CustomerAddress;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -31,12 +32,15 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $normalizedPhone = preg_replace('/\s+/', '', $loginValue);
+        $normalizedPhone = preg_replace('/\s+/', '', $loginValue) ?? $loginValue;
+        $emailCandidate = strtolower($loginValue);
 
         $user = User::query()
-            ->where('email', $loginValue)
-            ->orWhere('phone', $loginValue)
-            ->orWhere('phone', $normalizedPhone)
+            ->where(function ($q) use ($loginValue, $normalizedPhone, $emailCandidate) {
+                $q->whereRaw('LOWER(email) = ?', [$emailCandidate])
+                    ->orWhere('phone', $loginValue)
+                    ->orWhere('phone', $normalizedPhone);
+            })
             ->first();
 
         if (! $user || ! Hash::check($validated['password'], $user->password)) {
@@ -49,7 +53,9 @@ class AuthController extends Controller
         if (! $user->is_active) {
             return response()->json([
                 'success' => false,
-                'message' => 'هەژمارەکەت ڕاگیراوە، تکایە پەیوەندی بە بەڕێوەبەرایەتی بکە.',
+                'code' => 'account_blocked',
+                'message' => 'هەژمارەکەت لەلایەن بەڕێوەبەرەوە مسدود کراوە. تکایە پەیوەندی بە یارمەتی پشتگیری بکە لە ڕێگەی واتسئاپ.',
+                'contact' => EnsureUserIsActive::supportContacts(),
             ], 403);
         }
 
@@ -87,6 +93,13 @@ class AuthController extends Controller
 
     public function register(Request $request): JsonResponse
     {
+        // Normalize phone before unique validation so "0750 123 4567" matches DB digits.
+        if ($request->has('phone')) {
+            $request->merge([
+                'phone' => preg_replace('/\s+/', '', (string) $request->input('phone')),
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'phone' => ['required', 'string', 'max:30', 'unique:users,phone'],
@@ -97,7 +110,7 @@ class AuthController extends Controller
             'address' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $phone = preg_replace('/\s+/', '', $validated['phone']);
+        $phone = $validated['phone'];
 
         $user = User::create([
             'name' => $validated['name'],
@@ -134,9 +147,21 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
+        $user = $request->user();
+        if ($user && ! $user->is_active) {
+            $user->tokens()->delete();
+
+            return response()->json([
+                'success' => false,
+                'code' => 'account_blocked',
+                'message' => 'هەژمارەکەت لەلایەن بەڕێوەبەرەوە مسدود کراوە. تکایە پەیوەندی بە یارمەتی پشتگیری بکە لە ڕێگەی واتسئاپ.',
+                'contact' => EnsureUserIsActive::supportContacts(),
+            ], 403);
+        }
+
         return response()->json([
             'success' => true,
-            'data' => $this->loadUserRelations($request->user()),
+            'data' => $this->loadUserRelations($user),
         ]);
     }
 
@@ -200,12 +225,24 @@ class AuthController extends Controller
 
     private function loadUserRelations(User $user): User
     {
-        return $user->load([
-            'ownedStore.category',
-            'ownedStore.neighborhood',
+        $user->load([
             'driverProfile.documents',
             'addresses.neighborhood',
         ]);
+
+        // Same selection as VendorAppController::resolveStore — keeps login
+        // payload aligned with the store the vendor app reads/writes.
+        if ($user->isVendor()) {
+            $store = $user->resolveOwnedStore();
+            if ($store) {
+                $store->loadMissing(['category', 'neighborhood']);
+            }
+            $user->setRelation('ownedStore', $store);
+        } else {
+            $user->load(['ownedStore.category', 'ownedStore.neighborhood']);
+        }
+
+        return $user;
     }
 }
 

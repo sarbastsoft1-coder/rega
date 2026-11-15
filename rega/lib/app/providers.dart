@@ -11,9 +11,13 @@ MultiProvider buildCustomerProviders({required Widget child}) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (_) => LocaleNotifier()..loadSaved()),
-      ChangeNotifierProvider(create: (_) => SessionNotifier()),
+      ChangeNotifierProvider(create: (_) {
+        final session = SessionNotifier();
+        session.restoreSession();
+        return session;
+      }),
       ChangeNotifierProvider(create: (_) => CartNotifier()),
-      ChangeNotifierProvider(create: (_) => LocationNotifier()),
+      ChangeNotifierProvider(create: (_) => LocationNotifier()..loadPersisted()),
       ChangeNotifierProvider(create: (_) => OrdersNotifier()),
       ChangeNotifierProvider(create: (_) => NavigationNotifier()),
     ],

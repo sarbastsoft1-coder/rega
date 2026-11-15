@@ -10,6 +10,7 @@ Desktop.ini
 # Flutter build & tool caches across subprojects
 **/.dart_tool/
 **/build/
+!**/build/web/**
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
 **/ephemeral/

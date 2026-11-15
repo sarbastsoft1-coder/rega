@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../state/vendor_nav_notifier.dart';
 import '../state/vendor_session_notifier.dart';
+import 'splash_screen.dart';
 
 typedef VendorShellBuilder = Widget Function(BuildContext context, int tabIndex);
 typedef VendorLoginBuilder = Widget Function(BuildContext context);
@@ -13,22 +14,16 @@ GoRouter createVendorRouter({
   required Listenable refreshListenable,
 }) {
   return GoRouter(
-    initialLocation: '/orders',
+    initialLocation: '/splash',
     refreshListenable: refreshListenable,
     redirect: (context, state) {
       final session = context.read<VendorSessionNotifier>();
-      final loggingIn = state.uri.path == '/login';
-      final bypass = state.uri.queryParameters['bypass'] == 'true';
-      final hasTab = state.uri.queryParameters.containsKey('tab');
+      final path = state.uri.path;
+      final onSplash = path == '/splash';
+      final loggingIn = path == '/login';
 
-      if ((bypass || hasTab) && !session.isLoggedIn) {
-        // Defer mutation; mark logged-in for this redirect cycle via bypass flag path.
-        Future.microtask(() {
-          if (!session.isLoggedIn) session.applyBypass();
-        });
-        final tab = int.tryParse(state.uri.queryParameters['tab'] ?? '');
-        return VendorNavNotifier.pathForIndex(tab ?? 3);
-      }
+      if (onSplash) return null;
+      if (session.isRestoring) return null;
 
       if (!session.isLoggedIn && !loggingIn) {
         return '/login';
@@ -43,16 +38,21 @@ GoRouter createVendorRouter({
         final idx = int.tryParse(tabQ);
         if (idx != null) {
           final target = VendorNavNotifier.pathForIndex(idx);
-          if (state.uri.path != target) return target;
+          if (path != target) return target;
         }
       }
 
-      if (state.uri.path == '/' || state.uri.path.isEmpty) {
+      if (path == '/' || path.isEmpty) {
         return '/orders';
       }
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        name: 'splash',
+        builder: (context, state) => const VendorSplashScreen(),
+      ),
       GoRoute(
         path: '/login',
         name: 'login',

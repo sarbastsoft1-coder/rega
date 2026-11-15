@@ -35,6 +35,45 @@ class CustomerL10n {
     return row[code] ?? row['ku'] ?? key;
   }
 
+  /// Pick a trilingual entity name for the current locale.
+  /// Prefer locale field, then fall back: en→ku→ar, ar→ku→en, ku→en→ar.
+  static String entityName({
+    String? nameKu,
+    String? nameAr,
+    String? nameEn,
+    required String lang,
+  }) {
+    String? clean(String? v) {
+      final t = v?.trim();
+      if (t == null || t.isEmpty) return null;
+      return t;
+    }
+
+    final ku = clean(nameKu);
+    final ar = clean(nameAr);
+    final en = clean(nameEn);
+
+    switch (normalizeLang(lang)) {
+      case 'en':
+        return en ?? ku ?? ar ?? '';
+      case 'ar':
+        return ar ?? ku ?? en ?? '';
+      default:
+        return ku ?? en ?? ar ?? '';
+    }
+  }
+
+  /// Convenience when names come from an API map (`name_ku` / `name_ar` / `name_en`).
+  static String entityNameFromMap(Map<String, dynamic>? map, String lang) {
+    if (map == null) return '';
+    return entityName(
+      nameKu: map['name_ku']?.toString(),
+      nameAr: map['name_ar']?.toString(),
+      nameEn: map['name_en']?.toString(),
+      lang: lang,
+    );
+  }
+
   static const Map<String, Map<String, String>> _dict = {
     'سەرەکی': {'ku': 'سەرەکی', 'ar': 'الرئيسية', 'en': 'Home'},
     'کۆگاکان': {'ku': 'کۆگاکان', 'ar': 'المتاجر', 'en': 'Stores'},
@@ -44,6 +83,8 @@ class CustomerL10n {
     'داشکاندن': {'ku': 'داشکاندن', 'ar': 'التخفيضات', 'en': 'Discounts'},
     'پڕۆفایل': {'ku': 'پڕۆفایل', 'ar': 'الحساب', 'en': 'Profile'},
     'زمانەکان': {'ku': 'زمانەکان', 'ar': 'اللغات', 'en': 'Languages'},
+    'دۆخی تاریک': {'ku': 'دۆخی تاریک', 'ar': 'الوضع الداكن', 'en': 'Dark mode'},
+    'دۆخی ڕووناک': {'ku': 'دۆخی ڕووناک', 'ar': 'الوضع الفاتح', 'en': 'Light mode'},
     'گەڕان': {'ku': 'گەڕان', 'ar': 'بحث', 'en': 'Search'},
     'چوونە دەرەوە': {'ku': 'چوونە دەرەوە', 'ar': 'تسجيل الخروج', 'en': 'Logout'},
     'ناونیشانی تۆ': {'ku': 'ناونیشانی تۆ', 'ar': 'عنوانك', 'en': 'Your Address'},
@@ -213,5 +254,117 @@ class CustomerL10n {
       'ar': '✅ تم تسجيل الحساب بنجاح',
       'en': '✅ Account registered successfully',
     },
+    'چوونە ژوورەوە سەرکەوتوو نەبوو': {
+      'ku': 'چوونە ژوورەوە سەرکەوتوو نەبوو',
+      'ar': 'فشل تسجيل الدخول',
+      'en': 'Login was unsuccessful',
+    },
+    'خۆتۆمارکردن سەرکەوتوو نەبوو': {
+      'ku': 'خۆتۆمارکردن سەرکەوتوو نەبوو',
+      'ar': 'فشل إنشاء الحساب',
+      'en': 'Registration was unsuccessful',
+    },
+    'وشەی تێپەڕ پێویستە (لانیکەم ٦ پیت)': {
+      'ku': 'وشەی تێپەڕ پێویستە (لانیکەم ٦ پیت)',
+      'ar': 'كلمة المرور مطلوبة (٦ أحرف على الأقل)',
+      'en': 'Password required (at least 6 characters)',
+    },
+    'ژمارەی تەلەفۆن پێویستە': {
+      'ku': 'ژمارەی تەلەفۆن پێویستە',
+      'ar': 'رقم الهاتف مطلوب',
+      'en': 'Phone number is required',
+    },
+    'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0750 000 0000': {
+      'ku': 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0750 000 0000',
+      'ar': 'رقم الجوال غير صالح — الصيغة العراقية: 0750 000 0000',
+      'en': 'Invalid mobile — Iraqi format: 0750 000 0000',
+    },
+    'ناوی تەواو پێویستە': {
+      'ku': 'ناوی تەواو پێویستە',
+      'ar': 'الاسم الكامل مطلوب',
+      'en': 'Full name is required',
+    },
+    'ئەم ژمارەیە پێشتر تۆمارکراوە — تکایە بچۆ ژوورەوە': {
+      'ku': 'ئەم ژمارەیە پێشتر تۆمارکراوە — تکایە بچۆ ژوورەوە',
+      'ar': 'هذا الرقم مسجل مسبقاً — يرجى تسجيل الدخول',
+      'en': 'This number is already registered — please log in',
+    },
+    'تەواوکردنی داواکاری': {
+      'ku': 'تەواوکردنی داواکاری',
+      'ar': 'إتمام الطلب',
+      'en': 'Complete Order',
+    },
+    'تکایە سەرەتا خۆت تۆمار بکە': {
+      'ku': 'تکایە سەرەتا خۆت تۆمار بکە',
+      'ar': 'يرجى التسجيل أولاً',
+      'en': 'Please register first',
+    },
+    'بۆ ئەوەی بتوانیت داواکارییەکەت ئەنجام بدەیت و کاڵاکانت پێ بگات، تکایە سەرەتا خۆت تۆمار بکە یان بچۆ ژوورەوە.': {
+      'ku': 'بۆ ئەوەی بتوانیت داواکارییەکەت ئەنجام بدەیت و کاڵاکانت پێ بگات، تکایە سەرەتا خۆت تۆمار بکە یان بچۆ ژوورەوە.',
+      'ar': 'لكي تتمكن من إتمام طلبك واستلام منتجاتك، يرجى التسجيل أو تسجيل الدخول أولاً.',
+      'en': 'To complete your order and receive your items, please register or log in first.',
+    },
+    'ڕاستەوخۆ بڕۆ بۆ خۆتۆمارکردن': {
+      'ku': 'ڕاستەوخۆ بڕۆ بۆ خۆتۆمارکردن',
+      'ar': 'انتقل إلى التسجيل مباشرة',
+      'en': 'Go to Register',
+    },
+    'دواخستن': {'ku': 'دواخستن', 'ar': 'لاحقاً', 'en': 'Dismiss'},
+    'داواکارییەکەت بە سەرکەوتوویی نێردرا!': {
+      'ku': 'داواکارییەکەت بە سەرکەوتوویی نێردرا!',
+      'ar': 'تم إرسال طلبك بنجاح!',
+      'en': 'Your order was sent successfully!',
+    },
+    'تکایە ئەم کۆدە لای خۆت بپارێزە بۆ وەرگرتنی داواکاری لە شۆفێر:': {
+      'ku': 'تکایە ئەم کۆدە لای خۆت بپارێزە بۆ وەرگرتنی داواکاری لە شۆفێر:',
+      'ar': 'يرجى الاحتفاظ بهذا الرمز لاستلام الطلب من السائق:',
+      'en': 'Keep this code to receive your order from the driver:',
+    },
+    'ژمارەی داواکاری': {
+      'ku': 'ژمارەی داواکاری',
+      'ar': 'رقم الطلب',
+      'en': 'Order number',
+    },
+    'کۆدی وەرگرتنی داواکاری': {
+      'ku': 'کۆدی وەرگرتنی داواکاری',
+      'ar': 'رمز استلام الطلب',
+      'en': 'Order pickup code',
+    },
+    'چوون بۆ داواکارییەکان': {
+      'ku': 'چوون بۆ داواکارییەکان',
+      'ar': 'الذهاب إلى الطلبات',
+      'en': 'Go to My Orders',
+    },
+    'پشتڕاستکردنەوە و ناردنی داواکاری': {
+      'ku': 'پشتڕاستکردنەوە و ناردنی داواکاری',
+      'ar': 'تأكيد وإرسال الطلب',
+      'en': 'Confirm & Send Order',
+    },
+    'سەبەتەکەت بەتاڵە! دەست بکە بە زیادکردنی بەرهەمەکانت بۆ درێژەدان.': {
+      'ku': 'سەبەتەکەت بەتاڵە! دەست بکە بە زیادکردنی بەرهەمەکانت بۆ درێژەدان.',
+      'ar': 'سلتك فارغة! ابدأ بإضافة منتجاتك للمتابعة.',
+      'en': 'Your cart is empty! Start adding products to continue.',
+    },
+    'کۆی گشتی داواکاری:': {
+      'ku': 'کۆی گشتی داواکاری:',
+      'ar': 'المجموع الكلي للطلب:',
+      'en': 'Order Grand Total:',
+    },
+    'زیادکرا بۆ سەبەتە': {
+      'ku': 'زیادکرا بۆ سەبەتە',
+      'ar': 'أُضيف إلى السلة',
+      'en': 'added to cart',
+    },
+    'هەژمارەکەت مسدود کراوە': {
+      'ku': 'هەژمارەکەت مسدود کراوە',
+      'ar': 'تم حظر حسابك',
+      'en': 'Your account is blocked',
+    },
+    'هەژمارەکەت لەلایەن بەڕێوەبەرەوە مسدود کراوە. تکایە پەیوەندی بە یارمەتی پشتگیری بکە لە ڕێگەی واتسئاپ.': {
+      'ku': 'هەژمارەکەت لەلایەن بەڕێوەبەرەوە مسدود کراوە. تکایە پەیوەندی بە یارمەتی پشتگیری بکە لە ڕێگەی واتسئاپ.',
+      'ar': 'تم حظر حسابك من قبل الإدارة. يرجى التواصل مع خدمة المساعدة والدعم عبر واتساب.',
+      'en': 'Your account has been blocked by the admin. Please contact help support via WhatsApp.',
+    },
+    'باشە': {'ku': 'باشە', 'ar': 'حسناً', 'en': 'OK'},
   };
 }

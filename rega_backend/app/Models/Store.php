@@ -83,5 +83,33 @@ class Store extends Model
     {
         return $this->hasMany(Order::class);
     }
+
+    /**
+     * نوێکردنەوەی باجی داشکاندنی فرۆشگا لەسەر بنەمای بەرهەمە داشکاندنەکان.
+     * گەورەترین ٪ داشکاندن نیشان دەدات؛ ئەگەر هیچ نەبێت badge دەسڕێتەوە.
+     */
+    public function refreshDiscountBadge(): void
+    {
+        $maxPct = 0;
+
+        $this->products()
+            ->where('is_available', true)
+            ->whereNotNull('discount_price')
+            ->whereColumn('discount_price', '<', 'price')
+            ->get(['price', 'discount_price'])
+            ->each(function (Product $product) use (&$maxPct): void {
+                if ($product->price <= 0) {
+                    return;
+                }
+                $pct = (int) round((($product->price - $product->discount_price) / $product->price) * 100);
+                if ($pct > $maxPct) {
+                    $maxPct = $pct;
+                }
+            });
+
+        $this->forceFill([
+            'discount_badge' => $maxPct > 0 ? ('OFF %'.$maxPct) : null,
+        ])->save();
+    }
 }
 

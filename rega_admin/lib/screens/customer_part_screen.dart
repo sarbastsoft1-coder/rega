@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
+import '../core/iraq_phone_formatter.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import 'catalog_zones_screen.dart';
@@ -41,7 +43,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     _load();
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) => _load(silent: true));
   }
@@ -107,7 +109,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
         builder: (ctx) => AlertDialog(
           title: Text('پڕۆفایلی کڕیار — ${detail['name'] ?? ''}'),
           content: SizedBox(
-            width: 560,
+            width: (MediaQuery.sizeOf(context).width * 0.92).clamp(280.0, 560.0),
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,9 +192,10 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
               .toList();
 
           return AlertDialog(
+            insetPadding: AdminBreakpoints.dialogInset(ctx),
             title: const Text('تۆمارکردنی داواکاری ڕاستەوخۆ بۆ کڕیار (Live PostgreSQL Order)'),
             content: SizedBox(
-              width: 580,
+              width: AdminBreakpoints.dialogWidth(ctx, max: 580),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -308,15 +311,15 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                     Row(
                       children: [
                         Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: paymentMethod,
+                          child: InputDecorator(
                             decoration: const InputDecoration(labelText: 'شێوازی پارەدان'),
-                            items: const [
-                              DropdownMenuItem(value: 'cash', child: Text('کاش لە کاتی وەرگرتن (COD)')),
-                              DropdownMenuItem(value: 'fib', child: Text('FIB Bank')),
-                              DropdownMenuItem(value: 'fastpay', child: Text('FastPay')),
-                            ],
-                            onChanged: (v) => setDialogState(() => paymentMethod = v ?? 'cash'),
+                            child: Text(
+                              'کاش لە کاتی وەرگرتن (COD)',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade800,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -360,7 +363,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                           .toList(),
                     });
                     _showSnack(
-                      'داواکاری ${created['order_number']} تۆمارکرا! کۆدی کڕیار: ${created['delivery_pin']} ✅',
+                      'داواکاری ${created['order_number']} تۆمارکرا ✅',
                     );
                     widget.onDataChanged?.call();
                     _load(silent: true);
@@ -386,7 +389,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
         // Customer Hub Header Banner
         Container(
           width: double.infinity,
-          margin: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+          margin: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 18, AdminBreakpoints.pagePadH(context), 0),
           padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
@@ -426,7 +429,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                             style: TextStyle(color: RegaColors.gold, fontSize: 18, fontWeight: FontWeight.w900),
                           ),
                           Text(
-                            'بەستراوەتەوە بە ئەپی کڕیاران (rega) • هەژمارەکان، داواکاری، کۆپۆن، گەڕەکەکانی کەلار و نەخشەی زیندوو',
+                            'بەستراوەتەوە بە ئەپی کڕیاران (rega) • بەشەکانی سەرەکی، هەژمار، داواکاری، کۆپۆن و گەڕەکەکان',
                             style: TextStyle(color: Colors.white70, fontSize: 12),
                           ),
                         ],
@@ -469,13 +472,15 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                 labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
                 dividerColor: Colors.transparent,
                 tabs: [
-                  const Tab(icon: Icon(Icons.workspace_premium_rounded, size: 18), text: 'پوختە و کڕیارانی VIP'),
+                  const Tab(icon: Icon(Icons.workspace_premium_rounded, size: 18), text: 'پوختە و کڕیاران'),
                   Tab(
                     icon: const Icon(Icons.receipt_long_rounded, size: 18),
-                    text: 'داواکاری کڕیاران و PIN (${_kpis['total_customer_orders'] ?? 0})',
+                    text: 'داواکاری کڕیاران (${_kpis['total_customer_orders'] ?? 0})',
                   ),
                   const Tab(icon: Icon(Icons.groups_rounded, size: 18), text: 'بەڕێوەبردنی کڕیاران'),
-                  const Tab(icon: Icon(Icons.location_city_rounded, size: 18), text: 'گەڕەکەکان و بەشەکان'),
+                  const Tab(icon: Icon(Icons.grid_view_rounded, size: 18), text: 'بەشەکانی سەرەکی ئەپ'),
+                  const Tab(icon: Icon(Icons.notifications_active_rounded, size: 18), text: 'ئاگاداری بۆ کڕیار'),
+                  const Tab(icon: Icon(Icons.location_city_rounded, size: 18), text: 'گەڕەکەکانی کەلار'),
                   const Tab(icon: Icon(Icons.campaign_rounded, size: 18), text: 'کۆپۆن و ڕیکلامەکان'),
                 ],
               ),
@@ -494,7 +499,21 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                         _buildVipOverviewTab(isDark),
                         _buildCustomerOrdersTab(),
                         CustomersScreen(api: widget.api, lang: widget.lang),
-                        CatalogZonesScreen(api: widget.api, lang: widget.lang),
+                        CatalogZonesScreen(
+                          api: widget.api,
+                          lang: widget.lang,
+                          mode: CatalogZonesMode.categories,
+                        ),
+                        MarketingScreen(
+                          api: widget.api,
+                          lang: widget.lang,
+                          mode: MarketingMode.notifications,
+                        ),
+                        CatalogZonesScreen(
+                          api: widget.api,
+                          lang: widget.lang,
+                          mode: CatalogZonesMode.zones,
+                        ),
                         MarketingScreen(api: widget.api, lang: widget.lang),
                       ],
                     ),
@@ -505,15 +524,20 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
 
   Widget _buildVipOverviewTab(bool isDark) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+      padding: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 8, AdminBreakpoints.pagePadH(context), 28),
       children: [
         GridView.count(
-          crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+          crossAxisCount: () {
+            final w = MediaQuery.sizeOf(context).width;
+            if (w < AdminBreakpoints.phone) return 1;
+            if (w > 1200) return 3;
+            return 2;
+          }(),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 14,
           crossAxisSpacing: 14,
-          childAspectRatio: 2.35,
+          childAspectRatio: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 2.8 : 2.35,
           children: [
             StatKpiCard(
               title: 'کۆی کڕیارانی تۆمارکراو',
@@ -570,7 +594,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'پڕخەرجترین کڕیاران (VIP Customers) و ناونیشانەکانیان',
+                      'پڕخەرجترین کڕیاران و ناونیشانەکانیان',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                     ),
                     ElevatedButton.icon(
@@ -637,7 +661,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
 
   Widget _buildCustomerOrdersTab() {
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
+      padding: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 10, AdminBreakpoints.pagePadH(context), 24),
       itemCount: _recentOrders.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (_, idx) {
@@ -669,7 +693,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            '🔐 کۆدی وەرگرتنی کڕیار (Delivery PIN): ${o['delivery_pin'] ?? '----'}',
+                            '📍 ناونیشان: ${o['delivery_address'] ?? '-'}',
                             style: const TextStyle(
                               fontWeight: FontWeight.w900,
                               fontSize: 12,
@@ -681,7 +705,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '👤 کڕیار: ${o['customer_name'] ?? '-'} (${o['customer_phone'] ?? '-'})  •  🏪 ${o['store']?['name_ku'] ?? '-'}',
+                      '👤 کڕیار: ${o['customer_name'] ?? '-'} (${IraqPhoneFormatter.display((o['customer_phone'] ?? '').toString())})  •  🏪 ${o['store']?['name_ku'] ?? '-'}',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     Text('📍 ناونیشان: ${o['delivery_address'] ?? '-'}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),

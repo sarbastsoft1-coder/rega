@@ -5,20 +5,47 @@ class Neighborhood {
   final String name;
   final String nameEn;
   final int deliveryFee;
+  final double? lat;
+  final double? lng;
 
-  Neighborhood({
+  const Neighborhood({
     required this.id,
     required this.name,
     required this.nameEn,
     required this.deliveryFee,
+    this.lat,
+    this.lng,
   });
+
+  bool get hasCenter => lat != null && lng != null;
+
+  Neighborhood copyWith({
+    String? id,
+    String? name,
+    String? nameEn,
+    int? deliveryFee,
+    double? lat,
+    double? lng,
+  }) {
+    return Neighborhood(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      nameEn: nameEn ?? this.nameEn,
+      deliveryFee: deliveryFee ?? this.deliveryFee,
+      lat: lat ?? this.lat,
+      lng: lng ?? this.lng,
+    );
+  }
 }
 
 class StoreItem {
   final String id;
   final String name;
   final String category;
-  final double rating;
+  /// Backend marketplace category id — used to show the store under the right home tile.
+  final int? categoryId;
+  final double rating; // لە ١٠ (نموونە: ٩.٨)
+  final int reviewCount;
   final String deliveryTime;
   final int deliveryFee;
   final String imageUrl;
@@ -33,7 +60,9 @@ class StoreItem {
     required this.id,
     required this.name,
     required this.category,
+    this.categoryId,
     required this.rating,
+    this.reviewCount = 0,
     required this.deliveryTime,
     required this.deliveryFee,
     required this.imageUrl,
@@ -44,6 +73,13 @@ class StoreItem {
     this.lat = 34.6836,
     this.lng = 45.3189,
   });
+
+  /// نمرەی پیشاندراو لە ١٠ — پشتیوانی بۆ داتای کۆنی لە ٥
+  double get ratingOutOf10 {
+    if (rating <= 0) return 0;
+    if (rating <= 5.01) return double.parse((rating * 2).toStringAsFixed(1));
+    return double.parse(rating.clamp(0, 10).toStringAsFixed(1));
+  }
 }
 
 class ProductItem {
@@ -128,14 +164,6 @@ class OrderItem {
   });
 }
 
-final List<Neighborhood> kalarNeighborhoods = [
-  Neighborhood(id: 'n1', name: 'شارۆچکەی رزگاری', nameEn: 'Rzgari', deliveryFee: 1500),
-  Neighborhood(id: 'n2', name: 'گەڕەکی زانکۆ', nameEn: 'Zanko', deliveryFee: 1000),
-  Neighborhood(id: 'n3', name: 'گەڕەکی شەهیدان', nameEn: 'Shahidan', deliveryFee: 1000),
-  Neighborhood(id: 'n4', name: 'گەڕەکی سیروان', nameEn: 'Sirwan', deliveryFee: 1500),
-  Neighborhood(id: 'n5', name: 'گەڕەکی شۆڕش', nameEn: 'Shorish', deliveryFee: 1500),
-  Neighborhood(id: 'n6', name: 'گەڕەکی بێساری', nameEn: 'Besari', deliveryFee: 2000),
-  Neighborhood(id: 'n7', name: 'گەڕەکی کاکەییان', nameEn: 'Kakeyan', deliveryFee: 1500),
-  Neighborhood(id: 'n8', name: 'گەڕەکی فەرمانبەران', nameEn: 'Farmanbaran', deliveryFee: 1000),
-  Neighborhood(id: 'n9', name: 'ناو بازاڕی کەلار', nameEn: 'Downtown Market', deliveryFee: 1000),
-];
+/// Populated at runtime from backend bootstrap — NOT the source of truth.
+/// Empty until `/bootstrap` (or admin zones API) fills it.
+final List<Neighborhood> kalarNeighborhoods = [];

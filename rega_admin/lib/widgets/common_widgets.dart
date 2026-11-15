@@ -23,7 +23,92 @@ class StatKpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaces = AdminSurfaces.of(context);
+    final narrow = MediaQuery.sizeOf(context).width < 600;
+
+    final iconBox = Container(
+      padding: EdgeInsets.all(narrow ? 9 : 10),
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Icon(icon, color: accentColor, size: narrow ? 20 : 22),
+    );
+
+    final subtitleChip = subtitle == null
+        ? null
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              subtitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: accentColor,
+              ),
+            ),
+          );
+
+    // Phone: compact horizontal row so cards don't look half-empty.
+    if (narrow) {
+      return Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                iconBox,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: surfaces.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          value,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            color: surfaces.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (subtitleChip != null) ...[
+                  const SizedBox(width: 8),
+                  subtitleChip,
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -37,34 +122,8 @@ class StatKpiCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: accentColor.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(icon, color: accentColor, size: 22),
-                  ),
-                  if (subtitle != null)
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: accentColor.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          subtitle!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: accentColor,
-                          ),
-                        ),
-                      ),
-                    ),
+                  iconBox,
+                  if (subtitleChip != null) Flexible(child: subtitleChip),
                 ],
               ),
               const SizedBox(height: 14),
@@ -76,7 +135,7 @@ class StatKpiCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    color: surfaces.textPrimary,
                   ),
                 ),
               ),
@@ -88,7 +147,7 @@ class StatKpiCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  color: surfaces.textSecondary,
                 ),
               ),
             ],
@@ -170,35 +229,46 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
+    final surfaces = AdminSurfaces.of(context);
+    final narrow = MediaQuery.sizeOf(context).width < 600;
+  final titleCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                ),
-              ),
-              if (subtitle != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                  ),
-                ),
-              ],
-            ],
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: narrow ? 16 : 18,
+            fontWeight: FontWeight.w900,
+            color: surfaces.textPrimary,
           ),
         ),
-        ?trailing,
+        if (subtitle != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            subtitle!,
+            style: TextStyle(
+              fontSize: 12,
+              color: surfaces.textSecondary,
+            ),
+          ),
+        ],
+      ],
+    );
+    if (trailing == null) return titleCol;
+    if (narrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          titleCol,
+          const SizedBox(height: 10),
+          trailing!,
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(child: titleCol),
+        trailing!,
       ],
     );
   }
@@ -436,27 +506,34 @@ class _RadarLegendPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width < 600;
+    Widget item(Color color, String label) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.circle, size: 9, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(color: Colors.white, fontSize: narrow ? 9.5 : 10.5)),
+        ],
+      );
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.72),
+      padding: EdgeInsets.symmetric(horizontal: narrow ? 8 : 12, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: Colors.white12),
       ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Wrap(
+        spacing: narrow ? 8 : 10,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Icon(Icons.circle, size: 9, color: RegaColors.gold),
-          SizedBox(width: 4),
-          Text('فرۆشگا', style: TextStyle(color: Colors.white, fontSize: 10.5)),
-          SizedBox(width: 10),
-          Icon(Icons.circle, size: 9, color: RegaColors.emerald),
-          SizedBox(width: 4),
-          Text('شۆفێری ئامادە', style: TextStyle(color: Colors.white, fontSize: 10.5)),
-          SizedBox(width: 10),
-          Icon(Icons.circle, size: 9, color: Color(0xFF38BDF8)),
-          SizedBox(width: 4),
-          Text('لە گەیاندن', style: TextStyle(color: Colors.white, fontSize: 10.5)),
+          item(RegaColors.gold, 'فرۆشگا'),
+          item(RegaColors.emerald, narrow ? 'شۆفێر' : 'شۆفێری ئامادە'),
+          item(const Color(0xFF38BDF8), 'لە گەیاندن'),
         ],
       ),
     );

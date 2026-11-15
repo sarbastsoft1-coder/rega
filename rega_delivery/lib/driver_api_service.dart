@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'blocked_account.dart';
 import 'rega_mobile.dart';
 
 class DriverApiService {
@@ -11,6 +12,8 @@ class DriverApiService {
   static const String _tokenKey = 'rega_driver_sanctum_token';
 
   String? _token;
+
+  bool get hasToken => _token != null && _token!.isNotEmpty;
 
   Map<String, String> _headers() => {
         'Accept': 'application/json',
@@ -26,12 +29,15 @@ class DriverApiService {
   }
 
   Future<bool> ensureAuthenticated({
-    String phone = '07501234567',
-    String password = 'password123',
+    String phone = '',
+    String password = '',
   }) async {
     await initToken();
     final cleanPhone = phone.trim().replaceAll(' ', '');
-    final targetPhone = cleanPhone.isEmpty ? '07501234567' : cleanPhone;
+    final cleanPass = password.trim();
+    if (cleanPhone.isEmpty || cleanPass.length < 6) {
+      return _token != null && _token!.isNotEmpty;
+    }
 
     try {
       final res = await http
@@ -42,12 +48,20 @@ class DriverApiService {
               'Content-Type': 'application/json',
             },
             body: jsonEncode({
-              'identifier': targetPhone,
-              'password': password.trim().isEmpty ? 'password123' : password.trim(),
+              'identifier': cleanPhone,
+              'password': cleanPass,
               'device_name': 'rega_delivery_app',
             }),
           )
           .timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 403) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        if (body['code']?.toString() == 'account_blocked') {
+          await logout();
+          throw AccountBlockedException.fromBody(body);
+        }
+      }
 
       if (res.statusCode >= 200 && res.statusCode < 300) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -59,6 +73,8 @@ class DriverApiService {
           return true;
         }
       }
+    } on AccountBlockedException {
+      rethrow;
     } catch (_) {}
     return _token != null && _token!.isNotEmpty;
   }
@@ -91,30 +107,55 @@ class DriverApiService {
     return null;
   }
 
-  Future<Map<String, dynamic>?> updateOnlineStatus(bool isOnline) async {
+  Future<Map<String, dynamic>?> updateOnlineStatus(
+    bool isOnline, {
+    double? lat,
+    double? lng,
+  }) async {
     try {
+      await initToken();
+      if (_token == null || _token!.isEmpty) return null;
+
       final res = await http
           .patch(
             Uri.parse('$baseUrl/driver/status'),
             headers: _headers(),
-            body: jsonEncode({'is_online': isOnline}),
+            body: jsonEncode({
+              'is_online': isOnline,
+              if (lat != null) 'lat': lat,
+              if (lng != null) 'lng': lng,
+            }),
           )
-          .timeout(const Duration(seconds: 5));
-      if (res.statusCode == 200) {
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
-        return body['data'] as Map<String, dynamic>?;
+        final data = body['data'];
+        if (data is Map<String, dynamic>) return data;
+        // Some responses nest profile under data.driver / data.profile.
+        if (data is Map) return Map<String, dynamic>.from(data);
+        return <String, dynamic>{'is_online': isOnline};
       }
     } catch (_) {}
     return null;
   }
 
-  Future<void> updateLocation(double lat, double lng) async {
+  Future<void> updateLocation(
+    double lat,
+    double lng, {
+    double? heading,
+    double? speedKmh,
+  }) async {
     try {
       await http
           .patch(
             Uri.parse('$baseUrl/driver/location'),
             headers: _headers(),
-            body: jsonEncode({'lat': lat, 'lng': lng}),
+            body: jsonEncode({
+              'lat': lat,
+              'lng': lng,
+              if (heading != null) 'heading': heading,
+              if (speedKmh != null) 'speed_kmh': speedKmh,
+            }),
           )
           .timeout(const Duration(seconds: 4));
     } catch (_) {}
@@ -166,13 +207,12 @@ class DriverApiService {
     return null;
   }
 
-  Future<(bool, String?)> verifyDeliveryPin(int orderId, String pin) async {
+  Future<(bool, String?)> completeDelivery(int orderId) async {
     try {
       final res = await http
           .post(
             Uri.parse('$baseUrl/driver/orders/$orderId/verify-delivery'),
             headers: _headers(),
-            body: jsonEncode({'pin': pin}),
           )
           .timeout(const Duration(seconds: 5));
       final body = jsonDecode(res.body) as Map<String, dynamic>;

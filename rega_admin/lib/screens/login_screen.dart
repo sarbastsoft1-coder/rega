@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/app_theme.dart';
+import '../widgets/admin_top_header.dart';
 
 class LoginScreen extends StatefulWidget {
   final ApiClient api;
@@ -22,8 +23,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _idCtrl = TextEditingController(text: '07700000001');
-  final _passCtrl = TextEditingController(text: 'password123');
+  final _idCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
   bool _obscure = true;
   bool _loading = false;
   bool? _serverHealthy;
@@ -80,7 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('ڕێکخستنی ناونیشانی سێرڤەر (API URL)'),
+        title: Text(AppStrings.tr('api_url_label', widget.lang)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,8 +89,8 @@ class _LoginScreenState extends State<LoginScreen> {
             TextField(
               controller: urlCtrl,
               textDirection: TextDirection.ltr,
-              decoration: const InputDecoration(
-                labelText: 'Laravel API Base URL',
+              decoration: InputDecoration(
+                labelText: AppStrings.tr('api_url_label', widget.lang),
                 hintText: 'http://127.0.0.1:8001/api/v1',
               ),
             ),
@@ -98,11 +99,11 @@ class _LoginScreenState extends State<LoginScreen> {
               spacing: 8,
               children: [
                 ActionChip(
-                  label: const Text('Port 8001 (Default)'),
+                  label: Text(AppStrings.tr('api_port_default', widget.lang)),
                   onPressed: () => urlCtrl.text = 'http://127.0.0.1:8001/api/v1',
                 ),
                 ActionChip(
-                  label: const Text('Port 8000'),
+                  label: Text(AppStrings.tr('api_port_8000', widget.lang)),
                   onPressed: () => urlCtrl.text = 'http://127.0.0.1:8000/api/v1',
                 ),
               ],
@@ -171,11 +172,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        const Column(
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'REGA CENTRAL',
+                            const Text(
+                              'REGA',
                               style: TextStyle(
                                 color: RegaColors.gold,
                                 fontSize: 22,
@@ -184,8 +185,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                             Text(
-                              'Unified Ecosystem • Laravel 12 + PostgreSQL',
-                              style: TextStyle(color: Colors.white70, fontSize: 12),
+                              AppStrings.tr('login_brand_sub', widget.lang),
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
                             ),
                           ],
                         ),
@@ -226,21 +227,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 36),
-                        const Wrap(
+                        Wrap(
                           spacing: 14,
                           runSpacing: 14,
                           children: [
-                            _FeaturePill(icon: Icons.storage_rounded, label: 'PostgreSQL 18 Live'),
-                            _FeaturePill(icon: Icons.pin_rounded, label: 'Dual 4-Digit PIN Security'),
-                            _FeaturePill(icon: Icons.percent_rounded, label: '12% Commission Ledger'),
-                            _FeaturePill(icon: Icons.two_wheeler_rounded, label: 'Driver KYC & COD Cash'),
+                            _FeaturePill(icon: Icons.storage_rounded, label: AppStrings.tr('login_pill_db', widget.lang)),
+                            _FeaturePill(icon: Icons.pin_rounded, label: AppStrings.tr('login_pill_pin', widget.lang)),
+                            _FeaturePill(icon: Icons.percent_rounded, label: AppStrings.tr('login_pill_commission', widget.lang)),
+                            _FeaturePill(icon: Icons.two_wheeler_rounded, label: AppStrings.tr('login_pill_fleet', widget.lang)),
                           ],
                         ),
                       ],
                     ),
-                    const Text(
-                      '© 2026 REGA Marketplace — Kalar, Kurdistan Region',
-                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                    Text(
+                      AppStrings.tr('login_footer', widget.lang),
+                      style: const TextStyle(color: Colors.white38, fontSize: 12),
                     ),
                   ],
                 ),
@@ -248,13 +249,14 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           Expanded(
             flex: 5,
-            child: Center(
+            child: SafeArea(
+              child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(28),
+                padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 28),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 440),
                   child: Container(
-                    padding: const EdgeInsets.all(32),
+                    padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 20 : 32),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(28),
@@ -317,31 +319,35 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             Row(
                               mainAxisSize: MainAxisSize.min,
-                              children: ['ku', 'ar', 'en'].map((code) {
-                                final active = widget.lang == code;
-                                return Padding(
-                                  padding: const EdgeInsets.only(left: 4),
-                                  child: InkWell(
-                                    onTap: () => widget.onLangChanged(code),
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: active ? RegaColors.gold : const Color(0xFFF1F5F9),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        code == 'ku' ? 'کوردی' : (code == 'ar' ? 'عربي' : 'EN'),
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800,
-                                          color: active ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                              children: [
+                                ...['ku', 'ar', 'en'].map((code) {
+                                  final active = widget.lang == code;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(left: 4),
+                                    child: InkWell(
+                                      onTap: () => widget.onLangChanged(code),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: active ? RegaColors.gold : const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          code == 'ku' ? 'کوردی' : (code == 'ar' ? 'عربي' : 'EN'),
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            color: active ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              }).toList(),
+                                  );
+                                }),
+                                const SizedBox(width: 8),
+                                const AdminThemeToggle(),
+                              ],
                             ),
                           ],
                         ),
@@ -423,57 +429,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             label: Text(AppStrings.tr('sign_in', widget.lang)),
                           ),
                         ),
-                        const SizedBox(height: 18),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'هەژمارە خێراکان بۆ تاقیکردنەوە:',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF475569)),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _idCtrl.text = '07700000001';
-                                          _passCtrl.text = 'password123';
-                                        });
-                                      },
-                                      child: const Text('بەڕێوەبەری گشتی', style: TextStyle(fontSize: 11.5)),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _idCtrl.text = '07700000002';
-                                          _passCtrl.text = 'password123';
-                                        });
-                                      },
-                                      child: const Text('ئۆپەرەیشن', style: TextStyle(fontSize: 11.5)),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
                       ],
                     ),
                   ),
                 ),
               ),
+            ),
             ),
           ),
         ],

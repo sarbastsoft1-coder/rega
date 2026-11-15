@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../core/api/api_client.dart';
+import '../core/api/api_client.dart'; // ApiClient + ApiException
 
 class AdminAppNotifier extends ChangeNotifier {
   final ApiClient api;
@@ -17,47 +17,34 @@ class AdminAppNotifier extends ChangeNotifier {
   });
 
   bool get isLoggedIn => currentUser != null;
+  ThemeMode get themeMode => isDark ? ThemeMode.dark : ThemeMode.light;
   TextDirection get textDirection =>
       lang == 'en' ? TextDirection.ltr : TextDirection.rtl;
 
   Future<void> restoreSession() async {
-    // 1. If we already have a token, test with /auth/me
+    // Prefer persisted Sanctum token → /auth/me. Only clear token on auth failure.
     if (api.isAuthenticated) {
       try {
         currentUser = await api.me();
         checkingSession = false;
         notifyListeners();
         return;
+      } on ApiException catch (e) {
+        if (e.statusCode == 401 || e.statusCode == 403) {
+          await api.setToken(null);
+          currentUser = null;
+        } else {
+          // Network / server error: keep token so a refresh can restore without re-login.
+          currentUser = null;
+        }
       } catch (_) {
-        await api.setToken(null);
+        // Keep token on unexpected errors (e.g. offline).
         currentUser = null;
       }
+    } else {
+      currentUser = null;
     }
 
-    // 2. Automatically log in to the Laravel backend as super_admin
-    // to guarantee an active Bearer token and live PostgreSQL connection across all screens.
-    try {
-      final data = await api.login('07700000001', 'password123');
-      currentUser = data['user'] as Map<String, dynamic>? ?? {
-        'id': 1,
-        'name': 'سەربەست کەریم',
-        'role': 'super_admin',
-        'phone': '07700000001',
-        'email': 'admin@rega.iq',
-      };
-    } catch (_) {
-      final bypass = Uri.base.queryParameters['bypass'] == 'true';
-      if (bypass) {
-        currentUser = {
-          'id': 1,
-          'name': 'کارگێڕی سەرەکی',
-          'role': 'super_admin',
-          'phone': '07700000001',
-        };
-      } else {
-        currentUser = null;
-      }
-    }
     checkingSession = false;
     notifyListeners();
   }
@@ -91,11 +78,14 @@ class AdminAppNotifier extends ChangeNotifier {
 class AdminNavNotifier extends ChangeNotifier {
   static const tabPaths = <String>[
     '/dashboard',
+    '/order-intake',
     '/orders',
     '/drivers',
     '/customers',
     '/stores',
+    '/vendor-items',
     '/finance',
+    '/staff',
     '/support',
   ];
 

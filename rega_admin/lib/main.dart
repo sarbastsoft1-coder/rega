@@ -3,8 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'app/app_router.dart';
 import 'core/api/api_client.dart';
+import 'core/localization/app_strings.dart';
 import 'core/theme/app_theme.dart';
 import 'state/admin_app_notifier.dart';
+import 'state/admin_domain_notifiers.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,12 +21,24 @@ void main() async {
     isDark: savedDark,
   );
   final nav = AdminNavNotifier();
+  final dashboard = DashboardNotifier(api);
+  final inbox = AdminInboxNotifier(api);
+  final orders = OrdersNotifier(api);
+  final drivers = DriversNotifier(api);
+  final customers = CustomersNotifier(api);
+  final stores = StoresNotifier(api);
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: appState),
         ChangeNotifierProvider.value(value: nav),
+        ChangeNotifierProvider.value(value: dashboard),
+        ChangeNotifierProvider.value(value: inbox),
+        ChangeNotifierProvider.value(value: orders),
+        ChangeNotifierProvider.value(value: drivers),
+        ChangeNotifierProvider.value(value: customers),
+        ChangeNotifierProvider.value(value: stores),
       ],
       child: RegaAdminApp(appState: appState),
     ),
@@ -55,12 +69,12 @@ class _RegaAdminAppState extends State<RegaAdminApp> {
     final app = context.watch<AdminAppNotifier>();
 
     return MaterialApp.router(
-      title: 'REGA Admin — پانێڵی بەڕێوەبردنی ڕێگا',
+      title: AppStrings.tr('app_title', app.lang),
       debugShowCheckedModeBanner: false,
       routerConfig: _router,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: app.isDark ? ThemeMode.dark : ThemeMode.light,
+      themeMode: app.themeMode,
       builder: (context, child) {
         final mediaQuery = MediaQuery.of(context);
         final clampedTextScaler = mediaQuery.textScaler.clamp(

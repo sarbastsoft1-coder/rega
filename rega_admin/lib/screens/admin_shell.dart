@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
-import 'customers_screen.dart';
+import '../state/admin_app_notifier.dart';
+import '../state/admin_domain_notifiers.dart';
+import '../widgets/admin_top_header.dart';
+import 'customer_part_screen.dart';
 import 'dashboard_screen.dart';
 import 'drivers_screen.dart';
-import 'finance_screen.dart';
+import 'accounting_screen.dart';
+import 'order_intake_screen.dart';
 import 'orders_screen.dart';
 import 'stores_screen.dart';
+import 'products_screen.dart';
+import 'admin_staff_screen.dart';
 import 'support_settings_screen.dart';
 
 class AdminShell extends StatefulWidget {
@@ -45,15 +53,19 @@ class _AdminShellState extends State<AdminShell> {
   int _customersBadge = 0;
   int _onlineDriversBadge = 0;
   int _openTicketsBadge = 0;
+  /// Bumped on manual refresh so the active screen remounts and reloads live API data.
+  int _dataRefreshKey = 0;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
-    _selectedIndex = widget.initialIndex.clamp(0, 6);
+    final maxTab = AdminNavNotifier.tabPaths.length - 1;
+    _selectedIndex = widget.initialIndex.clamp(0, maxTab);
     final tabParam = Uri.base.queryParameters['tab'];
     if (tabParam != null) {
       final idx = int.tryParse(tabParam);
-      if (idx != null && idx >= 0 && idx <= 6) {
+      if (idx != null && idx >= 0 && idx <= maxTab) {
         _selectedIndex = idx;
       }
     }
@@ -65,7 +77,7 @@ class _AdminShellState extends State<AdminShell> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialIndex != widget.initialIndex &&
         _selectedIndex != widget.initialIndex) {
-      setState(() => _selectedIndex = widget.initialIndex.clamp(0, 6));
+      setState(() => _selectedIndex = widget.initialIndex.clamp(0, AdminNavNotifier.tabPaths.length - 1));
     }
   }
 
@@ -76,60 +88,114 @@ class _AdminShellState extends State<AdminShell> {
 
   Future<void> _refreshBadges() async {
     try {
-      final dash = await widget.api.getDashboard(days: 7);
-      final kpis = dash['kpis'] as Map<String, dynamic>? ?? {};
+      final dash = context.read<DashboardNotifier>();
+      final inbox = context.read<AdminInboxNotifier>();
+      await Future.wait([
+        dash.load(days: 7, silent: true),
+        inbox.load(silent: true),
+      ]);
       if (mounted) {
         setState(() {
-          _pendingOrdersBadge = (kpis['active_orders_count'] as num?)?.toInt() ?? 0;
-          _onlineStoresBadge = (kpis['online_stores'] as num?)?.toInt() ?? 0;
-          _customersBadge = (kpis['total_customers'] as num?)?.toInt() ?? 0;
-          _onlineDriversBadge = (kpis['online_drivers'] as num?)?.toInt() ?? 0;
-          _openTicketsBadge = (kpis['open_tickets_count'] as num?)?.toInt() ?? 0;
+          _pendingOrdersBadge = dash.pendingOrders;
+          _onlineStoresBadge = dash.onlineStores;
+          _customersBadge = dash.totalCustomers;
+          _onlineDriversBadge = dash.onlineDrivers;
+          _openTicketsBadge = dash.openTickets;
         });
       }
     } catch (_) {}
   }
 
+  Future<void> _refreshAllLiveData() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      await Future.wait([
+        _refreshBadges(),
+        context.read<OrdersNotifier>().load(silent: true),
+        context.read<DriversNotifier>().load(silent: true),
+        context.read<CustomersNotifier>().load(silent: true),
+        context.read<StoresNotifier>().load(silent: true),
+        context.read<AdminInboxNotifier>().load(silent: true),
+      ]);
+      if (!mounted) return;
+      setState(() => _dataRefreshKey++);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppStrings.tr('refresh', widget.lang)),
+          duration: const Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
   List<_NavItemSpec> _buildNavItems() => [
         _NavItemSpec(Icons.home_outlined, AppStrings.tr('nav_dashboard', widget.lang)),
+        _NavItemSpec(Icons.headset_mic_outlined, AppStrings.tr('nav_order_intake', widget.lang)),
         _NavItemSpec(Icons.receipt_long_outlined, AppStrings.tr('nav_orders', widget.lang)),
         _NavItemSpec(Icons.two_wheeler_outlined, AppStrings.tr('nav_drivers', widget.lang)),
         _NavItemSpec(Icons.people_outline_rounded, AppStrings.tr('nav_customers', widget.lang)),
         _NavItemSpec(Icons.storefront_outlined, AppStrings.tr('nav_stores', widget.lang)),
+        _NavItemSpec(Icons.restaurant_menu_outlined, AppStrings.tr('nav_vendor_items', widget.lang)),
         _NavItemSpec(Icons.insert_chart_outlined_rounded, AppStrings.tr('nav_finance', widget.lang)),
+        _NavItemSpec(Icons.admin_panel_settings_outlined, AppStrings.tr('nav_staff', widget.lang)),
         _NavItemSpec(Icons.settings_outlined, AppStrings.tr('nav_support', widget.lang)),
       ];
 
   Widget _buildActiveScreen() {
+    final key = ValueKey('admin-tab-$_selectedIndex-$_dataRefreshKey');
     switch (_selectedIndex) {
       case 0:
         return DashboardScreen(
+          key: key,
           api: widget.api,
           lang: widget.lang,
           onNavigateTab: _selectTab,
         );
       case 1:
+        return OrderIntakeScreen(
+          key: key,
+          api: widget.api,
+          lang: widget.lang,
+          onChanged: _refreshBadges,
+        );
+      case 2:
         return OrdersScreen(
+          key: key,
           api: widget.api,
           lang: widget.lang,
           onOrderChanged: _refreshBadges,
         );
-      case 2:
-        return DriversScreen(api: widget.api, lang: widget.lang);
       case 3:
-        return CustomersScreen(api: widget.api, lang: widget.lang);
+        return DriversScreen(key: key, api: widget.api, lang: widget.lang);
       case 4:
-        return StoresScreen(api: widget.api, lang: widget.lang);
+        // Customer hub: VIP/customers + home category cards CRUD + zones + promos
+        return CustomerPartScreen(key: key, api: widget.api, lang: widget.lang);
       case 5:
-        return FinanceScreen(api: widget.api, lang: widget.lang);
+        return StoresScreen(key: key, api: widget.api, lang: widget.lang);
       case 6:
+        return ProductsScreen(key: key, api: widget.api, lang: widget.lang);
+      case 7:
+        return AccountingScreen(key: key, api: widget.api, lang: widget.lang);
+      case 8:
+        return AdminStaffScreen(key: key, api: widget.api, lang: widget.lang);
+      case 9:
         return SupportSettingsScreen(
+          key: key,
           api: widget.api,
           lang: widget.lang,
           onChanged: _refreshBadges,
         );
       default:
-        return CustomersScreen(api: widget.api, lang: widget.lang);
+        return OrderIntakeScreen(
+          key: key,
+          api: widget.api,
+          lang: widget.lang,
+          onChanged: _refreshBadges,
+        );
     }
   }
 
@@ -258,12 +324,12 @@ class _AdminShellState extends State<AdminShell> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Row(
-                      children: const [
-                        Icon(Icons.logout_rounded, size: 21, color: Colors.white70),
-                        SizedBox(width: 14),
+                      children: [
+                        const Icon(Icons.logout_rounded, size: 21, color: Colors.white70),
+                        const SizedBox(width: 14),
                         Text(
-                          'چوونە دەرەوە',
-                          style: TextStyle(
+                          AppStrings.tr('logout', widget.lang),
+                          style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: Colors.white70,
@@ -283,32 +349,32 @@ class _AdminShellState extends State<AdminShell> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
+    final screenWidth = MediaQuery.sizeOf(context).width;
     // Phone / iPad portrait use drawer; wide tablets & desktop keep fixed sidebar.
-    final isDesktop = screenWidth >= 900;
-    final isPhone = screenWidth < 600;
-    final surfaceColor = widget.isDark ? RegaColors.darkSurface : Colors.white;
-    final hideTopOperationalBar = isDesktop && !isPhone;
+    final isDesktop = screenWidth >= AdminBreakpoints.tablet;
+    final surfaces = AdminSurfaces.of(context);
+    final surfaceColor = surfaces.elevated;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
+      backgroundColor: surfaces.canvas,
       drawer: isDesktop ? null : Drawer(child: _buildSidebar(isDrawer: true)),
-      body: Row(
-        children: [
-          if (isDesktop) _buildSidebar(isDrawer: false),
-          Expanded(
-            child: Column(
-              children: [
-                if (!hideTopOperationalBar)
+      body: SafeArea(
+        child: Row(
+          children: [
+            if (isDesktop) _buildSidebar(isDrawer: false),
+            Expanded(
+              child: Column(
+                children: [
+                  // Sticky chrome: always visible language + theme + refresh on all sizes.
                   Container(
-                    height: 58,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    height: screenWidth < AdminBreakpoints.phone ? 52 : 58,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: screenWidth < AdminBreakpoints.phone ? 8 : 14,
+                    ),
                     decoration: BoxDecoration(
                       color: surfaceColor,
                       border: Border(
-                        bottom: BorderSide(
-                          color: widget.isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
-                        ),
+                        bottom: BorderSide(color: surfaces.border),
                       ),
                     ),
                     child: Row(
@@ -325,71 +391,37 @@ class _AdminShellState extends State<AdminShell> {
                             AppStrings.tr('kalar_hub', widget.lang),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                          ),
-                        ),
-                        // Language switcher (Adaptive: SegmentedButton on tablet, Popup on mobile)
-                        if (screenWidth >= 600)
-                          SegmentedButton<String>(
-                            segments: const [
-                              ButtonSegment(value: 'ku', label: Text('کوردی', style: TextStyle(fontSize: 11))),
-                              ButtonSegment(value: 'ar', label: Text('عربي', style: TextStyle(fontSize: 11))),
-                              ButtonSegment(value: 'en', label: Text('EN', style: TextStyle(fontSize: 11))),
-                            ],
-                            selected: {widget.lang},
-                            onSelectionChanged: (v) => widget.onLangChanged(v.first),
-                          )
-                        else
-                          PopupMenuButton<String>(
-                            tooltip: 'زمان / Language',
-                            initialValue: widget.lang,
-                            onSelected: widget.onLangChanged,
-                            itemBuilder: (ctx) => const [
-                              PopupMenuItem(value: 'ku', child: Text('کوردی')),
-                              PopupMenuItem(value: 'ar', child: Text('عربي')),
-                              PopupMenuItem(value: 'en', child: Text('English')),
-                            ],
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: widget.isDark ? Colors.white10 : const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.language_rounded, size: 16),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    widget.lang.toUpperCase(),
-                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
-                                  ),
-                                ],
-                              ),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: screenWidth < AdminBreakpoints.phone ? 12 : 13,
+                              color: surfaces.textPrimary,
                             ),
                           ),
-                        const SizedBox(width: 6),
-                        IconButton(
-                          tooltip: 'گۆڕینی دۆخی تاریک / ڕووناک',
-                          onPressed: () => widget.onThemeChanged(!widget.isDark),
-                          icon: Icon(widget.isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 20),
                         ),
+                        const AdminLocaleToggle(),
+                        const SizedBox(width: 6),
+                        const AdminThemeToggle(),
+                        const SizedBox(width: 4),
                         IconButton(
                           tooltip: AppStrings.tr('refresh', widget.lang),
-                          onPressed: () {
-                            _refreshBadges();
-                            setState(() {});
-                          },
-                          icon: const Icon(Icons.sync_rounded, size: 20),
+                          onPressed: _refreshing ? null : _refreshAllLiveData,
+                          icon: _refreshing
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.sync_rounded, size: 20),
                         ),
                       ],
                     ),
                   ),
-                Expanded(child: _buildActiveScreen()),
-              ],
+                  Expanded(child: _buildActiveScreen()),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

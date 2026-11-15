@@ -17,6 +17,7 @@ class Product extends Model
         'description_ar',
         'description_en',
         'price',
+        'cost_price',
         'discount_price',
         'image_url',
         'is_available',
@@ -24,10 +25,16 @@ class Product extends Model
         'sold_count',
     ];
 
+    protected $hidden = [
+        // Never expose cost to public/customer payloads by default.
+        'cost_price',
+    ];
+
     protected function casts(): array
     {
         return [
             'price' => 'integer',
+            'cost_price' => 'integer',
             'discount_price' => 'integer',
             'is_available' => 'boolean',
             'is_featured' => 'boolean',
@@ -41,6 +48,11 @@ class Product extends Model
             return (int) $this->discount_price;
         }
         return (int) $this->price;
+    }
+
+    public function unitGrossProfit(): int
+    {
+        return max(0, $this->effectivePrice() - max(0, (int) $this->cost_price));
     }
 
     public function store(): BelongsTo

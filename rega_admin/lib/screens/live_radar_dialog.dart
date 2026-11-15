@@ -6,7 +6,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../core/api/api_client.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
+import '../map/mapbox_tiles.dart';
 
 class AdminLiveRadarDialog extends StatefulWidget {
   final ApiClient api;
@@ -215,29 +217,32 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
       );
     }
 
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isPhone = screenW < AdminBreakpoints.phone;
+    final dialogW = AdminBreakpoints.dialogWidth(context, max: 1120);
+    final dialogH = AdminBreakpoints.dialogMaxHeight(context, fraction: isPhone ? 0.96 : 0.9);
+
     return Dialog(
-      insetPadding: const EdgeInsets.all(20),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+      insetPadding: AdminBreakpoints.dialogInset(context),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isPhone ? 16 : 26)),
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
-        width: 1120,
-        height: 680,
+        width: dialogW,
+        height: dialogH.clamp(isPhone ? 420.0 : 520.0, dialogH),
         child: Stack(
           children: [
             FlutterMap(
               mapController: _mapController,
-              options: const MapOptions(
-                initialCenter: LatLng(34.6855, 45.3210),
-                initialZoom: 14.5,
+              options: MapOptions(
+                initialCenter: const LatLng(34.6295, 45.3159),
+                initialZoom: isPhone ? 13.8 : 14.5,
                 minZoom: 11.5,
                 maxZoom: 18.5,
               ),
               children: [
-                TileLayer(
-                  urlTemplate: _darkMap
-                      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-                      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-                  subdomains: const ['a', 'b', 'c', 'd'],
+                MapboxTiles.layer(
+                  key: ValueKey(_darkMap),
+                  style: _darkMap ? MapboxStyle.dark : MapboxStyle.streets,
                   userAgentPackageName: 'iq.rega.admin',
                 ),
                 PolylineLayer(polylines: polylines),
@@ -245,50 +250,62 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
               ],
             ),
             Positioned(
-              top: 16,
-              left: 16,
-              right: 16,
+              top: isPhone ? 10 : 16,
+              left: isPhone ? 10 : 16,
+              right: isPhone ? 10 : 16,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isPhone ? 12 : 18,
+                  vertical: isPhone ? 10 : 12,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0F172A).withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(isPhone ? 14 : 18),
                   border: Border.all(color: RegaColors.gold.withValues(alpha: 0.45)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.radar_rounded, color: RegaColors.emerald, size: 26),
-                    const SizedBox(width: 10),
+                    Icon(Icons.radar_rounded, color: RegaColors.emerald, size: isPhone ? 22 : 26),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'ڕاداری زیندووی شاری کەلار • نوێکردنەوەی چرکە بە چرکە (1s Live GPS)',
+                          Text(
+                            isPhone
+                                ? 'ڕاداری زیندووی کەلار'
+                                : 'ڕاداری زیندووی شاری کەلار • نوێکردنەوەی چرکە بە چرکە (1s Live GPS)',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,
-                              fontSize: 15,
+                              fontSize: isPhone ? 13 : 15,
                             ),
                           ),
                           Text(
-                            'شۆفێرە ئۆنلاینەکان: ${_drivers.where((d) => (d as Map)['is_online'] == true).length} • گەشتە زیندووەکان: ${_sessions.length} • ژمارەی نوێبوونەوە: ${_tickCount}s',
-                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                            'ئۆنلاین: ${_drivers.where((d) => (d as Map)['is_online'] == true).length} • گەشت: ${_sessions.length} • ${_tickCount}s',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: const Color(0xFF94A3B8), fontSize: isPhone ? 11 : 12),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
+                      visualDensity: VisualDensity.compact,
                       onPressed: () => setState(() => _darkMap = !_darkMap),
                       tooltip: 'گۆڕینی شێوازی نەخشە',
                       icon: Icon(
                         _darkMap ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
                         color: RegaColors.gold,
+                        size: isPhone ? 20 : 24,
                       ),
                     ),
                     IconButton(
+                      visualDensity: VisualDensity.compact,
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      icon: Icon(Icons.close_rounded, color: Colors.white, size: isPhone ? 20 : 24),
                     ),
                   ],
                 ),

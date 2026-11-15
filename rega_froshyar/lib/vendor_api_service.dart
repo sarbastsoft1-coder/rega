@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'blocked_account.dart';
 import 'rega_mobile.dart';
 
 class VendorApiService {
@@ -21,9 +24,58 @@ class VendorApiService {
         if (_token != null && _token!.isNotEmpty) 'Authorization': 'Bearer $_token',
       };
 
+  /// Normalize Laravel media URLs onto the active API host and CORS-safe path.
+  /// Rewrites `/storage/...` → `/api/v1/media/...` for Flutter web CanvasKit.
+  String resolveMediaUrl(String? url) {
+    if (url == null) return '';
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return '';
+    if (trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return trimmed;
+
+    final origin = RegaApiHost.origin;
+    final parsed = Uri.tryParse(trimmed);
+    if (parsed == null) return trimmed;
+
+    String path = parsed.hasScheme ? parsed.path : trimmed;
+    if (path.startsWith('/storage/')) {
+      path = '/api/v1/media/${path.substring('/storage/'.length)}';
+    } else if (path.startsWith('storage/')) {
+      path = '/api/v1/media/${path.substring('storage/'.length)}';
+    } else if (!path.startsWith('/')) {
+      path = '/$path';
+    }
+
+    if (parsed.hasScheme &&
+        (parsed.scheme == 'http' || parsed.scheme == 'https') &&
+        !path.startsWith('/api/v1/media/') &&
+        !path.startsWith('/storage/')) {
+      // External CDN (e.g. Unsplash) — keep as-is unless local API host.
+      final host = parsed.host;
+      if (host != '127.0.0.1' &&
+          host != 'localhost' &&
+          parsed.port != 8001 &&
+          host != Uri.parse(origin).host) {
+        return trimmed;
+      }
+    }
+
+    return Uri.parse(origin).replace(path: path, query: parsed.hasQuery ? parsed.query : null).toString();
+  }
+
+  MediaType? _mediaTypeForName(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.png')) return MediaType('image', 'png');
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return MediaType('image', 'jpeg');
+    if (lower.endsWith('.webp')) return MediaType('image', 'webp');
+    if (lower.endsWith('.gif')) return MediaType('image', 'gif');
+    if (lower.endsWith('.pdf')) return MediaType('application', 'pdf');
+    return null;
+  }
+
   Future<bool> login(String identifier, String password) async {
-    final cleanId = identifier.trim().isEmpty ? '07701112233' : identifier.trim().replaceAll(' ', '');
-    final cleanPass = password.trim().isEmpty ? 'password123' : password.trim();
+    final cleanId = identifier.trim().replaceAll(' ', '');
+    final cleanPass = password.trim();
+    if (cleanId.isEmpty || cleanPass.length < 6) return false;
 
     final res = await http
         .post(
@@ -36,6 +88,14 @@ class VendorApiService {
           }),
         )
         .timeout(const Duration(seconds: 6));
+
+    if (res.statusCode == 403) {
+      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+      if (decoded['code']?.toString() == 'account_blocked') {
+        await logout();
+        throw AccountBlockedException.fromBody(decoded);
+      }
+    }
 
     if (res.statusCode >= 200 && res.statusCode < 300) {
       final decoded = jsonDecode(res.body) as Map<String, dynamic>;
@@ -59,7 +119,7 @@ class VendorApiService {
         _token = saved;
         return true;
       }
-      return await login('07701112233', 'password123');
+      return false;
     } catch (_) {
       return false;
     }
@@ -74,8 +134,28 @@ class VendorApiService {
       }
     } catch (_) {}
     _token = null;
+    categoryNameToId.clear();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenPrefKey);
+    // Note: logout only clears the auth token — never deletes server catalog.
+  }
+
+  /// Public support contacts (WhatsApp / Telegram / phone) — no auth required.
+  Future<Map<String, dynamic>> fetchSupportContacts() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/public/support-contacts'), headers: {
+            'Accept': 'application/json',
+          })
+          .timeout(const Duration(seconds: 5));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+        final data = decoded['data'];
+        if (data is Map<String, dynamic>) return data;
+        if (data is Map) return Map<String, dynamic>.from(data);
+      }
+    } catch (_) {}
+    return const {};
   }
 
   Future<Map<String, dynamic>?> fetchStoreProfile() async {
@@ -90,38 +170,45 @@ class VendorApiService {
     return null;
   }
 
-  Future<List<dynamic>> fetchCategories() async {
-    if (!await ensureAuthenticated()) return [];
-    final res = await http
-        .get(Uri.parse('$baseUrl/vendor/categories'), headers: _headers())
-        .timeout(const Duration(seconds: 5));
-    if (res.statusCode == 200) {
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      final list = body['data'] as List<dynamic>? ?? [];
-      categoryNameToId.clear();
-      for (final item in list) {
-        final m = item as Map<String, dynamic>;
-        final name = m['name_ku']?.toString() ?? '';
-        final id = (m['id'] as num?)?.toInt();
-        if (name.isNotEmpty && id != null) {
-          categoryNameToId[name] = id;
+  /// Returns the category list on success, or `null` when the request failed
+  /// (so callers do not wipe a good in-memory catalog on a transient error).
+  Future<List<dynamic>?> fetchCategories() async {
+    if (!await ensureAuthenticated()) return null;
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/vendor/categories'), headers: _headers())
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final list = body['data'] as List<dynamic>? ?? [];
+        categoryNameToId.clear();
+        for (final item in list) {
+          final m = item as Map<String, dynamic>;
+          final name = m['name_ku']?.toString() ?? '';
+          final id = (m['id'] as num?)?.toInt();
+          if (name.isNotEmpty && id != null) {
+            categoryNameToId[name] = id;
+          }
         }
+        return list;
       }
-      return list;
-    }
-    return [];
+    } catch (_) {}
+    return null;
   }
 
-  Future<List<dynamic>> fetchProducts() async {
-    if (!await ensureAuthenticated()) return [];
-    final res = await http
-        .get(Uri.parse('$baseUrl/vendor/products'), headers: _headers())
-        .timeout(const Duration(seconds: 5));
-    if (res.statusCode == 200) {
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      return body['data'] as List<dynamic>? ?? [];
-    }
-    return [];
+  /// Returns the product list on success, or `null` on request failure.
+  Future<List<dynamic>?> fetchProducts() async {
+    if (!await ensureAuthenticated()) return null;
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/vendor/products'), headers: _headers())
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        return body['data'] as List<dynamic>? ?? [];
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<List<dynamic>> fetchOrders() async {
@@ -145,6 +232,25 @@ class VendorApiService {
           body: jsonEncode({'is_online': isOnline}),
         )
         .timeout(const Duration(seconds: 5));
+  }
+
+  /// داشکاندنی گشتی بۆ هەموو بەرهەمەکان (percent: 0–100، بە ٥٪؛ 0 = لابردن)
+  Future<(bool, String)> applyStoreDiscount(int percent) async {
+    if (!await ensureAuthenticated()) return (false, 'پەیوەندی نییە');
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/vendor/store/discount'),
+            headers: _headers(),
+            body: jsonEncode({'percent': percent}),
+          )
+          .timeout(const Duration(seconds: 8));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final ok = res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true;
+      return (ok, body['message']?.toString() ?? (ok ? 'داشکاندن جێبەجێ کرا' : 'کێشەیەک ڕوویدا'));
+    } catch (_) {
+      return (false, 'کێشەی پەیوەندی');
+    }
   }
 
   Future<void> updateStoreInfo({
@@ -200,6 +306,20 @@ class VendorApiService {
     }
   }
 
+  Future<Map<String, dynamic>?> fetchNearbyDrivers() async {
+    if (!await ensureAuthenticated()) return null;
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/vendor/nearby-drivers'), headers: _headers())
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        return body['data'] as Map<String, dynamic>?;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<(bool, String, Map<String, dynamic>?)> dispatchNearestDriver(int dbOrderId) async {
     if (!await ensureAuthenticated()) return (false, 'پەیوەندی نییە', null);
     try {
@@ -216,7 +336,27 @@ class VendorApiService {
     }
   }
 
-  Future<(bool, String)> verifyHandoverPin(int dbOrderId, String pin) async {
+  Future<(bool, String, Map<String, dynamic>?)> assignDriver(int dbOrderId, int driverUserId) async {
+    if (!await ensureAuthenticated()) return (false, 'پەیوەندی نییە', null);
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/vendor/orders/$dbOrderId/assign-driver'),
+            headers: _headers(),
+            body: jsonEncode({'driver_id': driverUserId}),
+          )
+          .timeout(const Duration(seconds: 5));
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final ok = res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true;
+      final msg = body['message']?.toString() ?? (ok ? 'ماتۆرسوار دیاریکرا' : 'دیاریکردن سەرکەوتوو نەبوو');
+      final data = body['data'] as Map<String, dynamic>?;
+      return (ok, msg, data);
+    } catch (_) {
+      return (false, 'کێشەی پەیوەندی لە دیاریکردنی ماتۆرسوار', null);
+    }
+  }
+
+  Future<(bool, String)> handoverToDriver(int dbOrderId) async {
     if (!await ensureAuthenticated()) {
       return (false, 'پەیوەندی بە سێرڤەرەوە نییە');
     }
@@ -224,23 +364,31 @@ class VendorApiService {
         .post(
           Uri.parse('$baseUrl/vendor/orders/$dbOrderId/handover'),
           headers: _headers(),
-          body: jsonEncode({'pin': pin}),
         )
         .timeout(const Duration(seconds: 5));
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true) {
       return (true, body['message']?.toString() ?? 'سەرکەوتوو بوو');
     }
-    return (false, body['message']?.toString() ?? 'کۆدی PIN هەڵەیە!');
+    return (false, body['message']?.toString() ?? 'ڕادەستکردن سەرکەوتوو نەبوو');
   }
 
-  Future<int?> addCategory(String nameKu) async {
+  Future<int?> addCategory(
+    String nameKu, {
+    String? imageUrl,
+    String? secondaryImageUrl,
+  }) async {
     if (!await ensureAuthenticated()) return null;
     final res = await http
         .post(
           Uri.parse('$baseUrl/vendor/categories'),
           headers: _headers(),
-          body: jsonEncode({'name_ku': nameKu}),
+          body: jsonEncode({
+            'name_ku': nameKu,
+            if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
+            if (secondaryImageUrl != null && secondaryImageUrl.isNotEmpty)
+              'secondary_image_url': secondaryImageUrl,
+          }),
         )
         .timeout(const Duration(seconds: 5));
     if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -260,10 +408,58 @@ class VendorApiService {
         .timeout(const Duration(seconds: 5));
   }
 
+  /// Upload image bytes. Returns `{path, url}` or throws on failure.
+  Future<Map<String, dynamic>> uploadMedia(Uint8List bytes, String filename) async {
+    if (!await ensureAuthenticated()) {
+      throw Exception('تکایە دووبارە بچۆ ژوورەوە.');
+    }
+    final uri = Uri.parse('$baseUrl/vendor/upload');
+    final req = http.MultipartRequest('POST', uri);
+    req.headers['Authorization'] = 'Bearer $_token';
+    req.headers['Accept'] = 'application/json';
+    req.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: filename,
+      contentType: _mediaTypeForName(filename),
+    ));
+
+    late http.StreamedResponse streamed;
+    try {
+      streamed = await req.send().timeout(const Duration(seconds: 45));
+    } catch (_) {
+      throw Exception('بارکردنی وێنە سەرکەوتوو نەبوو. دڵنیابەرەوە لە کارکردنی سێرڤەر.');
+    }
+
+    final body = await streamed.stream.bytesToString();
+    Map<String, dynamic> decoded = {};
+    if (body.isNotEmpty) {
+      try {
+        final raw = jsonDecode(body);
+        if (raw is Map<String, dynamic>) decoded = raw;
+      } catch (_) {}
+    }
+
+    if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
+      final data = decoded['data'] as Map<String, dynamic>? ?? decoded;
+      final rawUrl = data['url']?.toString();
+      if (rawUrl != null && rawUrl.isNotEmpty) {
+        data['url'] = resolveMediaUrl(rawUrl);
+      }
+      return data;
+    }
+
+    throw Exception(
+      decoded['message']?.toString() ??
+          'بارکردنی وێنە سەرکەوتوو نەبوو (${streamed.statusCode})',
+    );
+  }
+
   Future<Map<String, dynamic>?> addProduct({
     required String nameKu,
     required String categoryName,
     required int price,
+    required int costPrice,
     int? discountPrice,
     String? descriptionKu,
     String? imageUrl,
@@ -272,26 +468,30 @@ class VendorApiService {
     if (!await ensureAuthenticated()) return null;
     int? catId = categoryNameToId[categoryName];
     catId ??= await addCategory(categoryName);
+    if (catId == null) return null;
 
-    final res = await http
-        .post(
-          Uri.parse('$baseUrl/vendor/products'),
-          headers: _headers(),
-          body: jsonEncode({
-            'store_category_id': catId,
-            'name_ku': nameKu,
-            'price': price,
-            'discount_price': discountPrice,
-            'description_ku': descriptionKu,
-            'image_url': imageUrl,
-            'is_available': isAvailable,
-          }),
-        )
-        .timeout(const Duration(seconds: 5));
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      return body['data'] as Map<String, dynamic>?;
-    }
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/vendor/products'),
+            headers: _headers(),
+            body: jsonEncode({
+              'store_category_id': catId,
+              'name_ku': nameKu,
+              'price': price,
+              'cost_price': costPrice,
+              if (discountPrice != null) 'discount_price': discountPrice,
+              if (descriptionKu != null && descriptionKu.isNotEmpty) 'description_ku': descriptionKu,
+              if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
+              'is_available': isAvailable,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        return body['data'] as Map<String, dynamic>?;
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -300,6 +500,7 @@ class VendorApiService {
     required String nameKu,
     required String categoryName,
     required int price,
+    required int costPrice,
     int? discountPrice,
     String? descriptionKu,
     String? imageUrl,
@@ -315,6 +516,7 @@ class VendorApiService {
             'store_category_id': catId,
             'name_ku': nameKu,
             'price': price,
+            'cost_price': costPrice,
             'discount_price': discountPrice,
             'description_ku': descriptionKu,
             'image_url': imageUrl,
@@ -336,5 +538,24 @@ class VendorApiService {
     await http
         .delete(Uri.parse('$baseUrl/vendor/products/$productId'), headers: _headers())
         .timeout(const Duration(seconds: 5));
+  }
+
+
+  /// Realized profit share for this store (admin owed from gross profit).
+  Future<Map<String, dynamic>?> fetchRevenueAnalytics({String period = 'today'}) async {
+    if (!await ensureAuthenticated()) return null;
+    try {
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/vendor/analytics/revenue?period=$period'),
+            headers: _headers(),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        return body['data'] as Map<String, dynamic>?;
+      }
+    } catch (_) {}
+    return null;
   }
 }

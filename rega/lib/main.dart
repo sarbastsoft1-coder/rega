@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
@@ -16,7 +15,9 @@ import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'live_order_tracker.dart';
+import 'map/mapbox_geocoding.dart';
 import 'customer_api_service.dart';
+import 'blocked_account.dart';
 import 'rega_mobile.dart';
 import 'l10n/customer_l10n.dart';
 import 'models/customer_models.dart';
@@ -24,6 +25,7 @@ import 'app/providers.dart';
 import 'app/app_router.dart';
 import 'state/cart_notifier.dart';
 import 'state/locale_notifier.dart';
+import 'iraq_phone_formatter.dart';
 import 'state/location_notifier.dart';
 import 'state/navigation_notifier.dart';
 import 'state/orders_notifier.dart';
@@ -51,12 +53,23 @@ class RegaApp extends StatefulWidget {
 }
 
 class _RegaAppState extends State<RegaApp> {
-  late final GoRouter _router;
+  GoRouter? _router;
 
   @override
-  void initState() {
-    super.initState();
-    _router = createCustomerRouter(
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _router ??= createCustomerRouter(
+      refreshListenable: context.read<SessionNotifier>(),
+      loginBuilder: (context) {
+        final locale = context.watch<LocaleNotifier>();
+        return MainScreen(
+          currentLang: locale.langCode,
+          onLanguageChange: (lang) => context.read<LocaleNotifier>().setLanguage(lang),
+          initialTabIndex: 4,
+          openStoreId: null,
+          forceAuthOnly: true,
+        );
+      },
       shellBuilder: (context, tabIndex, openStoreId) {
         final locale = context.watch<LocaleNotifier>();
         return MainScreen(
@@ -72,39 +85,46 @@ class _RegaAppState extends State<RegaApp> {
   @override
   Widget build(BuildContext context) {
     final locale = context.watch<LocaleNotifier>();
+    final router = _router;
+    if (router == null) return const SizedBox.shrink();
     return MaterialApp.router(
       title: 'REGA - ڕێگا',
       debugShowCheckedModeBanner: false,
-      routerConfig: _router,
+      routerConfig: router,
       theme: ThemeData(
         useMaterial3: true,
-        fontFamily: GoogleFonts.notoKufiArabic().fontFamily,
-        fontFamilyFallback: const [
-          'Noto Kufi Arabic',
-          'NotoKufiArabic',
-          'Cairo',
-          'Arial',
-        ],
-        textTheme: GoogleFonts.notoKufiArabicTextTheme(
-          ThemeData.light().textTheme,
-        ),
-        primaryTextTheme: GoogleFonts.notoKufiArabicTextTheme(
-          ThemeData.light().primaryTextTheme,
-        ),
+        brightness: Brightness.light,
+        fontFamily: 'NotoKufiArabic',
         primaryColor: const Color(0xFFFAC800),
         scaffoldBackgroundColor: const Color(0xFFF8FAFC),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFFFAC800),
+          brightness: Brightness.light,
           primary: const Color(0xFFFAC800),
           secondary: const Color(0xFF18181B),
           surface: Colors.white,
         ),
       ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        fontFamily: 'NotoKufiArabic',
+        primaryColor: const Color(0xFFFAC800),
+        scaffoldBackgroundColor: const Color(0xFF0F172A),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFFAC800),
+          brightness: Brightness.dark,
+          primary: const Color(0xFFFAC800),
+          secondary: const Color(0xFF00E676),
+          surface: const Color(0xFF111827),
+        ),
+      ),
+      themeMode: locale.themeMode,
       builder: (context, child) {
         return RegaResponsive.appBuilder(
           context,
           DefaultTextStyle.merge(
-            style: GoogleFonts.notoKufiArabic(),
+            style: const TextStyle(fontFamily: 'NotoKufiArabic'),
             child: child ?? const SizedBox(),
           ),
           direction: locale.textDirection,
@@ -133,471 +153,12 @@ String appLogoUrl = '';
 // ============================================================================
 
 // ============================================================================
-// 🏪 INITIAL DATA FOR KALAR (کەلار)
+// LIVE DATA (filled from backend bootstrap — no fake seed catalog)
 // ============================================================================
 
-final List<StoreItem> allStores = [
-  StoreItem(
-    id: 'store_mam_rashid',
-    name: 'کەبابی مام ڕەشید',
-    category: 'خواردنگە',
-    rating: 4.9,
-    deliveryTime: '20-30 خولەک',
-    deliveryFee: 1500,
-    imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600',
-    address: 'کەلار - شەقامی سەرەکی بازاڕ',
-    phone: '07701234567',
-    discountBadge: '%30 OFF',
-  ),
-  StoreItem(
-    id: 'store_sarwar',
-    name: 'ڕێستۆرانتی سەروەر',
-    category: 'خواردنگە',
-    rating: 4.9,
-    deliveryTime: '25-35 خولەک',
-    deliveryFee: 1500,
-    imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600',
-    address: 'کەلار - بەرامبەر پارکی ڕزگاری',
-    phone: '07701112233',
-    discountBadge: '%15 OFF',
-  ),
-  StoreItem(
-    id: 'store_restaurant_kalar',
-    name: 'ڕێستۆرانتی کەلار سیتی',
-    category: 'خواردنگە',
-    rating: 4.8,
-    deliveryTime: '25-35 خولەک',
-    deliveryFee: 1500,
-    imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600',
-    address: 'کەلار - بەرامبەر فۆلكەی زانکۆ',
-    phone: '07702223344',
-    discountBadge: '%20 OFF',
-  ),
-  StoreItem(
-    id: 'store_kalar_market',
-    name: 'کەلار سیتی مارکێت',
-    category: 'سوپەرمارکێت',
-    rating: 4.8,
-    deliveryTime: '15-25 خولەک',
-    deliveryFee: 1000,
-    imageUrl: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=600',
-    address: 'کەلار - گەڕەکی شەهیدان',
-    phone: '07509876543',
-    discountBadge: 'FREE DELIVERY',
-  ),
-  StoreItem(
-    id: 'store_rzgari_market',
-    name: 'سوپەرمارکێتی ڕزگاری',
-    category: 'سوپەرمارکێت',
-    rating: 4.7,
-    deliveryTime: '10-20 خولەک',
-    deliveryFee: 1000,
-    imageUrl: 'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=600',
-    address: 'کەلار - شارۆچکەی ڕزگاری',
-    phone: '07501112233',
-  ),
-  StoreItem(
-    id: 'store_fastfood',
-    name: 'فاست فوودی شاری یاری',
-    category: 'فاست فوود',
-    rating: 4.8,
-    deliveryTime: '20-30 خولەک',
-    deliveryFee: 1000,
-    imageUrl: 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=600',
-    address: 'کەلار - بەرامبەر پارکی ڕزگاری',
-    phone: '07707778899',
-    discountBadge: '%25 OFF',
-  ),
-  StoreItem(
-    id: 'store_shawarma_rebaz',
-    name: 'شاوڕمە و پیتزای ڕێباز',
-    category: 'فاست فوود',
-    rating: 4.9,
-    deliveryTime: '15-25 خولەک',
-    deliveryFee: 1000,
-    imageUrl: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=600',
-    address: 'کەلار - ناو بازاڕ',
-    phone: '07703334455',
-    discountBadge: '1+1 FREE',
-  ),
-  StoreItem(
-    id: 'store_fruits',
-    name: 'بازاڕی میوە و سەوزەی کەلار',
-    category: 'سەوزە و میوە',
-    rating: 4.9,
-    deliveryTime: '15-30 خولەک',
-    deliveryFee: 1000,
-    imageUrl: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=600',
-    address: 'کەلار - مەیدانی میوەوات',
-    phone: '07705556677',
-  ),
-  StoreItem(
-    id: 'store_cafe_diwan',
-    name: 'کافێ و قاوەخانەی دیوان',
-    category: 'کافێ',
-    rating: 4.7,
-    deliveryTime: '15-25 خولەک',
-    deliveryFee: 1000,
-    imageUrl: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600',
-    address: 'کەلار - گەڕەکی سیروان',
-    phone: '07708889900',
-    discountBadge: '%15 OFF',
-  ),
-  StoreItem(
-    id: 'store_safin',
-    name: 'شیرینی و باقلاوەی سەفین',
-    category: 'شیرەمەنی و شیرینی',
-    rating: 4.7,
-    deliveryTime: '25-35 خولەک',
-    deliveryFee: 1500,
-    imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600',
-    address: 'کەلار - فۆلكەی زانکۆ',
-    phone: '07701112233',
-    discountBadge: '%10 OFF',
-  ),
-  StoreItem(
-    id: 'store_bakery',
-    name: 'نانەواخانە و سەموونخانەی هەولێر',
-    category: 'نانەواخانە',
-    rating: 4.8,
-    deliveryTime: '10-20 خولەک',
-    deliveryFee: 1000,
-    imageUrl: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=600',
-    address: 'کەلار - شەقامی سەرەکی',
-    phone: '07706667788',
-  ),
-  StoreItem(
-    id: 'store_butcher',
-    name: 'قەسابخانەی برادەران - گۆشتی تازه',
-    category: 'گۆشت و قەسابخانە',
-    rating: 4.9,
-    deliveryTime: '20-30 خولەک',
-    deliveryFee: 1000,
-    imageUrl: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=600',
-    address: 'کەلار - مەیدانی ئاژەڵان',
-    phone: '07709990011',
-  ),
-  StoreItem(
-    id: 'store_cosmetics',
-    name: 'کۆسمەتیک پڕۆ کەلار',
-    category: 'کۆسمەتیک',
-    rating: 4.6,
-    deliveryTime: '30-40 خولەک',
-    deliveryFee: 1500,
-    imageUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600',
-    address: 'کەلار - سەنتەری شۆڕش',
-    phone: '07704445566',
-    discountBadge: '%20 OFF',
-  ),
-];
+final List<StoreItem> allStores = [];
 
-final List<ProductItem> allProducts = [
-  // 1. کەبابی مام ڕەشید (store_mam_rashid)
-  ProductItem(
-    id: 'mr_1',
-    storeId: 'store_mam_rashid',
-    name: 'ژەمە کەبابی تایبەتی مام ڕەشید',
-    price: 7500,
-    description: '3 شیش کەبابی گۆشتی فرێشی بەرخ، تەماتە، پیاز و نانی گەرم',
-    imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600',
-    category: 'خواردنگە',
-    subCategory: 'کەباب و برژاوەکان',
-  ),
-  ProductItem(
-    id: 'mr_2',
-    storeId: 'store_mam_rashid',
-    name: 'تیکەی گۆشتی بەرخ (شیش)',
-    price: 8000,
-    description: 'تیکەی نەرم و بەتام لەسەر خەڵوز برژاو',
-    imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600',
-    category: 'خواردنگە',
-    subCategory: 'کەباب و برژاوەکان',
-  ),
-  ProductItem(
-    id: 'mr_3',
-    storeId: 'store_mam_rashid',
-    name: 'تیکەی مریشک (جوجە کباب)',
-    price: 6500,
-    description: 'سنگی مریشکی خەستکراو بە بەهاراتی کەبابی مام ڕەشید',
-    imageUrl: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=600',
-    category: 'خواردنگە',
-    subCategory: 'مریشک و قوزی',
-  ),
-  ProductItem(
-    id: 'mr_4',
-    storeId: 'store_mam_rashid',
-    name: 'دۆی سروشتی تڕی مام ڕەشید',
-    price: 1000,
-    description: 'دۆی سروشتی سارد بە نەعنا',
-    imageUrl: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600',
-    category: 'خواردنگە',
-    subCategory: 'خواردنەوەکان',
-  ),
-
-  // 2. ڕێستۆرانتی سەروەر (store_sarwar)
-  ProductItem(
-    id: 'prod_1',
-    storeId: 'store_sarwar',
-    name: 'ژەمە کەبابی تایبەتی سەروەر',
-    price: 8500,
-    description: '3 شیش کەبابی گۆشتی فرێشی عەقەرە لەگەڵ نانی گەرم، سەوزە، تەماتەی برژاو و ماست',
-    imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600',
-    category: 'خواردنگە',
-    subCategory: 'کەباب و برژاوەکان',
-  ),
-  ProductItem(
-    id: 'prod_2',
-    storeId: 'store_sarwar',
-    name: 'مریشکی برژاوی سەر خەڵوز',
-    price: 9000,
-    description: 'مریشکی تەواو برژاو بە بهاراتی تایبەت و سۆسی دۆشاوڕمێن',
-    imageUrl: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=600',
-    category: 'خواردنگە',
-    subCategory: 'مریشک و قوزی',
-  ),
-  ProductItem(
-    id: 'sw_3',
-    storeId: 'store_sarwar',
-    name: 'کوپە سوپی تەماتە و نۆک',
-    price: 2500,
-    description: 'سوپی گەرم بە گوژم و بهاراتی کوردی',
-    imageUrl: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600',
-    category: 'خواردنگە',
-    subCategory: 'کەباب و برژاوەکان',
-  ),
-
-  // 3. ڕێستۆرانتی کەلار سیتی (store_restaurant_kalar)
-  ProductItem(
-    id: 'prod_3',
-    storeId: 'store_restaurant_kalar',
-    name: 'قوزی گۆشتی بەرخ بە برنجی کوردی',
-    price: 14000,
-    description: 'ژەمە قوزی شاد لەگەڵ برنجی کوردی بۆندار و شلە',
-    imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600',
-    category: 'خواردنگە',
-    subCategory: 'مریشک و قوزی',
-  ),
-  ProductItem(
-    id: 'rk_2',
-    storeId: 'store_restaurant_kalar',
-    name: 'برنجی بەمیە بە گۆشتەوە',
-    price: 6000,
-    description: 'برنجی کوردی بە شلەی بەمیەی فرێش و گۆشتی بەرخ',
-    imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600',
-    category: 'خواردنگە',
-    subCategory: 'مریشک و قوزی',
-  ),
-  ProductItem(
-    id: 'rk_3',
-    storeId: 'store_restaurant_kalar',
-    name: 'شاوڕمەی عەرەبی لەسەر قاپ',
-    price: 7000,
-    description: 'شاوڕمەی مریشک لەگەڵ فینگەر، مایۆنیز و سۆس',
-    imageUrl: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=600',
-    category: 'خواردنگە',
-    subCategory: 'سەندویچ و فاست فوود',
-  ),
-
-  // 4. کەلار سیتی مارکێت (store_kalar_market)
-  ProductItem(
-    id: 'prod_5',
-    storeId: 'store_kalar_market',
-    name: 'شیری فرێشی کۆڵنە 1L',
-    price: 2500,
-    description: 'شیری تەواو سروشتی بێ زیادکراو',
-    imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=600',
-    category: 'سوپەرمارکێت',
-    subCategory: 'لبنیات و شیرەمەنی',
-  ),
-  ProductItem(
-    id: 'km_2',
-    storeId: 'store_kalar_market',
-    name: 'شۆکۆلاتەی نۆتێلا 400g',
-    price: 6000,
-    description: 'نۆتێلای ڕەسەن بۆ نانی بەیانیان',
-    imageUrl: 'https://images.unsplash.com/photo-1581798459219-318e76aecc7b?w=600',
-    category: 'سوپەرمارکێت',
-    subCategory: 'شیرینی و بەستەری',
-  ),
-
-  // 5. سوپەرمارکێتی ڕزگاری (store_rzgari_market)
-  ProductItem(
-    id: 'rm_1',
-    storeId: 'store_rzgari_market',
-    name: 'پەنێری کیری 12 دانەیی',
-    price: 2500,
-    description: 'پەنێری چەور و نەرم بۆ بەیانیان',
-    imageUrl: 'https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?w=600',
-    category: 'سوپەرمارکێت',
-    subCategory: 'لبنیات و شیرەمەنی',
-  ),
-  ProductItem(
-    id: 'rm_2',
-    storeId: 'store_rzgari_market',
-    name: 'شەربەتی ڕانی بە پارچەی میوەوە',
-    price: 750,
-    description: 'قوتووی شەربەتی هۆڵووی ڕانی 240ml',
-    imageUrl: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600',
-    category: 'سوپەرمارکێت',
-    subCategory: 'خواردنەوەکان',
-  ),
-
-  // 6. فاست فوودی شاری یاری (store_fastfood)
-  ProductItem(
-    id: 'prod_6',
-    storeId: 'store_fastfood',
-    name: 'دۆبڵ بەرگەری پەنیری',
-    price: 6500,
-    description: '2 پارچە گۆشتی گۆڵک، پەنیر، فینگەری گەرم و سۆسی فاست فوود',
-    imageUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600',
-    category: 'فاست فوود',
-    subCategory: 'سەندویچ و فاست فوود',
-  ),
-  ProductItem(
-    id: 'ff_2',
-    storeId: 'store_fastfood',
-    name: 'پیتزای مێکس گۆشت و مریشک',
-    price: 10000,
-    description: 'پیتزای گەورە بە سۆسی تەماتە، زەیتون و پەنیر',
-    imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600',
-    category: 'فاست فوود',
-    subCategory: 'سەندویچ و فاست فوود',
-  ),
-
-  // 7. شاوڕمە و پیتزای ڕێباز (store_shawarma_rebaz)
-  ProductItem(
-    id: 'prod_7',
-    storeId: 'store_shawarma_rebaz',
-    name: 'شاوڕمەی مریشکی عەرەبی',
-    price: 3500,
-    description: 'شاوڕمەی مریشکی گەرم بە نانی ساج و سۆسی سێری تایبەت',
-    imageUrl: 'https://images.unsplash.com/photo-1529042410759-befb1204b468?w=600',
-    category: 'فاست فوود',
-    subCategory: 'سەندویچ و فاست فوود',
-  ),
-  ProductItem(
-    id: 'sr_2',
-    storeId: 'store_shawarma_rebaz',
-    name: 'شاوڕمەی گۆشتی بەرخ',
-    price: 4500,
-    description: 'شاوڕمەی گۆشت بە نانی عەرەبی و تڕشی و سۆس',
-    imageUrl: 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=600',
-    category: 'فاست فوود',
-    subCategory: 'سەندویچ و فاست فوود',
-  ),
-
-  // 8. بازاڕی میوە و سەوزەی کەلار (store_fruits)
-  ProductItem(
-    id: 'prod_8',
-    storeId: 'store_fruits',
-    name: 'سێوی سووری فرێش 1KG',
-    price: 2000,
-    description: 'سێوی خۆماڵی تازە و شیرین',
-    imageUrl: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=600',
-    category: 'سەوزە و میوە',
-    subCategory: 'میوەکان',
-  ),
-  ProductItem(
-    id: 'fr_2',
-    storeId: 'store_fruits',
-    name: 'مۆزی سۆماڵی 1KG',
-    price: 2500,
-    description: 'مۆزی زەرد و شیرینی فرێش',
-    imageUrl: 'https://images.unsplash.com/photo-1603833665858-e61d17a86224?w=600',
-    category: 'سەوزە و میوە',
-    subCategory: 'میوەکان',
-  ),
-  ProductItem(
-    id: 'fr_3',
-    storeId: 'store_fruits',
-    name: 'تەماتەی خۆماڵی 1KG',
-    price: 1000,
-    description: 'تەماتەی سوور و تازەی ئاوودار',
-    imageUrl: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=600',
-    category: 'سەوزە و میوە',
-    subCategory: 'سەوزەوات',
-  ),
-
-  // 9. کافێ و قاوەخانەی دیوان (store_cafe_diwan)
-  ProductItem(
-    id: 'prod_9',
-    storeId: 'store_cafe_diwan',
-    name: 'قاوەی ئیسپرێسۆی ئیتاڵی',
-    price: 3000,
-    description: 'قاوەی فرێش بە تامێکی دەوڵەمەند',
-    imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600',
-    category: 'کافێ',
-    subCategory: 'خواردنەوەکان',
-  ),
-  ProductItem(
-    id: 'cd_2',
-    storeId: 'store_cafe_diwan',
-    name: 'کاپوچینۆ بە کەفی شیری گەرم',
-    price: 3500,
-    description: 'کاپوچینۆی ڕەسەن بە فۆم و دارچینی',
-    imageUrl: 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=600',
-    category: 'کافێ',
-    subCategory: 'خواردنەوەکان',
-  ),
-
-  // 10. شیرینی و باقلاوەی سەفین (store_safin)
-  ProductItem(
-    id: 'prod_4',
-    storeId: 'store_safin',
-    name: 'باقلاوەی فستقی عەنتاب',
-    price: 12000,
-    description: '1 کیلۆ باقلاوەی تڕ بە روونی ئاژەڵی سروشتی و فستقی فرێش',
-    imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600',
-    category: 'شیرەمەنی و شیرینی',
-    subCategory: 'باقلاوە و شیرینی',
-  ),
-  ProductItem(
-    id: 'sf_2',
-    storeId: 'store_safin',
-    name: 'کۆنەفەی گەرمی عەرەبی بە پەنیر',
-    price: 6000,
-    description: 'کۆنەفەی تازە و بەتام بۆ شێوان',
-    imageUrl: 'https://images.unsplash.com/photo-1519869325930-281384150729?w=600',
-    category: 'شیرەمەنی و شیرینی',
-    subCategory: 'باقلاوە و شیرینی',
-  ),
-
-  // 11. نانەواخانە و سەموونخانەی هەولێر (store_bakery)
-  ProductItem(
-    id: 'prod_10',
-    storeId: 'store_bakery',
-    name: 'سەموونی گەرمی دایری 10 پارچە',
-    price: 1500,
-    description: 'سەموونی تازەی نەرم بەبێ هەویر',
-    imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600',
-    category: 'نانەواخانە',
-    subCategory: 'نان و سەموون',
-  ),
-
-  // 12. قەسابخانەی برادەران - گۆشتی تازه (store_butcher)
-  ProductItem(
-    id: 'prod_11',
-    storeId: 'store_butcher',
-    name: 'گۆشتی بەرخی فرێش 1KG',
-    price: 18000,
-    description: 'گۆشتی بەرخی خۆماڵی تەواو پاککراوە',
-    imageUrl: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=600',
-    category: 'گۆشت و قەسابخانە',
-    subCategory: 'گۆشتی تازە',
-  ),
-
-  // 13. کۆسمەتیک پڕۆ کەلار (store_cosmetics)
-  ProductItem(
-    id: 'cs_1',
-    storeId: 'store_cosmetics',
-    name: 'عەتری ساڤاج دیۆر 100ml',
-    price: 35000,
-    description: 'عەتری ڕەسەن بە بپڕانی بەرز و تەمەنی درێژ',
-    imageUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600',
-    category: 'کۆسمەتیک',
-    subCategory: 'عەتر و کۆسمەتیک',
-  ),
-];
+final List<ProductItem> allProducts = [];
 
 // ============================================================================
 // 📱 MAIN APPLICATION SCREEN WITH NAVIGATION & STATE
@@ -608,6 +169,8 @@ class MainScreen extends StatefulWidget {
   final Function(String) onLanguageChange;
   final int initialTabIndex;
   final String? openStoreId;
+  /// When true, only the login/register UI is shown (auth gate).
+  final bool forceAuthOnly;
 
   const MainScreen({
     super.key,
@@ -615,6 +178,7 @@ class MainScreen extends StatefulWidget {
     required this.onLanguageChange,
     this.initialTabIndex = 0,
     this.openStoreId,
+    this.forceAuthOnly = false,
   });
 
   @override
@@ -623,7 +187,8 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   late int _currentIndex;
-  int _unreadNotificationCount = 3;
+  int _unreadNotificationCount = 0;
+  List<Map<String, dynamic>> _dynamicNotifications = [];
   String _searchQuery = '';
   String _selectedCategory = 'گشتی';
   StoreItem? _selectedStore;
@@ -646,8 +211,9 @@ class _MainScreenState extends State<MainScreen> {
 
   List<OrderItem> get _orders => context.read<OrdersNotifier>().mutableOrders;
 
-  Neighborhood get _selectedNeighborhood => context.read<LocationNotifier>().neighborhood;
-  set _selectedNeighborhood(Neighborhood value) =>
+  Neighborhood? get _selectedNeighborhood => context.read<LocationNotifier>().neighborhood;
+  Neighborhood? get _selectedNeighborhoodOrNull => _selectedNeighborhood;
+  set _selectedNeighborhood(Neighborhood? value) =>
       context.read<LocationNotifier>().setNeighborhood(value);
 
   double? get _pinnedCustomerLat => context.read<LocationNotifier>().pinnedLat;
@@ -673,9 +239,26 @@ class _MainScreenState extends State<MainScreen> {
   String? get _deliveryPlaceNote => context.read<LocationNotifier>().placeNote;
   set _deliveryPlaceNote(String? value) => context.read<LocationNotifier>().setPlaceNote(value);
 
+  String? get _resolvedPlaceName => context.read<LocationNotifier>().resolvedPlaceName;
+  set _resolvedPlaceName(String? value) =>
+      context.read<LocationNotifier>().setResolvedPlaceName(value);
+
+  /// Home bar / confirm chips — never a frozen Flutter neighborhood const.
+  String get _deliveryDisplayLabel {
+    final label = context.read<LocationNotifier>().displayPlaceLabel;
+    if (label != null && label.isNotEmpty) return label;
+    return _t('شوێنی گەیاندن هەڵبژێرە');
+  }
+
+  bool get _hasDeliveryPlaceChosen => context.read<LocationNotifier>().hasChosenPlace;
+
+  int get _deliveryFeeOrZero => context.read<LocationNotifier>().deliveryFeeOrZero;
+
   // Dynamic Marketplace Data from Backend (Categories, Banners)
   List<Map<String, dynamic>> _dynamicCategories = [];
   List<Map<String, dynamic>> _dynamicBanners = [];
+  /// storeId -> menu category name_ku -> {image_url, secondary_image_url, sort_order}
+  final Map<String, Map<String, Map<String, dynamic>>> _storeMenuCategoryMeta = {};
 
   IconData _getCategoryIcon(String catName) {
     if (catName.contains('خواردن') || catName.contains('ڕێستۆرانت')) return Icons.restaurant_rounded;
@@ -695,6 +278,9 @@ class _MainScreenState extends State<MainScreen> {
   bool _isCheckingConnection = false;
   Timer? _connectivityTimer;
   Timer? _backendOrdersTimer;
+
+  /// Orders already auto-opened on the live motorcycle map (avoid repeat popups).
+  final Set<String> _autoOpenedTrackOrders = {};
 
   // App State (cart / session / location / orders live in Provider notifiers)
   bool _isGpsLocating = false;
@@ -884,21 +470,28 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  Neighborhood _closestNeighborhoodTo(double lat, double lng) {
-    if (kalarNeighborhoods.isEmpty) {
-      return _selectedNeighborhood;
-    }
-    Neighborhood closest = kalarNeighborhoods.first;
+  /// Closest admin/backend zone within [KalarGeoCatalog.maxZoneMatchMeters], else null.
+  Neighborhood? _closestNeighborhoodTo(double lat, double lng) {
+    if (kalarNeighborhoods.isEmpty) return null;
+    Neighborhood? closest;
     double minDistance = double.infinity;
     for (final n in kalarNeighborhoods) {
-      final geo = KalarGeoCatalog.forNeighborhoodId(n.id);
-      final dist = Geolocator.distanceBetween(lat, lng, geo.latitude, geo.longitude);
+      final geoLat = n.lat ?? KalarGeoCatalog.neighborhoodCoords[n.id]?.latitude;
+      final geoLng = n.lng ?? KalarGeoCatalog.neighborhoodCoords[n.id]?.longitude;
+      if (geoLat == null || geoLng == null) continue;
+      final dist = Geolocator.distanceBetween(lat, lng, geoLat, geoLng);
       if (dist < minDistance) {
         minDistance = dist;
         closest = n;
       }
     }
+    if (closest == null) return null;
+    if (minDistance > KalarGeoCatalog.maxZoneMatchMeters) return null;
     return closest;
+  }
+
+  Future<String?> _reverseGeocodeLabel(double lat, double lng) {
+    return MapboxGeocoding.reversePlaceName(LatLng(lat, lng));
   }
 
   /// دۆزینەوەی شوێنی GPS ی بەکارهێنەر و نوێکردنەوەی گەڕەک
@@ -975,18 +568,27 @@ class _MainScreenState extends State<MainScreen> {
 
       final fixedPos = pos;
       final closest = _closestNeighborhoodTo(fixedPos.latitude, fixedPos.longitude);
+      final geocoded = await _reverseGeocodeLabel(fixedPos.latitude, fixedPos.longitude);
       if (mounted) {
+        final label = geocoded ?? closest?.name;
+        context.read<LocationNotifier>().setPin(
+          lat: fixedPos.latitude,
+          lng: fixedPos.longitude,
+          neighborhood: closest,
+          clearNeighborhood: closest == null,
+          clearPlaceNote: true,
+          resolvedPlaceName: label,
+          clearResolvedPlaceName: label == null,
+        );
         setState(() {
-          _pinnedCustomerLat = fixedPos.latitude;
-          _pinnedCustomerLng = fixedPos.longitude;
-          _selectedNeighborhood = closest;
-          _deliveryPlaceNote = null; // current GPS — not a future meet-up place
           _isLocationAuthorized = true;
         });
         if (!silent) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('🎯 شوێنەکەت دیاریکرا: ${closest.name}'),
+              content: Text(
+                '🎯 شوێنەکەت دیاریکرا: ${label ?? '${fixedPos.latitude.toStringAsFixed(4)}, ${fixedPos.longitude.toStringAsFixed(4)}'}',
+              ),
               backgroundColor: const Color(0xFF059669),
               duration: const Duration(seconds: 2),
             ),
@@ -1229,42 +831,66 @@ class _MainScreenState extends State<MainScreen> {
       if (boot != null && mounted) {
         final rawZones = boot['neighborhoods'] as List<dynamic>? ?? [];
         if (rawZones.isNotEmpty) {
-          final previousId = _selectedNeighborhood.id;
           kalarNeighborhoods
             ..clear()
             ..addAll(rawZones.map((z) {
               final m = z as Map<String, dynamic>;
+              final code = m['code']?.toString();
               return Neighborhood(
-                id: 'n${m['id']}',
+                id: (code != null && code.isNotEmpty) ? code : 'n${m['id']}',
                 name: m['name_ku']?.toString() ?? '',
                 nameEn: m['name_en']?.toString() ?? '',
-                deliveryFee: (m['delivery_fee'] as num?)?.toInt() ?? 1500,
+                deliveryFee: (m['delivery_fee'] as num?)?.toInt() ?? 0,
+                lat: (m['center_lat'] as num?)?.toDouble(),
+                lng: (m['center_lng'] as num?)?.toDouble(),
               );
             }));
-          // Keep GPS / user-selected neighborhood when backend zones refresh
-          _selectedNeighborhood = kalarNeighborhoods.firstWhere(
-            (n) => n.id == previousId || n.name == _selectedNeighborhood.name,
-            orElse: () => kalarNeighborhoods.first,
+          KalarGeoCatalog.syncFromZones(
+            kalarNeighborhoods.map((n) => (id: n.id, lat: n.lat, lng: n.lng)),
           );
+          // Refresh fee/name from backend — never invent a default zone on first launch
+          context.read<LocationNotifier>().rebindNeighborhoodFromCatalog(kalarNeighborhoods);
         }
 
         final rawCategories = boot['categories'] as List<dynamic>? ?? [];
         if (rawCategories.isNotEmpty) {
-          _dynamicCategories = rawCategories.map((c) {
+          // Home grid: only active + is_featured_home from admin (ordered by sort_order).
+          // If none are featured, fall back to all active so the grid is not blank after seed/API quirks.
+          final homeCats = rawCategories.where((c) {
+            final m = c as Map<String, dynamic>;
+            final featured = m['is_featured_home'];
+            return featured == true || featured == 1;
+          }).toList();
+          final source = homeCats.isNotEmpty ? homeCats : rawCategories;
+          final mapped = source.map((c) {
             final m = c as Map<String, dynamic>;
             final nameKu = m['name_ku']?.toString() ?? '';
-            final imgUrl = m['image_url']?.toString();
+            final nameAr = m['name_ar']?.toString() ?? '';
+            final nameEn = m['name_en']?.toString() ?? '';
+            final imgUrl = m['image_url']?.toString()?.trim();
+            final secUrl = m['secondary_image_url']?.toString()?.trim();
             return {
               'id': m['id'],
-              'title': _t(nameKu),
-              'image': (imgUrl != null && imgUrl.isNotEmpty)
-                  ? imgUrl
-                  : 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600',
+              // Display title resolved at render time via _homeCatTitle (locale-aware).
+              'title': nameKu,
+              'name_ku': nameKu,
+              'name_ar': nameAr,
+              'name_en': nameEn,
+              // Empty/missing image is OK — grid uses a local placeholder.
+              'image': (imgUrl != null && imgUrl.isNotEmpty) ? imgUrl : '',
+              'secondaryImage': (secUrl != null && secUrl.isNotEmpty) ? secUrl : '',
               'icon': _getCategoryIcon(nameKu),
+              // Stable match key for store.category (always Kurdish/source key).
               'catName': nameKu,
               'slug': m['slug']?.toString() ?? '',
+              'sort_order': (m['sort_order'] as num?)?.toInt() ?? 0,
             };
           }).toList();
+          mapped.sort((a, b) =>
+              ((a['sort_order'] as int?) ?? 0).compareTo((b['sort_order'] as int?) ?? 0));
+          _dynamicCategories = mapped;
+        } else {
+          _dynamicCategories = [];
         }
 
         final rawBanners = boot['banners'] as List<dynamic>? ?? [];
@@ -1279,21 +905,30 @@ class _MainScreenState extends State<MainScreen> {
           if (dbStoreId == null) continue;
           final storeKey = 'db_store_$dbStoreId';
           final storeName = sm['name_ku']?.toString() ?? '';
-          final catName = sm['category']?['name_ku']?.toString() ?? 'خواردنگە';
+          // Match key stays name_ku; UI labels use name_ar/name_en via locale helper.
+          final catMap = sm['category'] as Map<String, dynamic>?;
+          final catName = catMap?['name_ku']?.toString() ?? 'خواردنگە';
+          final catId = (sm['category_id'] as num?)?.toInt() ??
+              (catMap?['id'] as num?)?.toInt();
 
           final existingIdx = allStores.indexWhere((s) => s.id == storeKey || s.name == storeName);
-          final mappedStore = StoreItem(
+          final rawBadge = sm['discount_badge']?.toString().trim();
+          var mappedStore = StoreItem(
             id: existingIdx >= 0 ? allStores[existingIdx].id : storeKey,
             name: storeName,
             category: catName,
-            rating: ((sm['rating'] as num?) ?? 4.8).toDouble(),
+            categoryId: catId,
+            rating: ((sm['rating'] as num?) ?? 9.6).toDouble(),
+            reviewCount: (sm['review_count'] as num?)?.toInt() ?? 0,
             deliveryTime: sm['delivery_time']?.toString() ?? '20-30 خولەک',
             deliveryFee: (sm['base_delivery_fee'] as num?)?.toInt() ?? 1500,
             imageUrl: sm['cover_url']?.toString() ?? 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600',
             address: sm['address_ku']?.toString() ?? 'کەلار',
             isOpen: sm['is_online'] == true,
             phone: sm['phone']?.toString() ?? '',
-            discountBadge: sm['discount_badge']?.toString(),
+            discountBadge: (rawBadge != null && rawBadge.isNotEmpty) ? rawBadge : null,
+            lat: (sm['lat'] as num?)?.toDouble() ?? 34.6836,
+            lng: (sm['lng'] as num?)?.toDouble() ?? 45.3189,
           );
           if (existingIdx >= 0) {
             allStores[existingIdx] = mappedStore;
@@ -1302,17 +937,40 @@ class _MainScreenState extends State<MainScreen> {
           }
 
           final detail = await CustomerApiService.instance.fetchStoreDetails(dbStoreId);
+          final menuCats = detail?['store_categories'] as List<dynamic>? ?? [];
+          final metaForStore = <String, Map<String, dynamic>>{};
+          for (final rawCat in menuCats) {
+            final cm = rawCat as Map<String, dynamic>;
+            final cName = cm['name_ku']?.toString() ?? '';
+            if (cName.isEmpty) continue;
+            metaForStore[cName] = {
+              'image_url': cm['image_url']?.toString() ?? '',
+              'secondary_image_url': cm['secondary_image_url']?.toString() ?? '',
+              'sort_order': (cm['sort_order'] as num?)?.toInt() ?? 0,
+              'name_ku': cName,
+              'name_ar': cm['name_ar']?.toString() ?? '',
+              'name_en': cm['name_en']?.toString() ?? '',
+            };
+          }
+          _storeMenuCategoryMeta[mappedStore.id] = metaForStore;
           final prods = detail?['products'] as List<dynamic>? ?? [];
+          int bestDiscountPct = 0;
           for (final rp in prods) {
             final pm = rp as Map<String, dynamic>;
             final pid = '${pm['id']}';
             final pName = pm['name_ku']?.toString() ?? '';
+            final basePrice = ((pm['price'] ?? 2500) as num).toInt();
+            final discPrice = (pm['discount_price'] as num?)?.toInt();
+            if (discPrice != null && discPrice > 0 && discPrice < basePrice && basePrice > 0) {
+              final pct = (((basePrice - discPrice) / basePrice) * 100).round();
+              if (pct > bestDiscountPct) bestDiscountPct = pct;
+            }
             final pIdx = allProducts.indexWhere((p) => p.id == pid || (p.storeId == mappedStore.id && p.name == pName));
             final mappedProd = ProductItem(
               id: pid,
               storeId: mappedStore.id,
               name: pName,
-              price: ((pm['discount_price'] ?? pm['price'] ?? 2500) as num).toInt(),
+              price: (discPrice != null && discPrice > 0 && discPrice < basePrice) ? discPrice : basePrice,
               description: pm['description_ku']?.toString() ?? '',
               imageUrl: pm['image_url']?.toString() ?? mappedStore.imageUrl,
               category: catName,
@@ -1324,11 +982,39 @@ class _MainScreenState extends State<MainScreen> {
               allProducts.insert(0, mappedProd);
             }
           }
+
+          // باجی داشکاندن لە ٪ بەرهەمەکانی فرۆشیار — ئەگەر نەبێت هیچ نیشانە نیشان نادرێت
+          final String? computedBadge = bestDiscountPct > 0
+              ? 'OFF %$bestDiscountPct'
+              : (detail != null
+                  ? null
+                  : ((rawBadge != null && rawBadge.isNotEmpty) ? rawBadge : null));
+          mappedStore = StoreItem(
+            id: mappedStore.id,
+            name: mappedStore.name,
+            category: mappedStore.category,
+            categoryId: mappedStore.categoryId,
+            rating: mappedStore.rating,
+            reviewCount: mappedStore.reviewCount,
+            deliveryTime: mappedStore.deliveryTime,
+            deliveryFee: mappedStore.deliveryFee,
+            imageUrl: mappedStore.imageUrl,
+            address: mappedStore.address,
+            isOpen: mappedStore.isOpen,
+            phone: mappedStore.phone,
+            discountBadge: computedBadge,
+            lat: mappedStore.lat,
+            lng: mappedStore.lng,
+          );
+          final storeIdx = allStores.indexWhere((s) => s.id == mappedStore.id);
+          if (storeIdx >= 0) allStores[storeIdx] = mappedStore;
         }
         final currentDbStoreKeys = rawStores.map((rs) => 'db_store_').toSet();
         allStores.removeWhere((s) => s.id.startsWith('db_store_') && !currentDbStoreKeys.contains(s.id));
-        if (mounted) setState(() {});
       }
+
+      await _syncNotificationsFromBackend();
+      if (mounted) setState(() {});
 
       await _syncCustomerOrdersFromBackend();
       _backendOrdersTimer?.cancel();
@@ -1342,10 +1028,103 @@ class _MainScreenState extends State<MainScreen> {
     } catch (_) {}
   }
 
+  IconData _notifIconFor(String tag, String type) {
+    if (tag.contains('داشکاندن') || tag.contains('ئۆفەر')) return Icons.local_offer_rounded;
+    if (tag.contains('گەیاندن')) return Icons.moped_rounded;
+    if (tag.contains('دیاری') || tag.contains('کۆد')) return Icons.card_giftcard_rounded;
+    if (type == 'store') return Icons.storefront_rounded;
+    if (type == 'category') return Icons.grid_view_rounded;
+    if (type == 'order') return Icons.receipt_long_rounded;
+    return Icons.notifications_active_rounded;
+  }
+
+  Color _notifColorFor(String tag, String type) {
+    if (tag.contains('داشکاندن')) return const Color(0xFFEF4444);
+    if (tag.contains('کۆد') || tag.contains('دیاری')) return const Color(0xFFD97706);
+    if (tag.contains('گەیاندن')) return const Color(0xFF10B981);
+    if (tag.contains('ئۆفەر')) return const Color(0xFF8B5CF6);
+    if (type == 'store') return const Color(0xFF059669);
+    return const Color(0xFF2563EB);
+  }
+
+  String _formatNotifTime(dynamic createdAt) {
+    if (createdAt == null) return '';
+    final dt = DateTime.tryParse(createdAt.toString());
+    if (dt == null) return createdAt.toString();
+    final diff = DateTime.now().difference(dt.toLocal());
+    if (diff.inMinutes < 1) return 'ئێستا';
+    if (diff.inMinutes < 60) return 'پێش ${diff.inMinutes} خولەک';
+    if (diff.inHours < 24) return 'پێش ${diff.inHours} کاتژمێر';
+    if (diff.inDays == 1) return 'دوێنێ';
+    return 'پێش ${diff.inDays} ڕۆژ';
+  }
+
+  Map<String, dynamic> _mapApiNotification(Map<String, dynamic> m) {
+    final tag = m['tag']?.toString() ?? 'ئاگاداری';
+    final type = m['type']?.toString() ?? 'general';
+    final store = m['store'] as Map<String, dynamic>?;
+    final storeId = store?['id'] ?? m['store_id'];
+    final badge = m['discount_badge']?.toString();
+    return {
+      'id': '${m['id']}',
+      'title': m['title_ku']?.toString() ?? '',
+      'desc': m['body_ku']?.toString() ?? '',
+      'time': _formatNotifTime(m['created_at']),
+      'tag': tag,
+      'type': type,
+      'storeId': storeId != null ? 'db_store_$storeId' : null,
+      'categoryName': m['category_name']?.toString(),
+      'icon': _notifIconFor(tag, type),
+      'color': _notifColorFor(tag, type),
+      'discountBadge': (badge != null && badge.isNotEmpty) ? badge : tag,
+      'isRead': m['is_read'] == true,
+    };
+  }
+
+  Future<void> _syncNotificationsFromBackend() async {
+    try {
+      final raw = await CustomerApiService.instance.fetchNotifications();
+      final mapped = raw
+          .whereType<Map>()
+          .map((e) => _mapApiNotification(Map<String, dynamic>.from(e)))
+          .toList();
+      if (!mounted) return;
+      _dynamicNotifications = mapped;
+      _unreadNotificationCount = mapped.where((n) => n['isRead'] != true).length;
+    } catch (_) {}
+  }
+
+  bool _isLiveTrackStatus(String status) {
+    const live = {
+      'preparing',
+      'ready',
+      'driver_assigned',
+      'picked_up',
+      'arrived_pickup',
+      'on_the_way',
+      'arrived_customer',
+      'at_store',
+    };
+    return live.contains(status);
+  }
+
+  bool _shouldAutoOpenMotorcycleMap(String? previousStatus, String nextStatus) {
+    if (previousStatus == null || previousStatus == nextStatus) return false;
+    // Auto-open map when seller sends order to delivery (ready / on the way).
+    const openOn = {'ready', 'picked_up', 'on_the_way', 'arrived_customer'};
+    if (!openOn.contains(nextStatus)) return false;
+    const alreadyOut = {'ready', 'picked_up', 'on_the_way', 'arrived_customer'};
+    return !alreadyOut.contains(previousStatus);
+  }
+
   Future<void> _syncCustomerOrdersFromBackend() async {
     try {
       final list = await CustomerApiService.instance.fetchCustomerOrders(phone: _userProfile?.phone);
       if (!mounted || list.isEmpty) return;
+
+      final previousStatusById = <String, String>{
+        for (final o in _orders) o.id: o.status,
+      };
 
       final synced = <OrderItem>[];
       for (final raw in list) {
@@ -1388,64 +1167,116 @@ class _MainScreenState extends State<MainScreen> {
         );
       }
 
+      OrderItem? autoOpenOrder;
+      for (final order in synced) {
+        final prev = previousStatusById[order.id];
+        if (_shouldAutoOpenMotorcycleMap(prev, order.status) &&
+            !_autoOpenedTrackOrders.contains(order.id)) {
+          _autoOpenedTrackOrders.add(order.id);
+          autoOpenOrder ??= order;
+        }
+      }
+
       if (mounted) {
         setState(() {
           _orders
             ..clear()
             ..addAll(synced);
         });
+        context.read<OrdersNotifier>().notify();
+
+        if (autoOpenOrder != null) {
+          final target = autoOpenOrder;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _goTab(3);
+            _showLiveTrackingModal(target);
+          });
+        }
       }
     } catch (_) {}
   }
 
   Future<void> _loadProfile() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final profileJson = prefs.getString('user_profile');
-      if (profileJson != null) {
-        final profileData = jsonDecode(profileJson);
+      // SessionNotifier.restoreSession owns token/profile restore.
+      // Here we only mirror into text fields once restore finishes.
+      final session = context.read<SessionNotifier>();
+      if (session.isRestoring) {
+        void listener() {
+          if (!mounted) return;
+          if (session.isRestoring) return;
+          session.removeListener(listener);
+          final profile = session.user;
+          if (profile != null) {
+            setState(() {
+              _nameCtrl.text = profile.name;
+              _phoneCtrl.text = profile.phone;
+            });
+          }
+          _showPendingBlockedIfNeeded();
+        }
+
+        session.addListener(listener);
+        return;
+      }
+      final profile = session.user;
+      if (profile != null && mounted) {
         setState(() {
-          _userProfile = UserProfile(
-            name: profileData['name'] ?? '',
-            phone: profileData['phone'] ?? '',
-            email: profileData['email'] ?? '',
-            address: profileData['address'] ?? '',
-          );
-          _nameCtrl.text = _userProfile?.name ?? '';
-          _phoneCtrl.text = _userProfile?.phone ?? '';
+          _nameCtrl.text = profile.name;
+          _phoneCtrl.text = profile.phone;
         });
       }
+      _showPendingBlockedIfNeeded();
     } catch (e) {
       debugPrint('Error loading profile: $e');
     }
   }
 
-  Future<void> _saveProfile(UserProfile profile) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final profileData = {
-        'name': profile.name,
-        'phone': profile.phone,
-        'email': profile.email,
-        'address': profile.address,
-      };
-      await prefs.setString('user_profile', jsonEncode(profileData));
-      await CustomerApiService.instance.authenticateOrRegister(
-        name: profile.name,
-        phone: profile.phone,
-        password: _passwordCtrl.text,
-      );
-      _syncCustomerOrdersFromBackend();
-    } catch (e) {
-      debugPrint('Error saving profile: $e');
+  Future<void> _showPendingBlockedIfNeeded() async {
+    if (!mounted) return;
+    final session = context.read<SessionNotifier>();
+    final blocked = session.pendingBlocked;
+    if (blocked == null) return;
+    session.clearPendingBlocked();
+    // Enrich WhatsApp / support numbers from admin settings when API contact is thin.
+    var error = blocked;
+    if (error.contact.isEmpty ||
+        (error.contact['whatsapp_number'] == null &&
+            error.contact['support_phone'] == null)) {
+      final contacts = await CustomerApiService.instance.fetchSupportContacts();
+      if (contacts.isNotEmpty) {
+        error = AccountBlockedException(
+          message: blocked.message,
+          contact: {...blocked.contact, ...contacts},
+        );
+      }
     }
+    if (!mounted) return;
+    await BlockedAccountContacts.show(context, error, lang: _currentLanguage);
+  }
+
+  Future<void> _saveProfile(UserProfile profile, {bool allowRegister = true}) async {
+    await CustomerApiService.instance.authenticateOrRegister(
+      name: profile.name,
+      phone: profile.phone,
+      password: _passwordCtrl.text,
+      allowRegister: allowRegister,
+    );
+    if (!CustomerApiService.instance.hasToken) {
+      throw Exception('login_failed');
+    }
+    // Persist profile + logged_in via SessionNotifier (source of truth).
+    await context.read<SessionNotifier>().signIn(profile);
+    await _syncNotificationsFromBackend();
+    _syncCustomerOrdersFromBackend();
+    if (mounted) setState(() {});
   }
 
   Future<void> _clearProfile() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('user_profile');
-      await CustomerApiService.instance.clearToken();
+      await context.read<SessionNotifier>().signOut();
+      if (mounted) setState(() => _userProfile = null);
     } catch (e) {
       debugPrint('Error clearing profile: $e');
     }
@@ -1494,7 +1325,7 @@ class _MainScreenState extends State<MainScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('rega_saved_language_name', lang);
-      String code = 'ckb';
+      String code = 'ku';
       if (lang == 'English') {
         code = 'en';
       } else if (lang == 'العربية') {
@@ -1512,7 +1343,7 @@ class _MainScreenState extends State<MainScreen> {
       color: Colors.white,
       width: double.infinity,
       height: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.symmetric(horizontal: RegaResponsive.pagePadding(context)),
       child: Center(
         child: SingleChildScrollView(
           child: Column(
@@ -1631,7 +1462,7 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                '${product.name} زیادکرا بۆ سەبەتە',
+                '${product.name} ${_t('زیادکرا بۆ سەبەتە')}',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1661,7 +1492,13 @@ class _MainScreenState extends State<MainScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         contentPadding: const EdgeInsets.all(24),
-        content: Column(
+        insetPadding: EdgeInsets.symmetric(
+          horizontal: (MediaQuery.sizeOf(ctx).width - RegaResponsive.dialogMaxWidth(ctx)) / 2,
+          vertical: 24,
+        ),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: RegaResponsive.dialogMaxWidth(ctx)),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
@@ -1673,14 +1510,14 @@ class _MainScreenState extends State<MainScreen> {
               child: const Icon(Icons.person_add_rounded, size: 36, color: Color(0xFFD97706)),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'تکایە سەرەتا خۆت تۆمار بکە',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              _t('تکایە سەرەتا خۆت تۆمار بکە'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'بۆ ئەوەی بتوانیت داواکارییەکەت ئەنجام بدەیت و کاڵاکانت پێ بگات، تکایە سەرەتا خۆت تۆمار بکە یان بچۆ ژوورەوە.',
+              _t('بۆ ئەوەی بتوانیت داواکارییەکەت ئەنجام بدەیت و کاڵاکانت پێ بگات، تکایە سەرەتا خۆت تۆمار بکە یان بچۆ ژوورەوە.'),
               style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.5),
               textAlign: TextAlign.center,
             ),
@@ -1700,15 +1537,16 @@ class _MainScreenState extends State<MainScreen> {
                   _goTab(4); // Switch to Profile Tab
                 },
                 icon: const Icon(Icons.login_rounded, size: 20),
-                label: const Text('ڕاستەوخۆ بڕۆ بۆ خۆتۆمارکردن', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: Text(_t('ڕاستەوخۆ بڕۆ بۆ خۆتۆمارکردن'), style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('دواخستن', style: TextStyle(color: Colors.grey.shade600)),
+              child: Text(_t('دواخستن'), style: TextStyle(color: Colors.grey.shade600)),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -1789,12 +1627,20 @@ class _MainScreenState extends State<MainScreen> {
                 border: Border.all(color: const Color(0xFFFDE68A)),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('کۆدی وەرگرتنی داواکاری:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black)),
-                  SelectableText(
-                    orderCode,
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFFB45309), letterSpacing: 1.2),
+                  const Flexible(
+                    child: Text(
+                      'ژمارەی داواکاری:',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: SelectableText(
+                      orderCode,
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFFB45309), letterSpacing: 1.2),
+                    ),
                   ),
                 ],
               ),
@@ -1802,7 +1648,7 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(height: 12),
 
             // Detail Rows
-            _buildConfirmDetailRow('شوێنی GPS:', _selectedNeighborhood.name),
+            _buildConfirmDetailRow('شوێنی GPS:', _deliveryDisplayLabel),
             _buildConfirmDetailRow('کۆی گشتی پارە:', '${_formatNum(grandTotal)} د.ع'),
 
             const SizedBox(height: 12),
@@ -1886,18 +1732,14 @@ class _MainScreenState extends State<MainScreen> {
                       items: List.from(cartItems),
                       driverName: '',
                       driverPhone: '',
-                      address: (_deliveryPlaceNote != null && _deliveryPlaceNote!.isNotEmpty)
-                          ? '$_deliveryPlaceNote • ${_selectedNeighborhood.name}'
-                          : '${_selectedNeighborhood.name} - شاری کەلار',
+                      address: _deliveryDisplayLabel,
                       deliveryPin: orderCode.length >= 4
                           ? orderCode.substring(orderCode.length - 4)
                           : '4821',
-                      storeLat: matchedStore?.lat ?? 34.6836,
-                      storeLng: matchedStore?.lng ?? 45.3189,
-                      customerLat: _pinnedCustomerLat ??
-                          KalarGeoCatalog.forNeighborhoodId(_selectedNeighborhood.id).latitude,
-                      customerLng: _pinnedCustomerLng ??
-                          KalarGeoCatalog.forNeighborhoodId(_selectedNeighborhood.id).longitude,
+                      storeLat: matchedStore?.lat ?? KalarGeoCatalog.kalarCenter.latitude,
+                      storeLng: matchedStore?.lng ?? KalarGeoCatalog.kalarCenter.longitude,
+                      customerLat: _pinnedCustomerLat ?? KalarGeoCatalog.kalarCenter.latitude,
+                      customerLng: _pinnedCustomerLng ?? KalarGeoCatalog.kalarCenter.longitude,
                     );
 
                     setState(() {
@@ -1953,13 +1795,13 @@ class _MainScreenState extends State<MainScreen> {
     final created = await CustomerApiService.instance.placeBackendOrder(
       storeId: dbStoreId,
       storeName: localOrder.storeName,
-      neighborhoodName: _selectedNeighborhood.name,
+      neighborhoodName: _selectedNeighborhoodOrNull?.name ?? _deliveryDisplayLabel,
       customerName: _userProfile?.name ?? 'سەربەست عەلی',
       customerPhone: _userProfile?.phone ?? '07703331122',
       deliveryAddress: localOrder.address,
       deliveryLat: localOrder.customerLat,
       deliveryLng: localOrder.customerLng,
-      deliveryFee: _selectedNeighborhood.deliveryFee,
+      deliveryFee: _deliveryFeeOrZero,
       items: mappedItems,
     );
 
@@ -1967,7 +1809,6 @@ class _MainScreenState extends State<MainScreen> {
 
     if (created != null) {
       final realOrderNum = (created['order_number'] ?? fallbackCode).toString();
-      final realPin = (created['delivery_pin'] ?? localOrder.deliveryPin).toString();
       final realStatus = (created['status'] ?? 'pending').toString();
       final syncedOrder = OrderItem(
         id: realOrderNum,
@@ -1979,7 +1820,7 @@ class _MainScreenState extends State<MainScreen> {
         driverName: localOrder.driverName,
         driverPhone: localOrder.driverPhone,
         address: localOrder.address,
-        deliveryPin: realPin,
+        deliveryPin: localOrder.deliveryPin,
         storeLat: localOrder.storeLat,
         storeLng: localOrder.storeLng,
         customerLat: localOrder.customerLat,
@@ -1993,7 +1834,7 @@ class _MainScreenState extends State<MainScreen> {
           _orders.insert(0, syncedOrder);
         }
       });
-      _showOrderSuccessModal('$realPin  •  $realOrderNum', syncedOrder.totalAmount);
+      _showOrderSuccessModal(realOrderNum, syncedOrder.totalAmount);
     } else {
       _showOrderSuccessModal(fallbackCode, grandTotal);
     }
@@ -2019,20 +1860,13 @@ class _MainScreenState extends State<MainScreen> {
               child: const Icon(Icons.check_circle_rounded, size: 48, color: Color(0xFF16A34A)),
             ),
             const SizedBox(height: 14),
-            const Text(
-              'داواکارییەکەت بە سەرکەوتوویی نێردرا!',
+            Text(
+              _t('داواکارییەکەت بە سەرکەوتوویی نێردرا!'),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.black),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.black),
             ),
             const SizedBox(height: 10),
-            const Text(
-              'تکایە ئەم کۆدە لای خۆت بپارێزە بۆ وەرگرتنی داواکاری لە شۆفێر:',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.black),
-            ),
-            const SizedBox(height: 10),
-
-            // Order Code Highlight Card
+            // Order number highlight
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
@@ -2042,7 +1876,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
               child: Column(
                 children: [
-                  const Text('کۆدی وەرگرتنی داواکاری', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF92400E))),
+                  Text(_t('ژمارەی داواکاری'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF92400E))),
                   const SizedBox(height: 6),
                   SelectableText(
                     orderCode,
@@ -2058,7 +1892,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
             const SizedBox(height: 14),
 
-            // Driver & GPS Info
+            // Delivery tracking hint
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -2074,21 +1908,22 @@ class _MainScreenState extends State<MainScreen> {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          'شوێنی GPS: ${_selectedNeighborhood.name}',
+                          'شوێنی گەیاندن: $_deliveryDisplayLabel',
                           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Row(
+                  const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.delivery_dining_rounded, size: 16, color: Color(0xFF16A34A)),
-                      const SizedBox(width: 6),
-                      const Expanded(
+                      Icon(Icons.moped_rounded, size: 16, color: Color(0xFF16A34A)),
+                      SizedBox(width: 6),
+                      Expanded(
                         child: Text(
-                          'شۆفێر: ئاراس ئەحمەد (07709876543)',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+                          'کاتێک فرۆشیار داواکاری قبوڵدەکات و دەینێرێت بۆ گەیاندن، نەخشەی ڕاستەوخۆی ماتۆرسوار خۆکارانە دەکرێتەوە.',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black87, height: 1.35),
                         ),
                       ),
                     ],
@@ -2111,13 +1946,10 @@ class _MainScreenState extends State<MainScreen> {
                 onPressed: () {
                   Navigator.pop(ctx);
                   _goTab(3); // Switch to Orders tab
-                  if (_orders.isNotEmpty) {
-                    Future.microtask(() => _showLiveTrackingModal(_orders.first));
-                  }
                 },
-                child: const Text(
-                  'بەدواداچوون بۆ داواکاری (Orders) 📦',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+                child: Text(
+                  _t('چوون بۆ داواکارییەکان'),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
                 ),
               ),
             ),
@@ -2139,20 +1971,20 @@ class _MainScreenState extends State<MainScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setSheetState) {
           final subtotal = _cart.fold<int>(0, (sum, i) => sum + (i.product.price * i.quantity));
-          final grandTotal = subtotal + _selectedNeighborhood.deliveryFee;
+          final grandTotal = subtotal + _deliveryFeeOrZero;
 
           return Align(
             alignment: Alignment.bottomCenter,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
+              constraints: BoxConstraints(maxWidth: RegaResponsive.dialogMaxWidth(context)),
               child: SafeArea(
                 top: false,
                 bottom: true,
                 child: Padding(
                   padding: EdgeInsets.only(
                     top: 24,
-                    left: 20,
-                    right: 20,
+                    left: RegaResponsive.pagePadding(context),
+                    right: RegaResponsive.pagePadding(context),
                     bottom: MediaQuery.of(context).viewInsets.bottom + 24,
                   ),
                   child: SingleChildScrollView(
@@ -2191,7 +2023,9 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            '${_selectedNeighborhood.name} (${_selectedNeighborhood.deliveryFee} د.ع تێچووی گەیاندن)',
+                            _selectedNeighborhoodOrNull != null
+                                ? '$_deliveryDisplayLabel (${_deliveryFeeOrZero} د.ع تێچووی گەیاندن)'
+                                : '$_deliveryDisplayLabel (${_t('تێچووی گەیاندن')}: —)',
                             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
                           ),
                           const SizedBox(height: 10),
@@ -2255,7 +2089,7 @@ class _MainScreenState extends State<MainScreen> {
                             cartItems: List.from(_cart),
                           );
                         },
-                        child: const Text('پشتڕاستکردنەوە و ناردنی داواکاری', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                        child: Text(_t('پشتڕاستکردنەوە و ناردنی داواکاری'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
                       ),
                     ),
                     // Safe spacing to guarantee button never sits under phone navigation buttons
@@ -2275,12 +2109,32 @@ class _MainScreenState extends State<MainScreen> {
   /// Pick delivery place: current GPS anywhere in Iraq, OR tap a future place
   /// (e.g. a park) so the driver goes there even if the user is not there yet.
   void _showLocationPicker() {
-    LatLng draftPin = LatLng(
-      _pinnedCustomerLat ?? KalarGeoCatalog.forNeighborhoodId(_selectedNeighborhood.id).latitude,
-      _pinnedCustomerLng ?? KalarGeoCatalog.forNeighborhoodId(_selectedNeighborhood.id).longitude,
-    );
-    Neighborhood draftNeighborhood = _selectedNeighborhood;
+    final hasSavedPin = _pinnedCustomerLat != null && _pinnedCustomerLng != null;
+    LatLng draftPin = hasSavedPin
+        ? LatLng(_pinnedCustomerLat!, _pinnedCustomerLng!)
+        : KalarGeoCatalog.kalarCenter;
+    Neighborhood? draftNeighborhood =
+        hasSavedPin ? _closestNeighborhoodTo(draftPin.latitude, draftPin.longitude) : _selectedNeighborhood;
+    String? draftGeocode = _resolvedPlaceName;
+    bool geocoding = false;
+    int geocodeGen = 0;
     final noteCtrl = TextEditingController(text: _deliveryPlaceNote ?? '');
+
+    String draftLabel() {
+      final note = noteCtrl.text.trim();
+      if (note.isNotEmpty) return note;
+      if (draftGeocode != null && draftGeocode!.isNotEmpty) return draftGeocode!;
+      if (draftNeighborhood != null && draftNeighborhood!.name.isNotEmpty) {
+        return draftNeighborhood!.name;
+      }
+      return _t('شوێنی گەیاندن هەڵبژێرە');
+    }
+
+    String draftFeeText() {
+      final fee = draftNeighborhood?.deliveryFee;
+      if (fee == null) return '—';
+      return '$fee ${_t('د.ع')}';
+    }
 
     showModalBottomSheet(
       context: context,
@@ -2289,13 +2143,33 @@ class _MainScreenState extends State<MainScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            void applyPin(LatLng pt, {bool markAsSelectedPlace = true}) {
+            Future<void> refreshGeocode(LatLng pt) async {
+              final gen = ++geocodeGen;
+              setModalState(() => geocoding = true);
+              final name = await _reverseGeocodeLabel(pt.latitude, pt.longitude);
+              if (gen != geocodeGen) return;
+              if (!context.mounted) return;
+              setModalState(() {
+                draftGeocode = name;
+                geocoding = false;
+              });
+            }
+
+            void applyPin(LatLng pt) {
               draftPin = pt;
               draftNeighborhood = _closestNeighborhoodTo(pt.latitude, pt.longitude);
+              draftGeocode = null;
               setModalState(() {});
-              if (markAsSelectedPlace && noteCtrl.text.trim().isEmpty) {
-                // Keep optional note empty; coords are the source of truth.
-              }
+              refreshGeocode(pt);
+            }
+
+            // First open with a saved pin: refresh geocode if we only have a zone name.
+            if (hasSavedPin &&
+                (draftGeocode == null || draftGeocode!.isEmpty) &&
+                noteCtrl.text.trim().isEmpty &&
+                !geocoding &&
+                geocodeGen == 0) {
+              refreshGeocode(draftPin);
             }
 
             return Align(
@@ -2361,9 +2235,9 @@ class _MainScreenState extends State<MainScreen> {
                             borderRadius: BorderRadius.circular(20),
                             child: KalarInteractivePickerMap(
                               initialPoint: draftPin,
-                              selectedNeighborhoodName: draftNeighborhood.name,
+                              pinLabel: draftLabel(),
                               allowIraqWide: true,
-                              onLocationChanged: (pt) => applyPin(pt),
+                              onLocationChanged: applyPin,
                             ),
                           ),
                         ),
@@ -2380,6 +2254,7 @@ class _MainScreenState extends State<MainScreen> {
                             TextField(
                               controller: noteCtrl,
                               textInputAction: TextInputAction.done,
+                              onChanged: (_) => setModalState(() {}),
                               decoration: InputDecoration(
                                 hintText: _t('ناوی شوێن (پارک، ناوەند، ...)'),
                                 prefixIcon: const Icon(Icons.park_outlined, color: Color(0xFFB45309)),
@@ -2409,7 +2284,7 @@ class _MainScreenState extends State<MainScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '${_t('شوێنی دیاریکراو')}: ${draftNeighborhood.name}',
+                                    '${_t('شوێنی دیاریکراو')}: ${geocoding && noteCtrl.text.trim().isEmpty ? '...' : draftLabel()}',
                                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
                                   ),
                                   const SizedBox(height: 2),
@@ -2422,7 +2297,7 @@ class _MainScreenState extends State<MainScreen> {
                                     ),
                                   ),
                                   Text(
-                                    '${_t('تێچووی گەیاندن')}: ${draftNeighborhood.deliveryFee} ${_t('د.ع')}',
+                                    '${_t('تێچووی گەیاندن')}: ${draftFeeText()}',
                                     style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
                                   ),
                                 ],
@@ -2441,19 +2316,25 @@ class _MainScreenState extends State<MainScreen> {
                                 ),
                                 onPressed: () {
                                   final note = noteCtrl.text.trim();
-                                  setState(() {
-                                    _pinnedCustomerLat = draftPin.latitude;
-                                    _pinnedCustomerLng = draftPin.longitude;
-                                    _selectedNeighborhood = draftNeighborhood;
-                                    _deliveryPlaceNote = note.isEmpty ? null : note;
-                                  });
+                                  final label = note.isNotEmpty
+                                      ? note
+                                      : (draftGeocode ?? draftNeighborhood?.name);
+                                  context.read<LocationNotifier>().setPin(
+                                    lat: draftPin.latitude,
+                                    lng: draftPin.longitude,
+                                    neighborhood: draftNeighborhood,
+                                    clearNeighborhood: draftNeighborhood == null,
+                                    placeNote: note.isEmpty ? null : note,
+                                    clearPlaceNote: note.isEmpty,
+                                    resolvedPlaceName: label,
+                                    clearResolvedPlaceName: label == null,
+                                  );
+                                  setState(() {});
                                   Navigator.pop(context);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        note.isEmpty
-                                            ? '📍 ${_t('شوێنی گەیاندن پاشەکەوت کرا')}: ${draftNeighborhood.name}'
-                                            : '📍 ${_t('شوێنی گەیاندن پاشەکەوت کرا')}: $note',
+                                        '📍 ${_t('شوێنی گەیاندن پاشەکەوت کرا')}: ${label ?? draftLabel()}',
                                       ),
                                       backgroundColor: const Color(0xFF059669),
                                     ),
@@ -2479,6 +2360,7 @@ class _MainScreenState extends State<MainScreen> {
       },
     ).whenComplete(noteCtrl.dispose);
   }
+
 
   // 🔍 Comprehensive Search Modal (Stores, Categories, Products & Foods)
   void _openSearchModal() {
@@ -2534,13 +2416,18 @@ class _MainScreenState extends State<MainScreen> {
                         (p.subCategory != null && p.subCategory!.toLowerCase().contains(query));
                   }).toList();
 
-            // Search Categories
+            // Search Categories (match any of KU/AR/EN names)
             final matchedCats = query.isEmpty
                 ? searchCategories
                 : searchCategories.where((c) {
-                    final title = (c['title'] as String).toLowerCase();
-                    final catName = (c['catName'] as String).toLowerCase();
-                    return title.contains(query) || catName.contains(query);
+                    final title = _homeCatTitle(c).toLowerCase();
+                    final catName = (c['catName'] as String? ?? '').toLowerCase();
+                    final ar = (c['name_ar'] as String? ?? '').toLowerCase();
+                    final en = (c['name_en'] as String? ?? '').toLowerCase();
+                    return title.contains(query) ||
+                        catName.contains(query) ||
+                        ar.contains(query) ||
+                        en.contains(query);
                   }).toList();
 
             return Align(
@@ -2701,7 +2588,7 @@ class _MainScreenState extends State<MainScreen> {
                                   child: Icon(c['icon'] as IconData, size: 20, color: Colors.black),
                                 ),
                                 title: Text(
-                                  c['title'] as String,
+                                  _homeCatTitle(c),
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
                                 ),
                                 trailing: const Icon(Icons.arrow_forward_ios, textDirection: TextDirection.ltr, size: 14, color: Colors.grey),
@@ -2755,7 +2642,7 @@ class _MainScreenState extends State<MainScreen> {
                               children: matchedCats.map((c) {
                                 return ActionChip(
                                   backgroundColor: const Color(0xFFFAC800),
-                                  label: Text(c['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 12)),
+                                  label: Text(_homeCatTitle(c), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 12)),
                                   avatar: Icon(c['icon'] as IconData, size: 16, color: Colors.black),
                                   onPressed: () {
                                     Navigator.pop(context);
@@ -2808,7 +2695,7 @@ class _MainScreenState extends State<MainScreen> {
                                     children: [
                                       const Icon(Icons.star, size: 14, color: Colors.amber),
                                       const SizedBox(width: 3),
-                                      Text('${store.rating}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                      Text('${store.ratingOutOf10}/10', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                                       const SizedBox(width: 10),
                                       Text('⏱ ${store.deliveryTime}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                                     ],
@@ -2843,10 +2730,11 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                             const SizedBox(height: 8),
                             ...matchedProducts.map((p) {
-                              final store = allStores.firstWhere(
-                                (s) => s.id == p.storeId,
-                                orElse: () => allStores[0],
+                              final store = allStores.cast<StoreItem?>().firstWhere(
+                                (s) => s?.id == p.storeId,
+                                orElse: () => null,
                               );
+                              if (store == null) return const SizedBox.shrink();
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 6),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -2925,11 +2813,31 @@ class _MainScreenState extends State<MainScreen> {
 );
   }
 
-  // 🔔 Comprehensive Notifications & Discount Offers Modal
-  void _openNotificationsModal() {
+  // 🔔 Comprehensive Notifications & Discount Offers Modal (from Admin)
+  Future<void> _openNotificationsModal() async {
+    await _syncNotificationsFromBackend();
+    if (!mounted) return;
+
+    // Persist mark-read for personal / fan-out rows when logged in.
+    final unreadIds = _dynamicNotifications
+        .where((n) => n['isRead'] != true)
+        .map((n) => int.tryParse('${n['id']}'))
+        .whereType<int>()
+        .toList();
+    if (unreadIds.isNotEmpty) {
+      // Fire-and-forget; local badge clears immediately.
+      CustomerApiService.instance.markNotificationsRead(ids: unreadIds);
+    }
+
     setState(() {
       _unreadNotificationCount = 0;
+      for (final n in _dynamicNotifications) {
+        n['isRead'] = true;
+      }
     });
+
+    final List<Map<String, dynamic>> notificationsList =
+        List<Map<String, dynamic>>.from(_dynamicNotifications);
 
     showModalBottomSheet(
       context: context,
@@ -2938,84 +2846,13 @@ class _MainScreenState extends State<MainScreen> {
       builder: (ctx) {
         String filterTag = 'هەمووی';
 
-        final List<Map<String, dynamic>> notificationsList = [
-          {
-            'id': 'notif_1',
-            'title': '🔥 داشکاندنی %30 لە کەباب زاگرۆس',
-            'desc': 'داشکاندنی تایبەت لەسەر سەرجەم خواردنەکان و کەبابەکان بۆ ئەمڕۆ! فریابکەوه‌ و داوا بکە.',
-            'time': 'پێش 10 خولەک',
-            'tag': 'داشکاندن',
-            'type': 'store',
-            'storeId': 'store_zagros',
-            'icon': Icons.local_fire_department_rounded,
-            'color': const Color(0xFFEF4444),
-            'discountBadge': '%30 OFF',
-          },
-          {
-            'id': 'notif_2',
-            'title': '🎁 دیاری 5,000 د.ع بۆ سوپەرمارکێتی هەولێر',
-            'desc': 'کۆدی داشکاندنی REGA5 بەکاربهێنە بۆ داشکاندنی 5,000 د.ع لە کڕینی سەروو 25,000 د.ع.',
-            'time': 'پێش 45 خولەک',
-            'tag': 'کۆدی داشکاندن',
-            'type': 'store',
-            'storeId': 'store_supermarket_erbil',
-            'icon': Icons.card_giftcard_rounded,
-            'color': const Color(0xFFD97706),
-            'discountBadge': '5,000 د.ع',
-          },
-          {
-            'id': 'notif_3',
-            'title': '🍕 گەیاندنی خۆڕایی (0 د.ع) لە فاست فوود',
-            'desc': 'گەیاندنی خۆڕایی بەدەستبهێنە بۆ سەرجەم بەشی شاوڕمە و پیتزاکان تا کۆتایی هەفتە!',
-            'time': 'پێش 2 کاتژمێر',
-            'tag': 'گەیاندن',
-            'type': 'category',
-            'categoryName': 'فاست فوود',
-            'icon': Icons.moped_rounded,
-            'color': const Color(0xFF10B981),
-            'discountBadge': 'FREE DELIVERY',
-          },
-          {
-            'id': 'notif_4',
-            'title': '🍰 ئۆفەری کڕینی 1 کێک + 1 بێبەرامبەر',
-            'desc': 'لە شیرینی سلێمانی، یەک کێک بکڕە و دووەمیان وەک دیاری بە خۆڕایی وەربگرە.',
-            'time': 'پێش 5 کاتژمێر',
-            'tag': 'ئۆفەر',
-            'type': 'store',
-            'storeId': 'store_bakery_slemani',
-            'icon': Icons.cake_rounded,
-            'color': const Color(0xFF8B5CF6),
-            'discountBadge': '1+1 FREE',
-          },
-          {
-            'id': 'notif_5',
-            'title': '🥦 %15 داشکاندنی سەوزە و میوەی فرێش',
-            'desc': 'میوە و سەوزەی تەندروست و فرێش بە %15 داشکاندن لە مارکێتی سەروەت داوا بکە.',
-            'time': 'دوێنێ',
-            'tag': 'داشکاندن',
-            'type': 'store',
-            'storeId': 'store_sarwar',
-            'icon': Icons.shopping_basket_rounded,
-            'color': const Color(0xFF059669),
-            'discountBadge': '%15 OFF',
-          },
-          {
-            'id': 'notif_6',
-            'title': '🚀 ئەپدەیتی نوێی REGA ڕێگا',
-            'desc': 'بەخێربێن بۆ خێراترین خزمەتگوزاری گەیاندنی خواردن و مارکێت لە کەلار و کوردستان.',
-            'time': 'پێش 2 ڕۆژ',
-            'tag': 'ئاگاداری',
-            'type': 'general',
-            'icon': Icons.notifications_active_rounded,
-            'color': const Color(0xFF2563EB),
-            'discountBadge': 'ANNOUNCEMENT',
-          },
-        ];
-
         return StatefulBuilder(
           builder: (context, setModalState) {
             final filteredNotifs = notificationsList.where((n) {
-              if (filterTag == 'داشکاندن') return n['tag'] == 'داشکاندن' || n['tag'] == 'کۆدی داشکاندن';
+              final tag = n['tag']?.toString() ?? '';
+              if (filterTag == 'داشکاندن') {
+                return tag.contains('داشکاندن') || tag.contains('کۆد') || tag.contains('ئۆفەر');
+              }
               if (filterTag == 'خواردنگە') return n['type'] == 'store' || n['type'] == 'category';
               return true;
             }).toList();
@@ -3047,17 +2884,22 @@ class _MainScreenState extends State<MainScreen> {
                         ),
                         const SizedBox(height: 14),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: const [
-                                Icon(Icons.notifications_active_rounded, color: Color(0xFFFAC800), size: 26),
-                                SizedBox(width: 8),
-                                Text(
-                                  'ئاگاداری و داشکاندنەکان',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.black),
-                                ),
-                              ],
+                            const Flexible(
+                              child: Row(
+                                children: [
+                                  Icon(Icons.notifications_active_rounded, color: Color(0xFFFAC800), size: 26),
+                                  SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      'ئاگاداری و داشکاندنەکان',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.black),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                             IconButton(
                               onPressed: () => Navigator.pop(context),
@@ -3084,9 +2926,32 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   const Divider(height: 1),
 
-                  // Notifications & Discounts Full-Width Vertical List (شێوازی لیستی بە شێوەی پانی لەسەر یەک)
+                  // Notifications & Discounts Full-Width Vertical List (لە ئەدمینەوە)
                   Expanded(
-                    child: ListView.separated(
+                    child: filteredNotifs.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.notifications_none_rounded, size: 56, color: Colors.grey.shade300),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'هیچ ئاگادارییەک نییە',
+                                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Colors.grey.shade700),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'کاتێک ئەدمین داشکاندن یان ئاگاداری بنێرێت، لێرە دەردەکەوێت',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       itemCount: filteredNotifs.length,
                       separatorBuilder: (context, index) => const SizedBox(height: 12),
@@ -3098,11 +2963,12 @@ class _MainScreenState extends State<MainScreen> {
                         final String? catName = notif['categoryName'] as String?;
 
                         StoreItem? store;
-                        if (storeId != null) {
-                          store = allStores.firstWhere(
-                            (s) => s.id == storeId,
-                            orElse: () => allStores[0],
-                          );
+                        if (storeId != null && allStores.isNotEmpty) {
+                          try {
+                            store = allStores.firstWhere((s) => s.id == storeId);
+                          } catch (_) {
+                            store = null;
+                          }
                         }
 
                         // بۆکسی لیستی پانی بۆ هەر ئاگادارییەک بە شێوازی پانی تەواو لەسەر یەک
@@ -3317,9 +3183,24 @@ class _MainScreenState extends State<MainScreen> {
     // Rebuild when Provider-backed state changes.
     context.watch<CartNotifier>();
     context.watch<LocationNotifier>();
-    context.watch<SessionNotifier>();
+    final session = context.watch<SessionNotifier>();
     context.watch<OrdersNotifier>();
     context.watch<NavigationNotifier>();
+
+    if (session.isRestoring) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF8FAFC),
+        body: Center(child: CircularProgressIndicator(color: Color(0xFFFAC800))),
+      );
+    }
+
+    // First launch / logged out: only login/register (no browsing).
+    if (widget.forceAuthOnly || !session.isLoggedIn) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: SafeArea(child: _buildProfileTab()),
+      );
+    }
 
     // 🔒 ئەگەر هێشتا خەریکی پشکنینی ئاسایش بێت، نیشانەیەکی چاوەڕێکردن پیشان بدە
     if (_isCheckingSecurity) {
@@ -3786,7 +3667,7 @@ class _MainScreenState extends State<MainScreen> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       child: Text(
-                        '${_t('گەیاندن بۆ')}: ${(_deliveryPlaceNote != null && _deliveryPlaceNote!.isNotEmpty) ? _deliveryPlaceNote! : _selectedNeighborhood.name}',
+                        '${_t('گەیاندن بۆ')}: $_deliveryDisplayLabel',
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
                         textAlign: TextAlign.center,
                         maxLines: 1,
@@ -3829,72 +3710,31 @@ class _MainScreenState extends State<MainScreen> {
   // 🏠 TAB 1: HOME VIEW (EXACT MATCH FOR SCREENSHOT CATEGORIES GRID)
   // ============================================================================
   Widget _buildHomeTab() {
-    final List<Map<String, dynamic>> fallbackCategories = [
-      {
-        'title': _t('خواردنگە و ڕێستۆرانتەکان'),
-        'image': 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600',
-        'icon': Icons.restaurant_rounded,
-        'catName': 'خواردنگە',
-      },
-      {
-        'title': _t('مارکێت و سوپەرمارکێتەکان'),
-        'image': 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=600',
-        'icon': Icons.store_rounded,
-        'catName': 'سوپەرمارکێت',
-      },
-      {
-        'title': _t('میوە و سەوزەی فرێش'),
-        'image': 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=600',
-        'icon': Icons.eco_rounded,
-        'catName': 'سەوزە و میوە',
-      },
-      {
-        'title': _t('شاوڕمە و فاست فوود'),
-        'image': 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=600',
-        'icon': Icons.fastfood_rounded,
-        'catName': 'فاست فوود',
-      },
-      {
-        'title': _t('شیرینی، کێک و باقلاوە'),
-        'image': 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600',
-        'icon': Icons.bakery_dining_rounded,
-        'catName': 'شیرەمەنی و شیرینی',
-      },
-      {
-        'title': _t('کافن و قاوەخانەکان'),
-        'image': 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600',
-        'icon': Icons.coffee_rounded,
-        'catName': 'کافێ',
-      },
-      {
-        'title': _t('گۆشت و مریشکی تازه'),
-        'image': 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=600',
-        'icon': Icons.set_meal_outlined,
-        'catName': 'گۆشت و قەسابخانە',
-      },
-      {
-        'title': _t('نانەواخانه و سەموون'),
-        'image': 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=600',
-        'icon': Icons.bakery_dining_outlined,
-        'catName': 'نانەواخانە',
-      },
-    ];
-
-    final List<Map<String, dynamic>> categoriesList =
-        _dynamicCategories.isNotEmpty ? _dynamicCategories : fallbackCategories;
+    final List<Map<String, dynamic>> categoriesList = _dynamicCategories;
 
     // 1-Column List of Vertical Store Cards for Category View
     if (_selectedCategory != 'گشتی') {
-      // Cache filtered results to avoid recalculating on every build if not needed
+      final matchedHomeCat = _dynamicCategories.cast<Map<String, dynamic>?>().firstWhere(
+            (c) => c?['catName'] == _selectedCategory,
+            orElse: () => null,
+          );
+      final selectedCatId = (matchedHomeCat?['id'] as num?)?.toInt();
+
+      // Prefer category_id match (admin assigns vendor → home tile); fall back to name.
       final categoryStores = allStores.where((s) {
-        final matchesSearch = _searchQuery.isEmpty || s.name.contains(_searchQuery) || s.category.contains(_searchQuery);
-        final matchesCat = s.category == _selectedCategory || 
-                          (_selectedCategory.contains('خواردن') && s.category.contains('خواردن')) ||
-                          (_selectedCategory.contains('مارکێت') && s.category.contains('مارکێت'));
+        final matchesSearch = _searchQuery.isEmpty ||
+            s.name.contains(_searchQuery) ||
+            s.category.contains(_searchQuery);
+        final matchesCat = (selectedCatId != null && s.categoryId == selectedCatId) ||
+            s.category == _selectedCategory ||
+            (_selectedCategory.contains('خواردن') && s.category.contains('خواردن')) ||
+            (_selectedCategory.contains('مارکێت') && s.category.contains('مارکێت')) ||
+            (_selectedCategory.contains('کافێ') && s.category.contains('کافێ'));
         return matchesCat && matchesSearch;
       }).toList();
-
-      final displayCatTitle = _selectedCategory == 'خواردنگە' ? 'خواردن' : _selectedCategory;
+      final displayCatTitle = matchedHomeCat != null
+          ? _homeCatTitle(matchedHomeCat)
+          : (_selectedCategory == 'خواردنگە' ? 'خواردن' : _selectedCategory);
 
       return ListView(
         padding: const EdgeInsets.only(bottom: 20),
@@ -3937,7 +3777,7 @@ class _MainScreenState extends State<MainScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _t(displayCatTitle),
+                        displayCatTitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.black),
@@ -3966,7 +3806,7 @@ class _MainScreenState extends State<MainScreen> {
                       children: [
                         Icon(Icons.storefront_outlined, size: 48, color: Colors.grey.shade400),
                         const SizedBox(height: 8),
-                        Text(_t('هیچ دوکانێک لە بەشی') + ' ' + _t(displayCatTitle) + ' ' + _t('نەدۆزرایەوە'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text(_t('هیچ دوکانێک لە بەشی') + ' ' + displayCatTitle + ' ' + _t('نەدۆزرایەوە'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: () => setState(() => _selectedCategory = 'گشتی'),
@@ -4007,20 +3847,15 @@ class _MainScreenState extends State<MainScreen> {
         // Dynamic Promo Banner Slider
         Builder(
           builder: (context) {
-            final hasDynamic = _dynamicBanners.isNotEmpty;
-            final topBanner = hasDynamic ? _dynamicBanners.first : null;
-            final bannerImg = (hasDynamic && topBanner?['image_url'] != null && topBanner!['image_url'].toString().isNotEmpty)
+            if (_dynamicBanners.isEmpty) return const SizedBox.shrink();
+            final topBanner = _dynamicBanners.first;
+            final bannerImg = (topBanner['image_url'] != null && topBanner['image_url'].toString().isNotEmpty)
                 ? topBanner['image_url'].toString()
-                : 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=800';
-            final bannerBadge = (hasDynamic && topBanner?['badge_text'] != null)
-                ? topBanner!['badge_text'].toString()
-                : 'تەواو تازه';
-            final bannerTitle = (hasDynamic && topBanner?['title_ku'] != null)
-                ? topBanner!['title_ku'].toString()
-                : 'بازاڕی میوە و سەوزەی ڕۆژانە';
-            final bannerSub = (hasDynamic && topBanner?['subtitle_ku'] != null)
-                ? topBanner!['subtitle_ku'].toString()
-                : 'هەموو ڕۆژێک میوە و سەوزەی تازەی خۆماڵی بە نرخی بازاڕ لە کەلار';
+                : '';
+            if (bannerImg.isEmpty) return const SizedBox.shrink();
+            final bannerBadge = (topBanner['badge_text'] ?? '').toString();
+            final bannerTitle = (topBanner['title_ku'] ?? topBanner['title'] ?? '').toString();
+            final bannerSub = (topBanner['subtitle_ku'] ?? topBanner['subtitle'] ?? '').toString();
             final bannerHeight = MediaQuery.of(context).size.width >= 640 ? 230.0 : 170.0;
 
             return Padding(
@@ -4046,37 +3881,26 @@ class _MainScreenState extends State<MainScreen> {
                         ),
                       ),
                     ),
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFAC800),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.local_offer, size: 12, color: Colors.black),
-                            const SizedBox(width: 4),
-                            Text(bannerBadge, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black)),
-                          ],
+                    if (bannerBadge.isNotEmpty)
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFAC800),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.local_offer, size: 12, color: Colors.black),
+                              const SizedBox(width: 4),
+                              Text(bannerBadge, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black)),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      top: 12,
-                      left: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text('داشكاندنی REGA', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
                     Positioned(
                       bottom: 12,
                       right: 16,
@@ -4104,13 +3928,18 @@ class _MainScreenState extends State<MainScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             onPressed: () {
-                              if (hasDynamic && topBanner != null) {
-                                if (topBanner['target_type'] == 'store' && topBanner['store_id'] != null) {
-                                  final matchStore = allStores.firstWhere(
-                                    (st) => st.id == 'db_store_',
-                                    orElse: () => allStores.first,
-                                  );
-                                  setState(() => _selectedStore = matchStore);
+                              if (topBanner['target_type'] == 'store' && topBanner['store_id'] != null) {
+                                  StoreItem? matchStore;
+                                  for (final st in allStores) {
+                                    if (st.id == 'db_store_${topBanner['store_id']}' ||
+                                        st.id == topBanner['store_id'].toString()) {
+                                      matchStore = st;
+                                      break;
+                                    }
+                                  }
+                                  if (matchStore != null) {
+                                    setState(() => _selectedStore = matchStore);
+                                  }
                                   return;
                                 } else if (topBanner['target_type'] == 'category' && topBanner['category'] != null) {
                                   final cat = topBanner['category'];
@@ -4120,8 +3949,6 @@ class _MainScreenState extends State<MainScreen> {
                                     return;
                                   }
                                 }
-                              }
-                              setState(() => _selectedCategory = 'سەوزە و میوە');
                             },
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -4142,23 +3969,39 @@ class _MainScreenState extends State<MainScreen> {
           },
         ),
 
-        const SizedBox(height: 8),
+        if (_dynamicBanners.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              _dynamicBanners.length.clamp(1, 5),
+              (i) => Container(
+                width: i == 0 ? 16 : 6,
+                height: 6,
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                decoration: BoxDecoration(
+                  color: i == 0 ? Colors.orange : Colors.amber.shade200,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ] else
+          const SizedBox(height: 8),
 
-        // Pagination Dots
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(width: 16, height: 6, decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(4))),
-            const SizedBox(width: 4),
-            Container(width: 6, height: 6, decoration: BoxDecoration(color: Colors.amber.shade200, shape: BoxShape.circle)),
-            const SizedBox(width: 4),
-            Container(width: 6, height: 6, decoration: BoxDecoration(color: Colors.amber.shade200, shape: BoxShape.circle)),
-          ],
-        ),
-
-        const SizedBox(height: 16),
-
-        // 2-Column Categories Grid (Exact match with uploaded picture)
+        // Categories from backend only
+        if (categoriesList.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 24),
+            child: Center(
+              child: Text(
+                _t('هیچ داتایەک نییە'),
+                style: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w700),
+              ),
+            ),
+          )
+        else
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: GridView.builder(
@@ -4173,6 +4016,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
             itemBuilder: (context, index) {
             final cat = categoriesList[index];
+            final imageUrl = cat['image']?.toString() ?? '';
             return InkWell(
               onTap: () {
                 setState(() => _selectedCategory = cat['catName']);
@@ -4182,28 +4026,32 @@ class _MainScreenState extends State<MainScreen> {
                 borderRadius: BorderRadius.circular(24),
                 child: Stack(
                   children: [
-                    Image.network(
-                      cat['image'],
-                      height: double.infinity,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-                    // Icon Badge top-left (White circle as per screenshot)
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4),
-                          ],
+                    if (imageUrl.isEmpty)
+                      Container(
+                        color: const Color(0xFFE2E8F0),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          (cat['icon'] as IconData?) ?? Icons.category_rounded,
+                          size: 42,
+                          color: const Color(0xFF94A3B8),
                         ),
-                        child: Icon(cat['icon'] as IconData, size: 22, color: Colors.black),
+                      )
+                    else
+                      Image.network(
+                        imageUrl,
+                        height: double.infinity,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: const Color(0xFFE2E8F0),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            (cat['icon'] as IconData?) ?? Icons.category_rounded,
+                            size: 42,
+                            color: const Color(0xFF94A3B8),
+                          ),
+                        ),
                       ),
-                    ),
                     // Category Name Tag at Bottom Right (Flush with edges as per screenshot)
                     Positioned(
                       bottom: 0,
@@ -4217,7 +4065,7 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ),
                         child: Text(
-                          cat['title'],
+                          _homeCatTitle(cat),
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w900,
@@ -4270,14 +4118,14 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ),
-            // Top Status Badge (🟢 کراوە)
+            // Top Status Badge — کراوە / داخراوە لە دۆخی ئەپی فرۆشیار
             Positioned(
               top: 10,
               right: 10,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981),
+                  color: store.isOpen ? const Color(0xFF10B981) : const Color(0xFF64748B),
                   borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4),
@@ -4286,11 +4134,14 @@ class _MainScreenState extends State<MainScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const CircleAvatar(radius: 3.5, backgroundColor: Colors.white),
+                    CircleAvatar(
+                      radius: 3.5,
+                      backgroundColor: store.isOpen ? Colors.white : const Color(0xFFCBD5E1),
+                    ),
                     const SizedBox(width: 5),
                     Text(
-                      _t('کراوە'),
-                      style: TextStyle(
+                      _t(store.isOpen ? 'کراوە' : 'داخراوە'),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
                         fontWeight: FontWeight.w900,
@@ -4300,8 +4151,8 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ),
-            // Top Left Discount Badge (🏷️ %30 OFF)
-            if (store.discountBadge != null)
+            // باجی داشکاندن — تەنها کاتێک فرۆشیار داشکاندنی دانابێت
+            if (store.discountBadge != null && store.discountBadge!.trim().isNotEmpty)
               Positioned(
                 top: 10,
                 left: 10,
@@ -4315,7 +4166,7 @@ class _MainScreenState extends State<MainScreen> {
                     ],
                   ),
                   child: Text(
-                    store.discountBadge!,
+                    store.discountBadge!.trim(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 10,
@@ -4433,7 +4284,7 @@ class _MainScreenState extends State<MainScreen> {
                       children: [
                         const Icon(Icons.star, size: 14, color: Colors.amber),
                         const SizedBox(width: 4),
-                        Text('${store.rating}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text('${store.ratingOutOf10}/10', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       ],
                     ),
                   ),
@@ -4477,23 +4328,36 @@ class _MainScreenState extends State<MainScreen> {
       subCatMap.putIfAbsent(cat, () => []).add(p);
     }
 
+    final menuMeta = _storeMenuCategoryMeta[store.id] ?? {};
     final List<Map<String, dynamic>> subCategories = [];
     subCatMap.forEach((catTitle, prods) {
-      String catImage = prods.isNotEmpty ? prods.first.imageUrl : store.imageUrl;
+      final meta = menuMeta[catTitle];
+      final primary = meta?['image_url']?.toString() ?? '';
+      final secondary = meta?['secondary_image_url']?.toString() ?? '';
+      final fallback = prods.isNotEmpty ? prods.first.imageUrl : store.imageUrl;
       subCategories.add({
+        // Stable key (name_ku) for product filtering; displayTitle is locale-aware.
         'title': catTitle,
+        'displayTitle': _menuChipTitle(catTitle, meta),
         'badge': '${prods.length} بەرهەم',
         'isDiscount': false,
-        'image': catImage,
+        'image': primary.isNotEmpty ? primary : fallback,
+        'secondaryImage': secondary,
+        'sort_order': (meta?['sort_order'] as int?) ?? 999,
       });
     });
+    subCategories.sort((a, b) =>
+        ((a['sort_order'] as int?) ?? 999).compareTo((b['sort_order'] as int?) ?? 999));
 
     // Always include offer/discount category if relevant or as standard
     subCategories.add({
       'title': 'داشکاندنەکان',
+      'displayTitle': _t('داشکاندنەکان'),
       'badge': 'ئۆفەری تایبەت',
       'isDiscount': true,
       'image': 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=600',
+      'secondaryImage': '',
+      'sort_order': 10000,
     });
 
     final List<ProductItem> activeProds = storeProds.where((p) {
@@ -4628,52 +4492,80 @@ class _MainScreenState extends State<MainScreen> {
                             padding: const EdgeInsets.only(bottom: 2),
                             child: FittedBox(
                               fit: BoxFit.scaleDown,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                textDirection: TextDirection.rtl,
-                                children: [
-                                  // ⭐ Rating (Rightmost in RTL)
-                                  const Icon(Icons.star_rounded, color: Colors.black, size: 16),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '${store.rating} (342)',
-                                    style: const TextStyle(
-                                      color: Colors.black,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text('•', style: TextStyle(color: Colors.black.withOpacity(0.35), fontWeight: FontWeight.bold, fontSize: 13)),
-                                  const SizedBox(width: 8),
+                              child: Builder(
+                                builder: (context) {
+                                  final loc = context.watch<LocationNotifier>();
+                                  final userLat = loc.pinnedLat;
+                                  final userLng = loc.pinnedLng;
+                                  String distanceLabel = '— کم';
+                                  if (userLat != null && userLng != null) {
+                                    final meters = Geolocator.distanceBetween(
+                                      userLat,
+                                      userLng,
+                                      store.lat,
+                                      store.lng,
+                                    );
+                                    final km = meters / 1000.0;
+                                    distanceLabel = km < 10
+                                        ? '${km.toStringAsFixed(1)} کم'
+                                        : '${km.toStringAsFixed(0)} کم';
+                                  }
+                                  final fee = store.deliveryFee > 0
+                                      ? store.deliveryFee
+                                      : _deliveryFeeOrZero;
+                                  final reviews = store.reviewCount > 0 ? store.reviewCount : null;
+                                  final ratingText = reviews != null
+                                      ? '${store.ratingOutOf10}/10 ($reviews)'
+                                      : '${store.ratingOutOf10}/10';
 
-                                  // 🚲 Delivery Fee (Middle in RTL)
-                                  const Icon(Icons.directions_bike_rounded, color: Colors.black, size: 16),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '${store.deliveryFee} د.ع',
-                                    style: const TextStyle(
-                                      color: Colors.black,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text('•', style: TextStyle(color: Colors.black.withOpacity(0.35), fontWeight: FontWeight.bold, fontSize: 13)),
-                                  const SizedBox(width: 8),
+                                  return Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    textDirection: TextDirection.rtl,
+                                    children: [
+                                      // ⭐ ڕێژەی ئەستێرە لە ١٠
+                                      const Icon(Icons.star_rounded, color: Colors.black, size: 16),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        ratingText,
+                                        style: const TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text('•', style: TextStyle(color: Colors.black.withOpacity(0.35), fontWeight: FontWeight.bold, fontSize: 13)),
+                                      const SizedBox(width: 8),
 
-                                  // 📍 Distance (Leftmost in RTL)
-                                  const Icon(Icons.location_on_rounded, color: Colors.black, size: 16),
-                                  const SizedBox(width: 4),
-                                  const Text(
-                                    '1.2 کم',
-                                    style: TextStyle(
-                                      color: Colors.black,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ],
+                                      // 🚲 نرخی گەیاندنی ماتۆرسوار
+                                      const Icon(Icons.directions_bike_rounded, color: Colors.black, size: 16),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '$fee د.ع',
+                                        style: const TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text('•', style: TextStyle(color: Colors.black.withOpacity(0.35), fontWeight: FontWeight.bold, fontSize: 13)),
+                                      const SizedBox(width: 8),
+
+                                      // 📍 دووری کیلۆمەتر لە شوێنی کڕیار
+                                      const Icon(Icons.location_on_rounded, color: Colors.black, size: 16),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        distanceLabel,
+                                        style: const TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                             ),
                           ),
@@ -4708,17 +4600,20 @@ class _MainScreenState extends State<MainScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF10B981),
+                    color: store.isOpen ? const Color(0xFF10B981) : const Color(0xFF64748B),
                     borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      CircleAvatar(radius: 3.5, backgroundColor: Colors.white),
-                      SizedBox(width: 5),
+                    children: [
+                      CircleAvatar(
+                        radius: 3.5,
+                        backgroundColor: store.isOpen ? Colors.white : const Color(0xFFCBD5E1),
+                      ),
+                      const SizedBox(width: 5),
                       Text(
-                        'کراوە',
-                        style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900),
+                        store.isOpen ? 'کراوە' : 'داخراوە',
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900),
                       ),
                     ],
                   ),
@@ -4726,6 +4621,88 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
           ),
+
+          // 2b. Menu category chip bar (ڕووکاری فرۆشگا) — sec image used when present
+          if (subCategories.where((c) => c['isDiscount'] != true).isNotEmpty)
+            Container(
+              width: double.infinity,
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(right: 4, bottom: 8),
+                    child: Text(
+                      'ڕووکارى فرۆشگا',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF0F172A)),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 40,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      reverse: true,
+                      itemCount: subCategories.where((c) => c['isDiscount'] != true).length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, idx) {
+                        final chips = subCategories.where((c) => c['isDiscount'] != true).toList();
+                        final cat = chips[idx];
+                        final title = cat['title'] as String;
+                        final label = (cat['displayTitle'] as String?) ?? title;
+                        final selected = _selectedSubCategory == title;
+                        final sec = (cat['secondaryImage'] as String?)?.trim() ?? '';
+                        final chipIcon = sec.isNotEmpty
+                            ? sec
+                            : ((cat['image'] as String?)?.trim() ?? '');
+                        return InkWell(
+                          onTap: () => setState(() => _selectedSubCategory = title),
+                          borderRadius: BorderRadius.circular(22),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: selected ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                color: selected ? const Color(0xFFF97316) : const Color(0xFFE2E8F0),
+                                width: selected ? 1.6 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (chipIcon.isNotEmpty) ...[
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.network(
+                                      chipIcon,
+                                      width: 22,
+                                      height: 22,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                                Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: selected ? const Color(0xFFEA580C) : const Color(0xFF334155),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // 3. Body Content
           Expanded(
@@ -4830,7 +4807,8 @@ class _MainScreenState extends State<MainScreen> {
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               Text(
-                                                cat['title'] as String,
+                                                (cat['displayTitle'] as String?) ??
+                                                    (cat['title'] as String),
                                                 style: const TextStyle(
                                                   color: Colors.black,
                                                   fontSize: 10,
@@ -4877,7 +4855,14 @@ class _MainScreenState extends State<MainScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  _selectedSubCategory!,
+                                  () {
+                                    final key = _selectedSubCategory!;
+                                    final hit = subCategories.cast<Map<String, dynamic>?>().firstWhere(
+                                          (c) => c?['title'] == key,
+                                          orElse: () => null,
+                                        );
+                                    return (hit?['displayTitle'] as String?) ?? key;
+                                  }(),
                                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.black),
                                 ),
                               ],
@@ -5098,7 +5083,7 @@ class _MainScreenState extends State<MainScreen> {
   // ============================================================================
   Widget _buildStoresTab() {
     // Filter to ONLY stores & restaurants that have an active discount or special offer
-    final discountStores = allStores.where((s) => s.discountBadge != null && s.discountBadge!.isNotEmpty).toList();
+    final discountStores = allStores.where((s) => s.discountBadge != null && s.discountBadge!.trim().isNotEmpty).toList();
 
     return ListView(
       padding: const EdgeInsets.all(14),
@@ -5160,7 +5145,7 @@ class _MainScreenState extends State<MainScreen> {
         color: Colors.white,
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: EdgeInsets.symmetric(horizontal: RegaResponsive.pagePadding(context)),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -5223,10 +5208,10 @@ class _MainScreenState extends State<MainScreen> {
                 const SizedBox(height: 24),
 
                 // Exact text requested
-                const Text(
-                  'سەبەتەکەت بەتاڵە! دەست بکە بە زیادکردنی بەرهەمەکانت بۆ درێژەدان.',
+                Text(
+                  _t('سەبەتەکەت بەتاڵە! دەست بکە بە زیادکردنی بەرهەمەکانت بۆ درێژەدان.'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w900,
                     color: Colors.black87,
@@ -5241,15 +5226,20 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     final subtotal = _cart.fold<int>(0, (sum, i) => sum + (i.product.price * i.quantity));
-    final deliveryFee = _selectedNeighborhood.deliveryFee;
+    final deliveryFee = _deliveryFeeOrZero;
     final grandTotal = subtotal + deliveryFee;
 
     // Find primary store name for cart header
-    String storeName = 'کەلار ستی';
+    String storeName = '-';
     if (_cart.isNotEmpty) {
       final storeId = _cart.first.product.storeId;
-      final foundStore = allStores.firstWhere((s) => s.id == storeId, orElse: () => allStores.first);
-      storeName = foundStore.name;
+      for (final s in allStores) {
+        if (s.id == storeId) {
+          storeName = s.name;
+          break;
+        }
+      }
+      if (storeName == '-') storeName = _cart.first.product.storeId;
     }
 
     return ListView(
@@ -5601,7 +5591,9 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ),
                         Text(
-                          '(${_t(_selectedNeighborhood.name)})',
+                          _selectedNeighborhoodOrNull != null
+                              ? '(${_t(_selectedNeighborhoodOrNull!.name)})'
+                              : '(—)',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -5701,18 +5693,168 @@ class _MainScreenState extends State<MainScreen> {
   // ============================================================================
   // 📋 TAB 4: ORDERS VIEW
   // ============================================================================
+  ({int total, int active, int completed, int cancelled}) _orderStats() {
+    var active = 0;
+    var completed = 0;
+    var cancelled = 0;
+    for (final o in _orders) {
+      final isDelivered = o.status == 'delivered' || o.status == 'completed';
+      final isCancelled = o.status == 'cancelled' || o.status == 'rejected';
+      if (isDelivered) {
+        completed++;
+      } else if (isCancelled) {
+        cancelled++;
+      } else {
+        active++;
+      }
+    }
+    return (total: _orders.length, active: active, completed: completed, cancelled: cancelled);
+  }
+
+  Widget _buildOrderStatsSummary() {
+    final stats = _orderStats();
+    Widget cell({
+      required String label,
+      required int count,
+      required Color color,
+      required String filterKey,
+      required IconData icon,
+    }) {
+      final selected = _selectedOrderFilter == filterKey;
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => setState(() => _selectedOrderFilter = filterKey),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+            decoration: BoxDecoration(
+              color: selected ? color.withOpacity(0.14) : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected ? color : Colors.grey.shade200,
+                width: selected ? 1.6 : 1,
+              ),
+            ),
+            child: Column(
+              children: [
+                Icon(icon, size: 18, color: color),
+                const SizedBox(height: 4),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: selected ? color : Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Row(
+        children: [
+          cell(
+            label: _t('هەموو'),
+            count: stats.total,
+            color: const Color(0xFF111827),
+            filterKey: 'هەموو',
+            icon: Icons.receipt_long_rounded,
+          ),
+          const SizedBox(width: 8),
+          cell(
+            label: _t('بەردەوام'),
+            count: stats.active,
+            color: const Color(0xFFD97706),
+            filterKey: 'بەردەوام',
+            icon: Icons.timelapse_rounded,
+          ),
+          const SizedBox(width: 8),
+          cell(
+            label: _t('تەواوبوو'),
+            count: stats.completed,
+            color: const Color(0xFF059669),
+            filterKey: 'تەواوبوو',
+            icon: Icons.check_circle_rounded,
+          ),
+          const SizedBox(width: 8),
+          cell(
+            label: _t('هەڵوەشایەوە'),
+            count: stats.cancelled,
+            color: const Color(0xFFDC2626),
+            filterKey: 'هەڵوەشایەوە',
+            icon: Icons.cancel_rounded,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildOrdersTab() {
+    final stats = _orderStats();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Title
         Padding(
-          padding: const EdgeInsets.only(top: 24, left: 16, right: 24, bottom: 8),
-          child: Text(
-            _t('داواکاریەکانم'),
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+          padding: EdgeInsets.only(
+            top: 24,
+            left: RegaResponsive.pagePadding(context),
+            right: RegaResponsive.pagePadding(context),
+            bottom: 4,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final title = Text(
+                _t('داواکاریەکانم'),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+              );
+              final count = Text(
+                '${stats.total} ${_t('داواکاری')}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade600,
+                ),
+              );
+              if (constraints.maxWidth < RegaBreakpoints.phone) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    title,
+                    const SizedBox(height: 4),
+                    count,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: title),
+                  count,
+                ],
+              );
+            },
           ),
         ),
+        _buildOrderStatsSummary(),
         // Divider
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -5731,10 +5873,10 @@ class _MainScreenState extends State<MainScreen> {
             ),
             child: Row(
               children: [
-                _buildOrderFilterChip('هەموو'),
-                _buildOrderFilterChip('بەردەوام'),
-                _buildOrderFilterChip('تەواوبوو'),
-                _buildOrderFilterChip('هەڵوەشایەوە'),
+                _buildOrderFilterChip('هەموو', count: stats.total),
+                _buildOrderFilterChip('بەردەوام', count: stats.active),
+                _buildOrderFilterChip('تەواوبوو', count: stats.completed),
+                _buildOrderFilterChip('هەڵوەشایەوە', count: stats.cancelled),
               ],
             ),
           ),
@@ -5750,42 +5892,6 @@ class _MainScreenState extends State<MainScreen> {
                       Icon(Icons.receipt_long_outlined, size: 72, color: Colors.grey.shade400),
                       const SizedBox(height: 16),
                       Text(_t('هیچ داواکارییەکی تۆمارکراوت نییە'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 18),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFAC800),
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                          elevation: 3,
-                        ),
-                        onPressed: () {
-                          final demoCoords = KalarGeoCatalog.forNeighborhoodId(_selectedNeighborhood.id);
-                          final demoOrder = OrderItem(
-                            id: '#10245',
-                            storeName: 'چێشتخانەی دیوان - کەلار',
-                            totalAmount: 18000,
-                            status: 'heading_to_store',
-                            date: DateTime.now(),
-                            items: const [],
-                            driverName: 'کاروان محەمەد (ماتۆڕسوار)',
-                            driverPhone: '07702001001',
-                            address: '${_selectedNeighborhood.name} - شاری کەلار',
-                            deliveryPin: '4821',
-                            storeLat: 34.6836,
-                            storeLng: 45.3189,
-                            customerLat: _pinnedCustomerLat ?? demoCoords.latitude,
-                            customerLng: _pinnedCustomerLng ?? demoCoords.longitude,
-                          );
-                          setState(() => _orders.insert(0, demoOrder));
-                          _showLiveTrackingModal(demoOrder);
-                        },
-                        icon: const Icon(Icons.two_wheeler_rounded, size: 22),
-                        label: const Text(
-                          'بینینی نەخشەی زیندوو چرکە بە چرکە (#10245)',
-                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-                        ),
-                      ),
                     ],
                   ),
                 )
@@ -5816,7 +5922,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildOrderFilterChip(String key) {
+  Widget _buildOrderFilterChip(String key, {int? count}) {
     final isSelected = _selectedOrderFilter == key;
     return GestureDetector(
       onTap: () {
@@ -5826,13 +5932,13 @@ class _MainScreenState extends State<MainScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFFFAC800) : Colors.transparent,
           borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
         ),
         child: Text(
-          _t(key),
+          count == null ? _t(key) : '${_t(key)} ($count)',
           style: TextStyle(
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             color: isSelected ? Colors.black : Colors.grey.shade600,
@@ -5903,7 +6009,7 @@ class _MainScreenState extends State<MainScreen> {
                   children: [
                     _buildReceiptInfoRow(_t('فرۆشگا:'), order.storeName),
                     const SizedBox(height: 8),
-                    _buildReceiptInfoRow(_t('کڕیار:'), '${_userProfile?.name ?? 'شەيما کاروان'} (0770 123 4567)'),
+                    _buildReceiptInfoRow(_t('کڕیار:'), '${_userProfile?.name ?? '-'} (${_userProfile?.phone ?? '-'})'),
                     const SizedBox(height: 8),
                     _buildReceiptInfoRow(_t('ناونیشان:'), order.address),
                     const SizedBox(height: 8),
@@ -6524,6 +6630,69 @@ class _MainScreenState extends State<MainScreen> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             _buildOrderStepper(order),
+            if (_isLiveTrackStatus(order.status)) ...[
+              const SizedBox(height: 12),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => _showLiveTrackingModal(order),
+                  child: Ink(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFF7ED), Color(0xFFFEF3C7)],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFF59E0B), width: 1.4),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFF59E0B),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.moped_rounded, color: Colors.black, size: 22),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                order.driverName.isNotEmpty
+                                    ? 'ماتۆرسوار: ${order.driverName}'
+                                    : 'شوێنی ماتۆرسوار لەسەر نەخشە',
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                order.status == 'preparing'
+                                    ? 'فرۆشگا ئامادەیدەکات — کرتە بکە بۆ بینینی شوێن'
+                                    : 'کرتە بکە بۆ بینینی شوێنی ڕاستەوخۆی گەیاندن',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_left_rounded, color: Color(0xFFB45309), size: 26),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Divider(color: Colors.grey.shade100, height: 1),
             const SizedBox(height: 12),
@@ -6610,33 +6779,39 @@ class _MainScreenState extends State<MainScreen> {
                       fit: BoxFit.scaleDown,
                       child: GestureDetector(
                         onTap: () {
-                          if (order.status != 'cancelled') {
+                          if (order.status != 'cancelled' && order.status != 'rejected') {
                             _showLiveTrackingModal(order);
                           }
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: (order.status != 'cancelled') 
-                                ? const Color(0xFFF59E0B) 
+                            color: (order.status != 'cancelled' && order.status != 'rejected')
+                                ? const Color(0xFFF59E0B)
                                 : Colors.grey.shade300,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             children: [
                               Icon(
-                                Icons.visibility_outlined, 
-                                size: 16, 
-                                color: (order.status != 'cancelled') ? Colors.black : Colors.grey.shade500
+                                Icons.moped_rounded,
+                                size: 16,
+                                color: (order.status != 'cancelled' && order.status != 'rejected')
+                                    ? Colors.black
+                                    : Colors.grey.shade500,
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                'شوێن پێهەڵگرتن', 
+                                _isLiveTrackStatus(order.status)
+                                    ? 'شوێنی ماتۆرسوار'
+                                    : 'شوێن پێهەڵگرتن',
                                 style: TextStyle(
-                                  fontSize: 13, 
-                                  color: (order.status != 'cancelled') ? Colors.black : Colors.grey.shade500, 
-                                  fontWeight: FontWeight.bold
-                                )
+                                  fontSize: 13,
+                                  color: (order.status != 'cancelled' && order.status != 'rejected')
+                                      ? Colors.black
+                                      : Colors.grey.shade500,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),
@@ -6662,7 +6837,13 @@ class _MainScreenState extends State<MainScreen> {
       builder: (ctx) {
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
-          child: Container(
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: (MediaQuery.sizeOf(ctx).width - RegaResponsive.dialogMaxWidth(ctx, cap: 480)) / 2,
+            vertical: 24,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: RegaResponsive.dialogMaxWidth(ctx, cap: 480)),
+            child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -6737,6 +6918,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ],
             ),
+          ),
           ),
         );
       },
@@ -6913,7 +7095,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     const SizedBox(height: 12),
                     _buildTermsBullet('ئەپی REGA تایبەتە بە گەیاندنی داواکاری لە سنووری شاری کەلار و دەوروبەری.'),
-                    _buildTermsBullet('پارەدان دەکرێت بە نەختینە لە کاتی گەیاندن یان بە شێوازی ئەلیکترۆنی ئەنجام بدرێت.'),
+                    _buildTermsBullet('پارەدان تەنها بە نەختینە (کاش / COD) لە کاتی گەیاندن ئەنجام دەدرێت.'),
                     _buildTermsBullet('کاتی گەیاندن خەمڵێنراوە و بەپێی قەرەباڵغی و کەشوهەوا دەگۆڕێت.'),
                   ],
                 ),
@@ -7096,7 +7278,7 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFFB45309)),
                       const SizedBox(width: 6),
-                      Text(_t('بینینی هەژمار'), style: GoogleFonts.notoKufiArabic(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFB45309))),
+                      Text(_t('بینینی هەژمار'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFFB45309))),
                     ],
                   ),
                 ),
@@ -7115,13 +7297,13 @@ class _MainScreenState extends State<MainScreen> {
                             _userProfile?.name ?? '', 
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.notoKufiArabic(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.black)
+                            style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 16, fontWeight: FontWeight.w900, color: Colors.black)
                           ),
                           Text(
                             _userProfile?.phone ?? '', 
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.notoKufiArabic(fontSize: 11, color: const Color(0xFFB45309), fontWeight: FontWeight.bold)
+                            style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11, color: const Color(0xFFB45309), fontWeight: FontWeight.bold)
                           ),
                         ],
                       ),
@@ -7191,8 +7373,8 @@ class _MainScreenState extends State<MainScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text('زمانەکان', style: GoogleFonts.notoKufiArabic(fontSize: 14, fontWeight: FontWeight.bold)),
-                              Text(_currentLanguage, style: GoogleFonts.notoKufiArabic(fontSize: 11, color: Colors.grey)),
+                              Text(_t('زمانەکان'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14, fontWeight: FontWeight.bold)),
+                              Text(_currentLanguage, style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11, color: Colors.grey)),
                             ],
                           ),
                           const SizedBox(width: 12),
@@ -7222,6 +7404,25 @@ class _MainScreenState extends State<MainScreen> {
                       _buildLanguageOption('العربية', isSelected: _currentLanguage == 'العربية'),
                       const SizedBox(height: 10),
                       _buildLanguageOption('English', isSelected: _currentLanguage == 'English'),
+                      const SizedBox(height: 14),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          context.watch<LocaleNotifier>().isDark
+                              ? _t('دۆخی تاریک')
+                              : _t('دۆخی ڕووناک'),
+                          style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
+                        secondary: Icon(
+                          context.watch<LocaleNotifier>().isDark
+                              ? Icons.dark_mode_rounded
+                              : Icons.light_mode_rounded,
+                          color: const Color(0xFFB45309),
+                        ),
+                        value: context.watch<LocaleNotifier>().isDark,
+                        activeColor: const Color(0xFFFAC800),
+                        onChanged: (v) => context.read<LocaleNotifier>().setDark(v),
+                      ),
                     ],
                   ),
                 ),
@@ -7269,7 +7470,7 @@ class _MainScreenState extends State<MainScreen> {
                           const SizedBox(width: 4),
                           Text(
                             _t('دۆزینەوەی لۆکەیشن'),
-                            style: GoogleFonts.notoKufiArabic(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFB45309)),
+                            style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFFB45309)),
                           ),
                         ],
                       ),
@@ -7277,7 +7478,7 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   Row(
                     children: [
-                      Text(_t('ناونیشانی تۆ'), style: GoogleFonts.notoKufiArabic(fontSize: 14, fontWeight: FontWeight.bold)),
+                      Text(_t('ناونیشانی تۆ'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14, fontWeight: FontWeight.bold)),
                       const SizedBox(width: 6),
                       const Icon(Icons.location_on_rounded, color: Color(0xFFB45309), size: 20),
                     ],
@@ -7315,10 +7516,8 @@ class _MainScreenState extends State<MainScreen> {
                               children: [
                                 Flexible(
                                   child: Text(
-                                    (_deliveryPlaceNote != null && _deliveryPlaceNote!.isNotEmpty)
-                                        ? _deliveryPlaceNote!
-                                        : _selectedNeighborhood.name,
-                                    style: GoogleFonts.notoKufiArabic(fontSize: 14.5, fontWeight: FontWeight.w900, color: const Color(0xFF1E293B)),
+                                    _deliveryDisplayLabel,
+                                    style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14.5, fontWeight: FontWeight.w900, color: const Color(0xFF1E293B)),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -7333,7 +7532,7 @@ class _MainScreenState extends State<MainScreen> {
                                   ),
                                   child: Text(
                                     (_pinnedCustomerLat != null) ? _t('GPS چالاکە') : _t('GPS نییە'),
-                                    style: GoogleFonts.notoKufiArabic(
+                                    style: TextStyle(fontFamily: 'NotoKufiArabic', 
                                       fontSize: 9.5,
                                       fontWeight: FontWeight.w800,
                                       color: (_pinnedCustomerLat != null)
@@ -7346,15 +7545,17 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '${_selectedNeighborhood.name} • ${_t('گەیاندن')}: ${_formatNum(_selectedNeighborhood.deliveryFee)} ${_t('د.ع')}',
-                              style: GoogleFonts.notoKufiArabic(fontSize: 11.5, color: Colors.grey.shade700),
+                              _selectedNeighborhood != null
+                                  ? '${_selectedNeighborhood!.name} • ${_t('گەیاندن')}: ${_formatNum(_selectedNeighborhood!.deliveryFee)} ${_t('د.ع')}'
+                                  : '${_t('گەیاندن')}: —',
+                              style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11.5, color: Colors.grey.shade700),
                             ),
                             if (_pinnedCustomerLat != null && _pinnedCustomerLng != null)
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),
                                 child: Text(
                                   '📍 GPS: (${_pinnedCustomerLat!.toStringAsFixed(5)}, ${_pinnedCustomerLng!.toStringAsFixed(5)})',
-                                  style: GoogleFonts.notoKufiArabic(fontSize: 10, color: const Color(0xFFB45309), fontWeight: FontWeight.w700),
+                                  style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 10, color: const Color(0xFFB45309), fontWeight: FontWeight.w700),
                                 ),
                               ),
                           ],
@@ -7370,7 +7571,7 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: _showLocationPicker,
                 child: Text(
                   _t('کردنەوەی نەخشە بۆ دیاریکردنی شوێنی گەیاندن'),
-                  style: GoogleFonts.notoKufiArabic(
+                  style: TextStyle(fontFamily: 'NotoKufiArabic', 
                     fontSize: 12,
                     color: const Color(0xFFB45309),
                     fontWeight: FontWeight.bold,
@@ -7414,7 +7615,7 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(height: 12),
             Text(
               ' هەموو مافەکانی پارێزراوە بۆ (REGA)',
-              style: GoogleFonts.notoKufiArabic(fontSize: 10, color: Colors.grey.shade400, fontWeight: FontWeight.bold),
+              style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 10, color: Colors.grey.shade400, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -7468,7 +7669,7 @@ class _MainScreenState extends State<MainScreen> {
               const SizedBox(width: 20),
             Text(
               lang,
-              style: GoogleFonts.notoKufiArabic(
+              style: TextStyle(fontFamily: 'NotoKufiArabic', 
                 fontSize: 16,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 color: isSelected ? const Color(0xFFB45309) : Colors.black87,
@@ -7503,6 +7704,41 @@ class _MainScreenState extends State<MainScreen> {
     'بەردەوامبە': {'کوردی': 'بەردەوامبە', 'العربية': 'استمرار', 'English': 'Continue'},
     '✅ بە سەرکەوتوویی چووە ژوورەوە': {'کوردی': '✅ بە سەرکەوتوویی چووە ژوورەوە', 'العربية': '✅ تم تسجيل الدخول بنجاح', 'English': '✅ Logged in successfully'},
     '✅ هەژمارەکەت بە سەرکەوتوویی تۆمار کرا': {'کوردی': '✅ هەژمارەکەت بە سەرکەوتوویی تۆمار کرا', 'العربية': '✅ تم تسجيل الحساب بنجاح', 'English': '✅ Account registered successfully'},
+    'چوونە ژوورەوە سەرکەوتوو نەبوو': {
+      'کوردی': 'چوونە ژوورەوە سەرکەوتوو نەبوو',
+      'العربية': 'فشل تسجيل الدخول',
+      'English': 'Login was unsuccessful',
+    },
+    'خۆتۆمارکردن سەرکەوتوو نەبوو': {
+      'کوردی': 'خۆتۆمارکردن سەرکەوتوو نەبوو',
+      'العربية': 'فشل إنشاء الحساب',
+      'English': 'Registration was unsuccessful',
+    },
+    'وشەی تێپەڕ پێویستە (لانیکەم ٦ پیت)': {
+      'کوردی': 'وشەی تێپەڕ پێویستە (لانیکەم ٦ پیت)',
+      'العربية': 'كلمة المرور مطلوبة (٦ أحرف على الأقل)',
+      'English': 'Password required (at least 6 characters)',
+    },
+    'ژمارەی تەلەفۆن پێویستە': {
+      'کوردی': 'ژمارەی تەلەفۆن پێویستە',
+      'العربية': 'رقم الهاتف مطلوب',
+      'English': 'Phone number is required',
+    },
+    'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0750 000 0000': {
+      'کوردی': 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0750 000 0000',
+      'العربية': 'رقم الجوال غير صالح — الصيغة العراقية: 0750 000 0000',
+      'English': 'Invalid mobile — Iraqi format: 0750 000 0000',
+    },
+    'ناوی تەواو پێویستە': {
+      'کوردی': 'ناوی تەواو پێویستە',
+      'العربية': 'الاسم الكامل مطلوب',
+      'English': 'Full name is required',
+    },
+    'ئەم ژمارەیە پێشتر تۆمارکراوە — تکایە بچۆ ژوورەوە': {
+      'کوردی': 'ئەم ژمارەیە پێشتر تۆمارکراوە — تکایە بچۆ ژوورەوە',
+      'العربية': 'هذا الرقم مسجل مسبقاً — يرجى تسجيل الدخول',
+      'English': 'This number is already registered — please log in',
+    },
     'هیچ ناونیشانێک تۆمار نەکراوە': {
       'کوردی': 'هیچ ناونیشانێک تۆمار نەکراوە', 
       'العربية': 'لم يتم تسجيل أي عنوان', 
@@ -7580,6 +7816,31 @@ class _MainScreenState extends State<MainScreen> {
     'خولەک': {'کوردی': 'خولەک', 'العربية': 'دقيقة', 'English': 'min'},
     'د.ع': {'کوردی': 'د.ع', 'العربية': 'د.ع', 'English': 'IQD'},
     'زێدە کرا بۆ سەبەتە': {'کوردی': 'زێدە کرا بۆ سەبەتە', 'العربية': 'تمت الإضافة إلى السلة', 'English': 'Added to cart'},
+    'زیادکرا بۆ سەبەتە': {'کوردی': 'زیادکرا بۆ سەبەتە', 'العربية': 'أُضيف إلى السلة', 'English': 'added to cart'},
+    'تەواوکردنی داواکاری': {'کوردی': 'تەواوکردنی داواکاری', 'العربية': 'إتمام الطلب', 'English': 'Complete Order'},
+    'تکایە سەرەتا خۆت تۆمار بکە': {'کوردی': 'تکایە سەرەتا خۆت تۆمار بکە', 'العربية': 'يرجى التسجيل أولاً', 'English': 'Please register first'},
+    'بۆ ئەوەی بتوانیت داواکارییەکەت ئەنجام بدەیت و کاڵاکانت پێ بگات، تکایە سەرەتا خۆت تۆمار بکە یان بچۆ ژوورەوە.': {
+      'کوردی': 'بۆ ئەوەی بتوانیت داواکارییەکەت ئەنجام بدەیت و کاڵاکانت پێ بگات، تکایە سەرەتا خۆت تۆمار بکە یان بچۆ ژوورەوە.',
+      'العربية': 'لكي تتمكن من إتمام طلبك واستلام منتجاتك، يرجى التسجيل أو تسجيل الدخول أولاً.',
+      'English': 'To complete your order and receive your items, please register or log in first.',
+    },
+    'ڕاستەوخۆ بڕۆ بۆ خۆتۆمارکردن': {'کوردی': 'ڕاستەوخۆ بڕۆ بۆ خۆتۆمارکردن', 'العربية': 'انتقل إلى التسجيل مباشرة', 'English': 'Go to Register'},
+    'دواخستن': {'کوردی': 'دواخستن', 'العربية': 'لاحقاً', 'English': 'Dismiss'},
+    'داواکارییەکەت بە سەرکەوتوویی نێردرا!': {'کوردی': 'داواکارییەکەت بە سەرکەوتوویی نێردرا!', 'العربية': 'تم إرسال طلبك بنجاح!', 'English': 'Your order was sent successfully!'},
+    'تکایە ئەم کۆدە لای خۆت بپارێزە بۆ وەرگرتنی داواکاری لە شۆفێر:': {
+      'کوردی': 'تکایە ئەم کۆدە لای خۆت بپارێزە بۆ وەرگرتنی داواکاری لە شۆفێر:',
+      'العربية': 'يرجى الاحتفاظ بهذا الرمز لاستلام الطلب من السائق:',
+      'English': 'Keep this code to receive your order from the driver:',
+    },
+    'کۆدی وەرگرتنی داواکاری': {'کوردی': 'کۆدی وەرگرتنی داواکاری', 'العربية': 'رمز استلام الطلب', 'English': 'Order pickup code'},
+    'ژمارەی داواکاری': {'کوردی': 'ژمارەی داواکاری', 'العربية': 'رقم الطلب', 'English': 'Order number'},
+    'چوون بۆ داواکارییەکان': {'کوردی': 'چوون بۆ داواکارییەکان', 'العربية': 'الذهاب إلى الطلبات', 'English': 'Go to My Orders'},
+    'پشتڕاستکردنەوە و ناردنی داواکاری': {'کوردی': 'پشتڕاستکردنەوە و ناردنی داواکاری', 'العربية': 'تأكيد وإرسال الطلب', 'English': 'Confirm & Send Order'},
+    'سەبەتەکەت بەتاڵە! دەست بکە بە زیادکردنی بەرهەمەکانت بۆ درێژەدان.': {
+      'کوردی': 'سەبەتەکەت بەتاڵە! دەست بکە بە زیادکردنی بەرهەمەکانت بۆ درێژەدان.',
+      'العربية': 'سلتك فارغة! ابدأ بإضافة منتجاتك للمتابعة.',
+      'English': 'Your cart is empty! Start adding products to continue.',
+    },
     'ئەنجامی گەڕان بۆ': {'کوردی': 'ئەنجامی گەڕان بۆ', 'العربية': 'نتائج البحث عن', 'English': 'Search results for'},
     'خواردن': {'کوردی': 'خواردن', 'العربية': 'طعام', 'English': 'Food'},
     'بابەتەکان': {'کوردی': 'بابەتەکان', 'العربية': 'الأصناف', 'English': 'Categories'},
@@ -7673,6 +7934,29 @@ class _MainScreenState extends State<MainScreen> {
     return text;
   }
 
+  /// Locale-aware label for home/marketplace categories (name_ku / name_ar / name_en).
+  String _homeCatTitle(Map<String, dynamic> cat) {
+    return CustomerL10n.entityName(
+      nameKu: cat['name_ku']?.toString() ?? cat['catName']?.toString() ?? cat['title']?.toString(),
+      nameAr: cat['name_ar']?.toString(),
+      nameEn: cat['name_en']?.toString(),
+      lang: _currentLanguage,
+    );
+  }
+
+  String _menuChipTitle(String key, Map<String, dynamic>? meta) {
+    if (meta != null) {
+      final localized = CustomerL10n.entityName(
+        nameKu: meta['name_ku']?.toString() ?? key,
+        nameAr: meta['name_ar']?.toString(),
+        nameEn: meta['name_en']?.toString(),
+        lang: _currentLanguage,
+      );
+      if (localized.isNotEmpty) return localized;
+    }
+    return _t(key);
+  }
+
   Widget _buildMenuItem(String title, IconData icon, {bool isLogout = false}) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
@@ -7680,7 +7964,9 @@ class _MainScreenState extends State<MainScreen> {
       onTap: () async {
         if (isLogout) {
           await _clearProfile();
+          if (!mounted) return;
           setState(() => _userProfile = null);
+          context.go('/login');
         } else if (title == _t('پشتیوانی و یارمەتی')) {
           _showSupportModal();
         } else if (title == _t('مەرج و ڕێساکانی بەکارهێنان')) {
@@ -7695,7 +7981,7 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           Text(
             title, 
-            style: GoogleFonts.notoKufiArabic(
+            style: TextStyle(fontFamily: 'NotoKufiArabic', 
               fontSize: 14, 
               fontWeight: FontWeight.bold, 
               color: isLogout ? Colors.red : Colors.black87
@@ -7754,7 +8040,7 @@ class _MainScreenState extends State<MainScreen> {
                       child: Text(
                         _t('خۆتۆمارکردن'),
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.notoKufiArabic(
+                        style: TextStyle(fontFamily: 'NotoKufiArabic', 
                           color: !_isLoginMode ? Colors.white : Colors.black54,
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
@@ -7776,7 +8062,7 @@ class _MainScreenState extends State<MainScreen> {
                       child: Text(
                         _t('چوونە ژوورەوە'),
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.notoKufiArabic(
+                        style: TextStyle(fontFamily: 'NotoKufiArabic', 
                           color: _isLoginMode ? Colors.white : Colors.black54,
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
@@ -7855,35 +8141,84 @@ class _MainScreenState extends State<MainScreen> {
                     onPressed: () async {
                       UserProfile profile;
                       if (_isLoginMode) {
-                        // Mock login
                         profile = UserProfile(
-                          name: 'شەيما کاروان',
-                          phone: _phoneCtrl.text,
-                          email: 'user@example.com',
-                          address: 'گەڕەکی شەهیدان',
+                          name: _nameCtrl.text.trim().isEmpty ? _phoneCtrl.text.trim() : _nameCtrl.text.trim(),
+                          phone: _phoneCtrl.text.trim(),
+                          email: '',
+                          address: _deliveryDisplayLabel,
                         );
                       } else {
                         profile = UserProfile(
-                          name: _nameCtrl.text,
-                          phone: _phoneCtrl.text,
+                          name: _nameCtrl.text.trim(),
+                          phone: _phoneCtrl.text.trim(),
                           email: '',
-                          address: _selectedNeighborhood.name,
+                          address: _deliveryDisplayLabel,
                         );
                       }
-                      
-                      setState(() {
-                        _userProfile = profile;
-                      });
-                      
-                      await _saveProfile(profile);
-                      
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(_t(_isLoginMode ? '✅ بە سەرکەوتوویی چووە ژوورەوە' : '✅ هەژمارەکەت بە سەرکەوتوویی تۆمار کرا'))),
-                      );
+
+                      try {
+                        await _saveProfile(profile, allowRegister: !_isLoginMode);
+                        if (!mounted) return;
+                        setState(() {
+                          _userProfile = profile;
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(_t(_isLoginMode ? '✅ بە سەرکەوتوویی چووە ژوورەوە' : '✅ هەژمارەکەت بە سەرکەوتوویی تۆمار کرا'))),
+                        );
+                        if (widget.forceAuthOnly) {
+                          context.go('/home');
+                        }
+                      } on AccountBlockedException catch (e) {
+                        if (!mounted) return;
+                        setState(() => _userProfile = null);
+                        await _clearProfile();
+                        if (!mounted) return;
+                        var error = e;
+                        if (error.contact.isEmpty ||
+                            (error.contact['whatsapp_number'] == null &&
+                                error.contact['support_phone'] == null)) {
+                          final contacts =
+                              await CustomerApiService.instance.fetchSupportContacts();
+                          if (contacts.isNotEmpty) {
+                            error = AccountBlockedException(
+                              message: e.message,
+                              contact: {...e.contact, ...contacts},
+                            );
+                          }
+                        }
+                        if (!mounted) return;
+                        await BlockedAccountContacts.show(
+                          context,
+                          error,
+                          lang: _currentLanguage,
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        final err = e.toString();
+                        final String msgKey;
+                        if (err.contains('password_required')) {
+                          msgKey = 'وشەی تێپەڕ پێویستە (لانیکەم ٦ پیت)';
+                        } else if (err.contains('phone_required')) {
+                          msgKey = 'ژمارەی تەلەفۆن پێویستە';
+                        } else if (err.contains('phone_invalid')) {
+                          msgKey = 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0750 000 0000';
+                        } else if (err.contains('name_required')) {
+                          msgKey = 'ناوی تەواو پێویستە';
+                        } else if (err.contains('phone_taken')) {
+                          msgKey = 'ئەم ژمارەیە پێشتر تۆمارکراوە — تکایە بچۆ ژوورەوە';
+                        } else if (err.contains('register_failed') || !_isLoginMode) {
+                          msgKey = 'خۆتۆمارکردن سەرکەوتوو نەبوو';
+                        } else {
+                          msgKey = 'چوونە ژوورەوە سەرکەوتوو نەبوو';
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(_t(msgKey))),
+                        );
+                      }
                     },
                     child: Text(
                       _t(_isLoginMode ? 'چوونە ژوورەوە' : 'بەردەوامبە'),
-                      style: GoogleFonts.notoKufiArabic(fontWeight: FontWeight.bold, fontSize: 15),
+                      style: TextStyle(fontFamily: 'NotoKufiArabic', fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                   ),
                 ),
@@ -7921,8 +8256,8 @@ class _MainScreenState extends State<MainScreen> {
                             Column(
                               crossAxisAlignment: _currentLanguage == 'English' ? CrossAxisAlignment.start : CrossAxisAlignment.end,
                               children: [
-                                Text(_t('زمانەکان'), style: GoogleFonts.notoKufiArabic(fontSize: 14, fontWeight: FontWeight.bold)),
-                                Text(_currentLanguage, style: GoogleFonts.notoKufiArabic(fontSize: 11, color: Colors.grey)),
+                                Text(_t('زمانەکان'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14, fontWeight: FontWeight.bold)),
+                                Text(_currentLanguage, style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11, color: Colors.grey)),
                               ],
                             ),
                             const SizedBox(width: 12),
@@ -7952,6 +8287,25 @@ class _MainScreenState extends State<MainScreen> {
                         _buildLanguageOption('العربية', isSelected: _currentLanguage == 'العربية'),
                         const SizedBox(height: 10),
                         _buildLanguageOption('English', isSelected: _currentLanguage == 'English'),
+                        const SizedBox(height: 14),
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            context.watch<LocaleNotifier>().isDark
+                                ? _t('دۆخی تاریک')
+                                : _t('دۆخی ڕووناک'),
+                            style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
+                          secondary: Icon(
+                            context.watch<LocaleNotifier>().isDark
+                                ? Icons.dark_mode_rounded
+                                : Icons.light_mode_rounded,
+                            color: const Color(0xFFB45309),
+                          ),
+                          value: context.watch<LocaleNotifier>().isDark,
+                          activeColor: const Color(0xFFFAC800),
+                          onChanged: (v) => context.read<LocaleNotifier>().setDark(v),
+                        ),
                       ],
                     ),
                   ),
@@ -7989,12 +8343,12 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           Text(
             _t(_isLoginMode ? 'چوونە ژوورەوە' : 'خۆتۆمارکردن'),
-            style: GoogleFonts.notoKufiArabic(fontSize: 18, fontWeight: FontWeight.w900),
+            style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 18, fontWeight: FontWeight.w900),
             textAlign: isEn ? TextAlign.left : TextAlign.right,
           ),
           Text(
             _t('زانیارییە کەسییەکان'),
-            style: GoogleFonts.notoKufiArabic(fontSize: 10, color: Colors.grey),
+            style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 10, color: Colors.grey),
             textAlign: isEn ? TextAlign.left : TextAlign.right,
           ),
         ],
@@ -8029,43 +8383,48 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildCustomField(String label, TextEditingController controller, IconData icon, {TextInputType keyboardType = TextInputType.text, bool isPassword = false}) {
     final bool isEn = _currentLanguage == 'English';
+    final bool isPhone = keyboardType == TextInputType.phone;
     return Container(
       width: double.infinity,
       child: Column(
-        crossAxisAlignment: isEn ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        crossAxisAlignment: isEn || isPhone ? CrossAxisAlignment.start : CrossAxisAlignment.end,
         children: [
           Container(
             width: double.infinity,
-            padding: EdgeInsets.only(right: isEn ? 0 : 4, left: isEn ? 4 : 0, bottom: 6),
+            padding: EdgeInsets.only(right: isEn || isPhone ? 0 : 4, left: isEn || isPhone ? 4 : 0, bottom: 6),
             child: Text(
               _t(label),
-              textAlign: isEn ? TextAlign.left : TextAlign.right,
-              style: GoogleFonts.notoKufiArabic(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+              textAlign: isEn || isPhone ? TextAlign.left : TextAlign.right,
+              style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
             ),
           ),
           SizedBox(
             height: 48,
-            child: TextField(
-              controller: controller,
-              keyboardType: keyboardType,
-              obscureText: isPassword,
-              textAlign: isEn ? TextAlign.left : TextAlign.right,
-              style: GoogleFonts.notoKufiArabic(fontSize: 14),
-              decoration: InputDecoration(
-                hintText: _t('لێرە بنووسە...'),
-                hintStyle: GoogleFonts.notoKufiArabic(color: Colors.grey.shade400, fontSize: 12),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                prefixIcon: isEn ? Icon(icon, size: 20, color: Colors.grey.shade400) : null,
-                suffixIcon: !isEn ? Icon(icon, size: 20, color: Colors.grey.shade400) : null,
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.amber.withOpacity(0.2)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 1.2),
+            child: Directionality(
+              textDirection: isPhone ? TextDirection.ltr : (isEn ? TextDirection.ltr : TextDirection.rtl),
+              child: TextField(
+                controller: controller,
+                keyboardType: keyboardType,
+                obscureText: isPassword,
+                textAlign: isPhone || isEn ? TextAlign.left : TextAlign.right,
+                inputFormatters: isPhone ? [IraqPhoneFormatter()] : null,
+                style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: isPhone ? IraqPhoneFormatter.hint : _t('لێرە بنووسە...'),
+                  hintStyle: TextStyle(fontFamily: 'NotoKufiArabic', color: Colors.grey.shade400, fontSize: 12),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                  prefixIcon: isEn || isPhone ? Icon(icon, size: 20, color: Colors.grey.shade400) : null,
+                  suffixIcon: !isEn && !isPhone ? Icon(icon, size: 20, color: Colors.grey.shade400) : null,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.amber.withOpacity(0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 1.2),
+                  ),
                 ),
               ),
             ),

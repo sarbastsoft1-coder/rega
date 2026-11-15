@@ -2,11 +2,15 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'driver_api_service.dart';
+import 'map/mapbox_directions.dart';
+import 'map/mapbox_tiles.dart';
 import 'rega_mobile.dart';
 
 enum CaptainRouteStage {
@@ -32,6 +36,10 @@ class CaptainLiveMapWidget extends StatefulWidget {
   final double customerLat;
   final double customerLng;
   final bool isOnline;
+  /// When false (no assigned order), map shows only the driver — no route lines or stop pins.
+  final bool hasActiveOrder;
+  final String locale;
+  final String Function(String key)? translate;
   final String apiBaseUrl;
   final ValueChanged<CaptainRouteStage> onStageAutoReached;
   final VoidCallback onArrivedPromptPin;
@@ -51,6 +59,9 @@ class CaptainLiveMapWidget extends StatefulWidget {
     this.customerLat = 34.6912,
     this.customerLng = 45.3264,
     this.isOnline = true,
+    this.hasActiveOrder = true,
+    this.locale = 'ku',
+    this.translate,
     String? apiBaseUrl,
     required this.onStageAutoReached,
     required this.onArrivedPromptPin,
@@ -70,16 +81,23 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
 
   Timer? _secondTicker;
   StreamSubscription<Position>? _gpsSub;
+  Timer? _gpsPollTimer;
 
   // Map appearance & camera controls
-  int _mapStyleIndex = 0; // 0: Voyager HD, 1: Dark Night Radar, 2: OSM Kalar
+  int _mapStyleIndex = 0; // 0: Mapbox Streets, 1: Satellite, 2: Outdoors
   bool _followCaptain = true;
-  /// Auto GPS navigation on map
-  bool _autoDriveSimulation = true;
+  /// True only after a real phone GPS fix — never invent a fake place.
   bool _usingRealGps = false;
+  bool _gpsBusy = false;
   bool _mapReady = false;
   bool _backendSynced = false;
   bool _promptedPinOnce = false;
+  DateTime? _lastFleetLocationPush;
+  DateTime? _lastGpsFixAt;
+  Timer? _gpsRetryTimer;
+
+  // Overview only (no driver pin) until real GPS arrives — downtown کەلار.
+  static const LatLng _kalarOverview = LatLng(34.6295, 45.3159);
 
   // Coordinates & Street Polyline
   late LatLng _dispatchOrigin;
@@ -89,14 +107,14 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   List<LatLng> _legToStore = [];
   List<LatLng> _legToCustomer = [];
 
-  LatLng _prevDriverPos = const LatLng(34.6798, 45.3145);
-  LatLng _targetDriverPos = const LatLng(34.6798, 45.3145);
-  LatLng _displayDriverPos = const LatLng(34.6798, 45.3145);
+  LatLng _prevDriverPos = _kalarOverview;
+  LatLng _targetDriverPos = _kalarOverview;
+  LatLng _displayDriverPos = _kalarOverview;
 
-  double _headingDeg = 44.0;
-  double _speedKmh = 32.0;
-  int _etaSeconds = 120;
-  int _remainingMeters = 1350;
+  double _headingDeg = 0.0;
+  double _speedKmh = 0.0;
+  int _etaSeconds = 0;
+  int _remainingMeters = 0;
   int _elapsedSeconds = 0;
 
   double _leg1Progress = 0.0; // 0.0 -> 1.0 (Captain -> Store)
@@ -116,28 +134,43 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     )..addListener(_onGlideFrame);
 
     _initCoordinatesAndRoutes();
-    _syncStageAnchors(widget.stage, jumpImmediately: true);
+    if (widget.hasActiveOrder) {
+      _syncStageAnchors(widget.stage, jumpImmediately: true);
+    }
     _startRealGpsIfAvailable();
+    _gpsRetryTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted || _usingRealGps || _gpsBusy) return;
+      _startRealGpsIfAvailable(requestPermission: true);
+    });
     _startOneSecondEngine();
   }
 
   @override
   void didUpdateWidget(covariant CaptainLiveMapWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.orderNumber != widget.orderNumber ||
+    if (oldWidget.hasActiveOrder != widget.hasActiveOrder ||
+        oldWidget.orderNumber != widget.orderNumber ||
         oldWidget.storeLat != widget.storeLat ||
         oldWidget.customerLat != widget.customerLat) {
       _promptedPinOnce = false;
       _initCoordinatesAndRoutes();
-      _syncStageAnchors(widget.stage, jumpImmediately: true);
-    } else if (oldWidget.stage != widget.stage) {
+      if (widget.hasActiveOrder) {
+        _syncStageAnchors(widget.stage, jumpImmediately: true);
+      }
+    } else if (widget.hasActiveOrder && oldWidget.stage != widget.stage) {
       _syncStageAnchors(widget.stage, jumpImmediately: false);
+    }
+    if (!oldWidget.isOnline && widget.isOnline) {
+      _startRealGpsIfAvailable(requestPermission: true);
+      _pushFleetLocationIfNeeded(force: true);
     }
   }
 
   @override
   void dispose() {
     _secondTicker?.cancel();
+    _gpsRetryTimer?.cancel();
+    _gpsPollTimer?.cancel();
     _gpsSub?.cancel();
     _pulseController.dispose();
     _glideController.dispose();
@@ -145,156 +178,121 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     super.dispose();
   }
 
+  /// Fresh GPS settings — on web force `maximumAge: 0` so browsers cannot
+  /// hand back a cached/stale fix (the Karkuk St / field pin bug).
+  LocationSettings _freshLocationSettings({
+    LocationAccuracy accuracy = LocationAccuracy.high,
+    int distanceFilter = 0,
+    Duration? timeLimit,
+  }) {
+    if (kIsWeb) {
+      return WebSettings(
+        accuracy: accuracy,
+        distanceFilter: distanceFilter,
+        maximumAge: Duration.zero,
+        timeLimit: timeLimit,
+      );
+    }
+    return LocationSettings(
+      accuracy: accuracy,
+      distanceFilter: distanceFilter,
+      timeLimit: timeLimit,
+    );
+  }
+
   void _initCoordinatesAndRoutes() {
     _storePoint = LatLng(widget.storeLat, widget.storeLng);
     _customerPoint = LatLng(widget.customerLat, widget.customerLng);
-    _dispatchOrigin = LatLng(widget.storeLat - 0.0038, widget.storeLng - 0.0044);
+    // Route start = real phone GPS when available (never a fabricated offset).
+    _dispatchOrigin = _usingRealGps ? _displayDriverPos : _storePoint;
 
-    _legToStore = _buildRealisticKalarRoad(_dispatchOrigin, _storePoint, steps: 28);
-    _legToCustomer = _buildRealisticKalarRoad(_storePoint, _customerPoint, steps: 46);
-
-    _fetchOsrmStreetRoutes();
-  }
-
-  List<LatLng> _buildRealisticKalarRoad(LatLng start, LatLng end, {int steps = 32}) {
-    final dLat = end.latitude - start.latitude;
-    final dLng = end.longitude - start.longitude;
-    // Realistic Kalar avenue bends (60m ring road -> Sirwan avenue -> neighborhood street)
-    final p1 = LatLng(start.latitude + dLat * 0.28 + 0.00045, start.longitude + dLng * 0.18 - 0.00025);
-    final p2 = LatLng(start.latitude + dLat * 0.58 - 0.00020, start.longitude + dLng * 0.54 + 0.00042);
-    final p3 = LatLng(start.latitude + dLat * 0.84 + 0.00025, start.longitude + dLng * 0.82 - 0.00018);
-
-    final control = [start, p1, p2, p3, end];
-    final dense = <LatLng>[];
-    final perSeg = math.max(4, steps ~/ (control.length - 1));
-    for (var i = 0; i < control.length - 1; i++) {
-      final a = control[i];
-      final b = control[i + 1];
-      for (var s = 0; s < perSeg; s++) {
-        final t = s / perSeg;
-        dense.add(LatLng(
-          a.latitude + (b.latitude - a.latitude) * t,
-          a.longitude + (b.longitude - a.longitude) * t,
-        ));
-      }
+    if (!widget.hasActiveOrder) {
+      // Idle map: no route geometry at all.
+      _legToStore = [];
+      _legToCustomer = [];
+      _leg1Progress = 0.0;
+      _leg2Progress = 0.0;
+      _etaSeconds = 0;
+      _remainingMeters = 0;
+      return;
     }
-    dense.add(end);
-    return dense;
+
+    // Temporary straight fallback until Mapbox Directions returns road geometry.
+    _legToStore = [_dispatchOrigin, _storePoint];
+    _legToCustomer = [_storePoint, _customerPoint];
+
+    _fetchMapboxStreetRoutes();
   }
 
-  Future<void> _fetchOsrmStreetRoutes() async {
+  Future<void> _fetchMapboxStreetRoutes() async {
+    if (!widget.hasActiveOrder) return;
     try {
-      final leg1Url = Uri.parse(
-        'https://router.project-osrm.org/route/v1/driving/'
-        '${_dispatchOrigin.longitude},${_dispatchOrigin.latitude};'
-        '${_storePoint.longitude},${_storePoint.latitude}'
-        '?overview=full&geometries=geojson',
+      final origin = _usingRealGps ? _displayDriverPos : _storePoint;
+      final (leg1, leg2) = await MapboxDirections.twoLegRoute(
+        origin: origin,
+        store: _storePoint,
+        customer: _customerPoint,
       );
-      final leg2Url = Uri.parse(
-        'https://router.project-osrm.org/route/v1/driving/'
-        '${_storePoint.longitude},${_storePoint.latitude};'
-        '${_customerPoint.longitude},${_customerPoint.latitude}'
-        '?overview=full&geometries=geojson',
-      );
-
-      final responses = await Future.wait([
-        http.get(leg1Url).timeout(const Duration(seconds: 4)),
-        http.get(leg2Url).timeout(const Duration(seconds: 4)),
-      ]);
-
-      if (!mounted) return;
-
-      final parsed1 = _parseOsrmCoords(responses[0]);
-      final parsed2 = _parseOsrmCoords(responses[1]);
-
+      if (!mounted || !widget.hasActiveOrder) return;
       setState(() {
-        if (parsed1.length >= 4) _legToStore = _densifyPolyline(parsed1, minPoints: 30);
-        if (parsed2.length >= 4) _legToCustomer = _densifyPolyline(parsed2, minPoints: 50);
+        if (leg1.length >= 2) {
+          _legToStore = MapboxDirections.densify(leg1, minPoints: 30);
+        }
+        if (leg2.length >= 2) {
+          _legToCustomer = MapboxDirections.densify(leg2, minPoints: 50);
+        }
       });
     } catch (_) {
-      // Fallback Kalar street route is already active
+      // Keep temporary fallback line if Directions is unreachable.
     }
-  }
-
-  List<LatLng> _parseOsrmCoords(http.Response res) {
-    if (res.statusCode != 200) return [];
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    final routes = body['routes'] as List<dynamic>?;
-    if (routes == null || routes.isEmpty) return [];
-    final geom = (routes.first as Map<String, dynamic>)['geometry'] as Map<String, dynamic>?;
-    final coords = geom?['coordinates'] as List<dynamic>?;
-    if (coords == null) return [];
-    return coords.map((c) {
-      final pair = c as List<dynamic>;
-      return LatLng((pair[1] as num).toDouble(), (pair[0] as num).toDouble());
-    }).toList();
-  }
-
-  List<LatLng> _densifyPolyline(List<LatLng> pts, {int minPoints = 40}) {
-    if (pts.length >= minPoints || pts.length < 2) return pts;
-    final out = <LatLng>[];
-    final mult = (minPoints / pts.length).ceil().clamp(2, 8);
-    for (var i = 0; i < pts.length - 1; i++) {
-      final a = pts[i];
-      final b = pts[i + 1];
-      for (var k = 0; k < mult; k++) {
-        final t = k / mult;
-        out.add(LatLng(
-          a.latitude + (b.latitude - a.latitude) * t,
-          a.longitude + (b.longitude - a.longitude) * t,
-        ));
-      }
-    }
-    out.add(pts.last);
-    return out;
   }
 
   void _syncStageAnchors(CaptainRouteStage stage, {required bool jumpImmediately}) {
-    LatLng nextTarget = _displayDriverPos;
+    // Progress / ETA only — never teleport the pin to a fake place.
     switch (stage) {
       case CaptainRouteStage.assigned:
         _leg1Progress = 0.0;
         _leg2Progress = 0.0;
-        nextTarget = _legToStore.isNotEmpty ? _legToStore.first : _dispatchOrigin;
         break;
       case CaptainRouteStage.arrivingPickup:
-        if (_leg1Progress < 0.05) _leg1Progress = 0.08;
-        nextTarget = _pointAlong(_legToStore, _leg1Progress);
+        if (_usingRealGps) {
+          _leg1Progress = _nearestProgressOnPolyline(_legToStore, _displayDriverPos);
+        }
         break;
       case CaptainRouteStage.arrivedPickup:
       case CaptainRouteStage.pickedUp:
         _leg1Progress = 1.0;
         _leg2Progress = 0.0;
-        nextTarget = _storePoint;
-        _speedKmh = 0.0;
+        if (!_usingRealGps) _speedKmh = 0.0;
         break;
       case CaptainRouteStage.onTheWay:
         _leg1Progress = 1.0;
-        if (_leg2Progress < 0.03) _leg2Progress = 0.04;
-        nextTarget = _pointAlong(_legToCustomer, _leg2Progress);
+        if (_usingRealGps) {
+          _leg2Progress = _nearestProgressOnPolyline(_legToCustomer, _displayDriverPos);
+        }
         break;
       case CaptainRouteStage.arrivedCustomer:
       case CaptainRouteStage.delivered:
         _leg1Progress = 1.0;
         _leg2Progress = 1.0;
-        nextTarget = _customerPoint;
-        _speedKmh = 0.0;
+        if (!_usingRealGps) _speedKmh = 0.0;
         _etaSeconds = 0;
         _remainingMeters = 0;
         break;
     }
 
-    if (jumpImmediately) {
-      _prevDriverPos = nextTarget;
-      _targetDriverPos = nextTarget;
-      _displayDriverPos = nextTarget;
-    } else {
-      _animateDriverTo(nextTarget);
+    // Without real GPS we keep the overview center — do not invent a driver place.
+    if (!_usingRealGps) {
+      _recomputeMetrics();
+      return;
     }
     _recomputeMetrics();
   }
 
   Future<void> _startRealGpsIfAvailable({bool requestPermission = true}) async {
+    if (_gpsBusy) return;
+    _gpsBusy = true;
+    if (mounted) setState(() {});
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
       if (!enabled) {
@@ -310,55 +308,144 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         return;
       }
 
-      // Snap map to current phone place immediately.
+      // Fresh fix only — never promote getLastKnownPosition to the driver pin
+      // (stale/cached coords were shown as live near Karkuk St at 0 km/h).
       try {
         final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
+          locationSettings: _freshLocationSettings(
             accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 12),
+            timeLimit: const Duration(seconds: 15),
           ),
         );
-        if (mounted) _applyPhoneGpsPosition(pos);
+        if (mounted) _applyPhoneGpsPosition(pos, snapImmediately: true);
       } catch (_) {
-        final last = await Geolocator.getLastKnownPosition();
-        if (last != null && mounted) _applyPhoneGpsPosition(last);
+        // Overview only until a real current fix arrives — no fabricated pin.
       }
 
       await _gpsSub?.cancel();
+      // Web watchPosition is unreliable; distanceFilter:0 + poll fallback below.
       _gpsSub = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.bestForNavigation,
-          distanceFilter: 3,
+        locationSettings: _freshLocationSettings(
+          accuracy: kIsWeb
+              ? LocationAccuracy.high
+              : LocationAccuracy.bestForNavigation,
+          distanceFilter: kIsWeb ? 0 : 2,
         ),
-      ).listen((pos) {
-        if (!mounted || _autoDriveSimulation) return;
-        _applyPhoneGpsPosition(pos);
-      });
+      ).listen(
+        (pos) {
+          if (!mounted) return;
+          _applyPhoneGpsPosition(pos);
+        },
+        onError: (_) {
+          _ensureGpsPollingFallback();
+        },
+        cancelOnError: false,
+      );
 
-      if (mounted) {
-        setState(() {
-          _usingRealGps = true;
-          _autoDriveSimulation = false;
-          _followCaptain = true;
-        });
+      _ensureGpsPollingFallback();
+
+      if (mounted && _usingRealGps) {
+        setState(() => _followCaptain = true);
       }
     } catch (_) {
-      // Keep real manual progression mode
+      // Stay without a driver pin until a real fix arrives.
+      _ensureGpsPollingFallback();
+    } finally {
+      _gpsBusy = false;
+      if (mounted) setState(() {});
     }
   }
 
+  /// Poll getCurrentPosition when the web/native stream stalls or never fires.
+  void _ensureGpsPollingFallback() {
+    if (_gpsPollTimer != null) return;
+    final interval = kIsWeb ? const Duration(seconds: 2) : const Duration(seconds: 4);
+    _gpsPollTimer = Timer.periodic(interval, (_) async {
+      if (!mounted) return;
+      // Native: skip poll while the stream is healthy.
+      if (!kIsWeb &&
+          _lastGpsFixAt != null &&
+          DateTime.now().difference(_lastGpsFixAt!).inSeconds < 5) {
+        return;
+      }
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: _freshLocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: const Duration(seconds: 8),
+          ),
+        );
+        if (mounted) _applyPhoneGpsPosition(pos);
+      } catch (_) {}
+    });
+  }
+
   /// Move captain pin + camera whenever the delivery phone place changes.
-  void _applyPhoneGpsPosition(Position pos) {
+  void _applyPhoneGpsPosition(Position pos, {bool snapImmediately = false}) {
     final next = LatLng(pos.latitude, pos.longitude);
-    final speed = pos.speed.isFinite ? math.max(0.0, pos.speed * 3.6) : _speedKmh;
-    if (speed > 0.5) _speedKmh = speed;
+    final hadFix = _usingRealGps;
+    _usingRealGps = true;
+    _lastGpsFixAt = DateTime.now();
+    _followCaptain = true;
+    final speed = pos.speed.isFinite ? math.max(0.0, pos.speed * 3.6) : 0.0;
+    _speedKmh = speed;
     if (pos.heading.isFinite && pos.heading >= 0) {
       _headingDeg = pos.heading;
     }
-    _animateDriverTo(next);
+
+    // First fix: snap — never glide from the Kalar overview toward the phone.
+    if (!hadFix || snapImmediately) {
+      _glideController.stop();
+      _prevDriverPos = next;
+      _targetDriverPos = next;
+      _displayDriverPos = next;
+      if (_mapReady) {
+        try {
+          final curZoom = _mapController.camera.zoom;
+          final safeZoom = (curZoom.isNaN || curZoom < 11.5) ? 15.6 : curZoom;
+          _mapController.move(next, safeZoom);
+        } catch (_) {}
+      }
+      if (mounted) setState(() {});
+    } else {
+      _animateDriverTo(next);
+    }
+
     _updateProgressFromPhoneGps(next);
-    _maybeAutoAdvanceStageFromGps(next);
     _recomputeMetrics();
+    // Push the real fix coords (not mid-animation display).
+    _pushFleetLocationIfNeeded(
+      force: !hadFix,
+      lat: next.latitude,
+      lng: next.longitude,
+    );
+    // Rebuild road route from the real phone place once we get the first fix.
+    if (!hadFix && widget.hasActiveOrder) {
+      _dispatchOrigin = next;
+      _fetchMapboxStreetRoutes();
+    }
+  }
+
+  /// Publish GPS to backend so admin + seller maps see this online driver.
+  Future<void> _pushFleetLocationIfNeeded({
+    bool force = false,
+    double? lat,
+    double? lng,
+  }) async {
+    if (!widget.isOnline || !_usingRealGps) return;
+    final now = DateTime.now();
+    if (!force &&
+        _lastFleetLocationPush != null &&
+        now.difference(_lastFleetLocationPush!).inSeconds < 3) {
+      return;
+    }
+    _lastFleetLocationPush = now;
+    await DriverApiService.instance.updateLocation(
+      lat ?? _displayDriverPos.latitude,
+      lng ?? _displayDriverPos.longitude,
+      heading: _headingDeg,
+      speedKmh: _speedKmh,
+    );
   }
 
   double _nearestProgressOnPolyline(List<LatLng> pts, LatLng here) {
@@ -386,59 +473,24 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     }
   }
 
-  void _maybeAutoAdvanceStageFromGps(LatLng here) {
-    // Disabled: Stages are only advanced manually by driver action buttons.
-  }
-
   void _startOneSecondEngine() {
     _secondTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || !widget.isOnline) return;
       _elapsedSeconds += 1;
-      _stepSimulationOneSecond();
-      _recomputeMetrics();
-      _pushOneSecondTelemetryToBackend();
+      if (_usingRealGps) {
+        _recomputeMetrics();
+        if (widget.hasActiveOrder) {
+          _pushOneSecondTelemetryToBackend();
+        }
+        // Keep fleet GPS alive for admin/seller maps (real phone only).
+        if (_elapsedSeconds % 3 == 0) {
+          _pushFleetLocationIfNeeded(
+            lat: _targetDriverPos.latitude,
+            lng: _targetDriverPos.longitude,
+          );
+        }
+      }
     });
-  }
-
-  void _stepSimulationOneSecond() {
-    if (!_autoDriveSimulation) return;
-
-    switch (widget.stage) {
-      case CaptainRouteStage.assigned:
-      case CaptainRouteStage.arrivingPickup:
-        if (_legToStore.isNotEmpty) {
-          _leg1Progress = (_leg1Progress + 0.040).clamp(0.0, 1.0);
-          final nextPos = _pointAlong(_legToStore, _leg1Progress);
-          _speedKmh = 28.0 + ((_elapsedSeconds % 5) * 1.4);
-          _animateDriverTo(nextPos);
-          if (_leg1Progress >= 1.0) {
-            _speedKmh = 0.0;
-          }
-        }
-        break;
-
-      case CaptainRouteStage.arrivedPickup:
-        _speedKmh = 0.0;
-        break;
-
-      case CaptainRouteStage.pickedUp:
-      case CaptainRouteStage.onTheWay:
-        if (_legToCustomer.isNotEmpty) {
-          _leg2Progress = (_leg2Progress + 0.022).clamp(0.0, 1.0);
-          final nextPos = _pointAlong(_legToCustomer, _leg2Progress);
-          _speedKmh = 32.0 + ((_elapsedSeconds % 6) * 1.3);
-          _animateDriverTo(nextPos);
-          if (_leg2Progress >= 1.0) {
-            _speedKmh = 0.0;
-          }
-        }
-        break;
-
-      case CaptainRouteStage.arrivedCustomer:
-      case CaptainRouteStage.delivered:
-        _speedKmh = 0.0;
-        break;
-    }
   }
 
   void _animateDriverTo(LatLng next) {
@@ -472,7 +524,8 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
 
   void _recomputeMetrics() {
     if (!mounted) return;
-    if (widget.stage == CaptainRouteStage.delivered ||
+    if (!widget.hasActiveOrder ||
+        widget.stage == CaptainRouteStage.delivered ||
         widget.stage == CaptainRouteStage.arrivedCustomer) {
       setState(() {
         _remainingMeters = 0;
@@ -503,6 +556,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   }
 
   Future<void> _pushOneSecondTelemetryToBackend() async {
+    if (!_usingRealGps) return;
     final cleanRef = widget.orderNumber.replaceAll('#', '').trim();
     if (cleanRef.isEmpty) return;
 
@@ -666,7 +720,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   }
 
   void _fitFullRoute({bool keepFollowing = false}) {
-    if (!_mapReady) return;
+    if (!_mapReady || !widget.hasActiveOrder) return;
     _followCaptain = keepFollowing;
     _safeFitBounds([
       _displayDriverPos,
@@ -684,36 +738,38 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
 
   String _formatDistance(int meters) {
     if (meters >= 1000) {
-      return '${(meters / 1000).toStringAsFixed(2)} کم';
+      return '${(meters / 1000).toStringAsFixed(2)} ${_mt('km_unit')}';
     }
-    return '$meters مەتر';
+    return '$meters ${_mt('m_unit')}';
   }
 
-  String get _tileUrl {
+  MapboxStyle get _mapboxStyle {
     switch (_mapStyleIndex) {
       case 1:
-        return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+        return MapboxStyle.satellite;
       case 2:
-        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+        return MapboxStyle.outdoors;
       default:
-        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+        return MapboxStyle.streets;
     }
   }
+
+  String _mt(String key) => widget.translate?.call(key) ?? key;
 
   String _navigationHeadline() {
     switch (widget.stage) {
       case CaptainRouteStage.assigned:
       case CaptainRouteStage.arrivingPickup:
-        return 'بەرەو ${widget.merchantName}';
+        return _mt('nav_to_merchant').replaceAll('{name}', widget.merchantName);
       case CaptainRouteStage.arrivedPickup:
-        return 'لە بەردەم چێشتخانەیت — داواکاری وەربگرە';
+        return _mt('nav_at_store');
       case CaptainRouteStage.pickedUp:
       case CaptainRouteStage.onTheWay:
-        return 'بەرەو ماڵی ${widget.customerName}';
+        return _mt('nav_to_customer').replaceAll('{name}', widget.customerName);
       case CaptainRouteStage.arrivedCustomer:
-        return 'گەیشتیت! کۆدی ٤ ژمارەیی لە کڕیار وەربگرە';
+        return _mt('nav_ask_pin');
       case CaptainRouteStage.delivered:
-        return 'گەیاندن تەواوبوو بە سەرکەوتوویی!';
+        return _mt('nav_done');
     }
   }
 
@@ -736,66 +792,176 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
 
   @override
   Widget build(BuildContext context) {
+    final hasOrder = widget.hasActiveOrder;
     final isToStore = widget.stage == CaptainRouteStage.assigned ||
         widget.stage == CaptainRouteStage.arrivingPickup;
 
     final polylines = <Polyline>[];
 
-    // Traveled trail
-    if (isToStore) {
-      final traveled1 = _traveledSubPolyline(_legToStore, _leg1Progress, _displayDriverPos);
-      final remain1 = _remainingSubPolyline(_legToStore, _leg1Progress, _displayDriverPos);
-      if (traveled1.length >= 2) {
-        polylines.add(Polyline(
-          points: traveled1,
-          strokeWidth: 5,
-          color: const Color(0xFF94A3B8).withValues(alpha: 0.65),
-        ));
+    // Route lines only while an order is assigned + we have a real phone place.
+    if (hasOrder && _usingRealGps) {
+      if (isToStore) {
+        final traveled1 = _traveledSubPolyline(_legToStore, _leg1Progress, _displayDriverPos);
+        final remain1 = _remainingSubPolyline(_legToStore, _leg1Progress, _displayDriverPos);
+        if (traveled1.length >= 2) {
+          polylines.add(Polyline(
+            points: traveled1,
+            strokeWidth: 5,
+            color: const Color(0xFF94A3B8).withValues(alpha: 0.65),
+          ));
+        }
+        if (remain1.length >= 2) {
+          polylines.add(Polyline(
+            points: remain1,
+            strokeWidth: 7,
+            color: const Color(0xFFF59E0B),
+            borderStrokeWidth: 2.5,
+            borderColor: const Color(0xFF78350F),
+          ));
+        }
+        if (_legToCustomer.length >= 2) {
+          polylines.add(Polyline(
+            points: _legToCustomer,
+            strokeWidth: 5,
+            pattern: StrokePattern.dashed(segments: const [14, 10]),
+            color: const Color(0xFF16A34A).withValues(alpha: 0.7),
+          ));
+        }
+      } else {
+        if (_legToStore.length >= 2) {
+          polylines.add(Polyline(
+            points: _legToStore,
+            strokeWidth: 4,
+            color: const Color(0xFF94A3B8).withValues(alpha: 0.45),
+          ));
+        }
+        final traveled2 = _traveledSubPolyline(_legToCustomer, _leg2Progress, _displayDriverPos);
+        final remain2 = _remainingSubPolyline(_legToCustomer, _leg2Progress, _displayDriverPos);
+        if (traveled2.length >= 2) {
+          polylines.add(Polyline(
+            points: traveled2,
+            strokeWidth: 5,
+            color: const Color(0xFF22C55E).withValues(alpha: 0.40),
+          ));
+        }
+        if (remain2.length >= 2) {
+          polylines.add(Polyline(
+            points: remain2,
+            strokeWidth: 7.5,
+            color: const Color(0xFF00E676),
+            borderStrokeWidth: 2.5,
+            borderColor: const Color(0xFF065F46),
+          ));
+        }
       }
-      if (remain1.length >= 2) {
-        polylines.add(Polyline(
-          points: remain1,
-          strokeWidth: 7,
-          color: const Color(0xFFF59E0B),
-          borderStrokeWidth: 2.5,
-          borderColor: const Color(0xFF78350F),
-        ));
-      }
-      if (_legToCustomer.length >= 2) {
-        polylines.add(Polyline(
-          points: _legToCustomer,
-          strokeWidth: 5,
-          pattern: StrokePattern.dashed(segments: const [14, 10]),
-          color: const Color(0xFF16A34A).withValues(alpha: 0.7),
-        ));
-      }
-    } else {
-      if (_legToStore.length >= 2) {
-        polylines.add(Polyline(
-          points: _legToStore,
-          strokeWidth: 4,
-          color: const Color(0xFF94A3B8).withValues(alpha: 0.45),
-        ));
-      }
-      final traveled2 = _traveledSubPolyline(_legToCustomer, _leg2Progress, _displayDriverPos);
-      final remain2 = _remainingSubPolyline(_legToCustomer, _leg2Progress, _displayDriverPos);
-      if (traveled2.length >= 2) {
-        polylines.add(Polyline(
-          points: traveled2,
-          strokeWidth: 5,
-          color: const Color(0xFF22C55E).withValues(alpha: 0.40),
-        ));
-      }
-      if (remain2.length >= 2) {
-        polylines.add(Polyline(
-          points: remain2,
-          strokeWidth: 7.5,
-          color: const Color(0xFF00E676),
-          borderStrokeWidth: 2.5,
-          borderColor: const Color(0xFF065F46),
-        ));
-      }
+    } else if (hasOrder && _legToStore.length >= 2) {
+      // Order assigned but waiting GPS: show static store→customer preview only.
+      polylines.add(Polyline(
+        points: [_storePoint, _customerPoint],
+        strokeWidth: 5,
+        pattern: StrokePattern.dashed(segments: const [14, 10]),
+        color: const Color(0xFF64748B).withValues(alpha: 0.75),
+      ));
     }
+
+    final markers = <Marker>[
+      if (hasOrder) ...[
+        // Store Marker (Pickup)
+        Marker(
+          point: _storePoint,
+          width: 120,
+          height: 76,
+          alignment: Alignment.topCenter,
+          child: _MapPinBadge(
+            icon: Icons.storefront_rounded,
+            color: const Color(0xFFEA580C),
+            label: widget.merchantName,
+            isHighlighted: isToStore,
+          ),
+        ),
+        // Customer Marker (Dropoff)
+        Marker(
+          point: _customerPoint,
+          width: 120,
+          height: 76,
+          alignment: Alignment.topCenter,
+          child: _MapPinBadge(
+            icon: Icons.home_rounded,
+            color: const Color(0xFF0284C7),
+            label: widget.customerName,
+            isHighlighted: !isToStore,
+          ),
+        ),
+      ],
+      // Live captain marker — only with real phone GPS (no fake pin).
+      if (_usingRealGps)
+        Marker(
+          point: _displayDriverPos,
+          width: 96,
+          height: 96,
+          child: AnimatedBuilder(
+            animation: _pulseController,
+            builder: (context, _) {
+              final p = _pulseController.value;
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 38 + (p * 44),
+                    height: 38 + (p * 44),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF00E676).withValues(alpha: (1 - p) * 0.38),
+                    ),
+                  ),
+                  Transform.rotate(
+                    angle: (_headingDeg * math.pi / 180.0),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00E676),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF0F172A), width: 3),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.navigation_rounded,
+                        color: Color(0xFF0F172A),
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${_speedKmh.toStringAsFixed(0)} km/h',
+                        style: const TextStyle(
+                          color: Color(0xFF00E676),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+    ];
 
     return Stack(
       children: [
@@ -812,17 +978,18 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                 : const Color(0xFFE2E8F0),
             onMapReady: () {
               _mapReady = true;
-              _mapController.move(_displayDriverPos, 15.6);
-              _followCaptain = true;
-              Future.delayed(const Duration(milliseconds: 350), () {
-                if (mounted && _mapReady) {
-                  _safeFitBounds([
-                    _displayDriverPos,
-                    _storePoint,
-                    _customerPoint,
-                  ]);
-                }
-              });
+              // Overview until a real fix — do not treat Kalar overview as the driver.
+              final center = _usingRealGps ? _displayDriverPos : _kalarOverview;
+              _mapController.move(center, _usingRealGps ? 15.6 : 13.8);
+              if (_usingRealGps) {
+                _followCaptain = true;
+              } else if (hasOrder) {
+                Future.delayed(const Duration(milliseconds: 350), () {
+                  if (mounted && _mapReady && widget.hasActiveOrder && !_usingRealGps) {
+                    _safeFitBounds([_storePoint, _customerPoint]);
+                  }
+                });
+              }
             },
             onPositionChanged: (_, hasGesture) {
               if (hasGesture && _followCaptain) {
@@ -831,117 +998,18 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
             },
           ),
           children: [
-            TileLayer(
-              urlTemplate: _tileUrl,
-              fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              subdomains: _mapStyleIndex == 2 ? const [] : const ['a', 'b', 'c', 'd'],
+            MapboxTiles.layer(
+              style: _mapboxStyle,
               userAgentPackageName: 'iq.rega.delivery',
               tileProvider: NetworkTileProvider(),
             ),
-            PolylineLayer(polylines: polylines),
-            MarkerLayer(
-              markers: [
-                // Store Marker (Pickup)
-                Marker(
-                  point: _storePoint,
-                  width: 120,
-                  height: 76,
-                  alignment: Alignment.topCenter,
-                  child: _MapPinBadge(
-                    icon: Icons.storefront_rounded,
-                    color: const Color(0xFFEA580C),
-                    label: widget.merchantName,
-                    isHighlighted: isToStore,
-                  ),
-                ),
-
-                // Customer Marker (Dropoff)
-                Marker(
-                  point: _customerPoint,
-                  width: 120,
-                  height: 76,
-                  alignment: Alignment.topCenter,
-                  child: _MapPinBadge(
-                    icon: Icons.home_rounded,
-                    color: const Color(0xFF0284C7),
-                    label: widget.customerName,
-                    isHighlighted: !isToStore,
-                  ),
-                ),
-
-                // Live 60fps Captain Motorcycle Marker with Sonar Pulse & Heading
-                Marker(
-                  point: _displayDriverPos,
-                  width: 96,
-                  height: 96,
-                  child: AnimatedBuilder(
-                    animation: _pulseController,
-                    builder: (context, _) {
-                      final p = _pulseController.value;
-                      return Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Container(
-                            width: 38 + (p * 44),
-                            height: 38 + (p * 44),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFF00E676).withValues(alpha: (1 - p) * 0.38),
-                            ),
-                          ),
-                          Transform.rotate(
-                            angle: (_headingDeg * math.pi / 180.0),
-                            child: Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF00E676),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: const Color(0xFF0F172A), width: 3),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Colors.black26,
-                                    blurRadius: 10,
-                                    offset: Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.navigation_rounded,
-                                color: Color(0xFF0F172A),
-                                size: 24,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 2,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0F172A),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '${_speedKmh.toStringAsFixed(0)} km/h',
-                                style: const TextStyle(
-                                  color: Color(0xFF00E676),
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+            if (polylines.isNotEmpty) PolylineLayer(polylines: polylines),
+            MarkerLayer(markers: markers),
           ],
         ),
 
-        // 2. Top Turn-by-Turn Second-by-Second Navigation HUD
+        // 2. Top Turn-by-Turn Second-by-Second Navigation HUD (only with active order)
+        if (hasOrder)
         Positioned(
           top: 12,
           left: 14,
@@ -1005,8 +1073,8 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                               const SizedBox(width: 5),
                               Text(
                                 _backendSynced
-                                    ? 'GPS LIVE • چرکە بە چرکە هاوکاتە'
-                                    : 'GPS LIVE • نەخشەی زیندووی کەلار',
+                                    ? _mt('gps_live_sync')
+                                    : _mt('gps_live_kalar'),
                                 style: const TextStyle(
                                   color: Color(0xFF00E676),
                                   fontSize: 10,
@@ -1081,7 +1149,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
               _MapHudButton(
                 icon: _followCaptain ? Icons.gps_fixed_rounded : Icons.gps_not_fixed_rounded,
                 active: _followCaptain,
-                tooltip: 'شوێنکەوتنی شۆفێر',
+                tooltip: _mt('follow_driver'),
                 onTap: () {
                   setState(() => _followCaptain = true);
                   if (_mapReady) {
@@ -1089,58 +1157,92 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                   }
                 },
               ),
-              const SizedBox(height: 8),
-              _MapHudButton(
-                icon: Icons.route_rounded,
-                active: false,
-                tooltip: 'پیشاندانی تەواوی ڕێڕەو',
-                onTap: _fitFullRoute,
-              ),
+              if (hasOrder) ...[
+                const SizedBox(height: 8),
+                _MapHudButton(
+                  icon: Icons.route_rounded,
+                  active: false,
+                  tooltip: _mt('show_full_route'),
+                  onTap: _fitFullRoute,
+                ),
+              ],
               const SizedBox(height: 8),
               _MapHudButton(
                 icon: _mapStyleIndex == 1 ? Icons.dark_mode_rounded : Icons.layers_rounded,
                 active: _mapStyleIndex > 0,
-                tooltip: 'گۆڕینی شێوازی نەخشە',
+                tooltip: _mt('map_style'),
                 onTap: () => setState(() => _mapStyleIndex = (_mapStyleIndex + 1) % 3),
               ),
               const SizedBox(height: 8),
               _MapHudButton(
-                icon: _usingRealGps && !_autoDriveSimulation
+                icon: _usingRealGps
                     ? Icons.my_location_rounded
                     : Icons.location_searching_rounded,
-                active: _usingRealGps && !_autoDriveSimulation,
-                tooltip: 'GPS ی مۆبایل — شوێنی ڕاستەقینەی گەیاندن',
+                active: _usingRealGps,
+                tooltip: _mt('phone_gps'),
                 onTap: () async {
-                  setState(() {
-                    _autoDriveSimulation = false;
-                    _followCaptain = true;
-                  });
+                  setState(() => _followCaptain = true);
                   await _startRealGpsIfAvailable(requestPermission: true);
-                },
-              ),
-              const SizedBox(height: 8),
-              _MapHudButton(
-                icon: _autoDriveSimulation
-                    ? Icons.navigation_rounded
-                    : Icons.play_arrow_rounded,
-                active: _autoDriveSimulation,
-                tooltip: _autoDriveSimulation
-                    ? 'جووڵەی ئۆتۆماتیکی نەخشە (چالاکە)'
-                    : 'دەستپێکردنی جووڵەی نەخشەی GPS',
-                onTap: () {
-                  setState(() => _autoDriveSimulation = !_autoDriveSimulation);
                 },
               ),
               const SizedBox(height: 8),
               _MapHudButton(
                 icon: Icons.cloud_sync_rounded,
                 active: _backendSynced,
-                tooltip: 'هاوکاتکردنی نوێترین داواکاری کڕیار',
+                tooltip: _mt('sync_order'),
                 onTap: syncLatestCustomerOrderFromServer,
               ),
             ],
           ),
         ),
+
+        // Waiting for real phone GPS — never show a fake driver place.
+        if (!_usingRealGps)
+          Positioned(
+            top: 14,
+            left: 14,
+            right: 70,
+            child: Material(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => _startRealGpsIfAvailable(requestPermission: true),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Row(
+                    children: [
+                      if (_gpsBusy)
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Color(0xFFFAC800),
+                          ),
+                        )
+                      else
+                        const Icon(Icons.gps_fixed_rounded, color: Color(0xFFFAC800), size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _gpsBusy
+                              ? _mt('gps_locating')
+                              : _mt('gps_allow_phone'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

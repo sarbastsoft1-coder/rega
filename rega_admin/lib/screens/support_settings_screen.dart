@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/api/api_client.dart';
+import '../core/iraq_phone_formatter.dart';
+import '../core/localization/app_strings.dart';
+import '../core/theme/admin_breakpoints.dart';
+import '../core/theme/app_theme.dart';
+import '../core/services/excel_backup_service.dart';
 import '../widgets/admin_top_header.dart';
 
 class SupportSettingsScreen extends StatefulWidget {
@@ -21,10 +27,20 @@ class SupportSettingsScreen extends StatefulWidget {
 class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   int _selectedSubTab = 0; // 0: گشتی, 1: هەژمار, 2: ئاگادارکردنەوە, 3: پارەدان, 4: ئاسایش
 
+  List<Map<String, dynamic>> _adminStaff = [];
+  bool _loadingStaff = false;
+  bool _exportingExcel = false;
+  bool _loadingBackups = false;
+  String? _downloadingBackupFile;
+  List<Map<String, dynamic>> _storedBackups = [];
+
   // Text Controllers
   final _searchCtrl = TextEditingController();
   final _platformNameCtrl = TextEditingController(text: 'REGA');
-  final _phoneCtrl = TextEditingController(text: '0750 123 4567');
+  final _phoneCtrl = TextEditingController(text: '0750 000 0000');
+  final _whatsappCtrl = TextEditingController(text: '+9647700001122');
+  final _telegramCtrl = TextEditingController(text: '+9647700001122');
+  final _telegramUserCtrl = TextEditingController(text: 'rega_support');
   final _emailCtrl = TextEditingController(text: 'info@rega.krd');
   final _hoursCtrl = TextEditingController(text: '23:00 - 9:00');
   final _deliveryFeeCtrl = TextEditingController(text: '2500');
@@ -39,12 +55,8 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
   // Payment Gateways States
   bool _enableCod = true;
-  bool _enableFastPay = true;
-  bool _enableFib = true;
-  bool _enableZainCash = true;
-  bool _enableQiCard = false;
-  String _payoutSchedule = 'هەفتانە (Weekly)';
-  String _primaryCurrency = 'دیناری عێراقی (IQD)';
+  String _payoutSchedule = 'هەفتانە';
+  String _primaryCurrency = 'دیناری عێراقی';
 
   // Security States
   bool _twoFactorAuth = false;
@@ -74,12 +86,27 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   void initState() {
     super.initState();
     _loadSettings();
+    _loadAdminStaff();
+    _loadStoredBackups();
+  }
+
+  Future<void> _loadStoredBackups() async {
+    setState(() => _loadingBackups = true);
+    try {
+      final list = await ExcelBackupService(widget.api).listStoredBackups();
+      if (!mounted) return;
+      setState(() => _storedBackups = list);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _storedBackups = []);
+    } finally {
+      if (mounted) setState(() => _loadingBackups = false);
+    }
   }
 
   Future<void> _loadSettings() async {
     try {
-      final res = await widget.api.getSettings();
-      final data = res['data'] as Map<String, dynamic>? ?? {};
+      final data = await widget.api.getSettings();
       if (!mounted) return;
       setState(() {
         if (data.containsKey('default_delivery_fee')) {
@@ -92,13 +119,184 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           _hoursCtrl.text = data['working_hours'].toString();
         }
         if (data.containsKey('support_phone')) {
-          _phoneCtrl.text = data['support_phone'].toString();
+          _phoneCtrl.text = IraqPhoneFormatter.format(data['support_phone'].toString());
+        }
+        if (data.containsKey('whatsapp_number')) {
+          _whatsappCtrl.text = IraqPhoneFormatter.format(data['whatsapp_number'].toString());
+        }
+        if (data.containsKey('telegram_number')) {
+          _telegramCtrl.text = IraqPhoneFormatter.format(data['telegram_number'].toString());
+        }
+        if (data.containsKey('telegram_username')) {
+          _telegramUserCtrl.text = data['telegram_username'].toString();
         }
         if (data.containsKey('platform_name')) {
           _platformNameCtrl.text = data['platform_name'].toString();
         }
       });
     } catch (_) {}
+  }
+
+  Future<void> _loadAdminStaff() async {
+    setState(() => _loadingStaff = true);
+    try {
+      final list = await widget.api.getAdminStaff();
+      if (!mounted) return;
+      setState(() {
+        _adminStaff = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _loadingStaff = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingStaff = false);
+    }
+  }
+
+  void _showCreateAdminDialog({Map<String, dynamic>? existing}) {
+    final isEdit = existing != null;
+    final nameCtrl = TextEditingController(text: existing?['name']?.toString() ?? '');
+    final phoneCtrl = TextEditingController(text: existing?['phone']?.toString() ?? '');
+    final emailCtrl = TextEditingController(text: existing?['email']?.toString() ?? '');
+    final passwordCtrl = TextEditingController();
+    bool isActive = existing?['is_active'] != false;
+    bool saving = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          insetPadding: AdminBreakpoints.dialogInset(ctx),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Text(
+            isEdit ? 'دەستکاریکردنی هەژماری ئەدمین' : 'دروستکردنی هەژماری ئەدمین',
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+          content: SizedBox(
+            width: AdminBreakpoints.dialogWidth(ctx, max: 420),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'ناو *',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: phoneCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'مۆبایل *',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'ئیمەیڵ *',
+                      hintText: 'admin@example.com',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordCtrl,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'ڕۆڵ',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text(
+                      'ئەدمین',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                    ),
+                  ),
+                  SwitchListTile(
+                    value: isActive,
+                    onChanged: (v) => setDialogState(() => isActive = v),
+                    title: const Text('چالاک', style: TextStyle(fontWeight: FontWeight.w700)),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(ctx),
+              child: const Text('پاشگەزبوونەوە'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEA580C),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final name = nameCtrl.text.trim();
+                      final phone = phoneCtrl.text.trim();
+                      final email = emailCtrl.text.trim();
+                      final pass = passwordCtrl.text.trim();
+                      if (name.isEmpty || phone.isEmpty) {
+                        _showSnack('ناو و مۆبایل پێویستن', error: true);
+                        return;
+                      }
+                      if (email.isEmpty || !email.contains('@')) {
+                        _showSnack('ئیمەیڵ پێویستە بۆ چوونە ژوورەوە', error: true);
+                        return;
+                      }
+                      if (!isEdit && pass.isEmpty) {
+                        _showSnack('وشەی نهێنی پێویستە', error: true);
+                        return;
+                      }
+                      if (!isEdit && pass.length < 6) {
+                        _showSnack('وشەی نهێنی لانیکەم ٦ پیت بێت', error: true);
+                        return;
+                      }
+                      setDialogState(() => saving = true);
+                      try {
+                        final payload = <String, dynamic>{
+                          'name': name,
+                          'phone': phone,
+                          'email': email,
+                          'role': 'admin',
+                          'is_active': isActive,
+                          if (pass.isNotEmpty) 'password': pass,
+                        };
+                        if (isEdit) {
+                          await widget.api.updateAdminStaff(existing['id'] as int, payload);
+                        } else {
+                          await widget.api.createAdminStaff(payload);
+                        }
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        await _loadAdminStaff();
+                        _showSnack(
+                          isEdit
+                              ? 'هەژماری ئەدمین نوێکرایەوە ✅'
+                              : 'هەژماری ئەدمین دروستکرا — دەتوانیت بە ئیمەیڵ و وشەی نهێنی بچیتە ژوورەوە ✅',
+                        );
+                      } catch (e) {
+                        setDialogState(() => saving = false);
+                        _showSnack(e.toString(), error: true);
+                      }
+                    },
+              child: Text(isEdit ? 'پاشەکەوتکردن' : 'دروستکردن'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _saveDeliveryAndPlatformSettings(String msg) async {
@@ -108,6 +306,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         'default_commission_rate': double.tryParse(_commissionCtrl.text.trim()) ?? 10.0,
         'working_hours': _hoursCtrl.text.trim(),
         'support_phone': _phoneCtrl.text.trim(),
+        'whatsapp_number': _whatsappCtrl.text.trim(),
+        'telegram_number': _telegramCtrl.text.trim(),
+        'telegram_username': _telegramUserCtrl.text.trim().replaceAll('@', ''),
         'platform_name': _platformNameCtrl.text.trim(),
       });
       _showSaveFeedback('$msg و لە سێرڤەر پاشەکەوت کران ✅');
@@ -122,6 +323,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     _searchCtrl.dispose();
     _platformNameCtrl.dispose();
     _phoneCtrl.dispose();
+    _whatsappCtrl.dispose();
+    _telegramCtrl.dispose();
+    _telegramUserCtrl.dispose();
     _emailCtrl.dispose();
     _hoursCtrl.dispose();
     _deliveryFeeCtrl.dispose();
@@ -135,6 +339,24 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     _newPassCtrl.dispose();
     _confirmPassCtrl.dispose();
     super.dispose();
+  }
+
+  Color get _cardColor => AdminSurfaces.of(context).card;
+  Color get _borderColor => AdminSurfaces.of(context).border;
+  Color get _mutedFill => AdminSurfaces.of(context).mutedFill;
+  Color get _textPrimary => AdminSurfaces.of(context).textPrimary;
+  Color get _textSecondary => AdminSurfaces.of(context).textSecondary;
+
+  void _showSnack(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: error ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   void _showSaveFeedback(String message) {
@@ -159,9 +381,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8F9FA),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: EdgeInsets.symmetric(horizontal: AdminBreakpoints.pagePadH(context), vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -179,6 +401,292 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _downloadExcelBackup() async {
+    if (_exportingExcel) return;
+    setState(() => _exportingExcel = true);
+    try {
+      final name = await ExcelBackupService(widget.api).downloadFullBackup();
+      if (!mounted) return;
+      _showSaveFeedback('${AppStrings.tr('excel_backup_done', widget.lang)}: $name');
+      await _loadStoredBackups();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${AppStrings.tr('excel_backup_failed', widget.lang)}: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exportingExcel = false);
+    }
+  }
+
+  Future<void> _downloadStoredBackup(String fileName) async {
+    if (_downloadingBackupFile != null) return;
+    setState(() => _downloadingBackupFile = fileName);
+    try {
+      final name = await ExcelBackupService(widget.api).downloadStoredBackup(fileName);
+      if (!mounted) return;
+      _showSaveFeedback('${AppStrings.tr('excel_backup_done', widget.lang)}: $name');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${AppStrings.tr('excel_backup_failed', widget.lang)}: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _downloadingBackupFile = null);
+    }
+  }
+
+  Widget _buildExcelBackupCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFEDD5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < AdminBreakpoints.phone;
+              final textCol = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppStrings.tr('excel_backup_title', widget.lang),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    AppStrings.tr('excel_backup_subtitle', widget.lang),
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              );
+              final button = ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEA580C),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _exportingExcel ? null : _downloadExcelBackup,
+                icon: _exportingExcel
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.table_view_rounded, size: 18),
+                label: Text(
+                  _exportingExcel
+                      ? AppStrings.tr('excel_backup_working', widget.lang)
+                      : AppStrings.tr('excel_backup_button', widget.lang),
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
+              );
+              if (narrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    textCol,
+                    const SizedBox(height: 14),
+                    button,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEDD5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.backup_table_rounded, color: Color(0xFFEA580C), size: 26),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(child: textCol),
+                  const SizedBox(width: 16),
+                  button,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          const Divider(height: 1, color: Color(0xFFFFEDD5)),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppStrings.tr('excel_backup_auto_title', widget.lang),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      AppStrings.tr('excel_backup_auto_hint', widget.lang),
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _loadingBackups ? null : _loadStoredBackups,
+                icon: _loadingBackups
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded, size: 16),
+                label: Text(AppStrings.tr('excel_backup_refresh', widget.lang)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            AppStrings.tr('excel_backup_recent', widget.lang),
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF9A3412),
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_loadingBackups && _storedBackups.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else if (_storedBackups.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                AppStrings.tr('excel_backup_empty', widget.lang),
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: Color(0xFF94A3B8),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
+          else
+            ..._storedBackups.take(12).map((item) {
+              final file = item['file']?.toString() ?? '';
+              final type = item['type']?.toString() ?? '';
+              final size = int.tryParse(item['size']?.toString() ?? '') ?? 0;
+              final modified = ExcelBackupService.formatModified(item['modified_at']?.toString());
+              final busy = _downloadingBackupFile == file;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFFEDD5)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEA580C),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          type.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              file,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              '$modified · ${ExcelBackupService.formatBytes(size)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: busy || file.isEmpty ? null : () => _downloadStoredBackup(file),
+                        child: busy
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Text(AppStrings.tr('excel_backup_download_file', widget.lang)),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
       ),
     );
   }
@@ -328,6 +836,8 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       case 0:
         return Column(
           children: [
+            _buildExcelBackupCard(),
+            const SizedBox(height: 20),
             _buildTopCardsRow(),
             const SizedBox(height: 20),
             _buildBottomCardsRow(),
@@ -352,25 +862,212 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   Widget _buildAccountTab() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth > 880) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(flex: 3, child: _buildCompanyInfoCard()),
-              const SizedBox(width: 20),
-              Expanded(flex: 2, child: _buildAdminProfileCard()),
-            ],
-          );
-        } else {
-          return Column(
-            children: [
-              _buildCompanyInfoCard(),
-              const SizedBox(height: 20),
-              _buildAdminProfileCard(),
-            ],
-          );
-        }
+        final top = constraints.maxWidth > 880
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: _buildCompanyInfoCard()),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 2, child: _buildAdminProfileCard()),
+                ],
+              )
+            : Column(
+                children: [
+                  _buildCompanyInfoCard(),
+                  const SizedBox(height: 20),
+                  _buildAdminProfileCard(),
+                ],
+              );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            top,
+            const SizedBox(height: 20),
+            _buildAdminStaffCard(),
+          ],
+        );
       },
+    );
+  }
+
+  Widget _buildAdminStaffCard() {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'هەژمارەکانی ئەدمین',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: _loadAdminStaff,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('نوێکردنەوە'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEA580C),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => _showCreateAdminDialog(),
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                label: const Text('دروستکردنی ئەدمین'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'دەتوانیت هەژماری ئەدمین دروست بکەیت — چوونە ژوورەوە بە ئیمەیڵ و وشەی نهێنی.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 14),
+          if (_loadingStaff)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator(color: Color(0xFFEA580C))),
+            )
+          else if (_adminStaff.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('هیچ هەژماری ئەدمین نەدۆزرایەوە', textAlign: TextAlign.center),
+            )
+          else
+            ..._adminStaff.map((staff) {
+              final id = staff['id'] as int;
+              final active = staff['is_active'] != false;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _mutedFill,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _borderColor),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: const Color(0xFFFFEDD5),
+                      child: Icon(
+                        Icons.admin_panel_settings_rounded,
+                        color: active ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            staff['name']?.toString() ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
+                          ),
+                          Text(
+                            '${staff['phone'] ?? ''} • ئەدمین'
+                            '${staff['email'] != null ? ' • ${staff['email']}' : ''}',
+                            style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: active ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        active ? 'چالاک' : 'ناچالاک',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: active ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'دەستکاری',
+                      onPressed: () => _showCreateAdminDialog(existing: staff),
+                      icon: const Icon(Icons.edit_rounded, color: Color(0xFF334155)),
+                    ),
+                    IconButton(
+                      tooltip: active ? 'ناچالاککردن' : 'چالاککردن',
+                      onPressed: () async {
+                        try {
+                          await widget.api.toggleAdminStaffActive(id);
+                          await _loadAdminStaff();
+                          _showSnack('دۆخی هەژمار نوێکرایەوە');
+                        } catch (e) {
+                          _showSnack(e.toString(), error: true);
+                        }
+                      },
+                      icon: Icon(
+                        active ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
+                        color: active ? const Color(0xFF16A34A) : const Color(0xFF94A3B8),
+                        size: 30,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'سڕینەوە',
+                      onPressed: () async {
+                        final name = staff['name']?.toString() ?? '';
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (dCtx) => AlertDialog(
+                            title: const Text('سڕینەوەی ئەدمین؟', style: TextStyle(fontWeight: FontWeight.w900)),
+                            content: Text('دڵنیایت دەتەوێت «$name» بسڕیتەوە؟'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('پاشگەزبوونەوە')),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFDC2626),
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => Navigator.pop(dCtx, true),
+                                child: const Text('سڕینەوە'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (ok != true) return;
+                        try {
+                          await widget.api.deleteAdminStaff(id);
+                          await _loadAdminStaff();
+                          _showSnack('هەژماری ئەدمین سڕایەوە ✅');
+                        } catch (e) {
+                          _showSnack(e.toString(), error: true);
+                        }
+                      },
+                      icon: const Icon(Icons.delete_forever_rounded, color: Color(0xFFDC2626)),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
     );
   }
 
@@ -378,7 +1075,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -507,7 +1204,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -696,7 +1393,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -736,46 +1433,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
           _buildGatewayRow(
             title: 'کاش لە کاتی گەیاندن (COD)',
-            subtitle: 'پارەدانی ڕاستەوخۆ بە کاش لە کاتی ڕادەستکردنی داواکاری',
+            subtitle: 'تەنها شێوازی پارەدان چالاکە — پارە بە کاش لە کاتی ڕادەستکردن',
             icon: Icons.money_rounded,
             value: _enableCod,
-            onChanged: (v) => setState(() => _enableCod = v),
-          ),
-          const Divider(height: 16, color: Color(0xFFF1F5F9)),
-
-          _buildGatewayRow(
-            title: 'فاستپەی (FastPay)',
-            subtitle: 'پارەدانی ئەلیکترۆنی لە ڕێگەی ئەپی فاستپەی',
-            icon: Icons.flash_on_rounded,
-            value: _enableFastPay,
-            onChanged: (v) => setState(() => _enableFastPay = v),
-          ),
-          const Divider(height: 16, color: Color(0xFFF1F5F9)),
-
-          _buildGatewayRow(
-            title: 'بانکی نێودەوڵەتی یەکەم (FIB)',
-            subtitle: 'دەروازەی ڕاستەوخۆی پارەدانی ئەلیکترۆنی FIB',
-            icon: Icons.account_balance_rounded,
-            value: _enableFib,
-            onChanged: (v) => setState(() => _enableFib = v),
-          ),
-          const Divider(height: 16, color: Color(0xFFF1F5F9)),
-
-          _buildGatewayRow(
-            title: 'زەین کاش (ZainCash)',
-            subtitle: 'پارەدانی ڕاستەوخۆ لە ڕێگەی جزدانی زەین کاش',
-            icon: Icons.wallet_rounded,
-            value: _enableZainCash,
-            onChanged: (v) => setState(() => _enableZainCash = v),
-          ),
-          const Divider(height: 16, color: Color(0xFFF1F5F9)),
-
-          _buildGatewayRow(
-            title: 'کی کارد (Qi Card)',
-            subtitle: 'پارەدان لە ڕێگەی ماستەرکارد و کی کاردی عێراقی',
-            icon: Icons.credit_card_rounded,
-            value: _enableQiCard,
-            onChanged: (v) => setState(() => _enableQiCard = v),
+            onChanged: null,
           ),
         ],
       ),
@@ -786,7 +1447,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -839,19 +1500,19 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                       height: 40,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: _mutedFill,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        border: Border.all(color: _borderColor),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: _primaryCurrency,
                           isExpanded: true,
                           items: const [
-                            DropdownMenuItem(value: 'دیناری عێراقی (IQD)', child: Text('دیناری عێراقی (IQD)')),
-                            DropdownMenuItem(value: 'دۆلاری ئەمریکی (USD)', child: Text('دۆلاری ئەمریکی (USD)')),
+                            DropdownMenuItem(value: 'دیناری عێراقی', child: Text('دیناری عێراقی')),
+                            DropdownMenuItem(value: 'دۆلاری ئەمریکی', child: Text('دۆلاری ئەمریکی')),
                           ],
-                          onChanged: (v) => setState(() => _primaryCurrency = v ?? 'دیناری عێراقی (IQD)'),
+                          onChanged: (v) => setState(() => _primaryCurrency = v ?? 'دیناری عێراقی'),
                         ),
                       ),
                     ),
@@ -870,20 +1531,20 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                       height: 40,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: _mutedFill,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        border: Border.all(color: _borderColor),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: _payoutSchedule,
                           isExpanded: true,
-                          items: const [
-                            DropdownMenuItem(value: 'هەفتانە (Weekly)', child: Text('هەفتانە (Weekly)')),
-                            DropdownMenuItem(value: 'ڕۆژانە (Daily)', child: Text('ڕۆژانە (Daily)')),
-                            DropdownMenuItem(value: 'مانگانە (Monthly)', child: Text('مانگانە (Monthly)')),
+                          items: [
+                            DropdownMenuItem(value: 'هەفتانە', child: Text(AppStrings.tr('payout_weekly', widget.lang))),
+                            DropdownMenuItem(value: 'ڕۆژانە', child: Text(widget.lang == 'en' ? 'Daily' : (widget.lang == 'ar' ? 'يومي' : 'ڕۆژانە'))),
+                            DropdownMenuItem(value: 'مانگانە', child: Text(AppStrings.tr('payout_monthly', widget.lang))),
                           ],
-                          onChanged: (v) => setState(() => _payoutSchedule = v ?? 'هەفتانە (Weekly)'),
+                          onChanged: (v) => setState(() => _payoutSchedule = v ?? 'هەفتانە'),
                         ),
                       ),
                     ),
@@ -904,7 +1565,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                       decoration: InputDecoration(
                         suffixText: 'دینار',
                         filled: true,
-                        fillColor: const Color(0xFFF8FAFC),
+                        fillColor: _mutedFill,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
                         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
@@ -927,7 +1588,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                       decoration: InputDecoration(
                         suffixText: 'دینار',
                         filled: true,
-                        fillColor: const Color(0xFFF8FAFC),
+                        fillColor: _mutedFill,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
                         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
@@ -992,7 +1653,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -1082,7 +1743,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         hintText: label,
         hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
         filled: true,
-        fillColor: const Color(0xFFF8FAFC),
+        fillColor: _mutedFill,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
@@ -1095,7 +1756,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     required String subtitle,
     required IconData icon,
     required bool value,
-    required ValueChanged<bool> onChanged,
+    ValueChanged<bool>? onChanged,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1188,7 +1849,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -1231,8 +1892,30 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           _buildSettingsInputField(label: 'ناوی پلاتفۆرم', controller: _platformNameCtrl),
           const SizedBox(height: 14),
 
-          // Field 2: ژمارەی پەیوەندی
-          _buildSettingsInputField(label: 'ژمارەی پەیوەندی', controller: _phoneCtrl, isPhone: true),
+          // Field 2: ژمارەی پەیوەندی (Call)
+          _buildSettingsInputField(label: 'تەلەفۆن (Contact)', controller: _phoneCtrl, isPhone: true),
+          const SizedBox(height: 14),
+
+          // WhatsApp / Telegram shown to blocked users
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.35)),
+            ),
+            child: const Text(
+              'ئەم ژمارانە پیشان دەدرێن بۆ کڕیار / شۆفێر / فرۆشیار کاتێک هەژمارەکەیان مسدود دەکەیت، و هەروەها لە دیالۆگی تۆمارکردنی فرۆشگای نوێ لە ئەپی فرۆشیار (WhatsApp / Telegram / تەلەفۆن).',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, height: 1.4, color: Color(0xFF92400E)),
+            ),
+          ),
+          _buildSettingsInputField(label: 'WhatsApp', controller: _whatsappCtrl, isPhone: true),
+          const SizedBox(height: 14),
+          _buildSettingsInputField(label: 'Telegram ژمارە', controller: _telegramCtrl, isPhone: true),
+          const SizedBox(height: 14),
+          _buildSettingsInputField(label: 'Telegram یوزەرنەیم', controller: _telegramUserCtrl),
           const SizedBox(height: 14),
 
           // Field 3: ئیمەیڵ
@@ -1254,9 +1937,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   height: 40,
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: _cardColor,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: _borderColor),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
@@ -1279,7 +1962,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Save Button: پاشەکەوتکردن
+          // Save Button: پاشەکەوتکردن (includes WhatsApp / Telegram contact numbers)
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEA580C),
@@ -1288,7 +1971,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () => _showSaveFeedback('زانیارییەکانی دامەزراوە پاشەکەوت کران'),
+            onPressed: () => _saveDeliveryAndPlatformSettings('ژمارەکانی پەیوەندی (تەلەفۆن / WhatsApp / Telegram)'),
             child: const Text('پاشەکەوتکردن', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
         ],
@@ -1301,7 +1984,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -1355,9 +2038,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   height: 40,
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: _cardColor,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: _borderColor),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
@@ -1395,9 +2078,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   height: 40,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: _cardColor,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: _borderColor),
                   ),
                   child: Row(
                     children: [
@@ -1493,7 +2176,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -1547,9 +2230,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   height: 40,
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: _cardColor,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: _borderColor),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
@@ -1617,7 +2300,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -1670,9 +2353,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                 child: Container(
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: _cardColor,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: _borderColor),
                   ),
                   child: Row(
                     children: [
@@ -1722,9 +2405,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                 child: Container(
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: _cardColor,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: _borderColor),
                   ),
                   child: Row(
                     children: [
@@ -1782,7 +2465,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
@@ -1889,17 +2572,27 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             height: 40,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _cardColor,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: _borderColor),
             ),
             child: Directionality(
+              // Phone must be LTR + left-aligned or digits look reversed (e.g. 0000 000 0750).
               textDirection: isPhone ? TextDirection.ltr : TextDirection.rtl,
               child: TextField(
                 controller: controller,
-                textAlign: isPhone ? TextAlign.right : TextAlign.start,
+                keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
+                textAlign: isPhone ? TextAlign.left : TextAlign.start,
+                inputFormatters: isPhone
+                    ? <TextInputFormatter>[IraqPhoneFormatter()]
+                    : const <TextInputFormatter>[],
                 style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-                decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  isDense: true,
+                  hintText: isPhone ? '0750 000 0000' : null,
+                  hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+                ),
               ),
             ),
           ),

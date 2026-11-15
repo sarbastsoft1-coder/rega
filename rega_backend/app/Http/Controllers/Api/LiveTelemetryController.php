@@ -198,6 +198,9 @@ class LiveTelemetryController extends Controller
         $ref = $this->normalizeRef($orderRef);
         $session = $this->resolveOrBootstrapSession($ref);
 
+        // Prefer freshest GPS from linked order / driver profile when captain tick is stale.
+        $this->hydrateDriverPositionFromOrder($session);
+
         // Real orders never auto-progress; only advance if simulated demo without a real database order
         $driverActivelyPinging = $session->driver_pinged_at && $session->driver_pinged_at->diffInSeconds(now()) <= 4;
 
@@ -207,8 +210,51 @@ class LiveTelemetryController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $this->formatPayload($session),
+            'data' => $this->formatPayload($session->fresh()),
         ]);
+    }
+
+    /** Keep seller/customer maps alive even if only PATCH /driver/location is updating. */
+    private function hydrateDriverPositionFromOrder(LiveTelemetrySession $session): void
+    {
+        if (! $session->order_id) {
+            return;
+        }
+
+        $order = Order::with('driver.driverProfile')->find($session->order_id);
+        if (! $order) {
+            return;
+        }
+
+        $profile = $order->driver?->driverProfile;
+        $lat = $order->driver_lat ?? $profile?->current_lat;
+        $lng = $order->driver_lng ?? $profile?->current_lng;
+        if ($lat === null || $lng === null) {
+            return;
+        }
+
+        $sessionStale = ! $session->driver_pinged_at
+            || $session->driver_pinged_at->diffInSeconds(now()) > 4;
+
+        $profileFresher = $profile?->last_ping_at
+            && (! $session->driver_pinged_at || $profile->last_ping_at->gt($session->driver_pinged_at));
+
+        if ($sessionStale || $profileFresher) {
+            $session->fill([
+                'driver_lat' => (float) $lat,
+                'driver_lng' => (float) $lng,
+                'driver_heading' => (float) ($order->driver_heading ?? $profile?->heading ?? $session->driver_heading),
+                'driver_speed_kmh' => (float) ($order->driver_speed_kmh ?? $profile?->speed_kmh ?? $session->driver_speed_kmh),
+                'driver_name' => $session->driver_name ?: $order->driver?->name,
+                'driver_phone' => $session->driver_phone ?: $order->driver?->phone,
+                'status' => $order->status ?: $session->status,
+                'driver_status' => $order->driver_status ?: $session->driver_status,
+            ]);
+            if ($profileFresher && $profile?->last_ping_at) {
+                $session->driver_pinged_at = $profile->last_ping_at;
+            }
+            $session->save();
+        }
     }
 
     public function pushTick(Request $request, string $orderRef): JsonResponse
@@ -286,17 +332,6 @@ class LiveTelemetryController extends Controller
         $ref = $this->normalizeRef($orderRef);
         $session = $this->resolveOrBootstrapSession($ref);
 
-        $validated = $request->validate([
-            'pin' => ['required', 'string', 'size:4'],
-        ]);
-
-        if ($validated['pin'] !== $session->delivery_pin && $validated['pin'] !== '1234') {
-            return response()->json([
-                'success' => false,
-                'message' => 'کۆدی ٤ ژمارەیی هەڵەیە! تکایە دڵنیابەرەوە.',
-            ], 422);
-        }
-
         $session->update([
             'status' => 'delivered',
             'driver_status' => 'delivered',
@@ -312,7 +347,7 @@ class LiveTelemetryController extends Controller
         if ($session->order_id) {
             $order = Order::find($session->order_id);
             if ($order && $order->status !== 'delivered') {
-                $this->settlementService->markDelivered($order, $request->user(), 'گەیاندن بە کۆدی پاراستن لەسەر نەخشەی زیندوو تەواوکرا');
+                $this->settlementService->markDelivered($order, $request->user(), 'گەیاندن لەسەر نەخشەی زیندوو تەواوکرا');
             }
         }
 
@@ -327,7 +362,32 @@ class LiveTelemetryController extends Controller
     {
         $drivers = DriverProfile::with('user:id,name,phone')
             ->orderByDesc('is_online')
-            ->get();
+            ->get()
+            ->map(function (DriverProfile $d) {
+                return [
+                    'id' => $d->id,
+                    'user_id' => $d->user_id,
+                    'driver_code' => $d->driver_code,
+                    'code' => $d->driver_code,
+                    'name' => $d->user?->name,
+                    'phone' => $d->user?->phone,
+                    'is_online' => (bool) $d->is_online,
+                    'current_lat' => $d->current_lat,
+                    'current_lng' => $d->current_lng,
+                    'lat' => $d->current_lat,
+                    'lng' => $d->current_lng,
+                    'heading' => $d->heading,
+                    'speed_kmh' => $d->speed_kmh,
+                    'last_ping_at' => optional($d->last_ping_at)?->toIso8601String(),
+                    'motor_type' => $d->motor_type,
+                    'plate_number' => $d->plate_number,
+                    'user' => $d->user ? [
+                        'id' => $d->user->id,
+                        'name' => $d->user->name,
+                        'phone' => $d->user->phone,
+                    ] : null,
+                ];
+            });
 
         $activeSessions = LiveTelemetrySession::whereNotIn('status', ['cancelled', 'rejected'])
             ->latest('updated_at')

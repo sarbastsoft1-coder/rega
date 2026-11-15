@@ -33,6 +33,7 @@ class CatalogAndZonesController extends Controller
             'name_en' => ['nullable', 'string', 'max:120'],
             'icon_name' => ['nullable', 'string', 'max:60'],
             'image_url' => ['nullable', 'string', 'max:500'],
+            'secondary_image_url' => ['nullable', 'string', 'max:500'],
             'is_active' => ['nullable', 'boolean'],
             'is_featured_home' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer'],
@@ -49,7 +50,8 @@ class CatalogAndZonesController extends Controller
             'name_ar' => $validated['name_ar'] ?? $validated['name_ku'],
             'name_en' => $validated['name_en'] ?? $validated['name_ku'],
             'icon_name' => $validated['icon_name'] ?? 'storefront',
-            'image_url' => $validated['image_url'] ?? 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80',
+            'image_url' => $validated['image_url'] ?? null,
+            'secondary_image_url' => $validated['secondary_image_url'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
             'is_featured_home' => $validated['is_featured_home'] ?? true,
             'sort_order' => $validated['sort_order'] ?? (Category::count() + 1),
@@ -70,6 +72,7 @@ class CatalogAndZonesController extends Controller
             'name_en' => ['nullable', 'string', 'max:120'],
             'icon_name' => ['nullable', 'string', 'max:60'],
             'image_url' => ['nullable', 'string', 'max:500'],
+            'secondary_image_url' => ['nullable', 'string', 'max:500'],
             'is_active' => ['nullable', 'boolean'],
             'is_featured_home' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer'],
@@ -98,6 +101,30 @@ class CatalogAndZonesController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'بەش سڕایەوە.',
+        ]);
+    }
+
+    public function categoriesReorder(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order' => ['required', 'array', 'min:1'],
+            'order.*' => ['integer', 'exists:categories,id'],
+        ]);
+
+        foreach (array_values($validated['order']) as $index => $id) {
+            Category::where('id', $id)->update(['sort_order' => $index + 1]);
+        }
+
+        $categories = Category::query()
+            ->withCount('stores')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ڕیزبەندی بەشەکان نوێکرایەوە.',
+            'data' => $categories,
         ]);
     }
 

@@ -20,9 +20,13 @@ class EnsureUserHasRole
         }
 
         if (! $user->is_active) {
+            $user->tokens()->delete();
+
             return response()->json([
                 'success' => false,
-                'message' => 'هەژمارەکەت ڕاگیراوە (Account suspended).',
+                'code' => 'account_blocked',
+                'message' => 'هەژمارەکەت لەلایەن بەڕێوەبەرەوە مسدود کراوە. تکایە پەیوەندی بە یارمەتی پشتگیری بکە لە ڕێگەی واتسئاپ.',
+                'contact' => EnsureUserIsActive::supportContacts(),
             ], 403);
         }
 

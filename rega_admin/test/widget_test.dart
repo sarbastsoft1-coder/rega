@@ -1,32 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:rega_admin/core/api/api_client.dart';
 import 'package:rega_admin/main.dart';
+import 'package:rega_admin/state/admin_app_notifier.dart';
+import 'package:rega_admin/state/admin_domain_notifiers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets('REGA Admin renders login console cleanly on compact and wide viewports', (WidgetTester tester) async {
-    GoogleFonts.config.allowRuntimeFetching = false;
     SharedPreferences.setMockInitialValues({});
     final api = ApiClient();
     await api.init();
+    final appState = AdminAppNotifier(api: api, lang: 'ku', isDark: false, checkingSession: false);
 
-    // 1. Compact / tablet viewport (800x600) — default Kurdish Sorani (RTL)
-    await tester.pumpWidget(RegaAdminApp(api: api));
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: appState),
+          ChangeNotifierProvider(create: (_) => AdminNavNotifier()),
+          ChangeNotifierProvider(create: (_) => DashboardNotifier(api)),
+          ChangeNotifierProvider(create: (_) => OrdersNotifier(api)),
+          ChangeNotifierProvider(create: (_) => DriversNotifier(api)),
+          ChangeNotifierProvider(create: (_) => CustomersNotifier(api)),
+          ChangeNotifierProvider(create: (_) => StoresNotifier(api)),
+        ],
+        child: RegaAdminApp(appState: appState),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('پانێڵی بەڕێوەبردنی ڕێگا'), findsOneWidget);
     expect(find.text('چوونە ژوورەوە بۆ پانێڵ'), findsOneWidget);
 
-    // Switch language to English (LTR)
-    await tester.tap(find.text('EN'));
+    await tester.tap(find.text('ئینگلیزی'));
     await tester.pumpAndSettle();
 
     expect(find.text('REGA Admin Control'), findsOneWidget);
     expect(find.text('Sign In to Console'), findsOneWidget);
 
-    // 2. Wide desktop viewport (1440x900) — verifies hero branding panel
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
@@ -35,6 +47,6 @@ void main() {
     });
 
     await tester.pumpAndSettle();
-    expect(find.text('REGA CENTRAL'), findsOneWidget);
+    expect(find.text('REGA'), findsWidgets);
   });
 }

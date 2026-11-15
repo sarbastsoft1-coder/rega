@@ -82,7 +82,7 @@ class DatabaseSeeder extends Seeder
         $catsData = [
             ['slug' => 'restaurants', 'ku' => 'خواردنگە', 'ar' => 'مطاعم', 'en' => 'Restaurants', 'icon' => 'restaurant', 'img' => 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600&q=80', 'home' => true],
             ['slug' => 'supermarket', 'ku' => 'سوپەرمارکێت', 'ar' => 'سوبرماركت', 'en' => 'Supermarkets', 'icon' => 'shopping_basket', 'img' => 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&q=80', 'home' => true],
-            ['slug' => 'fast-food', 'ku' => 'فاست فوود', 'ar' => 'وجبات سريعة', 'en' => 'Fast Food', 'icon' => 'lunch_dining', 'img' => 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=600&q=80', 'home' => true],
+            ['slug' => 'fast-food', 'ku' => 'فست فوود', 'ar' => 'وجبات سريعة', 'en' => 'Fast Food', 'icon' => 'lunch_dining', 'img' => 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=600&q=80', 'home' => true],
             ['slug' => 'fruits-veggies', 'ku' => 'سەوزە و میوە', 'ar' => 'خضروات وفواكه', 'en' => 'Fruits & Veggies', 'icon' => 'eco', 'img' => 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=600&q=80', 'home' => true],
             ['slug' => 'cafe', 'ku' => 'کافێ', 'ar' => 'كافيه', 'en' => 'Cafes', 'icon' => 'local_cafe', 'img' => 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=600&q=80', 'home' => true],
             ['slug' => 'sweets-dairy', 'ku' => 'شیرەمەنی و شیرینی', 'ar' => 'حلويات وألبان', 'en' => 'Sweets & Dairy', 'icon' => 'cake', 'img' => 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=600&q=80', 'home' => true],
@@ -119,7 +119,7 @@ class DatabaseSeeder extends Seeder
                 'address_ku' => 'ناو بازاڕی کەلار - تەنیشت قەڵای شێروانە',
                 'lat' => 34.6841,
                 'lng' => 45.3182,
-                'rating' => 4.90,
+                'rating' => 9.80,
                 'reviews' => 418,
                 'fee' => 1000,
                 'comm' => 12.00,
@@ -151,7 +151,7 @@ class DatabaseSeeder extends Seeder
                 'address_ku' => 'گەڕەکی زانکۆ - شەقامی سەرەکی بەرامبەر زانکۆی گەرمیان',
                 'lat' => 34.6915,
                 'lng' => 45.3235,
-                'rating' => 4.80,
+                'rating' => 9.60,
                 'reviews' => 342,
                 'fee' => 1000,
                 'comm' => 12.00,
@@ -185,7 +185,7 @@ class DatabaseSeeder extends Seeder
                 'address_ku' => 'گەڕەکی شەهیدان - جووت سایدی سەرەکی',
                 'lat' => 34.6860,
                 'lng' => 45.3202,
-                'rating' => 4.75,
+                'rating' => 9.50,
                 'reviews' => 289,
                 'fee' => 1500,
                 'comm' => 10.00,
@@ -213,7 +213,7 @@ class DatabaseSeeder extends Seeder
                 'address_ku' => 'گەڕەکی فەرمانبەران - نزیک باخی گشتی',
                 'lat' => 34.6890,
                 'lng' => 45.3218,
-                'rating' => 4.85,
+                'rating' => 9.70,
                 'reviews' => 265,
                 'fee' => 1000,
                 'comm' => 12.00,
@@ -240,7 +240,7 @@ class DatabaseSeeder extends Seeder
                 'address_ku' => 'گەڕەکی سیروان - شەقامی بازنەیی',
                 'lat' => 34.6795,
                 'lng' => 45.3302,
-                'rating' => 4.70,
+                'rating' => 9.40,
                 'reviews' => 144,
                 'fee' => 1500,
                 'comm' => 10.00,
@@ -267,7 +267,7 @@ class DatabaseSeeder extends Seeder
                 'address_ku' => 'ناو بازاڕی کەلار - شەقامی پزیشکان',
                 'lat' => 34.6832,
                 'lng' => 45.3175,
-                'rating' => 4.92,
+                'rating' => 9.84,
                 'reviews' => 312,
                 'fee' => 1000,
                 'comm' => 12.00,
@@ -294,7 +294,7 @@ class DatabaseSeeder extends Seeder
                 'address_ku' => 'گەڕەکی زانکۆ - تەنیشت پارکی زانکۆ',
                 'lat' => 34.6930,
                 'lng' => 45.3252,
-                'rating' => 4.78,
+                'rating' => 9.56,
                 'reviews' => 120,
                 'fee' => 1000,
                 'comm' => 14.00,
@@ -321,7 +321,7 @@ class DatabaseSeeder extends Seeder
                 'address_ku' => 'شارۆچکەی رزگاری - بازاڕی ناوەندی',
                 'lat' => 34.6718,
                 'lng' => 45.2960,
-                'rating' => 4.80,
+                'rating' => 9.60,
                 'reviews' => 64,
                 'fee' => 1500,
                 'comm' => 8.00,
@@ -410,14 +410,17 @@ class DatabaseSeeder extends Seeder
                     $allProductsByStore[$store->id][] = $prod;
                 }
             }
+
+            // باجی داشکاندن لە ٪ ڕاستەقینەی بەرهەمەکان
+            $store->refreshDiscountBadge();
         }
 
         // 5. Delivery Drivers + Motorcycles + 3 KYC Documents
         $driversData = [
             ['name' => 'ڕەوەند کەریم', 'phone' => '07501234567', 'code' => 'RA-884', 'motor' => 'هۆندا CBR 150R', 'plate' => 'B-84729-21', 'year' => '2023', 'color' => 'ڕەش و سەوز', 'verified' => true, 'online' => true, 'lat' => 34.6852, 'lng' => 45.3198, 'deliv' => 348, 'rating' => 4.94, 'hours' => 168.5],
             ['name' => 'ئاراس ئەحمەد', 'phone' => '07709876543', 'code' => 'RA-512', 'motor' => 'یاماها FZ-S', 'plate' => 'S-31094-22', 'year' => '2024', 'color' => 'شین و ڕەش', 'verified' => true, 'online' => true, 'lat' => 34.6910, 'lng' => 45.3230, 'deliv' => 275, 'rating' => 4.89, 'hours' => 142.0],
-            ['name' => 'هەڵۆ مەحموود', 'phone' => '07704561230', 'code' => 'RA-609', 'motor' => 'بەجاج پۆڵسەر 180', 'plate' => 'S-55210-21', 'year' => '2022', 'color' => 'سوور', 'verified' => true, 'online' => true, 'lat' => 34.6805, 'lng' => 45.3290, 'deliv' => 192, 'rating' => 4.85, 'hours' => 98.5],
-            ['name' => 'کاروان عەلی', 'phone' => '07503217890', 'code' => 'RA-731', 'motor' => 'هۆندا دیۆ 110', 'plate' => 'S-19402-23', 'year' => '2023', 'color' => 'سپی', 'verified' => true, 'online' => false, 'lat' => 34.6730, 'lng' => 45.2990, 'deliv' => 134, 'rating' => 4.78, 'hours' => 76.0],
+            ['name' => 'هەڵۆ مەحموود', 'phone' => '07704561230', 'code' => 'RA-609', 'motor' => 'بەجاج پۆڵسەر 180', 'plate' => 'S-55210-21', 'year' => '2022', 'color' => 'سوور', 'verified' => true, 'online' => true, 'lat' => 34.6805, 'lng' => 45.3290, 'deliv' => 192, 'rating' => 9.70, 'hours' => 98.5],
+            ['name' => 'کاروان عەلی', 'phone' => '07503217890', 'code' => 'RA-731', 'motor' => 'هۆندا دیۆ 110', 'plate' => 'S-19402-23', 'year' => '2023', 'color' => 'سپی', 'verified' => true, 'online' => false, 'lat' => 34.6730, 'lng' => 45.2990, 'deliv' => 134, 'rating' => 9.56, 'hours' => 76.0],
             ['name' => 'بڕیار عوسمان', 'phone' => '07716549870', 'code' => 'RA-915', 'motor' => 'تی ڤی ئێس ئەپاچی', 'plate' => 'S-77120-24', 'year' => '2024', 'color' => 'زەرد و ڕەش', 'verified' => false, 'online' => false, 'lat' => 34.6865, 'lng' => 45.3160, 'deliv' => 0, 'rating' => 5.00, 'hours' => 0],
         ];
 
@@ -455,7 +458,7 @@ class DatabaseSeeder extends Seeder
             ]);
 
             $docStatus = $d['verified'] ? 'verified' : 'pending';
-            foreach (['national_id', 'driver_license', 'vehicle_registration'] as $docType) {
+            foreach (['info_card', 'national_id', 'driver_license', 'vehicle_registration'] as $docType) {
                 DriverDocument::create([
                     'driver_profile_id' => $dp->id,
                     'doc_type' => $docType,
@@ -791,9 +794,9 @@ class DatabaseSeeder extends Seeder
             'recipient_type' => 'vendor',
             'direction' => 'payout_to_partner',
             'amount' => 18000,
-            'payment_method' => 'fib',
+            'payment_method' => 'cash',
             'status' => 'pending',
-            'notes' => 'داواکاری ڕاکێشانی باڵانس لە ڕێگەی FIB',
+            'notes' => 'داواکاری ڕاکێشانی باڵانس بە کاش',
         ]);
 
         // 10. Support Tickets
@@ -850,6 +853,8 @@ class DatabaseSeeder extends Seeder
             ['key' => 'driver_hotline', 'group' => 'support', 'val' => '0750 000 9372'],
             ['key' => 'emergency_phone', 'group' => 'support', 'val' => '0750 911 0000'],
             ['key' => 'whatsapp_number', 'group' => 'support', 'val' => '+9647700001122'],
+            ['key' => 'telegram_number', 'group' => 'support', 'val' => '+9647700001122'],
+            ['key' => 'telegram_username', 'group' => 'support', 'val' => 'rega_support'],
             ['key' => 'working_hours', 'group' => 'public', 'val' => '09:00 AM - 01:00 AM'],
             ['key' => 'enforce_anti_vpn', 'group' => 'security', 'val' => true],
             ['key' => 'maintenance_mode', 'group' => 'general', 'val' => false],

@@ -6,6 +6,8 @@ import '../live_order_tracker.dart';
 import '../models/customer_models.dart';
 import '../state/navigation_notifier.dart';
 import '../state/orders_notifier.dart';
+import '../state/session_notifier.dart';
+import 'splash_screen.dart';
 
 typedef CustomerShellBuilder = Widget Function(
   BuildContext context,
@@ -13,29 +15,59 @@ typedef CustomerShellBuilder = Widget Function(
   String? openStoreId,
 );
 
+typedef CustomerLoginBuilder = Widget Function(BuildContext context);
+
 final GlobalKey<NavigatorState> customerRootNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'customerRoot');
 
 GoRouter createCustomerRouter({
   required CustomerShellBuilder shellBuilder,
+  required CustomerLoginBuilder loginBuilder,
+  required Listenable refreshListenable,
 }) {
   return GoRouter(
     navigatorKey: customerRootNavigatorKey,
-    initialLocation: '/home',
+    initialLocation: '/splash',
+    refreshListenable: refreshListenable,
     debugLogDiagnostics: false,
     redirect: (context, state) {
+      final session = context.read<SessionNotifier>();
+      final path = state.uri.path;
+      final onSplash = path == '/splash';
+      final onLogin = path == '/login';
+
+      // Splash owns the first navigation after session restore.
+      if (onSplash) return null;
+      if (session.isRestoring) return null;
+
+      if (!session.isLoggedIn && !onLogin) return '/login';
+      if (session.isLoggedIn && onLogin) {
+        final tab = int.tryParse(state.uri.queryParameters['tab'] ?? '');
+        return NavigationNotifier.pathForIndex(tab ?? 0);
+      }
+
       final tab = state.uri.queryParameters['tab'];
-      if (tab != null) {
+      if (tab != null && session.isLoggedIn) {
         final idx = int.tryParse(tab);
         if (idx != null && idx >= 0 && idx <= 4) {
           final target = NavigationNotifier.pathForIndex(idx);
-          if (state.uri.path != target) return target;
+          if (path != target) return target;
         }
       }
-      if (state.uri.path == '/' || state.uri.path.isEmpty) return '/home';
+      if (path == '/' || path.isEmpty) return '/home';
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        name: 'splash',
+        builder: (context, state) => const CustomerSplashScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        name: 'login',
+        builder: (context, state) => loginBuilder(context),
+      ),
       ShellRoute(
         builder: (context, state, child) {
           final path = state.uri.path;
@@ -48,7 +80,6 @@ GoRouter createCustomerRouter({
             if (!context.mounted) return;
             context.read<NavigationNotifier>().setTabIndex(tabIndex);
           });
-          // Shell keeps this element alive across tab path changes.
           return shellBuilder(context, tabIndex, openStoreId);
         },
         routes: [

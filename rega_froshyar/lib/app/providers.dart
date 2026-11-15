@@ -6,7 +6,11 @@ import '../state/vendor_session_notifier.dart';
 MultiProvider buildVendorProviders({required Widget child}) {
   return MultiProvider(
     providers: [
-      ChangeNotifierProvider(create: (_) => VendorSessionNotifier()),
+      ChangeNotifierProvider(create: (_) {
+        final session = VendorSessionNotifier();
+        session.restoreSession();
+        return session;
+      }),
       ChangeNotifierProvider(create: (_) => VendorNavNotifier()),
     ],
     child: child,

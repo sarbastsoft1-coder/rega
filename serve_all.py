@@ -72,9 +72,11 @@ def start_backend_thread(base_dir):
             time.sleep(10)
             continue
         try:
+            # Use built-in server + public/router.php so /storage/* gets CORS
+            # (Flutter web CanvasKit cannot load cross-origin images without it).
             print("[ONLINE] REGA Backend starting on http://0.0.0.0:8001 ...", flush=True)
             proc = subprocess.Popen(
-                "php artisan serve --port=8001 --host=0.0.0.0",
+                "php -S 0.0.0.0:8001 -t public public/router.php",
                 cwd=backend_dir,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -87,7 +89,7 @@ def start_backend_thread(base_dir):
             time.sleep(10)
 
 def main():
-    base_dir = r"c:\Users\sarba\OneDrive\Desktop\projekt rega"
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     
     # 1. Start Laravel Backend Thread (Port 8001)
     backend_thread = threading.Thread(target=start_backend_thread, args=(base_dir,), daemon=True)

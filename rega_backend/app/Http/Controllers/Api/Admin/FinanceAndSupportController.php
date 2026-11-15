@@ -112,7 +112,7 @@ class FinanceAndSupportController extends Controller
             'store_id' => ['nullable', 'exists:stores,id'],
             'user_id' => ['nullable', 'exists:users,id'],
             'amount' => ['required', 'integer', 'min:250'],
-            'payment_method' => ['nullable', 'string', 'in:cash,fib,fastpay,bank_transfer'],
+            'payment_method' => ['nullable', 'string', 'in:cash,bank_transfer'],
             'status' => ['nullable', 'string', 'in:pending,completed'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -322,8 +322,18 @@ class FinanceAndSupportController extends Controller
             'settings' => ['required', 'array'],
         ]);
 
+        $supportKeys = [
+            'support_phone',
+            'whatsapp_number',
+            'telegram_number',
+            'telegram_username',
+            'driver_hotline',
+            'support_email',
+        ];
+
         foreach ($validated['settings'] as $key => $value) {
-            PlatformSetting::setValue((string) $key, $value);
+            $group = in_array((string) $key, $supportKeys, true) ? 'support' : 'general';
+            PlatformSetting::setValue((string) $key, $value, $group);
         }
 
         return $this->settingsIndex();
@@ -332,7 +342,7 @@ class FinanceAndSupportController extends Controller
     public function uploadMedia(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'max:10240'],
+            'file' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,gif,pdf'],
         ]);
 
         $path = $request->file('file')->store('uploads', 'public');
@@ -342,7 +352,7 @@ class FinanceAndSupportController extends Controller
             'message' => 'فایل بە سەرکەوتوویی بارکرا.',
             'data' => [
                 'path' => $path,
-                'url' => asset('storage/' . $path),
+                'url' => \App\Support\PublicMedia::url($path),
             ],
         ], 201);
     }

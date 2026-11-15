@@ -24,6 +24,7 @@ class User extends Authenticatable
         'role',
         'avatar_url',
         'language',
+        'city',
         'is_active',
         'fcm_token',
         'last_login_at',
@@ -66,7 +67,27 @@ class User extends Authenticatable
 
     public function ownedStore(): HasOne
     {
-        return $this->hasOne(Store::class, 'owner_id');
+        // Deterministic when a plain HasOne is eager-loaded / first()'d.
+        // Prefer resolveOwnedStore() for vendor catalog so multi-store owners
+        // keep reading/writing the same store (avoids "data disappeared" on reload).
+        return $this->hasOne(Store::class, 'owner_id')->latestOfMany();
+    }
+
+    /**
+     * Pick one store for a vendor who may own several (admin test duplicates, etc.).
+     * Prefer the store with the richest catalog so added products/categories
+     * still appear after logout / app restart instead of an empty sibling store.
+     */
+    public function resolveOwnedStore(): ?Store
+    {
+        return $this->stores()
+            ->with(['category', 'neighborhood'])
+            ->withCount(['products', 'storeCategories'])
+            ->orderByDesc('products_count')
+            ->orderByDesc('store_categories_count')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->first();
     }
 
     public function stores(): HasMany

@@ -1,14 +1,29 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
+import '../core/services/image_compress_service.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
+
+enum CatalogZonesMode { both, zones, categories }
 
 class CatalogZonesScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
+  final CatalogZonesMode mode;
+  final int initialTab;
 
-  const CatalogZonesScreen({super.key, required this.api, required this.lang});
+  const CatalogZonesScreen({
+    super.key,
+    required this.api,
+    required this.lang,
+    this.mode = CatalogZonesMode.both,
+    this.initialTab = 0,
+  });
 
   @override
   State<CatalogZonesScreen> createState() => _CatalogZonesScreenState();
@@ -16,22 +31,36 @@ class CatalogZonesScreen extends StatefulWidget {
 
 class _CatalogZonesScreenState extends State<CatalogZonesScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabCtrl;
+  TabController? _tabCtrl;
   bool _loading = true;
   String? _error;
   List<dynamic> _zones = [];
   List<dynamic> _categories = [];
 
+  bool get _showZones =>
+      widget.mode == CatalogZonesMode.both || widget.mode == CatalogZonesMode.zones;
+
+  bool get _showCategories =>
+      widget.mode == CatalogZonesMode.both || widget.mode == CatalogZonesMode.categories;
+
+  bool get _hasTabs => _showZones && _showCategories;
+
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
+    if (_hasTabs) {
+      _tabCtrl = TabController(
+        length: 2,
+        vsync: this,
+        initialIndex: widget.initialTab.clamp(0, 1),
+      );
+    }
     _load();
   }
 
   @override
   void dispose() {
-    _tabCtrl.dispose();
+    _tabCtrl?.dispose();
     super.dispose();
   }
 
@@ -41,21 +70,31 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
       _error = null;
     });
     try {
-      final results = await Future.wait([
-        widget.api.getNeighborhoods(),
-        widget.api.getCategories(),
-      ]);
-      if (mounted) {
-        setState(() {
-          _zones = results[0];
-          _categories = results[1];
-        });
-      }
+      final futures = <Future>[];
+      if (_showZones) futures.add(widget.api.getNeighborhoods());
+      if (_showCategories) futures.add(widget.api.getCategories());
+      final results = await Future.wait(futures);
+      if (!mounted) return;
+      setState(() {
+        var i = 0;
+        if (_showZones) _zones = results[i++] as List<dynamic>;
+        if (_showCategories) _categories = results[i++] as List<dynamic>;
+      });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _showSnack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: error ? RegaColors.crimson : RegaColors.emeraldDark,
+      ),
+    );
   }
 
   void _showZoneDialog({Map<String, dynamic>? existing}) {
@@ -68,20 +107,42 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
         title: Text(isEdit ? 'دەستکاریکردنی گەڕەک' : 'زیادکردنی گەڕەکی نوێ لە کەلار'),
         content: SizedBox(
-          width: 420,
+          width: AdminBreakpoints.dialogWidth(ctx, max: 420),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(controller: kuCtrl, decoration: const InputDecoration(labelText: 'ناوی گەڕەک (کوردی) *')),
               const SizedBox(height: 12),
-              TextField(controller: enCtrl, decoration: const InputDecoration(labelText: 'ناوی گەڕەک (English)')),
+              TextField(controller: enCtrl, decoration: InputDecoration(labelText: AppStrings.tr('name_en_field', widget.lang))),
               const SizedBox(height: 12),
               TextField(
                 controller: feeCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'کرێی گەیاندن بە دینار (د.ع) *'),
+                decoration: const InputDecoration(labelText: 'نرخی گەیاندنی ماتۆرسوار (د.ع) *'),
+              ),
+              const SizedBox(height: 8),
+              StatefulBuilder(
+                builder: (ctx2, setChipState) {
+                  const presets = [1000, 1500, 2000, 2500, 3000];
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: presets.map((p) {
+                      final selected = feeCtrl.text.trim() == p.toString();
+                      return ChoiceChip(
+                        label: Text('$p'),
+                        selected: selected,
+                        onSelected: (_) {
+                          feeCtrl.text = p.toString();
+                          setChipState(() {});
+                        },
+                      );
+                    }).toList(),
+                  );
+                },
               ),
               const SizedBox(height: 12),
               TextField(
@@ -118,49 +179,514 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
     );
   }
 
+  Future<({String name, Uint8List bytes})?> _pickCategoryImage() async {
+    // Same pick path as products_screen: read bytes on demand (file_picker 13+),
+    // then compress via ImageCompressService before upload.
+    final files = await FilePicker.pickFiles(type: FileType.image);
+    if (files.isEmpty) return null;
+    final f = files.first;
+    final bytes = await f.readAsBytes();
+    if (bytes.isEmpty) {
+      throw Exception('نەتوانرا وێنە بخوێنرێتەوە. تکایە دووبارە هەوڵ بدەوە.');
+    }
+    return ImageCompressService.compressForUpload(name: f.name, bytes: bytes);
+  }
+
+  Future<void> _moveCategory(int index, int delta) async {
+    final newIndex = index + delta;
+    if (newIndex < 0 || newIndex >= _categories.length) return;
+    final list = List<Map<String, dynamic>>.from(
+      _categories.map((e) => Map<String, dynamic>.from(e as Map)),
+    );
+    final item = list.removeAt(index);
+    list.insert(newIndex, item);
+    final orderedIds = list.map((c) => c['id'] as int).toList();
+    try {
+      final updated = await widget.api.reorderCategories(orderedIds);
+      if (!mounted) return;
+      setState(() => _categories = updated);
+      _showSnack('ڕیزبەندی بەشەکان نوێکرایەوە');
+    } catch (e) {
+      _showSnack(e.toString(), error: true);
+    }
+  }
+
   void _showCategoryDialog({Map<String, dynamic>? existing}) {
     final isEdit = existing != null;
     final kuCtrl = TextEditingController(text: existing?['name_ku']?.toString() ?? '');
+    final arCtrl = TextEditingController(text: existing?['name_ar']?.toString() ?? '');
     final enCtrl = TextEditingController(text: existing?['name_en']?.toString() ?? '');
     final imgCtrl = TextEditingController(text: existing?['image_url']?.toString() ?? '');
+    final secImgCtrl = TextEditingController(text: existing?['secondary_image_url']?.toString() ?? '');
+    final orderCtrl = TextEditingController(
+      text: (existing?['sort_order'] ?? (_categories.length + 1)).toString(),
+    );
+    bool featured = existing == null ? true : existing['is_featured_home'] == true;
+    bool active = existing == null ? true : existing['is_active'] == true;
+    ({String name, Uint8List bytes})? pendingImage;
+    ({String name, Uint8List bytes})? pendingSecImage;
+    var pickingPrimary = false;
+    var uploadingPrimary = false;
+    var pickingSecondary = false;
+    var uploadingSecondary = false;
+    String? primaryUploadError;
+    String? secondaryUploadError;
+    var primaryUploadOk = false;
+    var secondaryUploadOk = false;
+    var saving = false;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isEdit ? 'دەستکاریکردنی بەش' : 'زیادکردنی بەشی نوێی بازاڕ'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: kuCtrl, decoration: const InputDecoration(labelText: 'ناوی بەش (کوردی) *')),
-              const SizedBox(height: 12),
-              TextField(controller: enCtrl, decoration: const InputDecoration(labelText: 'ناوی بەش (English)')),
-              const SizedBox(height: 12),
-              TextField(controller: imgCtrl, decoration: const InputDecoration(labelText: 'بەستەری وێنە (Image URL)')),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
-          ElevatedButton(
-            onPressed: () async {
-              if (kuCtrl.text.trim().isEmpty) return;
-              final payload = {
-                'name_ku': kuCtrl.text.trim(),
-                'name_en': enCtrl.text.trim().isEmpty ? kuCtrl.text.trim() : enCtrl.text.trim(),
-                if (imgCtrl.text.trim().isNotEmpty) 'image_url': imgCtrl.text.trim(),
-              };
-              Navigator.pop(ctx);
-              if (isEdit) {
-                await widget.api.updateCategory(existing['id'] as int, payload);
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> pickCompressAndUpload({required bool secondary}) async {
+            final busyPrimary = pickingPrimary || uploadingPrimary;
+            final busySecondary = pickingSecondary || uploadingSecondary;
+            if (saving || busyPrimary || busySecondary) return;
+            setDialogState(() {
+              if (secondary) {
+                pickingSecondary = true;
+                secondaryUploadError = null;
+                secondaryUploadOk = false;
               } else {
-                await widget.api.createCategory(payload);
+                pickingPrimary = true;
+                primaryUploadError = null;
+                primaryUploadOk = false;
               }
-              _load();
-            },
-            child: Text(AppStrings.tr('save', widget.lang)),
-          ),
+            });
+            try {
+              final picked = await _pickCategoryImage();
+              if (picked == null || !ctx.mounted) {
+                setDialogState(() {
+                  if (secondary) {
+                    pickingSecondary = false;
+                  } else {
+                    pickingPrimary = false;
+                  }
+                });
+                return;
+              }
+              setDialogState(() {
+                if (secondary) {
+                  pendingSecImage = picked;
+                  pickingSecondary = false;
+                  uploadingSecondary = true;
+                } else {
+                  pendingImage = picked;
+                  pickingPrimary = false;
+                  uploadingPrimary = true;
+                }
+              });
+              final up = await widget.api.uploadMedia(picked.bytes, picked.name);
+              final url = up['url']?.toString();
+              if (url == null || url.isEmpty) {
+                throw Exception(AppStrings.tr('item_image_upload_failed', widget.lang));
+              }
+              if (!ctx.mounted) return;
+              if (secondary) {
+                secImgCtrl.text = url;
+              } else {
+                imgCtrl.text = url;
+              }
+              setDialogState(() {
+                if (secondary) {
+                  uploadingSecondary = false;
+                  secondaryUploadOk = true;
+                  secondaryUploadError = null;
+                } else {
+                  uploadingPrimary = false;
+                  primaryUploadOk = true;
+                  primaryUploadError = null;
+                }
+              });
+            } catch (e) {
+              if (!ctx.mounted) return;
+              setDialogState(() {
+                if (secondary) {
+                  pickingSecondary = false;
+                  uploadingSecondary = false;
+                  secondaryUploadOk = false;
+                  secondaryUploadError = e.toString();
+                } else {
+                  pickingPrimary = false;
+                  uploadingPrimary = false;
+                  primaryUploadOk = false;
+                  primaryUploadError = e.toString();
+                }
+              });
+              _showSnack(
+                '${AppStrings.tr('item_image_upload_failed', widget.lang)}: $e',
+                error: true,
+              );
+            }
+          }
+
+          Widget imageUploadBlock({
+            required String title,
+            required TextEditingController ctrl,
+            required ({String name, Uint8List bytes})? pending,
+            required bool picking,
+            required bool uploading,
+            required bool uploadOk,
+            required String? uploadError,
+            required bool secondary,
+            required String urlLabel,
+          }) {
+            final previewUrl = ctrl.text.trim();
+            final resolved =
+                previewUrl.isEmpty ? '' : widget.api.resolveMediaUrl(previewUrl);
+            final busy = picking || uploading;
+            final hasPreview = pending != null || resolved.isNotEmpty;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                const SizedBox(height: 8),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: (saving || busy) ? null : () => pickCompressAndUpload(secondary: secondary),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: uploadError != null
+                              ? RegaColors.crimson
+                              : (uploadOk || hasPreview)
+                                  ? RegaColors.orange
+                                  : const Color(0xFFE2E8F0),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(13),
+                        child: AspectRatio(
+                          aspectRatio: 1.35,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              if (pending != null)
+                                Image.memory(
+                                  pending.bytes,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => _imagePlaceholder(),
+                                )
+                              else if (resolved.isNotEmpty)
+                                Image.network(
+                                  resolved,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => _imagePlaceholder(),
+                                )
+                              else
+                                _imagePlaceholder(),
+                              if (!hasPreview)
+                                Container(
+                                  color: const Color(0xAA0F172A),
+                                  alignment: Alignment.center,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.add_photo_alternate_rounded,
+                                        color: Colors.white,
+                                        size: 40,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        AppStrings.tr('item_image_tap_hint', widget.lang),
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              if (busy)
+                                Container(
+                                  color: const Color(0x880F172A),
+                                  alignment: Alignment.center,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const CircularProgressIndicator(color: Colors.white),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        picking
+                                            ? AppStrings.tr('item_image_compressing', widget.lang)
+                                            : AppStrings.tr('item_image_uploading', widget.lang),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: FilledButton.icon(
+                    onPressed: (saving || busy) ? null : () => pickCompressAndUpload(secondary: secondary),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: RegaColors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: busy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Icon(
+                            hasPreview ? Icons.sync_rounded : Icons.cloud_upload_rounded,
+                            size: 18,
+                          ),
+                    label: Text(
+                      busy
+                          ? (picking
+                              ? AppStrings.tr('item_image_compressing', widget.lang)
+                              : AppStrings.tr('item_image_uploading', widget.lang))
+                          : (hasPreview
+                              ? AppStrings.tr('item_image_change', widget.lang)
+                              : AppStrings.tr('item_image_pick', widget.lang)),
+                    ),
+                  ),
+                ),
+                if (uploadOk) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    AppStrings.tr('item_image_upload_ok', widget.lang),
+                    style: const TextStyle(
+                      color: RegaColors.emeraldDark,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
+                if (uploadError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    uploadError,
+                    style: const TextStyle(
+                      color: RegaColors.crimson,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 4),
+                Theme(
+                  data: Theme.of(ctx).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: EdgeInsets.zero,
+                    title: Text(
+                      urlLabel,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
+                    children: [
+                      TextField(
+                        controller: ctrl,
+                        enabled: !saving && !busy,
+                        onChanged: (_) => setDialogState(() {
+                          if (secondary) {
+                            secondaryUploadOk = false;
+                          } else {
+                            primaryUploadOk = false;
+                          }
+                        }),
+                        decoration: const InputDecoration(
+                          hintText: 'https://...',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }
+
+          final imageBusy = pickingPrimary ||
+              uploadingPrimary ||
+              pickingSecondary ||
+              uploadingSecondary;
+
+          return AlertDialog(
+            insetPadding: AdminBreakpoints.dialogInset(ctx),
+            title: Text(isEdit ? 'دەستکاریکردنی بەشی سەرەکی' : 'زیادکردنی بەشی نوێ بۆ ئەپی کڕیار'),
+            content: SizedBox(
+              width: AdminBreakpoints.dialogWidth(ctx, max: 460),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'وێنەی سەرەکی بۆ گریدی سەرەکی؛ وێنەی دووەم (sec) بۆ چیپ/ئایکۆن.',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: kuCtrl,
+                      enabled: !saving,
+                      decoration: InputDecoration(
+                        labelText: AppStrings.tr('section_name_ku', widget.lang),
+                        hintText: AppStrings.tr('section_name_ku_hint', widget.lang),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: arCtrl,
+                      enabled: !saving,
+                      decoration: InputDecoration(
+                        labelText: AppStrings.tr('section_name_ar', widget.lang),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: enCtrl,
+                      enabled: !saving,
+                      decoration: InputDecoration(labelText: AppStrings.tr('name_en_field', widget.lang)),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: orderCtrl,
+                      enabled: !saving,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'ڕیزبەندی (sort_order)',
+                        hintText: '1 = یەکەم خانە لە گرید',
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    imageUploadBlock(
+                      title: 'وێنەی سەرەکی (گرید)',
+                      ctrl: imgCtrl,
+                      pending: pendingImage,
+                      picking: pickingPrimary,
+                      uploading: uploadingPrimary,
+                      uploadOk: primaryUploadOk,
+                      uploadError: primaryUploadError,
+                      secondary: false,
+                      urlLabel: 'یان بەستەری وێنەی سەرەکی',
+                    ),
+                    const SizedBox(height: 16),
+                    imageUploadBlock(
+                      title: 'وێنەی دووەم / Sec image (چیپ)',
+                      ctrl: secImgCtrl,
+                      pending: pendingSecImage,
+                      picking: pickingSecondary,
+                      uploading: uploadingSecondary,
+                      uploadOk: secondaryUploadOk,
+                      uploadError: secondaryUploadError,
+                      secondary: true,
+                      urlLabel: 'یان بەستەری وێنەی دووەم (secondary_image_url)',
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'لە شاشەی سەرەکی ئەپی کڕیار دەرکەوێت',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                      value: featured,
+                      activeThumbColor: RegaColors.goldDark,
+                      onChanged: saving ? null : (v) => setDialogState(() => featured = v),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('بەش چالاکە', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                      value: active,
+                      onChanged: saving ? null : (v) => setDialogState(() => active = v),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: (saving || imageBusy) ? null : () => Navigator.pop(ctx),
+                child: Text(AppStrings.tr('cancel', widget.lang)),
+              ),
+              ElevatedButton(
+                onPressed: (saving || imageBusy)
+                    ? null
+                    : () async {
+                        if (kuCtrl.text.trim().isEmpty) {
+                          _showSnack('تکایە ناوی بەش بنووسە', error: true);
+                          return;
+                        }
+                        setDialogState(() => saving = true);
+                        try {
+                          final imageUrl =
+                              imgCtrl.text.trim().isEmpty ? null : imgCtrl.text.trim();
+                          final secUrl =
+                              secImgCtrl.text.trim().isEmpty ? null : secImgCtrl.text.trim();
+                          // Upload already happened on pick (same as products_screen).
+                          final payload = <String, dynamic>{
+                            'name_ku': kuCtrl.text.trim(),
+                            'name_en': enCtrl.text.trim().isEmpty ? kuCtrl.text.trim() : enCtrl.text.trim(),
+                            'name_ar': arCtrl.text.trim().isEmpty ? kuCtrl.text.trim() : arCtrl.text.trim(),
+                            'is_featured_home': featured,
+                            'is_active': active,
+                            'sort_order': int.tryParse(orderCtrl.text.trim()) ?? (_categories.length + 1),
+                            if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
+                            if (secUrl != null && secUrl.isNotEmpty) 'secondary_image_url': secUrl,
+                          };
+                          if (isEdit) {
+                            await widget.api.updateCategory(existing['id'] as int, payload);
+                          } else {
+                            await widget.api.createCategory(payload);
+                          }
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          _showSnack(
+                            isEdit
+                                ? 'بەش نوێکرایەوە ✅'
+                                : 'بەشی نوێ زیادکرا و لە ئەپی کڕیار دەردەکەوێت ✅',
+                          );
+                          _load();
+                        } catch (e) {
+                          setDialogState(() => saving = false);
+                          _showSnack(e.toString(), error: true);
+                        }
+                      },
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text(AppStrings.tr('save', widget.lang)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _imagePlaceholder() {
+    return Container(
+      color: const Color(0xFFF1F5F9),
+      alignment: Alignment.center,
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.image_outlined, size: 36, color: Colors.black38),
+          SizedBox(height: 6),
+          Text('وێنەی بەش', style: TextStyle(color: Colors.black45, fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -191,24 +717,50 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
   }
 
   void _confirmDeleteCategory(Map<String, dynamic> c) {
+    final storesCount = (c['stores_count'] as num?)?.toInt() ?? 0;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('سڕینەوەی بەشی ${c['name_ku']}'),
-        content: const Text('ئایا دڵنیایت لە سڕینەوەی ئەم بەشە؟'),
+        content: Text(
+          storesCount > 0
+              ? 'ئەم بەشە $storesCount فرۆشگای لەسەرە — ناتوانرێت بسڕدرێتەوە هەتا فرۆشگاکان بگۆڕدرێن. دەتوانیت چالاکی بکەیتەوە یان لە سەرەکی لاببەیت.'
+              : 'ئایا دڵنیایت لە سڕینەوەی ئەم بەشە؟ لە گریدی سەرەکی ئەپی کڕیار دەسڕێتەوە.',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: Colors.white),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              try {
-                await widget.api.deleteCategory(c['id'] as int);
-                _load();
-              } catch (_) {}
-            },
-            child: const Text('سڕینەوە'),
-          ),
+          if (storesCount == 0)
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: Colors.white),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  await widget.api.deleteCategory(c['id'] as int);
+                  _load();
+                  _showSnack('بەش سڕایەوە');
+                } catch (e) {
+                  _showSnack(e.toString(), error: true);
+                }
+              },
+              child: const Text('سڕینەوە'),
+            )
+          else
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  await widget.api.updateCategory(c['id'] as int, {
+                    'is_active': false,
+                    'is_featured_home': false,
+                  });
+                  _load();
+                  _showSnack('بەش ناچالاک کرا و لە سەرەکی لابرا');
+                } catch (e) {
+                  _showSnack(e.toString(), error: true);
+                }
+              },
+              child: const Text('ناچالاککردن'),
+            ),
         ],
       ),
     );
@@ -216,184 +768,356 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
 
   @override
   Widget build(BuildContext context) {
+    final headerTitle = switch (widget.mode) {
+      CatalogZonesMode.categories => 'بەشەکانی سەرەکی ئەپی کڕیار',
+      CatalogZonesMode.zones => 'گەڕەکەکانی کەلار',
+      CatalogZonesMode.both => AppStrings.tr('nav_zones', widget.lang),
+    };
+    final headerSubtitle = switch (widget.mode) {
+      CatalogZonesMode.categories => 'ناو و وێنەی بەش زیاد بکە — ڕاستەوخۆ لە شاشەی سەرەکی ئەپی کڕیار دەردەکەوێت',
+      CatalogZonesMode.zones => 'ڕێکخستنی گەڕەکەکانی کەلار و کرێی گەیاندن',
+      CatalogZonesMode.both => 'ڕێکخستنی گەڕەکەکانی کەلار و کرێی گەیاندن + بەشە سەرەکییەکانی ئەپی کڕیار',
+    };
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
           child: SectionHeader(
-            title: AppStrings.tr('nav_zones', widget.lang),
-            subtitle: 'ڕێکخستنی گەڕەکەکانی کەلار و کرێی گەیاندن + بەشە سەرەکییەکانی ئەپی کڕیار',
+            title: headerTitle,
+            subtitle: headerSubtitle,
           ),
         ),
-        TabBar(
-          controller: _tabCtrl,
-          tabs: [
-            Tab(text: '📍 گەڕەکەکانی کەلار (${_zones.length})'),
-            Tab(text: '🗂️ بەشەکانی بازاڕ (${_categories.length})'),
-          ],
-        ),
+        if (_hasTabs && _tabCtrl != null)
+          TabBar(
+            controller: _tabCtrl,
+            tabs: [
+              Tab(text: '📍 گەڕەکەکانی کەلار (${_zones.length})'),
+              Tab(text: '🗂️ بەشەکانی بازاڕ (${_categories.length})'),
+            ],
+          ),
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
                   ? ErrorRetryView(message: _error!, onRetry: _load)
-                  : TabBarView(
-                      controller: _tabCtrl,
-                      children: [
-                        // Zones Tab
-                        ListView(
-                          padding: const EdgeInsets.all(24),
+                  : _hasTabs && _tabCtrl != null
+                      ? TabBarView(
+                          controller: _tabCtrl,
                           children: [
-                            Align(
-                              alignment: AlignmentDirectional.centerEnd,
-                              child: ElevatedButton.icon(
-                                onPressed: () => _showZoneDialog(),
-                                icon: const Icon(Icons.add_location_alt_rounded, size: 18),
-                                label: const Text('زیادکردنی گەڕەکی نوێ'),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            ..._zones.map((raw) {
-                              final z = raw as Map<String, dynamic>;
-                              final active = z['is_active'] == true;
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: Card(
-                                  child: ListTile(
-                                    leading: CircleAvatar(
-                                      backgroundColor: RegaColors.gold.withValues(alpha: 0.22),
-                                      child: const Icon(Icons.location_on_rounded, color: Color(0xFF0F172A)),
-                                    ),
-                                    title: Text(
-                                      '${z['name_ku'] ?? ''} (${z['name_en'] ?? ''})',
-                                      style: const TextStyle(fontWeight: FontWeight.w800),
-                                    ),
-                                    subtitle: Text(
-                                      '⏱️ ${z['estimated_minutes'] ?? 25} خولەک  •  🏪 ${z['stores_count'] ?? 0} فرۆشگا  •  📦 ${z['orders_count'] ?? 0} داواکاری',
-                                    ),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                          decoration: BoxDecoration(
-                                            color: RegaColors.emerald.withValues(alpha: 0.14),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Text(
-                                            formatIqd(z['delivery_fee'] as num?, lang: widget.lang),
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w900,
-                                              color: RegaColors.emeraldDark,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Switch(
-                                          value: active,
-                                          onChanged: (v) async {
-                                            await widget.api.updateNeighborhood(z['id'] as int, {'is_active': v});
-                                            _load();
-                                          },
-                                        ),
-                                        IconButton(
-                                          onPressed: () => _showZoneDialog(existing: z),
-                                          icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
-                                        ),
-                                        IconButton(
-                                          onPressed: () => _confirmDeleteZone(z),
-                                          icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }),
+                            _buildZonesList(),
+                            _buildCategoriesList(),
                           ],
-                        ),
-
-                        // Categories Tab
-                        ListView(
-                          padding: const EdgeInsets.all(24),
-                          children: [
-                            Align(
-                              alignment: AlignmentDirectional.centerEnd,
-                              child: ElevatedButton.icon(
-                                onPressed: () => _showCategoryDialog(),
-                                icon: const Icon(Icons.add_box_rounded, size: 18),
-                                label: const Text('زیادکردنی بەشی نوێ'),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            ..._categories.map((raw) {
-                              final c = raw as Map<String, dynamic>;
-                              final active = c['is_active'] == true;
-                              final featured = c['is_featured_home'] == true;
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: Card(
-                                  child: ListTile(
-                                    leading: ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: SizedBox(
-                                        width: 48,
-                                        height: 48,
-                                        child: c['image_url'] != null
-                                            ? Image.network(
-                                                c['image_url'].toString(),
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (_, _, _) => const Icon(Icons.category_rounded),
-                                              )
-                                            : const Icon(Icons.category_rounded),
-                                      ),
-                                    ),
-                                    title: Text(
-                                      '${c['name_ku'] ?? ''} (${c['name_en'] ?? ''})',
-                                      style: const TextStyle(fontWeight: FontWeight.w800),
-                                    ),
-                                    subtitle: Text('🏪 ${c['stores_count'] ?? 0} فرۆشگا تۆمارکراوە'),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        FilterChip(
-                                          selected: featured,
-                                          selectedColor: RegaColors.gold.withValues(alpha: 0.3),
-                                          label: const Text('لە سەرەکی دەرکەوێت'),
-                                          onSelected: (v) async {
-                                            await widget.api.updateCategory(c['id'] as int, {'is_featured_home': v});
-                                            _load();
-                                          },
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Switch(
-                                          value: active,
-                                          onChanged: (v) async {
-                                            await widget.api.updateCategory(c['id'] as int, {'is_active': v});
-                                            _load();
-                                          },
-                                        ),
-                                        IconButton(
-                                          onPressed: () => _showCategoryDialog(existing: c),
-                                          icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
-                                        ),
-                                        IconButton(
-                                          onPressed: () => _confirmDeleteCategory(c),
-                                          icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }),
-                          ],
-                        ),
-                      ],
-                    ),
+                        )
+                      : _showCategories
+                          ? _buildCategoriesList()
+                          : _buildZonesList(),
         ),
       ],
     );
   }
-}
 
+  Widget _buildZonesList() {
+    final pad = AdminBreakpoints.pagePadH(context);
+    return ListView(
+      padding: EdgeInsets.all(pad),
+      children: [
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: ElevatedButton.icon(
+            onPressed: () => _showZoneDialog(),
+            icon: const Icon(Icons.add_location_alt_rounded, size: 18),
+            label: const Text('زیادکردنی گەڕەکی نوێ'),
+          ),
+        ),
+        const SizedBox(height: 14),
+        ..._zones.map((raw) {
+          final z = raw as Map<String, dynamic>;
+          final active = z['is_active'] == true;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Card(
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: RegaColors.gold.withValues(alpha: 0.22),
+                  child: const Icon(Icons.location_on_rounded, color: Color(0xFF0F172A)),
+                ),
+                title: Text(
+                  '${z['name_ku'] ?? ''} (${z['name_en'] ?? ''})',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle: Text(
+                  '⏱️ ${z['estimated_minutes'] ?? 25} خولەک  •  🏪 ${z['stores_count'] ?? 0} فرۆشگا  •  📦 ${z['orders_count'] ?? 0} داواکاری',
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: RegaColors.emerald.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        formatIqd(z['delivery_fee'] as num?, lang: widget.lang),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: RegaColors.emeraldDark,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Switch(
+                      value: active,
+                      onChanged: (v) async {
+                        await widget.api.updateNeighborhood(z['id'] as int, {'is_active': v});
+                        _load();
+                      },
+                    ),
+                    IconButton(
+                      onPressed: () => _showZoneDialog(existing: z),
+                      icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
+                    ),
+                    IconButton(
+                      onPressed: () => _confirmDeleteZone(z),
+                      icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildCategoriesList() {
+    final pad = AdminBreakpoints.pagePadH(context);
+    final narrow = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
+    return ListView(
+      padding: EdgeInsets.all(pad),
+      children: [
+        if (narrow) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: RegaColors.gold.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: RegaColors.gold.withValues(alpha: 0.35)),
+            ),
+            child: const Text(
+              'هەر بەشێک کە زیاد دەکەیت (ناو + وێنە) لە گریدی سەرەکی ئەپی کڕیار دەردەکەوێت، وەک خواردنگە و مارکێت.',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.35),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _showCategoryDialog(),
+              icon: const Icon(Icons.add_box_rounded, size: 18),
+              label: const Text('زیادکردنی بەشی نوێ'),
+            ),
+          ),
+        ] else
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: RegaColors.gold.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: RegaColors.gold.withValues(alpha: 0.35)),
+                  ),
+                  child: const Text(
+                    'هەر بەشێک کە زیاد دەکەیت (ناو + وێنە) لە گریدی سەرەکی ئەپی کڕیار دەردەکەوێت، وەک خواردنگە و مارکێت.',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.35),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: () => _showCategoryDialog(),
+                icon: const Icon(Icons.add_box_rounded, size: 18),
+                label: const Text('زیادکردنی بەشی نوێ'),
+              ),
+            ],
+          ),
+        const SizedBox(height: 16),
+        if (_categories.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: Text(
+                'هیچ بەشێک نییە — یەکەم بەش زیاد بکە بۆ ئەپی کڕیار',
+                style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black54),
+              ),
+            ),
+          )
+        else
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth > 900;
+              return Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                children: [
+                  for (var index = 0; index < _categories.length; index++)
+                    Builder(
+                      builder: (_) {
+                        final c = _categories[index] as Map<String, dynamic>;
+                        final active = c['is_active'] == true;
+                        final featured = c['is_featured_home'] == true;
+                        final cardWidth = wide ? (constraints.maxWidth - 14) / 2 : constraints.maxWidth;
+                        return SizedBox(
+                          width: cardWidth,
+                          child: Card(
+                            clipBehavior: Clip.antiAlias,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SizedBox(
+                                  height: 140,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      c['image_url'] != null
+                                          ? Image.network(
+                                              c['image_url'].toString(),
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) => Container(
+                                                color: const Color(0xFFE2E8F0),
+                                                child: const Icon(Icons.category_rounded, size: 40),
+                                              ),
+                                            )
+                                          : Container(
+                                              color: const Color(0xFFE2E8F0),
+                                              child: const Icon(Icons.category_rounded, size: 40),
+                                            ),
+                                      Positioned(
+                                        top: 8,
+                                        left: 8,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withValues(alpha: 0.55),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            '#${c['sort_order'] ?? (index + 1)}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      if (c['secondary_image_url'] != null &&
+                                          c['secondary_image_url'].toString().isNotEmpty)
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(10),
+                                            child: Image.network(
+                                              c['secondary_image_url'].toString(),
+                                              width: 40,
+                                              height: 40,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                                            ),
+                                          ),
+                                        ),
+                                      Align(
+                                        alignment: Alignment.bottomCenter,
+                                        child: Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                          color: const Color(0xFFFAC800),
+                                          child: Text(
+                                            c['name_ku']?.toString() ?? '',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 14,
+                                              color: Colors.black,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                                  child: Row(
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'بەرەو سەرەوە',
+                                        onPressed: index == 0 ? null : () => _moveCategory(index, -1),
+                                        icon: const Icon(Icons.arrow_upward_rounded, size: 20),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'بەرەو خوارەوە',
+                                        onPressed: index >= _categories.length - 1
+                                            ? null
+                                            : () => _moveCategory(index, 1),
+                                        icon: const Icon(Icons.arrow_downward_rounded, size: 20),
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          '🏪 ${c['stores_count'] ?? 0} فرۆشگا',
+                                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                      FilterChip(
+                                        selected: featured,
+                                        selectedColor: RegaColors.gold.withValues(alpha: 0.3),
+                                        label: const Text('سەرەکی', style: TextStyle(fontSize: 11)),
+                                        onSelected: (v) async {
+                                          await widget.api.updateCategory(
+                                            c['id'] as int,
+                                            {'is_featured_home': v},
+                                          );
+                                          _load();
+                                        },
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Switch(
+                                        value: active,
+                                        onChanged: (v) async {
+                                          await widget.api.updateCategory(c['id'] as int, {'is_active': v});
+                                          _load();
+                                        },
+                                      ),
+                                      IconButton(
+                                        tooltip: 'دەستکاری',
+                                        onPressed: () => _showCategoryDialog(existing: c),
+                                        icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'سڕینەوە',
+                                        onPressed: () => _confirmDeleteCategory(c),
+                                        icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              );
+            },
+          ),
+      ],
+    );
+  }
+}

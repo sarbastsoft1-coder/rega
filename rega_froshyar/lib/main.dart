@@ -1,21 +1,26 @@
-import 'dart:math';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import "package:flutter/foundation.dart";
-import 'package:google_fonts/google_fonts.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'vendor_api_service.dart';
+import 'blocked_account.dart';
+import 'online_drivers_map.dart';
+import 'assigned_driver_map.dart';
 import 'rega_mobile.dart';
+import 'image_compress_service.dart';
 import 'app/providers.dart';
 import 'app/app_router.dart';
 import 'state/vendor_nav_notifier.dart';
 import 'state/vendor_session_notifier.dart';
+import 'iraq_phone_formatter.dart';
 
 // ==============================================================================
 // 🔔 خزمەتگوزاری دەنگی موزیک و ئاگادارکردنەوە بۆ داواکارییە نوێیەکان (Order Sound Service)
@@ -78,12 +83,38 @@ const String kAppLogoFilePath = 'assets/logo.png';
 // 📌 فۆنتی سەرەکی ئەپ (Global Font Family)
 // فۆنتی دیاریکراو بۆ هەموو تێکست و بەشەکانی ئەپەکە: Noto Kufi Arabic
 // ==============================================================================
-const String kAppFontFamily = 'Noto Kufi Arabic';
+const String kAppFontFamily = 'NotoKufiArabic';
 
 
 class Trans {
+  static const String _prefKey = 'rega_vendor_lang';
   static final ValueNotifier<String> lang = ValueNotifier<String>('ku');
-  static void setLang(String l) => lang.value = l;
+
+  static Future<void> loadSavedLang() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_prefKey);
+      if (saved != null && (saved == 'ku' || saved == 'ar' || saved == 'en')) {
+        lang.value = saved;
+      }
+    } catch (e) {
+      debugPrint('Error loading vendor language: $e');
+    }
+  }
+
+  static Future<void> _persistLang(String l) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefKey, l);
+    } catch (e) {
+      debugPrint('Error saving vendor language: $e');
+    }
+  }
+
+  static void setLang(String l) {
+    lang.value = l;
+    _persistLang(l);
+  }
   static TextDirection get direction => lang.value == 'en' ? TextDirection.ltr : TextDirection.rtl;
 
   static String get(String key) {
@@ -148,6 +179,7 @@ class Trans {
      'زیادکردنی بەشی نوێ': {'en': 'Add New Category', 'ar': 'إضافة قسم جديد'},
      'تکایە ناوی ئەو بەشە بنووسە کە دەتەوێت زیادی بکەیت': {'en': 'Please enter the name of the category you want to add', 'ar': 'الرجاء إدخال اسم القسم الذي تريد إضافته'},
      'ناوی بەش': {'en': 'Category Name', 'ar': 'اسم القسم'},
+     'وێنەی بەش': {'en': 'Category Image', 'ar': 'صورة القسم'},
      'پاشگەزبونەوە': {'en': 'Cancel', 'ar': 'إلغاء'},
      'زیادکردن': {'en': 'Add', 'ar': 'إضافة'},
      'دەستکاریکردنی بەرهەم': {'en': 'Edit Product', 'ar': 'تعديل المنتج'},
@@ -156,10 +188,25 @@ class Trans {
      'بەشێک هەڵبژێرە': {'en': 'Select Category', 'ar': 'اختر القسم'},
      'نرخی ئاسایی *': {'en': 'Regular Price *', 'ar': 'السعر العادي *'},
      'نرخی دوای داشکان': {'en': 'Price after Discount', 'ar': 'السعر بعد الخصم'},
+     'داشکاندنی بەرهەم (٪)': {'en': 'Product Discount (%)', 'ar': 'خصم المنتج (%)'},
+     'بێ داشکاندن': {'en': 'No Discount', 'ar': 'بدون خصم'},
+     'نرخی دوای داشکاندن': {'en': 'Price after discount', 'ar': 'السعر بعد الخصم'},
+     'داشکاندنی دوکان': {'en': 'Store Discount', 'ar': 'خصم المتجر'},
+     'داشکاندن بۆ هەموو دوکانەکە': {'en': 'Discount for whole store', 'ar': 'خصم على كل المتجر'},
+     'داشکاندن بۆ بەرهەمێک': {'en': 'Discount for one product', 'ar': 'خصم على منتج واحد'},
+     'ڕێژەی داشکاندن هەڵبژێرە': {'en': 'Select discount percentage', 'ar': 'اختر نسبة الخصم'},
+     'جێبەجێکردنی داشکاندن': {'en': 'Apply Discount', 'ar': 'تطبيق الخصم'},
+     'لابردنی داشکاندنی دوکان': {'en': 'Remove store discount', 'ar': 'إزالة خصم المتجر'},
+     'داشکاندن بۆ هەموو بەرهەمەکان جێبەجێ دەکرێت': {'en': 'Discount will apply to all products', 'ar': 'سيتم تطبيق الخصم على كل المنتجات'},
      'وەسفی بەرهەم - کوردی (ئارەزوومەندانە)': {'en': 'Product Description - Kurdish (Optional)', 'ar': 'وصف المنتج - كردي (اختياري)'},
      'وەسفی بەرهەم - عەرەبی': {'en': 'Product Description - Arabic', 'ar': 'وصف المنتج - عربي'},
      'وێنەی بەرهەم': {'en': 'Product Image', 'ar': 'صورة المنتج'},
      'هەڵبژاردنی فایل': {'en': 'Choose File', 'ar': 'اختر ملف'},
+     'هەڵبژاردن و بارکردنی وێنە': {'en': 'Choose & upload image', 'ar': 'اختيار ورفع صورة'},
+     'گۆڕینی وێنە': {'en': 'Change image', 'ar': 'تغيير الصورة'},
+     'کرتە بکە بۆ هەڵبژاردنی وێنە': {'en': 'Tap to choose an image', 'ar': 'اضغط لاختيار صورة'},
+     'بارکردنی وێنە...': {'en': 'Uploading image...', 'ar': 'جاري رفع الصورة...'},
+     'بارکردنی وێنە سەرکەوتوو نەبوو': {'en': 'Image upload failed', 'ar': 'فشل رفع الصورة'},
      'هیچ فایلێک دیاری نەکراوە': {'en': 'No file selected', 'ar': 'لم يتم تحديد ملف'},
      'بەردەست': {'en': 'Available', 'ar': 'متاح'},
      'بەردەستە': {'en': 'Available', 'ar': 'متاح'},
@@ -174,15 +221,27 @@ class Trans {
      'چوونە ژوورەوە': {'en': 'Log In', 'ar': 'تسجيل الدخول'},
      'هێشتا نەبوویتە فرۆشیار لە ئەپی ڕێگا': {'en': 'Not a vendor in REGA App yet?', 'ar': 'لست بائعاً في تطبيق ريجا بعد؟'},
      'خۆت تۆمار بکە': {'en': 'Register', 'ar': 'سجل الآن'},
+     'تۆمارکردنی فرۆشگای نوێ': {'en': 'New Shop Registration', 'ar': 'تسجيل متجر جديد'},
+     'بۆ بەشداریکردن و کردنەوەی هەژماری فرۆشیار لە ڕێگا، تکایە پەیوەندی بە تیمی پشتگیرییەوە بکە لە ڕێگەی WhatsApp یان Telegram، یان سەردانی نووسینگەمان بکە.': {
+       'en': 'To join and open a seller account on REGA, please contact support via WhatsApp or Telegram, or visit our office.',
+       'ar': 'للمشاركة وفتح حساب بائع في ريجا، يرجى التواصل مع فريق الدعم عبر واتساب أو تيليجرام، أو زيارة مكتبنا.',
+     },
+     'باشە': {'en': 'OK', 'ar': 'حسناً'},
      'کراوەیە': {'en': 'Open', 'ar': 'مفتوح'},
      'داخراوە': {'en': 'Closed', 'ar': 'مغلق'},
+     'داخستن': {'en': 'Close', 'ar': 'إغلاق'},
+     'ڕادەستکردن بە شۆفێر': {
+       'en': 'Hand over to driver',
+       'ar': 'تسليم للسائق',
+     },
   };
 }
 
 String t(String key) => Trans.get(key);
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Trans.loadSavedLang();
   runApp(buildVendorProviders(child: const RegaVendorApp()));
 }
 
@@ -195,6 +254,9 @@ class RegaVendorApp extends StatefulWidget {
 
 class _RegaVendorAppState extends State<RegaVendorApp> {
   GoRouter? _router;
+  /// Keeps catalog/orders state alive across GoRouter shell rebuilds & tab changes.
+  final GlobalKey<_MainNavigationScreenState> _shellKey =
+      GlobalKey<_MainNavigationScreenState>();
 
   @override
   void didChangeDependencies() {
@@ -205,6 +267,7 @@ class _RegaVendorAppState extends State<RegaVendorApp> {
       shellBuilder: (context, tabIndex) {
         final s = context.watch<VendorSessionNotifier>();
         return MainNavigationScreen(
+          key: _shellKey,
           initialIndex: tabIndex,
           loginPhone: s.phone,
           loginPassword: s.password,
@@ -228,13 +291,7 @@ class _RegaVendorAppState extends State<RegaVendorApp> {
           routerConfig: router,
           theme: ThemeData(
             primarySwatch: Colors.orange,
-            fontFamily: GoogleFonts.notoKufiArabic().fontFamily,
-            textTheme: GoogleFonts.notoKufiArabicTextTheme(
-              ThemeData.light().textTheme,
-            ),
-            primaryTextTheme: GoogleFonts.notoKufiArabicTextTheme(
-              ThemeData.light().textTheme,
-            ),
+            fontFamily: 'NotoKufiArabic',
             useMaterial3: true,
             scaffoldBackgroundColor: const Color(0xFFF8F9FA),
           ),
@@ -266,8 +323,8 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _phoneController = TextEditingController(text: '07701112233');
-    _passwordController = TextEditingController(text: 'password123');
+    _phoneController = TextEditingController();
+    _passwordController = TextEditingController();
 
   }
 
@@ -288,9 +345,14 @@ class _LoginScreenState extends State<LoginScreen> {
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              padding: EdgeInsets.symmetric(
+                horizontal: RegaResponsive.pagePadding(context),
+                vertical: 24,
+              ),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 430),
+                constraints: BoxConstraints(
+                  maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 430),
+                ),
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -378,28 +440,33 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
+                      Directionality(
                         textDirection: TextDirection.ltr,
-                        decoration: InputDecoration(
-                          hintText: '0750 000 0000',
-                          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          prefixIcon: const Icon(Icons.phone_outlined, size: 18, color: Color(0xFF94A3B8)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFFEA580C), width: 1.8),
+                        child: TextField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
+                          inputFormatters: [IraqPhoneFormatter()],
+                          decoration: InputDecoration(
+                            hintText: IraqPhoneFormatter.hint,
+                            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            prefixIcon: const Icon(Icons.phone_outlined, size: 18, color: Color(0xFF94A3B8)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(color: Color(0xFFEA580C), width: 1.8),
+                            ),
                           ),
                         ),
                       ),
@@ -464,12 +531,34 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: double.infinity,
                         height: 54,
                         child: ElevatedButton(
-                          onPressed: () {
-                            context.read<VendorSessionNotifier>().login(
-                              phone: _phoneController.text,
-                              password: _passwordController.text,
-                            );
-                            context.go('/orders');
+                          onPressed: () async {
+                            try {
+                              final ok = await VendorApiService.instance.login(
+                                _phoneController.text,
+                                _passwordController.text,
+                              );
+                              if (!mounted) return;
+                              if (!ok) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('زانیاری چوونە ژوورەوە هەڵەیە')),
+                                );
+                                return;
+                              }
+                              await context.read<VendorSessionNotifier>().login(
+                                phone: _phoneController.text,
+                                password: _passwordController.text,
+                              );
+                              if (!mounted) return;
+                              context.go('/orders');
+                            } on AccountBlockedException catch (e) {
+                              if (!mounted) return;
+                              await BlockedAccountContacts.show(context, e);
+                            } catch (_) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('پەیوەندی سێرڤەر سەرکەوتوو نەبوو')),
+                              );
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFEA580C),
@@ -515,25 +604,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // 7. Register Button
+                      // 7. Register Button — opens support WhatsApp / Telegram dialog
                       SizedBox(
                         width: double.infinity,
                         height: 54,
                         child: OutlinedButton(
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                title: Text(t('تۆمارکردنی فرۆشگای نوێ'), style: const TextStyle(fontWeight: FontWeight.w900)),
-                                content: Text(t('بۆ بەشداریکردن و کردنەوەی هەژماری فرۆشیار لە ڕێگا، تکایە پەیوەندی بە تیمی پشتگیرییەوە بکە یان سەردانی نووسینگەمان بکە.')),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: Text(t('باشە'), style: const TextStyle(color: Color(0xFFEA580C), fontWeight: FontWeight.bold)),
-                                  ),
-                                ],
-                              ),
+                          onPressed: () async {
+                            final contacts = await VendorApiService.instance.fetchSupportContacts();
+                            if (!context.mounted) return;
+                            await BlockedAccountContacts.showSellerRegistrationDialog(
+                              context,
+                              contactMap: contacts,
+                              title: t('تۆمارکردنی فرۆشگای نوێ'),
+                              body: t('بۆ بەشداریکردن و کردنەوەی هەژماری فرۆشیار لە ڕێگا، تکایە پەیوەندی بە تیمی پشتگیرییەوە بکە لە ڕێگەی WhatsApp یان Telegram، یان سەردانی نووسینگەمان بکە.'),
+                              okLabel: t('باشە'),
                             );
                           },
                           style: OutlinedButton.styleFrom(
@@ -575,6 +659,7 @@ class Product {
   String name;
   String category;
   double price;
+  double costPrice;
   double? discountPrice;
   bool isAvailable;
   String? description;
@@ -586,6 +671,7 @@ class Product {
     required this.name,
     required this.category,
     required this.price,
+    this.costPrice = 0,
     this.discountPrice,
     this.isAvailable = true,
     this.description,
@@ -611,6 +697,12 @@ class Order {
   String? driverName;
   String? driverPhone;
   String? driverVehicle;
+  double? driverLat;
+  double? driverLng;
+  double? storeLat;
+  double? storeLng;
+  double? customerLat;
+  double? customerLng;
 
   Order({
     required this.id,
@@ -618,15 +710,21 @@ class Order {
     required this.total,
     required this.status,
     required this.timestamp,
-    this.customerName = 'محەمەد عەلی',
-    this.customerPhone = '0770 123 4567',
-    this.deliveryAddress = 'کەلار - گەڕەکی سیروان',
-    this.handoverPin = '4821',
+    this.customerName = '',
+    this.customerPhone = '',
+    this.deliveryAddress = '',
+    this.handoverPin = '',
     this.customerNotes,
     this.dbId,
     this.driverName,
     this.driverPhone,
     this.driverVehicle,
+    this.driverLat,
+    this.driverLng,
+    this.storeLat,
+    this.storeLng,
+    this.customerLat,
+    this.customerLng,
   });
 }
 
@@ -642,11 +740,10 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   late int _selectedIndex; 
-  bool _isOnline = true;
+  bool _isOnline = false;
   bool _soundEnabled = true;
   String _language = 'ku';
   String _businessName = t('فرۆشگا');
-  Timer? _simulationTimer;
   Timer? _backendPollTimer;
   final Set<int> _seenBackendOrderIds = {};
   
@@ -654,6 +751,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _language = Trans.lang.value;
     _initBackendVendorSync();
   }
 
@@ -668,7 +766,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   void dispose() {
-    _simulationTimer?.cancel();
     _backendPollTimer?.cancel();
     super.dispose();
   }
@@ -705,15 +802,35 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
-  Future<void> _initBackendVendorSync() async {
+  Future<void> _initBackendVendorSync({bool forceRelogin = false}) async {
     try {
-      if (widget.loginPhone != null && widget.loginPhone!.trim().isNotEmpty) {
-        await VendorApiService.instance.login(
-          widget.loginPhone!,
-          widget.loginPassword ?? 'password123',
-        );
+      final needsLogin = forceRelogin || !VendorApiService.instance.isAuthenticated;
+      if (needsLogin &&
+          widget.loginPhone != null &&
+          widget.loginPhone!.trim().isNotEmpty &&
+          widget.loginPassword != null &&
+          widget.loginPassword!.trim().length >= 6) {
+        try {
+          await VendorApiService.instance.login(
+            widget.loginPhone!,
+            widget.loginPassword!,
+          );
+        } on AccountBlockedException catch (e) {
+          if (!mounted) return;
+          await BlockedAccountContacts.show(context, e);
+          if (!mounted) return;
+          await context.read<VendorSessionNotifier>().logout();
+          if (!mounted) return;
+          context.go('/login');
+          return;
+        }
       } else {
         await VendorApiService.instance.ensureAuthenticated();
+      }
+
+      if (!VendorApiService.instance.isAuthenticated) {
+        debugPrint('Vendor backend sync skipped: not authenticated');
+        return;
       }
 
       final store = await VendorApiService.instance.fetchStoreProfile();
@@ -727,12 +844,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           _businessName = store['name_ku']?.toString() ?? _businessName;
           _isOnline = store['is_online'] == true;
         }
-        if (cats.isNotEmpty) {
+        // Replace catalog only when the API succeeded (non-null). Empty list is valid.
+        if (cats != null) {
           _categories
             ..clear()
-            ..addAll(cats.map((c) => (c as Map<String, dynamic>)['name_ku']?.toString() ?? '').where((s) => s.isNotEmpty));
+            ..addAll(cats
+                .map((c) => (c as Map<String, dynamic>)['name_ku']?.toString() ?? '')
+                .where((s) => s.isNotEmpty));
         }
-        if (prods.isNotEmpty) {
+        if (prods != null) {
           _products
             ..clear()
             ..addAll(prods.map((raw) {
@@ -740,12 +860,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               return Product(
                 id: '${p['id']}',
                 name: p['name_ku']?.toString() ?? '',
-                category: p['store_category']?['name_ku']?.toString() ?? (_categories.isNotEmpty ? _categories.first : 'گشتی'),
+                category: p['store_category']?['name_ku']?.toString() ??
+                    (_categories.isNotEmpty ? _categories.first : 'گشتی'),
                 price: ((p['price'] as num?) ?? 0).toDouble(),
+                costPrice: ((p['cost_price'] as num?) ?? 0).toDouble(),
                 discountPrice: (p['discount_price'] as num?)?.toDouble(),
                 isAvailable: p['is_available'] == true,
                 description: p['description_ku']?.toString(),
-                imageUrl: p['image_url']?.toString(),
+                imageUrl: () {
+                  final u = VendorApiService.instance.resolveMediaUrl(p['image_url']?.toString());
+                  return u.isEmpty ? null : u;
+                }(),
               );
             }));
         }
@@ -797,13 +922,23 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             timestamp: DateTime.tryParse(m['created_at']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
             customerName: m['customer_name']?.toString() ?? m['customer']?['name']?.toString() ?? 'کڕیار',
             customerPhone: m['customer_phone']?.toString() ?? m['customer']?['phone']?.toString() ?? '',
-            deliveryAddress: m['delivery_address']?.toString() ?? 'کەلار',
-            handoverPin: '0000',
+            deliveryAddress: m['delivery_address']?.toString() ?? '',
+            handoverPin: m['handover_pin']?.toString() ?? '',
             customerNotes: m['customer_notes']?.toString(),
             driverName: m['driver']?['name']?.toString(),
             driverPhone: m['driver']?['phone']?.toString(),
             driverVehicle: m['driver']?['driver_profile']?['plate_number']?.toString() ??
                 m['driver']?['driver_profile']?['motor_type']?.toString(),
+            driverLat: (m['driver_lat'] as num?)?.toDouble() ??
+                (m['driver']?['lat'] as num?)?.toDouble() ??
+                (m['driver']?['current_lat'] as num?)?.toDouble(),
+            driverLng: (m['driver_lng'] as num?)?.toDouble() ??
+                (m['driver']?['lng'] as num?)?.toDouble() ??
+                (m['driver']?['current_lng'] as num?)?.toDouble(),
+            storeLat: (m['store_lat'] as num?)?.toDouble(),
+            storeLng: (m['store_lng'] as num?)?.toDouble(),
+            customerLat: (m['customer_lat'] as num?)?.toDouble() ?? (m['delivery_lat'] as num?)?.toDouble(),
+            customerLng: (m['customer_lng'] as num?)?.toDouble() ?? (m['delivery_lng'] as num?)?.toDouble(),
           ),
         );
       }
@@ -849,10 +984,29 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   void _updateOrderStatus(String id, OrderStatus newStatus) {
+    final order = _orders.firstWhere((o) => o.id == id);
+    final dbId = order.dbId;
+
+    if (newStatus == OrderStatus.completed && dbId != null) {
+      VendorApiService.instance.handoverToDriver(dbId).then((res) {
+        if (!mounted) return;
+        final (ok, msg) = res;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: ok ? const Color(0xFF00894C) : const Color(0xFFE50010),
+          ),
+        );
+        if (ok) {
+          setState(() => order.status = OrderStatus.completed);
+          _syncVendorOrdersOnly(initialLoad: false);
+        }
+      });
+      return;
+    }
+
     setState(() {
-      final order = _orders.firstWhere((o) => o.id == id);
       order.status = newStatus;
-      final dbId = order.dbId;
       if (dbId != null) {
         if (newStatus == OrderStatus.preparing) {
           VendorApiService.instance.acceptOrder(dbId);
@@ -877,30 +1031,57 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     });
   }
 
-  void _addProduct(Product product) {
-    setState(() {
-      _products.add(product);
-      VendorApiService.instance.addProduct(
-        nameKu: product.name,
-        categoryName: product.category,
-        price: product.price.round(),
-        discountPrice: product.discountPrice?.round(),
-        descriptionKu: product.description,
-        imageUrl: product.imageUrl,
-        isAvailable: product.isAvailable,
-      ).then((saved) {
-        if (saved != null && mounted) _initBackendVendorSync();
-      });
-    });
+  Future<void> _addProduct(Product product) async {
+    setState(() => _products.add(product));
+    final saved = await VendorApiService.instance.addProduct(
+      nameKu: product.name,
+      categoryName: product.category,
+      price: product.price.round(),
+      costPrice: product.costPrice.round(),
+      discountPrice: product.discountPrice?.round(),
+      descriptionKu: product.description,
+      imageUrl: product.imageUrl,
+      isAvailable: product.isAvailable,
+    );
+    if (!mounted) return;
+    if (saved == null) {
+      setState(() => _products.removeWhere((p) => p.id == product.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('پاشەکەوتکردنی بەرهەم سەرکەوتوو نەبوو — تکایە دووبارە هەوڵ بدە', textAlign: TextAlign.center),
+          backgroundColor: Color(0xFFE50010),
+        ),
+      );
+      return;
+    }
+    // Reload from server so local IDs/images match persisted rows after leave/logout.
+    await _initBackendVendorSync();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('بەرهەم پاشەکەوت کرا', textAlign: TextAlign.center),
+        backgroundColor: Color(0xFF00894C),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
-  void _addCategory(String category) {
-    setState(() {
-      if (!_categories.contains(category)) {
-        _categories.add(category);
-        VendorApiService.instance.addCategory(category);
-      }
-    });
+  Future<void> _addCategory(String category, {String? imageUrl}) async {
+    if (_categories.contains(category)) return;
+    setState(() => _categories.add(category));
+    final id = await VendorApiService.instance.addCategory(category, imageUrl: imageUrl);
+    if (!mounted) return;
+    if (id == null) {
+      setState(() => _categories.remove(category));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('پاشەکەوتکردنی بەش سەرکەوتوو نەبوو — تکایە دووبارە هەوڵ بدە', textAlign: TextAlign.center),
+          backgroundColor: Color(0xFFE50010),
+        ),
+      );
+      return;
+    }
+    await _initBackendVendorSync();
   }
 
   void _deleteCategory(String category) {
@@ -922,6 +1103,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             nameKu: product.name,
             categoryName: product.category,
             price: product.price.round(),
+            costPrice: product.costPrice.round(),
             discountPrice: product.discountPrice?.round(),
             descriptionKu: product.description,
             imageUrl: product.imageUrl,
@@ -932,76 +1114,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     });
   }
 
-  void _simulateNewOrder({bool isAuto = false}) {
-    final randNum = Random().nextInt(9000) + 1000;
-    final id = 'RA-$randNum#';
-
-    final sampleItems = [
-      ['1x پیتزا مەرگەریتا', '1x ئاوی کانزایی'],
-      ['2x بەرگر گۆشت', '1x پەتاتەی فڕێندراو'],
-      ['1x کریسپی مریشک', '2x کۆکا کۆلا'],
-      ['1x پیتزا پێپەرۆنی', '1x سۆسی سیر'],
-    ];
-    final selectedMeal = sampleItems[Random().nextInt(sampleItems.length)];
-    final sampleCustomers = ['ئەحمەد فەرهاد', 'شەونم عەلی', 'هێمن قادر', 'ڕێزان کامەران', 'کاروان محەمەد'];
-    final customerName = sampleCustomers[Random().nextInt(sampleCustomers.length)];
-    final sampleAddresses = ['کەلار - گەڕەکی سیروان', 'کەلار - گەڕەکی شەهیدان', 'کەلار - گەڕەکی ڕزگاری', 'کەلار - شەقامی سەرەکی'];
-    final address = sampleAddresses[Random().nextInt(sampleAddresses.length)];
-    final sampleNotes = [
-      'تکایە پیتزاکە بە گەرمی بگات',
-      'سۆسی زیادەی لەگەڵ بێت تکایە',
-      'تکایە زەنگی دەرگا لێمەدەن، پەیوەندی بکەن',
-      'تکایە کەمێک برژاوتر بێت',
-      'بیبەری تیژی لەگەڵ نەبێت تکایە',
-    ];
-    final note = sampleNotes[Random().nextInt(sampleNotes.length)];
-
-    setState(() {
-      _orders.insert(0, Order(
-        id: id,
-        items: selectedMeal,
-        total: ((Random().nextInt(7) + 4) * 1500).toDouble(),
-        status: OrderStatus.pending,
-        timestamp: DateTime.now(),
-        customerName: customerName,
-        customerPhone: '0770 ${Random().nextInt(899) + 100} ${Random().nextInt(8999) + 1000}',
-        deliveryAddress: address,
-        handoverPin: '${Random().nextInt(8999) + 1000}',
-        customerNotes: note,
-      ));
-    });
-
-    // 🔔 لێدانی دەنگی ئاگادارکردنەوە لە مۆبایل کاتێک داواکاری نوێ هات
-    if (_soundEnabled) {
-      OrderSoundService.playNewOrderAlert(soundEnabled: _soundEnabled);
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.notifications_active, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  '${t('داواکارییەکی نوێ هات!')} ($id)',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: const Color(0xFFEA580C),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+  Future<void> _applyStoreWideDiscount(int percent) async {
+    final (ok, msg) = await VendorApiService.instance.applyStoreDiscount(percent);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, textAlign: TextAlign.center),
+        backgroundColor: ok ? const Color(0xFF00894C) : const Color(0xFFE50010),
+      ),
+    );
+    if (ok) {
+      await _initBackendVendorSync();
     }
   }
 
@@ -1017,7 +1140,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         language: Trans.lang.value,
         onLangChange: (val) { Trans.setLang(val); setState(() => _language = val); },
       ),
-      RevenueScreen(orders: _orders),
+      RevenueScreen(
+        orders: _orders,
+        onRefresh: () => _syncVendorOrdersOnly(initialLoad: false),
+      ),
       ProductsScreen(
         products: _products, 
         categories: _categories,
@@ -1027,13 +1153,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         onEdit: _editProduct,
         onAddCategory: _addCategory,
         onDeleteCategory: _deleteCategory,
+        onStoreDiscount: _applyStoreWideDiscount,
       ),
       OrdersScreen(
         orders: _orders,
         onUpdateStatus: _updateOrderStatus,
+        onOrdersChanged: () => _syncVendorOrdersOnly(initialLoad: false),
         onSimulate: () {
           if (_soundEnabled) {
-            VendorAudioService.instance.playNewOrderAlert();
+            OrderSoundService.playNewOrderAlert(soundEnabled: true);
           }
         },
       ),
@@ -1045,12 +1173,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
         appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(80),
+          preferredSize: Size.fromHeight(
+            MediaQuery.sizeOf(context).width < RegaBreakpoints.phone ? 118 : 80,
+          ),
           child: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
             automaticallyImplyLeading: false,
-            toolbarHeight: 80,
+            toolbarHeight: MediaQuery.sizeOf(context).width < RegaBreakpoints.phone ? 118 : 80,
             titleSpacing: 14,
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
@@ -1074,19 +1204,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
             title: SizedBox(
               width: double.infinity,
-              height: 52,
+              height: MediaQuery.sizeOf(context).width < RegaBreakpoints.phone ? 108 : 52,
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1080),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                      // Right Side in RTL (Start): Store Logo & Store Name
-                      Flexible(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final storeLeading = Flexible(
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -1142,10 +1266,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                             ),
                           ],
                         ),
-                      ),
+                      );
 
-                      // Left Side in RTL (End): Sound Toggle & Operational Switch
-                      Row(
+                      final actionTrailing = Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           // Sound Button
@@ -1195,6 +1318,26 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                                 color: _soundEnabled ? Colors.white : Colors.white70,
                                 size: 19,
                               ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Live GPS of online captains
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => const OnlineDriversMapPage()),
+                              );
+                            },
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.18),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
+                              ),
+                              child: const Icon(Icons.gps_fixed_rounded, color: Colors.white, size: 19),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -1251,24 +1394,51 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                             ),
                           ),
                         ],
-                      ),
-                    ],
-                  ),
+                      );
 
-                  // Center: App Logo (Only on tablets and wide screens so it doesn't overlap the store name on phones)
-                  if (MediaQuery.of(context).size.width >= 560)
-                    _buildTopLogo(),
-                ],
+                      if (constraints.maxWidth < RegaBreakpoints.phone) {
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(children: [storeLeading]),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: actionTrailing,
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              storeLeading,
+                              actionTrailing,
+                            ],
+                          ),
+                          if (MediaQuery.sizeOf(context).width >= 560) _buildTopLogo(),
+                        ],
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
           ),
         ),
-      ),
-    ),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1080),
-        child: screens[_selectedIndex],
+        child: IndexedStack(
+          index: _selectedIndex,
+          children: screens,
+        ),
       ),
     ),
     bottomNavigationBar: Container(
@@ -1335,7 +1505,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ),
       ),
     ),
-      ),
+    ),
     );
   }
 
@@ -1689,7 +1859,10 @@ void showFullScreenImageDialog(BuildContext context, {String? imageUrl, ImagePro
         textDirection: TextDirection.rtl,
         child: Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: (MediaQuery.sizeOf(ctx).width - RegaResponsive.dialogMaxWidth(ctx)) / 2,
+            vertical: 24,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1753,29 +1926,197 @@ void showFullScreenImageDialog(BuildContext context, {String? imageUrl, ImagePro
   );
 }
 
-class OrdersScreen extends StatelessWidget {
+class OrdersScreen extends StatefulWidget {
   final List<Order> orders;
   final Function(String, OrderStatus) onUpdateStatus;
   final VoidCallback onSimulate;
+  final VoidCallback? onOrdersChanged;
 
   const OrdersScreen({
     super.key,
     required this.orders,
     required this.onUpdateStatus,
     required this.onSimulate,
+    this.onOrdersChanged,
   });
+
+  @override
+  State<OrdersScreen> createState() => _OrdersScreenState();
+}
+
+class _OrdersScreenState extends State<OrdersScreen> {
+  List<Order> get orders => widget.orders;
+  Function(String, OrderStatus) get onUpdateStatus => widget.onUpdateStatus;
+  VoidCallback get onSimulate => widget.onSimulate;
+
+  List<Map<String, dynamic>> _drivers = [];
+  String? _selectedOrderId;
+  Timer? _driversTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDrivers();
+    _driversTimer = Timer.periodic(const Duration(seconds: 5), (_) => _loadDrivers());
+  }
+
+  @override
+  void dispose() {
+    _driversTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadDrivers() async {
+    final data = await VendorApiService.instance.fetchNearbyDrivers();
+    if (!mounted || data == null) return;
+    final list = (data['drivers'] as List<dynamic>? ?? [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    list.sort((a, b) {
+      final ao = a['is_online'] == true ? 0 : 1;
+      final bo = b['is_online'] == true ? 0 : 1;
+      if (ao != bo) return ao.compareTo(bo);
+      final ad = (a['distance_meters'] as num?)?.toDouble() ?? double.infinity;
+      final bd = (b['distance_meters'] as num?)?.toDouble() ?? double.infinity;
+      if (ad != bd) return ad.compareTo(bd);
+      final at = (a['today_orders'] as num?)?.toInt() ?? 0;
+      final bt = (b['today_orders'] as num?)?.toInt() ?? 0;
+      return at.compareTo(bt);
+    });
+    setState(() => _drivers = list);
+  }
+
+  Order? get _selectedOrder {
+    if (_selectedOrderId == null) return null;
+    for (final o in orders) {
+      if (o.id == _selectedOrderId) return o;
+    }
+    return null;
+  }
+
+  Future<void> _assignDriverToOrder(Order order, Map<String, dynamic> driver) async {
+    final dbId = order.dbId;
+    final driverUserId = (driver['user_id'] as num?)?.toInt();
+    if (dbId == null || driverUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('داواکاری یان ماتۆرسوار نادروستە'), backgroundColor: Color(0xFFE50010)),
+      );
+      return;
+    }
+    final (ok, msg, data) = await VendorApiService.instance.assignDriver(dbId, driverUserId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: ok ? const Color(0xFF00894C) : const Color(0xFFE50010)),
+    );
+    if (ok) {
+      final nested = data?['driver'] as Map<String, dynamic>?;
+      setState(() {
+        order.driverName = nested?['name']?.toString() ?? driver['name']?.toString() ?? order.driverName;
+        order.driverPhone = nested?['phone']?.toString() ?? driver['phone']?.toString() ?? order.driverPhone;
+      });
+      widget.onOrdersChanged?.call();
+    }
+  }
+
+  String _fmtDriverDistance(dynamic meters) {
+    final m = (meters as num?)?.toDouble();
+    if (m == null) return 'بێ GPS';
+    if (m < 1000) return '${m.round()} م';
+    return '${(m / 1000).toStringAsFixed(1)} کم';
+  }
+
+  Future<void> _showAssignDriverDialog(Order order) async {
+    setState(() => _selectedOrderId = order.id);
+    await _loadDrivers();
+    final drivers = List<Map<String, dynamic>>.from(_drivers);
+    drivers.sort((a, b) {
+      final ao = a['is_online'] == true ? 0 : 1;
+      final bo = b['is_online'] == true ? 0 : 1;
+      if (ao != bo) return ao.compareTo(bo);
+      final ad = (a['distance_meters'] as num?)?.toDouble() ?? double.infinity;
+      final bd = (b['distance_meters'] as num?)?.toDouble() ?? double.infinity;
+      return ad.compareTo(bd);
+    });
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: (MediaQuery.sizeOf(ctx).width - RegaResponsive.dialogMaxWidth(ctx, cap: 440)) / 2,
+            vertical: 24,
+          ),
+          title: Text('دیاریکردنی ماتۆرسوار بۆ ${order.id}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          content: SizedBox(
+            width: RegaResponsive.dialogMaxWidth(ctx, cap: 440),
+            height: 420,
+            child: drivers.isEmpty
+                ? const Center(child: Text('هیچ ماتۆرسوارێک بەردەست نییە'))
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'نزیکترین بۆ فرۆشگاکەت یەکەمە — ئەمڕۆ چەند داواکاری گەیاندوویەتی',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount: drivers.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (_, idx) {
+                            final d = drivers[idx];
+                            final online = d['is_online'] == true;
+                            final today = (d['today_deliveries'] as num?)?.toInt() ?? 0;
+                            final todayAssigned = (d['today_orders'] as num?)?.toInt() ?? 0;
+                            final near = idx == 0 && d['distance_meters'] != null ? ' · نزیکترین' : '';
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.two_wheeler_rounded, color: online ? const Color(0xFF16A34A) : Colors.grey),
+                              title: Text('${d['name'] ?? ''} (${d['driver_code'] ?? ''})$near', style: const TextStyle(fontWeight: FontWeight.w800)),
+                              subtitle: Text(
+                                '${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${_fmtDriverDistance(d['distance_meters'])}\n'
+                                'ئەمڕۆ: $today گەیاندن · $todayAssigned داواکاری • ${IraqPhoneFormatter.display((d['phone'] ?? '').toString())}',
+                              ),
+                              isThreeLine: true,
+                              trailing: ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white),
+                                onPressed: () async {
+                                  Navigator.pop(ctx);
+                                  await _assignDriverToOrder(order, d);
+                                },
+                                child: Text(online ? 'پێدان' : 'دیاریکردن'),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('داخستن'))),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final activeOrders = orders
         .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.rejected)
         .toList();
+    final onlineCount = _drivers.where((d) => d['is_online'] == true).length;
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1080),
+          constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
             children: [
               Padding(
@@ -1809,6 +2150,108 @@ class OrdersScreen extends StatelessWidget {
                   ],
                 ),
               ),
+              // Drivers strip (same idea as admin intake)
+              Container(
+                height: 148,
+                margin: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.two_wheeler_rounded, color: Color(0xFF16A34A), size: 20),
+                        const SizedBox(width: 6),
+                        const Expanded(
+                          child: Text('ماتۆرسوارەکان (نزیکترین یەکەم)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                        ),
+                        Text(
+                          '$onlineCount ئۆنلاین / ${_drivers.length}',
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF166534)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _selectedOrder == null
+                          ? 'سەرەتا داواکارییەک هەڵبژێرە، پاشان ماتۆرسوار دەست لێدە'
+                          : 'داواکاری هەڵبژێردراو: ${_selectedOrder!.id} — نزیکترین + ئەمڕۆ چەند گەیاندن',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: _selectedOrder == null ? Colors.grey.shade600 : const Color(0xFFEA580C),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: _drivers.isEmpty
+                          ? Center(child: Text('هیچ ماتۆرسوارێک نییە', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w700)))
+                          : ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _drivers.length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 8),
+                              itemBuilder: (_, idx) {
+                                final d = _drivers[idx];
+                                final online = d['is_online'] == true;
+                                final today = (d['today_deliveries'] as num?)?.toInt() ?? 0;
+                                final dist = _fmtDriverDistance(d['distance_meters']);
+                                return InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () async {
+                                    final order = _selectedOrder;
+                                    if (order == null) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('سەرەتا داواکارییەک هەڵبژێرە'),
+                                          backgroundColor: Color(0xFFEA580C),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    await _assignDriverToOrder(order, d);
+                                  },
+                                  child: Container(
+                                    width: 148,
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: online ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: online ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0)),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(Icons.two_wheeler_rounded, size: 18, color: online ? const Color(0xFF16A34A) : Colors.grey),
+                                        const Spacer(),
+                                        Text(
+                                          d['name']?.toString() ?? '—',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5),
+                                        ),
+                                        Text(
+                                          online ? 'ئۆنلاین · $dist' : 'ئۆفلاین · $dist',
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: online ? const Color(0xFF16A34A) : Colors.grey),
+                                        ),
+                                        Text(
+                                          'ئەمڕۆ: $today',
+                                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
               Expanded(
                 child: activeOrders.isEmpty
                     ? _buildEmptyState()
@@ -1834,7 +2277,7 @@ class OrdersScreen extends StatelessWidget {
                                 crossAxisCount: crossAxisCount,
                                 crossAxisSpacing: 10,
                                 mainAxisSpacing: 10,
-                                childAspectRatio: crossAxisCount == 3 ? 0.95 : 1.15,
+                                childAspectRatio: crossAxisCount == 3 ? 0.85 : 1.0,
                               ),
                               itemCount: activeOrders.length,
                               itemBuilder: (context, index) {
@@ -1869,13 +2312,19 @@ class OrdersScreen extends StatelessWidget {
     if (!idDisplay.endsWith('#') && !idDisplay.startsWith('#')) {
       idDisplay = '$idDisplay#';
     }
+    final selected = _selectedOrderId == order.id;
 
-    return Container(
+    return GestureDetector(
+      onTap: () => setState(() => _selectedOrderId = order.id),
+      child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFFFEDD5), width: 1.4),
+        border: Border.all(
+          color: selected ? const Color(0xFF16A34A) : const Color(0xFFFFEDD5),
+          width: selected ? 2 : 1.4,
+        ),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFFEA580C).withValues(alpha: 0.05),
@@ -1959,32 +2408,72 @@ class OrdersScreen extends StatelessWidget {
 
           // Items
           ...order.items.map((item) => _buildOrderItem(item)),
-          if (order.driverName != null && order.driverName!.trim().isNotEmpty)
-            Container(
+          GestureDetector(
+            onTap: () => _showAssignDriverDialog(order),
+            child: Container(
               margin: const EdgeInsets.symmetric(vertical: 6),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
+                color: (order.driverName != null && order.driverName!.trim().isNotEmpty)
+                    ? const Color(0xFFF0FDF4)
+                    : const Color(0xFFFEF2F2),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFBBF7D0)),
+                border: Border.all(
+                  color: (order.driverName != null && order.driverName!.trim().isNotEmpty)
+                      ? const Color(0xFFBBF7D0)
+                      : const Color(0xFFFECACA),
+                ),
               ),
               child: Row(
                 textDirection: TextDirection.rtl,
                 children: [
-                  const Icon(Icons.two_wheeler_rounded, size: 20, color: Color(0xFF16A34A)),
+                  Icon(
+                    Icons.two_wheeler_rounded,
+                    size: 20,
+                    color: (order.driverName != null && order.driverName!.trim().isNotEmpty)
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFFDC2626),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'شۆفێری گەیاندن: ${order.driverName} (${order.driverPhone ?? ""})',
+                      (order.driverName != null && order.driverName!.trim().isNotEmpty)
+                          ? 'ماتۆرسوار: ${order.driverName} (${IraqPhoneFormatter.display(order.driverPhone ?? "")})'
+                          : 'ماتۆرسوار: دیاری نەکراوە — کرتە بکە بۆ هەڵبژاردن',
                       textDirection: TextDirection.rtl,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF166534),
+                        color: (order.driverName != null && order.driverName!.trim().isNotEmpty)
+                            ? const Color(0xFF166534)
+                            : const Color(0xFFDC2626),
                       ),
                     ),
                   ),
+                  Icon(
+                    Icons.edit_rounded,
+                    size: 16,
+                    color: (order.driverName != null && order.driverName!.trim().isNotEmpty)
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFFDC2626),
+                  ),
                 ],
+              ),
+            ),
+          ),
+          if (order.driverName != null && order.driverName!.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AssignedDriverMap(
+                orderNumber: order.id,
+                storeLat: order.storeLat,
+                storeLng: order.storeLng,
+                customerLat: order.customerLat,
+                customerLng: order.customerLng,
+                initialDriverLat: order.driverLat,
+                initialDriverLng: order.driverLng,
+                driverName: order.driverName,
+                height: 170,
               ),
             ),
 
@@ -2031,10 +2520,32 @@ class OrdersScreen extends StatelessWidget {
 
           // Action buttons
           Row(
-            children: _buildActionButtons(context, order),
+            children: [
+              ..._buildActionButtons(context, order),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _showAssignDriverDialog(order),
+              icon: const Icon(Icons.two_wheeler_rounded, size: 17),
+              label: Text(
+                (order.driverName != null && order.driverName!.trim().isNotEmpty)
+                    ? 'گۆڕینی ماتۆرسوار'
+                    : 'ناردنی ماتۆرسوار',
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF16A34A),
+                side: const BorderSide(color: Color(0xFF16A34A)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -2382,11 +2893,9 @@ class OrdersScreen extends StatelessWidget {
       return [
         Expanded(
           child: _buildGreenButton(
-            label: 'ڕادەستکردن بە شۆفێر',
+            label: t('ڕادەستکردن بە شۆفێر'),
             icon: Icons.delivery_dining_outlined,
-            onTap: () {
-              _showPinDialog(context, order);
-            },
+            onTap: () => onUpdateStatus(order.id, OrderStatus.completed),
           ),
         ),
       ];
@@ -2406,11 +2915,11 @@ class OrdersScreen extends StatelessWidget {
         height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFEA580C), // REGA Prime Orange
+          color: const Color(0xFF16A34A),
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFEA580C).withValues(alpha: 0.28),
+              color: const Color(0xFF16A34A).withValues(alpha: 0.28),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -2473,389 +2982,6 @@ class OrdersScreen extends StatelessWidget {
     );
   }
 
-  void _showPinDialog(BuildContext context, Order order) {
-    final controller = TextEditingController();
-    String? errorMessage;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return Directionality(
-            textDirection: TextDirection.rtl,
-            child: Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x1F000000),
-                        blurRadius: 30,
-                        offset: Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Header with close button
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF7ED),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: const Color(0xFFFED7AA), width: 1.2),
-                                    ),
-                                    child: const Icon(
-                                      Icons.key_rounded,
-                                      color: Color(0xFFEA580C),
-                                      size: 24,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'ڕادەستکردنی داواکاری',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w900,
-                                          color: Color(0xFF1B2028),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'داواکاری ${order.id}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF7ED),
-                                  border: Border.all(color: const Color(0xFFFED7AA), width: 1.5),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: IconButton(
-                                  constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
-                                  padding: EdgeInsets.zero,
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    color: Color(0xFFEA580C),
-                                    size: 22,
-                                    shadows: [
-                                      Shadow(
-                                        color: Color(0x40EA580C),
-                                        blurRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                  onPressed: () => Navigator.pop(dialogCtx),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
-
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                            // Info Banner
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFF7ED),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: const Color(0xFFFED7AA)),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.security_rounded,
-                                    size: 20,
-                                    color: Color(0xFFEA580C),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'کۆدی ٤ ژمارەیی لە شۆفێر وەربگرە',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w900,
-                                            color: Color(0xFF9A3412),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          'کۆدەکەی شۆفێر: ${order.handoverPin}',
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFFEA580C),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            // PIN input box
-                            Text(
-                              'کۆدی PIN ی شۆفێر بنووسە:',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-
-                            TextField(
-                              controller: controller,
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.center,
-                              maxLength: 4,
-                              autofocus: true,
-                              style: const TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 16,
-                                color: Color(0xFFEA580C),
-                                fontFamily: 'monospace',
-                              ),
-                              decoration: InputDecoration(
-                                counterText: '',
-                                hintText: '••••',
-                                hintStyle: TextStyle(
-                                  letterSpacing: 12,
-                                  color: Colors.grey[400],
-                                  fontSize: 22,
-                                ),
-                                filled: true,
-                                fillColor: const Color(0xFFFFF7ED),
-                                contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide(
-                                    color: errorMessage != null ? const Color(0xFFE11D48) : const Color(0xFFFED7AA),
-                                    width: 1.5,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide(
-                                    color: errorMessage != null ? const Color(0xFFE11D48) : const Color(0xFFEA580C),
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                              onChanged: (val) {
-                                if (errorMessage != null) {
-                                  setDialogState(() {
-                                    errorMessage = null;
-                                  });
-                                }
-                              },
-                            ),
-
-                            if (errorMessage != null) ...[
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  const Icon(Icons.error_outline_rounded, color: Color(0xFFE11D48), size: 16),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      errorMessage!,
-                                      style: const TextStyle(
-                                        color: Color(0xFFE11D48),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-
-                            const SizedBox(height: 22),
-
-                            // Actions
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFEA580C), // REGA Prime Orange
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      final enteredPin = controller.text.trim();
-                                      if (enteredPin.isEmpty) {
-                                        setDialogState(() {
-                                          errorMessage = 'تکایە سەرەتا کۆدی PIN لە شۆفێر وەربگرە';
-                                        });
-                                        return;
-                                      }
-                                      if (order.dbId != null) {
-                                        VendorApiService.instance.verifyHandoverPin(order.dbId!, enteredPin).then((res) {
-                                          if (!res.$1) {
-                                            setDialogState(() => errorMessage = res.$2);
-                                            return;
-                                          }
-                                          Navigator.pop(dialogCtx);
-                                          onUpdateStatus(order.id, OrderStatus.completed);
-                                        });
-                                        return;
-                                      }
-                                      if (enteredPin != order.handoverPin) {
-                                        setDialogState(() {
-                                          errorMessage = 'کۆدی PIN هەڵەیە! تکایە کۆدی دروست وەربگرە';
-                                        });
-                                        return;
-                                      }
-
-                                      // Success
-                                      Navigator.pop(dialogCtx);
-                                      onUpdateStatus(order.id, OrderStatus.completed);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          behavior: SnackBarBehavior.floating,
-                                          backgroundColor: const Color(0xFF00894C),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          content: Directionality(
-                                            textDirection: TextDirection.rtl,
-                                            child: Row(
-                                              children: [
-                                                const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: Text(
-                                                    'داواکاری ${order.id} بە سەرکەوتوویی ڕادەستی شۆفێر کرا',
-                                                    style: const TextStyle(
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: 13,
-                                                    ),
-                                                    maxLines: 2,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    child: const Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.check_circle_outline, size: 20),
-                                        SizedBox(width: 6),
-                                        Flexible(
-                                          child: FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: Text(
-                                              'تەواو و ڕادەستکردن',
-                                              style: TextStyle(
-                                                fontSize: 14.5,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                              maxLines: 1,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  flex: 2,
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFE50010), // Red background
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                    ),
-                                    onPressed: () => Navigator.pop(dialogCtx),
-                                    child: const FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        'پاشگەزبوونەوە',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 0,
-                                        ),
-                                        maxLines: 1,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    ),
-  );
-}
 
   void _showOrderDetails(BuildContext context, Order order) {
     int hour12 = order.timestamp.hour % 12;
@@ -2914,7 +3040,9 @@ class OrdersScreen extends StatelessWidget {
             elevation: 16,
             insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
+              constraints: BoxConstraints(
+                maxWidth: (MediaQuery.sizeOf(dialogCtx).width - 32).clamp(0.0, 440.0),
+              ),
               child: SingleChildScrollView(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -2959,7 +3087,10 @@ class OrdersScreen extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 3),
-                              Row(
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
@@ -2976,7 +3107,6 @@ class OrdersScreen extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 6),
                                   Text(
                                     'تۆمارکراوە: $timeFormatted',
                                     style: TextStyle(
@@ -2995,55 +3125,6 @@ class OrdersScreen extends StatelessWidget {
                       const SizedBox(height: 10),
                       const Divider(height: 1, color: Color(0xFFEEEEEE)),
                       const SizedBox(height: 10),
-
-                      // Delivery PIN & Quick Info Box
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFFBEB),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFFDE68A)),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.vpn_key_rounded, size: 16, color: Color(0xFFB45309)),
-                                SizedBox(width: 5),
-                                Text(
-                                  'کۆدی PIN ی گەیاندن:',
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w900,
-                                    color: Color(0xFF92400E),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(7),
-                                border: Border.all(color: const Color(0xFFFCD34D)),
-                              ),
-                              child: Text(
-                                order.handoverPin,
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1,
-                                  color: Color(0xFF78350F),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 9),
 
                       // Customer & Delivery Information
                       Container(
@@ -3072,7 +3153,11 @@ class OrdersScreen extends StatelessWidget {
                                 const Text('مۆبایل: ', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.bold)),
                                 Directionality(
                                   textDirection: TextDirection.ltr,
-                                  child: Text(order.customerPhone, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1B2028))),
+                                  child: Text(
+                                    IraqPhoneFormatter.display(order.customerPhone),
+                                    textDirection: TextDirection.ltr,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1B2028)),
+                                  ),
                                 ),
                               ],
                             ),
@@ -3329,7 +3414,7 @@ class OrdersScreen extends StatelessWidget {
                             Expanded(
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFEA580C),
+                                  backgroundColor: const Color(0xFF16A34A),
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3339,7 +3424,7 @@ class OrdersScreen extends StatelessWidget {
                                   Navigator.pop(dialogCtx);
                                   onUpdateStatus(order.id, OrderStatus.preparing);
                                 },
-                                child: const Text('قبوڵ کردن', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
+                                child: Text(t('قبولکردن'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -3356,7 +3441,7 @@ class OrdersScreen extends StatelessWidget {
                                   Navigator.pop(dialogCtx);
                                   onUpdateStatus(order.id, OrderStatus.rejected);
                                 },
-                                child: const Text('ڕەتکردنەوە', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
+                                child: Text(t('ڕەتکردنەوە'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
                               ),
                             ),
                           ],
@@ -3365,7 +3450,7 @@ class OrdersScreen extends StatelessWidget {
                       ] else if (order.status == OrderStatus.preparing) ...[
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFEA580C),
+                            backgroundColor: const Color(0xFF16A34A),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3375,13 +3460,13 @@ class OrdersScreen extends StatelessWidget {
                             Navigator.pop(dialogCtx);
                             onUpdateStatus(order.id, OrderStatus.ready);
                           },
-                          child: const Text('ئامادەیە بۆ شۆفێر', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
+                          child: Text(t('ئامادەیە بۆ شۆفێر'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
                         ),
                         const SizedBox(height: 6),
                       ] else if (order.status == OrderStatus.ready) ...[
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFEA580C),
+                            backgroundColor: const Color(0xFF16A34A),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3389,9 +3474,9 @@ class OrdersScreen extends StatelessWidget {
                           ),
                           onPressed: () {
                             Navigator.pop(dialogCtx);
-                            _showPinDialog(context, order);
+                            onUpdateStatus(order.id, OrderStatus.completed);
                           },
-                          child: const Text('ڕادەستکردن بە شۆفێر (PIN)', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
+                          child: Text(t('ڕادەستکردن بە شۆفێر'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
                         ),
                         const SizedBox(height: 6),
                       ],
@@ -3407,9 +3492,9 @@ class OrdersScreen extends StatelessWidget {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: () => Navigator.pop(dialogCtx),
-                          child: const Text(
-                            'داخستن',
-                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900),
+                          child: Text(
+                            t('داخستن'),
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900),
                           ),
                         ),
                       ),
@@ -3431,8 +3516,9 @@ class ProductsScreen extends StatefulWidget {
   final Function(String) onDelete;
   final Function(Product) onAdd;
   final Function(Product) onEdit;
-  final Function(String) onAddCategory;
+  final void Function(String name, {String? imageUrl}) onAddCategory;
   final Function(String)? onDeleteCategory;
+  final Future<void> Function(int percent)? onStoreDiscount;
 
   const ProductsScreen({
     super.key, 
@@ -3444,6 +3530,7 @@ class ProductsScreen extends StatefulWidget {
     required this.onEdit,
     required this.onAddCategory,
     this.onDeleteCategory,
+    this.onStoreDiscount,
   });
 
   @override
@@ -3807,6 +3894,46 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                // Store-wide discount
+                GestureDetector(
+                  onTap: () => _showStoreDiscountDialog(context),
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: double.infinity,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFECACA), width: 1.5),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.local_offer_rounded, color: Color(0xFFE11D48), size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          t('داشکاندنی دوکان'),
+                          style: const TextStyle(
+                            color: Color(0xFFE11D48),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '(${t('داشکاندن بۆ هەموو دوکانەکە')})',
+                          style: TextStyle(
+                            color: Colors.red.shade300,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 14),
 
                 // Categories Filter Chips
@@ -3985,7 +4112,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 : LayoutBuilder(
                     builder: (context, constraints) {
                       final w = constraints.maxWidth;
-                      final crossAxisCount = w >= 980 ? 4 : (w >= 620 ? 3 : 2);
+                      final crossAxisCount = w >= 980 ? 4 : (w >= 620 ? 3 : (w >= 400 ? 2 : 1));
                       final childAspectRatio = w >= 620 ? 0.76 : 0.68;
                       return GridView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -4026,24 +4153,25 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   Widget _buildProductCard(BuildContext context, Product product) {
+    final resolvedUrl = VendorApiService.instance.resolveMediaUrl(product.imageUrl);
     ImageProvider imageProvider;
     if (!kIsWeb && product.imagePath != null && product.imagePath!.isNotEmpty) {
       try {
         final f = File(product.imagePath!);
         if (f.existsSync()) {
           imageProvider = FileImage(f);
-        } else if (product.imageUrl != null && product.imageUrl!.isNotEmpty) {
-          imageProvider = NetworkImage(product.imageUrl!);
+        } else if (resolvedUrl.isNotEmpty) {
+          imageProvider = NetworkImage(resolvedUrl);
         } else {
           imageProvider = const NetworkImage('https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&auto=format&fit=crop');
         }
       } catch (_) {
-        imageProvider = (product.imageUrl != null && product.imageUrl!.isNotEmpty)
-            ? NetworkImage(product.imageUrl!)
+        imageProvider = resolvedUrl.isNotEmpty
+            ? NetworkImage(resolvedUrl)
             : const NetworkImage('https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&auto=format&fit=crop');
       }
-    } else if (product.imageUrl != null && product.imageUrl!.isNotEmpty) {
-      imageProvider = NetworkImage(product.imageUrl!);
+    } else if (resolvedUrl.isNotEmpty) {
+      imageProvider = NetworkImage(resolvedUrl);
     } else {
       imageProvider = const NetworkImage('https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&auto=format&fit=crop');
     }
@@ -4243,83 +4371,261 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   void _showAddCategoryDialog(BuildContext context) {
     final categoryController = TextEditingController();
-    
+    String? localImagePath;
+    String? uploadedImageUrl;
+    Uint8List? previewBytes;
+    var imageBusy = false;
+    String? imageError;
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return Directionality(
-          textDirection: TextDirection.ltr,
-          child: Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Container(
-              padding: const EdgeInsets.all(18),
-              constraints: const BoxConstraints(maxWidth: 380),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(t('زیادکردنی بەشی نوێ'),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Directionality(
+              textDirection: TextDirection.ltr,
+              child: Dialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  constraints: BoxConstraints(
+                    maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 380.0),
                   ),
-                  const SizedBox(height: 6),
-                  Text(t('تکایە ناوی ئەو بەشە بنووسە کە دەتەوێت زیادی بکەیت'),
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildLabel(t('ناوی بەش')),
-                  _buildTextField(categoryController, 'بۆ نموونە: پیتزاکان'),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          child: Text(t('پاشگەزبونەوە'), style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(t('زیادکردنی بەشی نوێ'),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            if (categoryController.text.isNotEmpty) {
-                              widget.onAddCategory(categoryController.text);
-                              Navigator.pop(context);
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00C853),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            elevation: 0,
-                          ),
-                          child: Text(t('زیادکردن'),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13.5),
-                          ),
+                        const SizedBox(height: 6),
+                        Text(t('تکایە ناوی ئەو بەشە بنووسە کە دەتەوێت زیادی بکەیت'),
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        _buildLabel(t('ناوی بەش')),
+                        _buildTextField(categoryController, 'بۆ نموونە: پیتزاکان'),
+                        const SizedBox(height: 14),
+                        _buildLabel(t('وێنەی بەش')),
+                        _buildImagePicker(
+                          thumbnail: uploadedImageUrl,
+                          localImagePath: localImagePath,
+                          previewBytes: previewBytes,
+                          busy: imageBusy,
+                          errorText: imageError,
+                          onTap: imageBusy
+                              ? null
+                              : () => _pickCompressUploadProductImage(
+                                    setDialogState,
+                                    onBusy: (v) => imageBusy = v,
+                                    onError: (e) => imageError = e,
+                                    onResult: (path, url, bytes) {
+                                      localImagePath = path;
+                                      uploadedImageUrl = url;
+                                      previewBytes = bytes;
+                                    },
+                                  ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextButton(
+                                onPressed: imageBusy ? null : () => Navigator.pop(context),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                child: Text(t('پاشگەزبونەوە'), style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: imageBusy
+                                    ? null
+                                    : () {
+                                        final name = categoryController.text.trim();
+                                        if (name.isNotEmpty) {
+                                          widget.onAddCategory(name, imageUrl: uploadedImageUrl);
+                                          Navigator.pop(context);
+                                        }
+                                      },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF00C853),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  elevation: 0,
+                                ),
+                                child: Text(t('زیادکردن'),
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13.5),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
+    );
+  }
+
+  static const List<int> _discountPercents = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
+
+  int? _percentFromPrices(double price, double? discountPrice) {
+    if (discountPrice == null || discountPrice <= 0 || price <= 0 || discountPrice >= price) {
+      return null;
+    }
+    final raw = (((price - discountPrice) / price) * 100).round();
+    final snapped = ((raw / 5).round() * 5).clamp(5, 100);
+    return snapped;
+  }
+
+  double? _priceFromPercent(double price, int? percent) {
+    if (percent == null || percent <= 0 || price <= 0) return null;
+    final v = (price * (100 - percent) / 100).roundToDouble();
+    return v < price ? v : (price - 1).clamp(0, price);
+  }
+
+  Widget _buildDiscountPercentDropdown({
+    required int? value,
+    required ValueChanged<int?> onChanged,
+  }) {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int?>(
+          value: value,
+          isExpanded: true,
+          hint: Text(t('بێ داشکاندن'), style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+          items: [
+            DropdownMenuItem<int?>(
+              value: null,
+              child: Text(t('بێ داشکاندن'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            ),
+            ..._discountPercents.map(
+              (p) => DropdownMenuItem<int?>(
+                value: p,
+                child: Text('$p%', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+              ),
+            ),
+          ],
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  void _showStoreDiscountDialog(BuildContext context) {
+    int? selectedPercent = 10;
+    bool saving = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return Directionality(
+            textDirection: Trans.direction,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text(t('داشکاندنی دوکان'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              content: SizedBox(
+                width: (MediaQuery.sizeOf(ctx).width - 48).clamp(260.0, 360.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      t('داشکاندن بۆ هەموو بەرهەمەکان جێبەجێ دەکرێت'),
+                      style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600, height: 1.35),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildLabel(t('ڕێژەی داشکاندن هەڵبژێرە')),
+                    Container(
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: selectedPercent,
+                          isExpanded: true,
+                          items: _discountPercents
+                              .map((p) => DropdownMenuItem(value: p, child: Text('$p%', style: const TextStyle(fontWeight: FontWeight.w800))))
+                              .toList(),
+                          onChanged: (v) => setDialogState(() => selectedPercent = v ?? 10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(ctx),
+                  child: Text(t('پاشگەزبونەوە')),
+                ),
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          setDialogState(() => saving = true);
+                          await widget.onStoreDiscount?.call(0);
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        },
+                  child: Text(t('لابردنی داشکاندنی دوکان'), style: const TextStyle(color: Color(0xFFE11D48))),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE11D48),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          setDialogState(() => saving = true);
+                          await widget.onStoreDiscount?.call(selectedPercent ?? 10);
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        },
+                  child: Text(t('جێبەجێکردنی داشکاندن')),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
   void _showEditProductDialog(BuildContext context, Product product) {
     final nameController = TextEditingController(text: product.name);
     final priceController = TextEditingController(text: product.price.toInt().toString());
-    final discountPriceController = TextEditingController(text: product.discountPrice?.toInt().toString() ?? '');
+    final costController = TextEditingController(text: product.costPrice.toInt().toString());
     final descKuController = TextEditingController(text: product.id == '3' ? 'بەرگری گۆشتی فرێش لەگەڵ پەنیر و سەوزە' : '');
     final descArController = TextEditingController();
     String selectedCategory = product.category;
     String? localImagePath = product.imagePath;
+    String? uploadedImageUrl = product.imageUrl;
+    Uint8List? previewBytes;
+    var imageBusy = false;
+    String? imageError;
+    int? selectedDiscountPct = _percentFromPrices(product.price, product.discountPrice);
     
     showDialog(
       context: context,
@@ -4332,7 +4638,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 400),
+                  constraints: BoxConstraints(
+                    maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 400.0),
+                  ),
                   child: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -4397,36 +4705,80 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               ),
                               const SizedBox(height: 10),
                               
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        _buildLabel(t('نرخی ئاسایی *')),
-                                        _buildTextField(priceController, '7500'),
-                                      ],
+                              _buildLabel(t('نرخی کڕین (تێچوو) *')),
+                              _buildTextField(costController, '5000', onChanged: (_) => setDialogState(() {})),
+                              const SizedBox(height: 10),
+
+                              _buildLabel(t('نرخی فرۆشتن *')),
+                              _buildTextField(priceController, '7500', onChanged: (_) => setDialogState(() {})),
+                              Builder(
+                                builder: (_) {
+                                  final sell = double.tryParse(priceController.text) ?? 0;
+                                  final cost = double.tryParse(costController.text) ?? 0;
+                                  final gross = sell - cost;
+                                  if (sell <= 0) return const SizedBox.shrink();
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Text(
+                                      '${t('قازانجی سەرەتایی')}: ${gross.toInt()} د.ع',
+                                      style: TextStyle(
+                                        color: gross > 0 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12.5,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        _buildLabel(t('نرخی دوای داشکان')),
-                                        _buildTextField(discountPriceController, 'ئارەزوومەندانە', hintColor: Colors.teal[200]),
-                                      ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 10),
+
+                              _buildLabel('${t('داشکاندنی بەرهەم (٪)')} — ${t('داشکاندن بۆ بەرهەمێک')}'),
+                              _buildDiscountPercentDropdown(
+                                value: selectedDiscountPct,
+                                onChanged: (v) => setDialogState(() => selectedDiscountPct = v),
+                              ),
+                              Builder(
+                                builder: (_) {
+                                  final base = double.tryParse(priceController.text) ?? product.price;
+                                  final after = _priceFromPercent(base, selectedDiscountPct);
+                                  if (after == null) return const SizedBox.shrink();
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Text(
+                                      '${t('نرخی دوای داشکاندن')}: ${after.toInt()} د.ع  (−${selectedDiscountPct}%)',
+                                      style: const TextStyle(
+                                        color: Color(0xFF059669),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12.5,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  );
+                                },
                               ),
                               const SizedBox(height: 10),
                               
                               _buildLabel(t('وێنەی بەرهەم')),
                               _buildImagePicker(
-                                thumbnail: product.id == '3' ? 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=100' : null,
+                                thumbnail: uploadedImageUrl ??
+                                    (product.id == '3'
+                                        ? 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=100'
+                                        : product.imageUrl),
                                 localImagePath: localImagePath,
-                                onTap: () => _pickImage(setDialogState, (path) => localImagePath = path),
+                                previewBytes: previewBytes,
+                                busy: imageBusy,
+                                errorText: imageError,
+                                onTap: imageBusy
+                                    ? null
+                                    : () => _pickCompressUploadProductImage(
+                                          setDialogState,
+                                          onBusy: (v) => imageBusy = v,
+                                          onError: (e) => imageError = e,
+                                          onResult: (path, url, bytes) {
+                                            localImagePath = path;
+                                            uploadedImageUrl = url;
+                                            previewBytes = bytes;
+                                          },
+                                        ),
                               ),
                               const SizedBox(height: 10),
                               
@@ -4442,20 +4794,35 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 width: double.infinity,
                                 height: 42,
                                 child: ElevatedButton(
-                                  onPressed: () {
-                                    if (nameController.text.isNotEmpty) {
-                                      widget.onEdit(Product(
-                                        id: product.id,
-                                        name: nameController.text,
-                                        category: selectedCategory,
-                                        price: double.tryParse(priceController.text) ?? 0,
-                                        discountPrice: double.tryParse(discountPriceController.text),
-                                        isAvailable: product.isAvailable,
-                                        imagePath: localImagePath,
-                                      ));
-                                      Navigator.pop(context);
-                                    }
-                                  },
+                                  onPressed: imageBusy
+                                      ? null
+                                      : () {
+                                          if (nameController.text.isNotEmpty) {
+                                            final base = double.tryParse(priceController.text) ?? 0;
+                                            final cost = double.tryParse(costController.text) ?? 0;
+                                            if (cost < 0 || cost >= base) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('نرخی فرۆشتن دەبێت لە نرخی کڕین زیاتر بێت', textAlign: TextAlign.center),
+                                                  backgroundColor: Color(0xFFDC2626),
+                                                ),
+                                              );
+                                              return;
+                                            }
+                                            widget.onEdit(Product(
+                                              id: product.id,
+                                              name: nameController.text,
+                                              category: selectedCategory,
+                                              price: base,
+                                              costPrice: cost,
+                                              discountPrice: _priceFromPercent(base, selectedDiscountPct),
+                                              isAvailable: product.isAvailable,
+                                              imagePath: localImagePath,
+                                              imageUrl: uploadedImageUrl ?? product.imageUrl,
+                                            ));
+                                            Navigator.pop(context);
+                                          }
+                                        },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF00C853),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -4481,7 +4848,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
-  Future<void> _pickImage(StateSetter setDialogState, Function(String) onImagePicked) async {
+  Future<void> _pickCompressUploadProductImage(
+    StateSetter setDialogState, {
+    required void Function(bool busy) onBusy,
+    required void Function(String? error) onError,
+    required void Function(String? path, String url, Uint8List bytes) onResult,
+  }) async {
     final ImagePicker picker = ImagePicker();
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -4701,24 +5073,66 @@ class _ProductsScreenState extends State<ProductsScreen> {
   ),
 );
 
-    if (source != null) {
-      final XFile? image = await picker.pickImage(source: source);
-      if (image != null) {
-        setDialogState(() {
-          onImagePicked(image.path);
-        });
+    if (source == null) return;
+
+    final XFile? image = await picker.pickImage(source: source);
+    if (image == null) return;
+
+    setDialogState(() {
+      onBusy(true);
+      onError(null);
+    });
+    try {
+      final raw = await image.readAsBytes();
+      if (raw.isEmpty) {
+        throw Exception(t('بارکردنی وێنە سەرکەوتوو نەبوو'));
       }
+      final compressed = await ImageCompressService.compressForUpload(
+        name: image.name.isNotEmpty ? image.name : 'product.jpg',
+        bytes: Uint8List.fromList(raw),
+      );
+      final up = await VendorApiService.instance.uploadMedia(
+        compressed.bytes,
+        compressed.name,
+      );
+      final url = up['url']?.toString();
+      if (url == null || url.isEmpty) {
+        throw Exception(t('بارکردنی وێنە سەرکەوتوو نەبوو'));
+      }
+      if (!mounted) return;
+      setDialogState(() {
+        onResult(kIsWeb ? null : image.path, url, compressed.bytes);
+        onBusy(false);
+        onError(null);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setDialogState(() {
+        onBusy(false);
+        onError(e.toString());
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString(), textAlign: TextAlign.center),
+          backgroundColor: const Color(0xFFE50010),
+        ),
+      );
     }
   }
 
   void _showAddProductDialog(BuildContext context) {
     final nameController = TextEditingController();
     final priceController = TextEditingController();
-    final discountPriceController = TextEditingController();
+    final costController = TextEditingController();
     final descKuController = TextEditingController();
     final descArController = TextEditingController();
     String selectedCategory = widget.categories.isNotEmpty ? widget.categories.first : 'پیتزا';
     String? localImagePath;
+    String? uploadedImageUrl;
+    Uint8List? previewBytes;
+    var imageBusy = false;
+    String? imageError;
+    int? selectedDiscountPct;
     
     showDialog(
       context: context,
@@ -4731,7 +5145,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 380),
+                  constraints: BoxConstraints(
+                    maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 380.0),
+                  ),
                   child: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -4796,35 +5212,77 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               ),
                               const SizedBox(height: 10),
                               
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        _buildLabel(t('نرخی ئاسایی *')),
-                                        _buildTextField(priceController, '7500'),
-                                      ],
+                              _buildLabel(t('نرخی کڕین (تێچوو) *')),
+                              _buildTextField(costController, '5000', onChanged: (_) => setDialogState(() {})),
+                              const SizedBox(height: 10),
+
+                              _buildLabel(t('نرخی فرۆشتن *')),
+                              _buildTextField(priceController, '7500', onChanged: (_) => setDialogState(() {})),
+                              Builder(
+                                builder: (_) {
+                                  final sell = double.tryParse(priceController.text) ?? 0;
+                                  final cost = double.tryParse(costController.text) ?? 0;
+                                  final gross = sell - cost;
+                                  if (sell <= 0) return const SizedBox.shrink();
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Text(
+                                      '${t('قازانجی سەرەتایی')}: ${gross.toInt()} د.ع',
+                                      style: TextStyle(
+                                        color: gross > 0 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12.5,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        _buildLabel(t('نرخی دوای داشکان')),
-                                        _buildTextField(discountPriceController, 'ئارەزوومەندانە', hintColor: Colors.teal[200]),
-                                      ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 10),
+
+                              _buildLabel('${t('داشکاندنی بەرهەم (٪)')} — ${t('داشکاندن بۆ بەرهەمێک')}'),
+                              _buildDiscountPercentDropdown(
+                                value: selectedDiscountPct,
+                                onChanged: (v) => setDialogState(() => selectedDiscountPct = v),
+                              ),
+                              Builder(
+                                builder: (_) {
+                                  final base = double.tryParse(priceController.text) ?? 0;
+                                  final after = _priceFromPercent(base, selectedDiscountPct);
+                                  if (after == null) return const SizedBox.shrink();
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Text(
+                                      '${t('نرخی دوای داشکاندن')}: ${after.toInt()} د.ع  (−${selectedDiscountPct}%)',
+                                      style: const TextStyle(
+                                        color: Color(0xFF059669),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12.5,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  );
+                                },
                               ),
                               const SizedBox(height: 10),
                               
                               _buildLabel(t('وێنەی بەرهەم')),
                               _buildImagePicker(
+                                thumbnail: uploadedImageUrl,
                                 localImagePath: localImagePath,
-                                onTap: () => _pickImage(setDialogState, (path) => localImagePath = path),
+                                previewBytes: previewBytes,
+                                busy: imageBusy,
+                                errorText: imageError,
+                                onTap: imageBusy
+                                    ? null
+                                    : () => _pickCompressUploadProductImage(
+                                          setDialogState,
+                                          onBusy: (v) => imageBusy = v,
+                                          onError: (e) => imageError = e,
+                                          onResult: (path, url, bytes) {
+                                            localImagePath = path;
+                                            uploadedImageUrl = url;
+                                            previewBytes = bytes;
+                                          },
+                                        ),
                               ),
                               const SizedBox(height: 10),
                               
@@ -4840,19 +5298,34 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 width: double.infinity,
                                 height: 42,
                                 child: ElevatedButton(
-                                  onPressed: () {
-                                    if (nameController.text.isNotEmpty) {
-                                      widget.onAdd(Product(
-                                        id: DateTime.now().toString(),
-                                        name: nameController.text,
-                                        category: selectedCategory,
-                                        price: double.tryParse(priceController.text) ?? 0,
-                                        discountPrice: double.tryParse(discountPriceController.text),
-                                        imagePath: localImagePath,
-                                      ));
-                                      Navigator.pop(context);
-                                    }
-                                  },
+                                  onPressed: imageBusy
+                                      ? null
+                                      : () {
+                                          if (nameController.text.isNotEmpty) {
+                                            final base = double.tryParse(priceController.text) ?? 0;
+                                            final cost = double.tryParse(costController.text) ?? 0;
+                                            if (cost < 0 || cost >= base) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('نرخی فرۆشتن دەبێت لە نرخی کڕین زیاتر بێت', textAlign: TextAlign.center),
+                                                  backgroundColor: Color(0xFFDC2626),
+                                                ),
+                                              );
+                                              return;
+                                            }
+                                            widget.onAdd(Product(
+                                              id: DateTime.now().toString(),
+                                              name: nameController.text,
+                                              category: selectedCategory,
+                                              price: base,
+                                              costPrice: cost,
+                                              discountPrice: _priceFromPercent(base, selectedDiscountPct),
+                                              imagePath: localImagePath,
+                                              imageUrl: uploadedImageUrl,
+                                            ));
+                                            Navigator.pop(context);
+                                          }
+                                        },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF00C853),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -4883,27 +5356,35 @@ class _ProductsScreenState extends State<ProductsScreen> {
     child: Text(text, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.black)),
   );
   
-  Widget _buildTextField(TextEditingController controller, String hint, {int maxLines = 1, Color? hintColor}) => TextField(
-    controller: controller,
-    maxLines: maxLines,
-    textAlign: TextAlign.left,
-    style: const TextStyle(fontSize: 13),
-    decoration: InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(color: hintColor ?? Colors.grey[400], fontSize: 12),
-      filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey[200]!),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFF00C853)),
-      ),
-    ),
-  );
+  Widget _buildTextField(
+    TextEditingController controller,
+    String hint, {
+    int maxLines = 1,
+    Color? hintColor,
+    ValueChanged<String>? onChanged,
+  }) =>
+      TextField(
+        controller: controller,
+        maxLines: maxLines,
+        textAlign: TextAlign.left,
+        style: const TextStyle(fontSize: 13),
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: hintColor ?? Colors.grey[400], fontSize: 12),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.grey[200]!),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFF00C853)),
+          ),
+        ),
+      );
 
   Widget _buildDropdown({String? value, Function(String?)? onChanged}) => Container(
     height: 40,
@@ -4925,77 +5406,157 @@ class _ProductsScreenState extends State<ProductsScreen> {
     ),
   );
 
-  Widget _buildImagePicker({String? thumbnail, String? localImagePath, VoidCallback? onTap}) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: localImagePath != null
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.file(
-                    File(localImagePath),
-                    width: 28,
-                    height: 28,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_outlined, color: Colors.grey, size: 20),
-                  ),
-                )
-              : (thumbnail != null 
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: Image.network(
-                      thumbnail,
-                      width: 28,
-                      height: 28,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_outlined, color: Colors.grey, size: 20),
+  Widget _buildImagePicker({
+    String? thumbnail,
+    String? localImagePath,
+    Uint8List? previewBytes,
+    bool busy = false,
+    String? errorText,
+    VoidCallback? onTap,
+  }) {
+    Widget thumb;
+    if (previewBytes != null) {
+      thumb = Image.memory(
+        previewBytes,
+        width: 56,
+        height: 56,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
+      );
+    } else if (!kIsWeb && localImagePath != null && localImagePath.isNotEmpty) {
+      thumb = Image.file(
+        File(localImagePath),
+        width: 56,
+        height: 56,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
+      );
+    } else if (thumbnail != null && thumbnail.isNotEmpty) {
+      thumb = Image.network(
+        thumbnail,
+        width: 56,
+        height: 56,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
+      );
+    } else {
+      thumb = const Icon(Icons.add_photo_alternate_rounded, color: Color(0xFFEA580C), size: 28);
+    }
+
+    final hasImage = previewBytes != null ||
+        (localImagePath != null && localImagePath.isNotEmpty) ||
+        (thumbnail != null && thumbnail.isNotEmpty);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: busy ? null : onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Ink(
+              height: 120,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: errorText != null
+                      ? const Color(0xFFE11D48)
+                      : (hasImage ? const Color(0xFFEA580C) : const Color(0xFFFED7AA)),
+                  width: 1.5,
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (hasImage)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(11),
+                      child: SizedBox.expand(child: FittedBox(fit: BoxFit.cover, child: thumb)),
+                    )
+                  else
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        thumb,
+                        const SizedBox(height: 8),
+                        Text(
+                          t('کرتە بکە بۆ هەڵبژاردنی وێنە'),
+                          style: const TextStyle(
+                            color: Color(0xFF9A3412),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ],
                     ),
+                  if (busy)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0x880F172A),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      alignment: Alignment.center,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(color: Colors.white),
+                          const SizedBox(height: 8),
+                          Text(
+                            t('بارکردنی وێنە...'),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 42,
+          child: ElevatedButton.icon(
+            onPressed: busy ? null : onTap,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEA580C),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            icon: busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
-                : const Icon(Icons.image_outlined, color: Colors.grey, size: 20)),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              localImagePath != null ? localImagePath.split('/').last : (thumbnail != null ? 'Product_image.png' : t('هیچ فایلێک دیاری نەکراوە')), 
-              style: TextStyle(color: Colors.grey[600], fontSize: 11),
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.left,
+                : Icon(hasImage ? Icons.sync_rounded : Icons.cloud_upload_rounded, size: 18),
+            label: Text(
+              busy
+                  ? t('بارکردنی وێنە...')
+                  : (hasImage ? t('گۆڕینی وێنە') : t('هەڵبژاردن و بارکردنی وێنە')),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(t('هەڵبژاردنی فایل'),
-              style: const TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold, fontSize: 11),
-            ),
+        ),
+        if (errorText != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            errorText,
+            style: const TextStyle(color: Color(0xFFE11D48), fontWeight: FontWeight.w700, fontSize: 12),
           ),
         ],
-      ),
-    ),
-  );
+      ],
+    );
+  }
 }
 
 class RevenueScreen extends StatefulWidget {
   final List<Order> orders;
-  const RevenueScreen({super.key, required this.orders});
+  final Future<void> Function()? onRefresh;
+  const RevenueScreen({super.key, required this.orders, this.onRefresh});
 
   @override
   State<RevenueScreen> createState() => _RevenueScreenState();
@@ -5004,6 +5565,8 @@ class RevenueScreen extends StatefulWidget {
 class _RevenueScreenState extends State<RevenueScreen> {
   int _selectedTabIndex = 0; // 0: ئەمڕۆ, 1: ئەم هەفتەیە, 2: ئەم مانگە
   int? _selectedBarIndex;
+  Map<String, dynamic>? _analytics;
+  bool _analyticsLoading = false;
 
   String _formatAmount(num value) {
     final intVal = value.round();
@@ -5011,6 +5574,28 @@ class _RevenueScreenState extends State<RevenueScreen> {
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (Match m) => '${m[1]},',
     );
+  }
+
+  String get _apiPeriod => switch (_selectedTabIndex) {
+        1 => 'week',
+        2 => 'month',
+        _ => 'today',
+      };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnalytics();
+  }
+
+  Future<void> _loadAnalytics() async {
+    setState(() => _analyticsLoading = true);
+    final data = await VendorApiService.instance.fetchRevenueAnalytics(period: _apiPeriod);
+    if (!mounted) return;
+    setState(() {
+      _analytics = data;
+      _analyticsLoading = false;
+    });
   }
 
   @override
@@ -5098,9 +5683,10 @@ class _RevenueScreenState extends State<RevenueScreen> {
       });
     }
 
-    final double baseSales = filteredOrders.fold<double>(0.0, (sum, o) => sum + o.total);
-    final int baseOrders = filteredOrders.length;
-    const double commissionRate = 0.12;
+    final double baseSalesLocal = filteredOrders.fold<double>(0.0, (sum, o) => sum + o.total);
+    final int baseOrdersLocal = filteredOrders.length;
+    final api = _analytics;
+    final commissionRatePct = (api?['commission_rate'] as num?)?.toDouble() ?? 20.0;
 
     // Aggregate Top Selling Products dynamically from filtered orders
     final Map<String, int> productCountMap = {};
@@ -5138,16 +5724,28 @@ class _RevenueScreenState extends State<RevenueScreen> {
       };
     }).toList();
 
-    final totalSales = baseSales;
-    final commission = totalSales * commissionRate;
-    final netProfit = totalSales - commission;
-    final avgTicket = baseOrders > 0 ? (totalSales / baseOrders) : 0.0;
+    // Prefer backend realized profit-share: admin_owed = gross_profit × %
+    final totalSales = (api?['total_sales'] as num?)?.toDouble() ?? baseSalesLocal;
+    final commission = (api?['admin_owed'] as num?)?.toDouble() ??
+        (api?['admin_share'] as num?)?.toDouble() ??
+        0.0;
+    final netProfit = (api?['seller_share'] as num?)?.toDouble() ??
+        (api?['net_profit'] as num?)?.toDouble() ??
+        (totalSales - commission);
+    final baseOrders = (api?['completed_orders_count'] as num?)?.toInt() ?? baseOrdersLocal;
+    final avgTicket = baseOrders > 0
+        ? ((api?['avg_ticket'] as num?)?.toDouble() ?? (totalSales / baseOrders))
+        : 0.0;
     final growthText = baseOrders > 0 ? '+ ٪${(baseOrders * 3.2).toStringAsFixed(1)}' : '٪٠';
+    final todayAdminOwed = (api?['today_admin_owed'] as num?)?.toInt() ?? commission.round();
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.symmetric(
+          horizontal: RegaResponsive.pagePadding(context),
+          vertical: 12,
+        ),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1080),
@@ -5170,6 +5768,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   avgTicket: avgTicket,
                   growthText: growthText,
                   periodTitle: periodTitle,
+                  commissionRatePct: commissionRatePct,
+                  todayAdminOwed: todayAdminOwed,
+                  loading: _analyticsLoading,
                 ),
                 const SizedBox(height: 14),
 
@@ -5194,33 +5795,10 @@ class _RevenueScreenState extends State<RevenueScreen> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              t('داهاتی فرۆشیار'),
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF1E2024),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              t('شیکاری وردی فرۆش و قازانجەکانت'),
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF8E8E93),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        GestureDetector(
-          onTap: () {
+  final refreshButton = GestureDetector(
+          onTap: () async {
+            await widget.onRefresh?.call();
+            if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
@@ -5266,8 +5844,52 @@ class _RevenueScreenState extends State<RevenueScreen> {
               ],
             ),
           ),
-        ),
-      ],
+  );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final titleColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              t('داهاتی فرۆشیار'),
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF1E2024),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              t('شیکاری وردی فرۆش و قازانجەکانت'),
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF8E8E93),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        );
+
+        if (constraints.maxWidth < 600) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              titleColumn,
+              const SizedBox(height: 10),
+              Align(alignment: AlignmentDirectional.centerStart, child: refreshButton),
+            ],
+          );
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            titleColumn,
+            refreshButton,
+          ],
+        );
+      },
     );
   }
 
@@ -5305,6 +5927,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
             _selectedTabIndex = index;
             _selectedBarIndex = null;
           });
+          _loadAnalytics();
         },
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
@@ -5346,6 +5969,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
     required double avgTicket,
     required String growthText,
     required String periodTitle,
+    double commissionRatePct = 20,
+    int todayAdminOwed = 0,
+    bool loading = false,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -5491,16 +6117,55 @@ class _RevenueScreenState extends State<RevenueScreen> {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
-            child: Row(
-              children: [
-                _buildMetricCol(t('کۆی فرۆش'), '${_formatAmount(totalSales)} د.ع', const Color(0xFF1E2024)),
-                Container(width: 1, height: 22, color: const Color(0xFFE5E7EB)),
-                _buildMetricCol(t('کۆمیسیۆن (١٢٪)'), '${_formatAmount(commission)}- د.ع', const Color(0xFFD84315)),
-                Container(width: 1, height: 22, color: const Color(0xFFE5E7EB)),
-                _buildMetricCol(t('داواکارییەکان'), '$ordersCount دانە', const Color(0xFF1E2024)),
-                Container(width: 1, height: 22, color: const Color(0xFFE5E7EB)),
-                _buildMetricCol(t('تێکڕای فرۆش'), '${_formatAmount(avgTicket)} د.ع', const Color(0xFFEA580C)),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                Widget divider() => Container(width: 1, height: 22, color: const Color(0xFFE5E7EB));
+                final sales = _buildMetricCol(t('کۆی فرۆش'), '${_formatAmount(totalSales)} د.ع', const Color(0xFF1E2024));
+                final commissionCol = _buildMetricCol(
+                  'قەرزی ئەدمین (${commissionRatePct.toStringAsFixed(0)}٪)',
+                  '${_formatAmount(commission)}- د.ع',
+                  const Color(0xFFD84315),
+                );
+                final orders = _buildMetricCol(t('داواکارییەکان'), '$ordersCount دانە', const Color(0xFF1E2024));
+                final avg = _buildMetricCol(t('تێکڕای فرۆش'), '${_formatAmount(avgTicket)} د.ع', const Color(0xFFEA580C));
+
+                if (constraints.maxWidth < 600) {
+                  return Column(
+                    children: [
+                      Row(children: [sales, divider(), commissionCol]),
+                      const SizedBox(height: 8),
+                      Row(children: [orders, divider(), avg]),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    sales,
+                    divider(),
+                    commissionCol,
+                    divider(),
+                    orders,
+                    divider(),
+                    avg,
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFECFDF5),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF86EFAC)),
+            ),
+            child: Text(
+              loading
+                  ? 'بارکردنی حیسابی قازانج…'
+                  : 'ئەمڕۆ پێویستە بدرێت بە ئەدمین: ${_formatAmount(todayAdminOwed)} د.ع  (لەسەر قازانج، نەک فرۆش)',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF166534)),
             ),
           ),
         ],
@@ -5608,20 +6273,23 @@ class _RevenueScreenState extends State<RevenueScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              // Value Badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFFED7AA)),
-                ),
-                child: Text(
-                  highlightText,
-                  style: const TextStyle(
-                    color: Color(0xFFEA580C),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFED7AA)),
+                  ),
+                  child: Text(
+                    highlightText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFEA580C),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ),
@@ -5711,46 +6379,61 @@ class _RevenueScreenState extends State<RevenueScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF3E0),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.workspace_premium, color: Color(0xFFF06400), size: 18),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final titleRow = Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        t('پڕداهاتترین بەرهەمەکان'),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 13.5,
-                          color: Color(0xFF1E2024),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    child: const Icon(Icons.workspace_premium, color: Color(0xFFF06400), size: 18),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      t('پڕداهاتترین بەرهەمەکان'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13.5,
+                        color: Color(0xFF1E2024),
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
+                  ),
+                ],
+              );
+              final subtitle = Text(
                 t('بەپێی کۆی فرۆش'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFF8E8E93),
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
-              ),
-            ],
+              );
+              if (constraints.maxWidth < RegaBreakpoints.phone) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleRow,
+                    const SizedBox(height: 4),
+                    subtitle,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: titleRow),
+                  const SizedBox(width: 6),
+                  Flexible(child: subtitle),
+                ],
+              );
+            },
           ),
 
           const SizedBox(height: 16),
@@ -5834,6 +6517,8 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   children: [
                     Text(
                       item['name'],
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 13.5,
@@ -5843,6 +6528,8 @@ class _RevenueScreenState extends State<RevenueScreen> {
                     const SizedBox(height: 2),
                     Text(
                       '${item['category']} • ${item['sold']} دانە فرۆشراوە',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 11,
                         color: Color(0xFF6B7280),
@@ -5854,15 +6541,17 @@ class _RevenueScreenState extends State<RevenueScreen> {
               ),
 
               // Revenue
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: AlignmentDirectional.centerEnd,
-                child: Text(
-                  '${_formatAmount(item['revenue'])} د.ع',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13,
-                    color: Color(0xFFEA580C),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: Text(
+                    '${_formatAmount(item['revenue'])} د.ع',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                      color: Color(0xFFEA580C),
+                    ),
                   ),
                 ),
               ),
@@ -6424,9 +7113,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             
             // 5. Logout Button
             ElevatedButton.icon(
-              onPressed: () {
-                context.read<VendorSessionNotifier>().logout();
-                context.go('/login');
+              onPressed: () async {
+                await context.read<VendorSessionNotifier>().logout();
+                if (context.mounted) context.go('/login');
               }, 
               icon: const Icon(Icons.logout, color: Colors.white, size: 20),
               label: Text(
