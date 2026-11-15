@@ -23,3 +23,4 @@ cd "$ROOT_DIR/rega_delivery"
 flutter build web --release
 
 echo "=== All 4 REGA Web Apps Built Successfully! ==="
+

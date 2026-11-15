@@ -64,3 +64,4 @@ php artisan route:clear
 
 echo "=== REGA Backend Ready on Port 8001 ==="
 exec "$@"
+

@@ -194,3 +194,4 @@ else
   echo "  journalctl -u rega.service -f"
 fi
 echo -e "${GREEN}====================================================${NC}"
+
