@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'blocked_account.dart';
 import 'rega_mobile.dart';
 
+import 'rega_i18n.dart';
 class DriverApiService {
   DriverApiService._();
   static final DriverApiService instance = DriverApiService._();
@@ -56,7 +57,7 @@ class DriverApiService {
           .timeout(const Duration(seconds: 5));
 
       if (res.statusCode == 403) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         if (body['code']?.toString() == 'account_blocked') {
           await logout();
           throw AccountBlockedException.fromBody(body);
@@ -64,7 +65,7 @@ class DriverApiService {
       }
 
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         final tok = body['data']?['token']?.toString();
         if (tok != null && tok.isNotEmpty) {
           _token = tok;
@@ -100,7 +101,7 @@ class DriverApiService {
           .get(Uri.parse('$baseUrl/driver/profile'), headers: _headers())
           .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>?;
       }
     } catch (_) {}
@@ -128,7 +129,7 @@ class DriverApiService {
           )
           .timeout(const Duration(seconds: 8));
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         final data = body['data'];
         if (data is Map<String, dynamic>) return data;
         // Some responses nest profile under data.driver / data.profile.
@@ -167,7 +168,7 @@ class DriverApiService {
           .get(Uri.parse('$baseUrl/driver/orders/active'), headers: _headers())
           .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>?;
       }
     } catch (_) {}
@@ -183,7 +184,7 @@ class DriverApiService {
           )
           .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as List<dynamic>? ?? [];
       }
     } catch (_) {}
@@ -200,7 +201,7 @@ class DriverApiService {
           )
           .timeout(const Duration(seconds: 5));
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>?;
       }
     } catch (_) {}
@@ -215,7 +216,7 @@ class DriverApiService {
             headers: _headers(),
           )
           .timeout(const Duration(seconds: 5));
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(res.body) as Map<String, dynamic>;
       if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true) {
         return (true, body['message']?.toString());
       }
@@ -234,7 +235,7 @@ class DriverApiService {
           )
           .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>?;
       }
     } catch (_) {}

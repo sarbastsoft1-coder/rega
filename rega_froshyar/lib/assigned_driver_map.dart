@@ -9,6 +9,8 @@ import 'package:latlong2/latlong.dart';
 import 'map/mapbox_tiles.dart';
 import 'rega_mobile.dart';
 
+import 'rega_i18n.dart';
+import 'rega_colors.dart';
 /// Compact live map: store + customer + assigned driver GPS for one order.
 /// Never invents fake places — markers only appear when real coords exist.
 class AssignedDriverMap extends StatefulWidget {
@@ -139,11 +141,11 @@ class _AssignedDriverMapState extends State<AssignedDriverMap> {
           height: 34,
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFFEA580C),
+              color: RC.bg(Color(0xFFEA580C)),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
+              border: Border.all(color: RC.bg(Colors.white), width: 2),
             ),
-            child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 16),
+            child: Icon(Icons.storefront_rounded, color: RC.fg(Colors.white), size: 16),
           ),
         ),
       if (customer != null)
@@ -153,11 +155,11 @@ class _AssignedDriverMapState extends State<AssignedDriverMap> {
           height: 34,
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF2563EB),
+              color: RC.bg(Color(0xFF2563EB)),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
+              border: Border.all(color: RC.bg(Colors.white), width: 2),
             ),
-            child: const Icon(Icons.home_rounded, color: Colors.white, size: 16),
+            child: Icon(Icons.home_rounded, color: RC.fg(Colors.white), size: 16),
           ),
         ),
       if (driver != null)
@@ -171,15 +173,15 @@ class _AssignedDriverMapState extends State<AssignedDriverMap> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: _live ? const Color(0xFF064E3B) : const Color(0xFF334155),
+                  color: _live ? RC.bg(Color(0xFF064E3B)) : RC.bg(Color(0xFF334155)),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  widget.driverName?.isNotEmpty == true ? widget.driverName! : 'شۆفێر',
+                  tx(widget.driverName?.isNotEmpty == true ? widget.driverName! : 'شۆفێر'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: RC.fg(Colors.white),
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
                   ),
@@ -190,11 +192,11 @@ class _AssignedDriverMapState extends State<AssignedDriverMap> {
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF16A34A),
+                  color: RC.bg(Color(0xFF16A34A)),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(color: RC.bg(Colors.white), width: 2),
                 ),
-                child: const Icon(Icons.two_wheeler_rounded, color: Colors.white, size: 15),
+                child: Icon(Icons.two_wheeler_rounded, color: RC.fg(Colors.white), size: 15),
               ),
             ],
           ),
@@ -239,7 +241,7 @@ class _AssignedDriverMapState extends State<AssignedDriverMap> {
                       Polyline(
                         points: [store, driver, customer],
                         strokeWidth: 3.5,
-                        color: const Color(0xFF16A34A),
+                        color: RC.bg(Color(0xFF16A34A)),
                       ),
                     ],
                   ),
@@ -250,16 +252,16 @@ class _AssignedDriverMapState extends State<AssignedDriverMap> {
         ),
         const SizedBox(height: 6),
         Text(
-          _live
+          tx(_live
               ? 'شوێنی شۆفێر زیندووە ${_status.isNotEmpty ? "• $_status" : ""}'
               : (hasDriver
                   ? 'دوایین شوێنی شۆفێر ${_status.isNotEmpty ? "• $_status" : ""}'
-                  : 'چاوەڕوانی GPSی ڕاستەقینەی شۆفێر...'),
+                  : 'چاوەڕوانی GPSی ڕاستەقینەی شۆفێر...')),
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w800,
-            color: _live ? const Color(0xFF166534) : const Color(0xFF64748B),
+            color: _live ? RC.bg(Color(0xFF166534)) : RC.bg(Color(0xFF64748B)),
           ),
         ),
       ],

@@ -13,6 +13,23 @@ class AdminBreakpoints {
   /// Wide desktop — fixed sidebar + multi-column charts.
   static const double desktop = 1100;
 
+  /// Typical laptop (1280–1440). Below this the sidebar starts collapsed (icon rail).
+  static const double laptop = 1280;
+
+  /// Large laptop / external monitor — wider sidebar, roomier padding.
+  static const double wide = 1600;
+
+  /// Pages stop stretching past this width on 1920px+ / ultrawide monitors.
+  static const double contentMaxWidth = 1760;
+
+  /// Sidebar sizes: icon rail, normal laptop, large monitor.
+  static const double sidebarRail = 76;
+  static const double sidebarNormal = 225;
+  static const double sidebarWide = 256;
+
+  static bool isLaptopOrWider(BuildContext context) =>
+      MediaQuery.sizeOf(context).width >= laptop;
+
   /// KPI cards: 2 columns between these widths; 4 columns above [kpiFourCol].
   static const double kpiTwoCol = 560;
   static const double kpiFourCol = 960;
@@ -32,7 +49,8 @@ class AdminBreakpoints {
     final w = MediaQuery.sizeOf(context).width;
     if (w < phone) return 12;
     if (w < tablet) return 16;
-    return 24;
+    if (w < wide) return 24;
+    return 32;
   }
 
   /// Dialog / sheet content width clamped to the viewport.

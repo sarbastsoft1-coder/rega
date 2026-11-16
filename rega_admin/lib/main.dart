@@ -8,6 +8,8 @@ import 'core/theme/app_theme.dart';
 import 'state/admin_app_notifier.dart';
 import 'state/admin_domain_notifiers.dart';
 
+import 'rega_i18n.dart';
+import 'rega_colors.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final api = ApiClient();
@@ -67,6 +69,9 @@ class _RegaAdminAppState extends State<RegaAdminApp> {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AdminAppNotifier>();
+    // Drives tx(): every on-screen string follows the selected language.
+    RegaI18n.setLang(app.lang);
+    RC.setDark(app.themeMode == ThemeMode.dark);
 
     return MaterialApp.router(
       title: AppStrings.tr('app_title', app.lang),

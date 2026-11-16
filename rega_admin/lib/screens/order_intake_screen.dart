@@ -9,6 +9,8 @@ import '../core/theme/app_theme.dart';
 import '../widgets/admin_top_header.dart';
 import '../widgets/common_widgets.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 /// Main operational desk for receiving / handling live orders.
 class OrderIntakeScreen extends StatefulWidget {
   final ApiClient api;
@@ -154,8 +156,8 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
-        backgroundColor: error ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+        content: Text(tx(msg)),
+        backgroundColor: error ? RC.bg(Color(0xFFDC2626)) : RC.bg(Color(0xFF16A34A)),
       ),
     );
   }
@@ -268,18 +270,18 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('دیاریکردنی ماتۆرسوار بۆ ${order['order_number']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        title: Text(tx('دیاریکردنی ماتۆرسوار بۆ ${order['order_number']}'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         content: SizedBox(
           width: (MediaQuery.sizeOf(context).width * 0.92).clamp(280.0, 480.0),
           height: (MediaQuery.sizeOf(context).height * 0.55).clamp(320.0, 440.0),
           child: drivers.isEmpty
-              ? const Center(child: Text('هیچ ماتۆرسوارێک تۆمار نەکراوە'))
+              ? Center(child: Text(tx('هیچ ماتۆرسوارێک تۆمار نەکراوە')))
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      '${drivers.where((d) => d['is_online'] == true).length} ئۆنلاین / ${drivers.length} — نزیکترین بۆ فرۆشگا یەکەمە',
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.grey.shade700),
+                      tx('${drivers.where((d) => d['is_online'] == true).length} ئۆنلاین / ${drivers.length} — نزیکترین بۆ فرۆشگا یەکەمە'),
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Colors.grey.shade700)),
                     ),
                     const SizedBox(height: 10),
                     Expanded(
@@ -296,24 +298,24 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
                             leading: CircleAvatar(
-                              backgroundColor: online ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+                              backgroundColor: online ? RC.bg(Color(0xFFDCFCE7)) : RC.bg(Color(0xFFF1F5F9)),
                               child: Icon(
                                 Icons.two_wheeler_rounded,
-                                color: online ? const Color(0xFF16A34A) : Colors.grey,
+                                color: online ? RC.fg(Color(0xFF16A34A)) : RC.bg(Colors.grey),
                               ),
                             ),
                             title: Text(
-                              '${u['name'] ?? ''} (${dp['driver_code'] ?? ''})$nearBadge',
+                              tx('${u['name'] ?? ''} (${dp['driver_code'] ?? ''})$nearBadge'),
                               style: const TextStyle(fontWeight: FontWeight.w800),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: Text(
-                              '${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${_fmtDistance(dp['distance_meters'])}\n'
-                              'ئەمڕۆ: $today گەیاندن · $todayAssigned داواکاری',
+                              tx('${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${_fmtDistance(dp['distance_meters'])}\n'
+                              'ئەمڕۆ: $today گەیاندن · $todayAssigned داواکاری'),
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
-                                color: online ? const Color(0xFF16A34A) : Colors.grey.shade600,
+                                color: online ? RC.bg(Color(0xFF16A34A)) : RC.bg(Colors.grey.shade600),
                               ),
                             ),
                             isThreeLine: true,
@@ -321,8 +323,8 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                               fit: BoxFit.scaleDown,
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF16A34A),
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: RC.bg(Color(0xFF16A34A)),
+                                  foregroundColor: RC.fg(Colors.white),
                                   visualDensity: VisualDensity.compact,
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                 ),
@@ -330,7 +332,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                                   Navigator.pop(ctx);
                                   await _assignDriverToOrder(order, dp);
                                 },
-                                child: Text(online ? 'پێدان' : 'دیاریکردن'),
+                                child: Text(tx(online ? 'پێدان' : 'دیاریکردن')),
                               ),
                             ),
                           );
@@ -341,7 +343,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                 ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('داخستن')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('داخستن'))),
         ],
       ),
     );
@@ -355,7 +357,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
 
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
-    final addrCtrl = TextEditingController(text: 'کەلار - گەڕەکی شەهیدان');
+    final addrCtrl = TextEditingController(text: tx('کەلار - گەڕەکی شەهیدان'));
     final notesCtrl = TextEditingController();
 
     int selectedStoreId = (_stores.first as Map<String, dynamic>)['id'] as int;
@@ -376,11 +378,32 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
               .where((p) => (p as Map<String, dynamic>)['store_id'] == selectedStoreId)
               .toList();
 
+          final dialogW = AdminBreakpoints.dialogWidth(ctx, max: 560);
+          final stackFields = dialogW < 520;
+          Widget pair(Widget a, Widget b) {
+            if (stackFields) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [a, const SizedBox(height: 10), b],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [Expanded(child: a), const SizedBox(width: 10), Expanded(child: b)],
+            );
+          }
+
           return AlertDialog(
+            insetPadding: AdminBreakpoints.dialogInset(ctx),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('وەرگرتنی داواکاری نوێ (طلب)', style: TextStyle(fontWeight: FontWeight.w900)),
-            content: SizedBox(
-              width: (MediaQuery.sizeOf(context).width * 0.92).clamp(280.0, 560.0),
+            title: Text(tx('وەرگرتنی داواکاری نوێ (طلب)'), style: TextStyle(fontWeight: FontWeight.w900)),
+            content: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: dialogW,
+                maxHeight: AdminBreakpoints.dialogMaxHeight(ctx),
+              ),
+              child: SizedBox(
+              width: dialogW,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -389,14 +412,14 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                     if (_customers.isNotEmpty)
                       DropdownButtonFormField<int?>(
                         initialValue: selectedCustomerId,
-                        decoration: const InputDecoration(labelText: 'کڕیاری تۆمارکراو (ئارەزوومەندانە)'),
+                        decoration: InputDecoration(labelText: tx('کڕیاری تۆمارکراو (ئارەزوومەندانە)')),
                         items: [
-                          const DropdownMenuItem<int?>(value: null, child: Text('کڕیاری نوێ / تەلەفۆن')),
+                          DropdownMenuItem<int?>(value: null, child: Text(tx('کڕیاری نوێ / تەلەفۆن'))),
                           ..._customers.take(40).map((c) {
                             final m = c as Map<String, dynamic>;
                             return DropdownMenuItem<int?>(
                               value: m['id'] as int,
-                              child: Text('${m['name']} (${m['phone']})'),
+                              child: Text(tx('${m['name']} (${m['phone']})')),
                             );
                           }),
                         ],
@@ -419,80 +442,66 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                         },
                       ),
                     const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: nameCtrl,
-                            decoration: const InputDecoration(labelText: 'ناوی کڕیار *'),
+                    pair(
+                      TextField(
+                        controller: nameCtrl,
+                        decoration: InputDecoration(labelText: tx('ناوی کڕیار *')),
+                      ),
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: TextField(
+                          controller: phoneCtrl,
+                          keyboardType: TextInputType.phone,
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
+                          inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
+                          decoration: InputDecoration(
+                            labelText: tx('مۆبایل *'),
+                            hintText: txn(IraqPhoneFormatter.hint),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Directionality(
-                            textDirection: TextDirection.ltr,
-                            child: TextField(
-                              controller: phoneCtrl,
-                              keyboardType: TextInputType.phone,
-                              textDirection: TextDirection.ltr,
-                              textAlign: TextAlign.left,
-                              inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
-                              decoration: const InputDecoration(
-                                labelText: 'مۆبایل *',
-                                hintText: IraqPhoneFormatter.hint,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            initialValue: selectedStoreId,
-                            decoration: const InputDecoration(labelText: 'فرۆشگا *'),
-                            items: _stores.map((s) {
-                              final m = s as Map<String, dynamic>;
-                              return DropdownMenuItem(value: m['id'] as int, child: Text(m['name_ku']?.toString() ?? ''));
-                            }).toList(),
-                            onChanged: (v) {
-                              if (v == null) return;
-                              setDialogState(() {
-                                selectedStoreId = v;
-                                cartQty.clear();
-                              });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: DropdownButtonFormField<int?>(
-                            initialValue: selectedZoneId,
-                            decoration: const InputDecoration(labelText: 'گەڕەک'),
-                            items: _neighborhoods.map((z) {
-                              final m = z as Map<String, dynamic>;
-                              return DropdownMenuItem<int?>(
-                                value: m['id'] as int,
-                                child: Text('${m['name_ku']} (${m['delivery_fee']} د.ع)'),
-                              );
-                            }).toList(),
-                            onChanged: (v) => setDialogState(() => selectedZoneId = v),
-                          ),
-                        ),
-                      ],
+                    pair(
+                      DropdownButtonFormField<int>(
+                        initialValue: selectedStoreId,
+                        decoration: InputDecoration(labelText: tx('فرۆشگا *')),
+                        items: _stores.map((s) {
+                          final m = s as Map<String, dynamic>;
+                          return DropdownMenuItem(value: m['id'] as int, child: Text(tx(m['name_ku']?.toString() ?? '')));
+                        }).toList(),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setDialogState(() {
+                            selectedStoreId = v;
+                            cartQty.clear();
+                          });
+                        },
+                      ),
+                      DropdownButtonFormField<int?>(
+                        initialValue: selectedZoneId,
+                        decoration: InputDecoration(labelText: tx('گەڕەک')),
+                        items: _neighborhoods.map((z) {
+                          final m = z as Map<String, dynamic>;
+                          return DropdownMenuItem<int?>(
+                            value: m['id'] as int,
+                            child: Text(tx('${m['name_ku']} (${m['delivery_fee']} د.ع)')),
+                          );
+                        }).toList(),
+                        onChanged: (v) => setDialogState(() => selectedZoneId = v),
+                      ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: addrCtrl,
-                      decoration: const InputDecoration(labelText: 'ناونیشانی گەیاندن *'),
+                      decoration: InputDecoration(labelText: tx('ناونیشانی گەیاندن *')),
                     ),
                     const SizedBox(height: 12),
-                    const Text('بەرهەمەکان', style: TextStyle(fontWeight: FontWeight.w900)),
+                    Text(tx('بەرهەمەکان'), style: TextStyle(fontWeight: FontWeight.w900)),
                     const SizedBox(height: 6),
                     if (storeProducts.isEmpty)
-                      const Text('ئەم فرۆشگایە بەرهەمی نییە')
+                      Text(tx('ئەم فرۆشگایە بەرهەمی نییە'))
                     else
                       ...storeProducts.take(20).map((raw) {
                         final p = raw as Map<String, dynamic>;
@@ -502,7 +511,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                           dense: true,
                           contentPadding: EdgeInsets.zero,
                           title: Text(
-                            '${p['name_ku']} — ${formatIqd(p['discount_price'] ?? p['price'], lang: widget.lang)}',
+                            tx('${p['name_ku']} — ${formatIqd(p['discount_price'] ?? p['price'], lang: widget.lang)}'),
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                           ),
                           trailing: Row(
@@ -520,10 +529,10 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                                     : null,
                                 icon: const Icon(Icons.remove_circle_outline, size: 20),
                               ),
-                              Text('$qty', style: const TextStyle(fontWeight: FontWeight.w900)),
+                              Text(tx('$qty'), style: const TextStyle(fontWeight: FontWeight.w900)),
                               IconButton(
                                 onPressed: () => setDialogState(() => cartQty[pid] = qty + 1),
-                                icon: const Icon(Icons.add_circle, color: Color(0xFFEA580C), size: 20),
+                                icon: Icon(Icons.add_circle, color: RC.fg(Color(0xFFEA580C)), size: 20),
                               ),
                             ],
                           ),
@@ -531,30 +540,31 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                       }),
                     const SizedBox(height: 8),
                     InputDecorator(
-                      decoration: const InputDecoration(labelText: 'پارەدان'),
+                      decoration: InputDecoration(labelText: tx('پارەدان')),
                       child: Text(
-                        'کاش (COD)',
+                        tx('کاش (COD)'),
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade800,
+                          color: RC.fg(Colors.grey.shade800),
                         ),
                       ),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: notesCtrl,
-                      decoration: const InputDecoration(labelText: 'تێبینی'),
+                      decoration: InputDecoration(labelText: tx('تێبینی')),
                     ),
                   ],
                 ),
               ),
+              ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('پاشگەزبوونەوە')),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('پاشگەزبوونەوە'))),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEA580C),
-                  foregroundColor: Colors.white,
+                  backgroundColor: RC.bg(Color(0xFFEA580C)),
+                  foregroundColor: RC.fg(Colors.white),
                 ),
                 onPressed: () async {
                   if (phoneCtrl.text.trim().isEmpty && selectedCustomerId == null) {
@@ -588,7 +598,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                   }
                 },
                 icon: const Icon(Icons.call_received_rounded, size: 18),
-                label: const Text('تۆمارکردنی طلب'),
+                label: Text(tx('تۆمارکردنی طلب')),
               ),
             ],
           );
@@ -601,17 +611,17 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
     switch (status) {
       case 'pending':
       case 'accepted':
-        return const Color(0xFFD97706);
+        return RC.bg(Color(0xFFD97706));
       case 'preparing':
-        return const Color(0xFF2563EB);
+        return RC.bg(Color(0xFF2563EB));
       case 'ready':
-        return const Color(0xFF7C3AED);
+        return RC.bg(Color(0xFF7C3AED));
       case 'picked_up':
       case 'on_the_way':
       case 'arrived_customer':
-        return const Color(0xFFEA580C);
+        return RC.bg(Color(0xFFEA580C));
       default:
-        return Colors.grey;
+        return RC.bg(Colors.grey);
     }
   }
 
@@ -640,7 +650,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
     final visible = _visibleOrders;
     final topActions = AdminTopBarRow(
       searchCtrl: _searchCtrl,
-      hintText: 'گەڕان بە ژمارەی طلب، کڕیار، فرۆشگا...',
+      hintText: tx('گەڕان بە ژمارەی طلب، کڕیار، فرۆشگا...'),
       onSearchChanged: (_) => _load(silent: true),
       onGoToOrders: () {},
     );
@@ -655,7 +665,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
             MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 12 : 20,
             12,
           ),
-          color: Colors.white,
+          color: RC.bg(Colors.white),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -666,10 +676,10 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEA580C).withOpacity(0.12),
+                          color: RC.bg(Color(0xFFEA580C)).withOpacity(0.12),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Icon(Icons.headset_mic_rounded, color: Color(0xFFEA580C), size: 26),
+                        child: Icon(Icons.headset_mic_rounded, color: RC.fg(Color(0xFFEA580C)), size: 26),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -677,14 +687,14 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'وەرگرتنی داواکاری (طلب)',
+                              tx('وەرگرتنی داواکاری (طلب)'),
                               style: TextStyle(
                                 fontSize: constraints.maxWidth < AdminBreakpoints.phone ? 18 : 22,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
                             Text(
-                              'شاشەی سەرەکی بۆ وەرگرتن، قبوڵکردن و ناردنی داواکاری بۆ ماتۆرسوار',
+                              tx('شاشەی سەرەکی بۆ وەرگرتن، قبوڵکردن و ناردنی داواکاری بۆ ماتۆرسوار'),
                               style: TextStyle(
                                 fontSize: 12.5,
                                 color: AdminSurfaces.of(context).textSecondary,
@@ -723,19 +733,19 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                 children: [
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEA580C),
-                      foregroundColor: Colors.white,
+                      backgroundColor: RC.bg(Color(0xFFEA580C)),
+                      foregroundColor: RC.fg(Colors.white),
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                     onPressed: _showCreateOrderDialog,
                     icon: const Icon(Icons.add_ic_call_rounded),
-                    label: const Text('تۆمارکردنی طلبی نوێ', style: TextStyle(fontWeight: FontWeight.w900)),
+                    label: Text(tx('تۆمارکردنی طلبی نوێ'), style: TextStyle(fontWeight: FontWeight.w900)),
                   ),
                   OutlinedButton.icon(
                     onPressed: () => _load(),
                     icon: const Icon(Icons.sync_rounded),
-                    label: const Text('نوێکردنەوە'),
+                    label: Text(tx('نوێکردنەوە')),
                   ),
                 ],
               ),
@@ -744,10 +754,10 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                 builder: (context, c) {
                   final narrow = c.maxWidth < AdminBreakpoints.phone;
                   final chips = [
-                    _kpiChip(AppStrings.tr('kpi_new_orders', widget.lang), _newCount, const Color(0xFFD97706), 'incoming'),
-                    _kpiChip(AppStrings.tr('kpi_preparing', widget.lang), _preparingCount, const Color(0xFF2563EB), 'preparing'),
-                    _kpiChip(AppStrings.tr('kpi_delivery', widget.lang), _readyCount, const Color(0xFF7C3AED), 'ready'),
-                    _kpiChip(AppStrings.tr('filter_all', widget.lang), _activeCount, const Color(0xFF0F172A), 'all_active'),
+                    _kpiChip(AppStrings.tr('kpi_new_orders', widget.lang), _newCount, RC.bg(Color(0xFFD97706)), 'incoming'),
+                    _kpiChip(AppStrings.tr('kpi_preparing', widget.lang), _preparingCount, RC.bg(Color(0xFF2563EB)), 'preparing'),
+                    _kpiChip(AppStrings.tr('kpi_delivery', widget.lang), _readyCount, RC.bg(Color(0xFF7C3AED)), 'ready'),
+                    _kpiChip(AppStrings.tr('filter_all', widget.lang), _activeCount, RC.bg(Color(0xFF0F172A)), 'all_active'),
                   ];
                   if (narrow) {
                     return Wrap(
@@ -773,7 +783,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
         ),
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator())
               : LayoutBuilder(
                   builder: (context, constraints) {
                     final wide = constraints.maxWidth >= 980;
@@ -782,29 +792,29 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.inbox_outlined, size: 72, color: Colors.grey.shade400),
+                                Icon(Icons.inbox_outlined, size: 72, color: RC.fg(Colors.grey.shade400)),
                                 const SizedBox(height: 12),
                                 Text(
-                                  _filter == 'incoming'
+                                  tx(_filter == 'incoming'
                                       ? 'هیچ طلبێکی نوێ لە چاوەڕوانیدا نییە'
-                                      : 'هیچ داواکارییەک لەم بەشەدا نییە',
+                                      : 'هیچ داواکارییەک لەم بەشەدا نییە'),
                                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                                 ),
                                 const SizedBox(height: 16),
                                 ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFEA580C),
-                                    foregroundColor: Colors.white,
+                                    backgroundColor: RC.bg(Color(0xFFEA580C)),
+                                    foregroundColor: RC.fg(Colors.white),
                                   ),
                                   onPressed: _showCreateOrderDialog,
                                   icon: const Icon(Icons.add_ic_call_rounded),
-                                  label: const Text('تۆمارکردنی یەکەم طلب'),
+                                  label: Text(tx('تۆمارکردنی یەکەم طلب')),
                                 ),
                               ],
                             ),
                           )
                         : RefreshIndicator(
-                            color: const Color(0xFFEA580C),
+                            color: RC.bg(Color(0xFFEA580C)),
                             onRefresh: () => _load(),
                             child: ListView.builder(
                               padding: EdgeInsets.fromLTRB(
@@ -831,7 +841,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                                   child: OutlinedButton.icon(
                                     onPressed: _showDriversBottomSheet,
                                     icon: const Icon(Icons.two_wheeler_rounded, size: 18),
-                                    label: const Text('ماتۆرسوارەکان بۆ طلبی هەڵبژێردراو', style: TextStyle(fontWeight: FontWeight.w800)),
+                                    label: Text(tx('ماتۆرسوارەکان بۆ طلبی هەڵبژێردراو'), style: TextStyle(fontWeight: FontWeight.w800)),
                                   ),
                                 ),
                               ),
@@ -855,7 +865,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(flex: 3, child: ordersPane),
-                        Container(width: 1, color: const Color(0xFFE2E8F0)),
+                        Container(width: 1, color: RC.bg(Color(0xFFE2E8F0))),
                         SizedBox(width: 340, child: _buildDriversPanel()),
                       ],
                     );
@@ -872,43 +882,43 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
     final selected = _selectedOrder;
 
     return Container(
-      color: Colors.white,
+      color: RC.bg(Colors.white),
       padding: EdgeInsets.fromLTRB(14, compact ? 10 : 14, 14, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const Icon(Icons.two_wheeler_rounded, color: Color(0xFF16A34A), size: 22),
+              Icon(Icons.two_wheeler_rounded, color: RC.fg(Color(0xFF16A34A)), size: 22),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'ماتۆرسوارەکان',
+                  tx('ماتۆرسوارەکان'),
                   style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
+                  color: RC.bg(Color(0xFFDCFCE7)),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '$onlineCount ئۆنلاین',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF166534)),
+                  tx('$onlineCount ئۆنلاین'),
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534))),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
-            selected == null
+            tx(selected == null
                 ? 'سەرەتا طلبێک هەڵبژێرە، پاشان ماتۆرسوار دەست لێدە'
-                : 'طلبی هەڵبژێردراو: ${selected['order_number']} — نزیکترین بۆ فرۆشگا سەرەوەیە',
+                : 'طلبی هەڵبژێردراو: ${selected['order_number']} — نزیکترین بۆ فرۆشگا سەرەوەیە'),
             style: TextStyle(
               fontSize: 11.5,
               fontWeight: FontWeight.w700,
-              color: selected == null ? Colors.grey.shade600 : const Color(0xFFEA580C),
+              color: selected == null ? RC.bg(Colors.grey.shade600) : RC.bg(Color(0xFFEA580C)),
             ),
           ),
           const SizedBox(height: 10),
@@ -916,8 +926,8 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
             child: drivers.isEmpty
                 ? Center(
                     child: Text(
-                      'هیچ ماتۆرسوارێک نییە',
-                      style: TextStyle(fontWeight: FontWeight.w700, color: Colors.grey.shade500),
+                      tx('هیچ ماتۆرسوارێک نییە'),
+                      style: TextStyle(fontWeight: FontWeight.w700, color: RC.fg(Colors.grey.shade500)),
                     ),
                   )
                 : ListView.separated(
@@ -943,23 +953,23 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                             width: phone ? 132 : 158,
                             padding: EdgeInsets.all(phone ? 8 : 10),
                             decoration: BoxDecoration(
-                              color: online ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+                              color: online ? RC.bg(Color(0xFFF0FDF4)) : RC.bg(Color(0xFFF8FAFC)),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: online ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0)),
+                              border: Border.all(color: online ? RC.bg(Color(0xFF86EFAC)) : RC.bg(Color(0xFFE2E8F0))),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(Icons.two_wheeler_rounded, color: online ? const Color(0xFF16A34A) : Colors.grey, size: phone ? 18 : 20),
+                                Icon(Icons.two_wheeler_rounded, color: online ? RC.fg(Color(0xFF16A34A)) : RC.bg(Colors.grey), size: phone ? 18 : 20),
                                 const Spacer(),
-                                Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, fontSize: phone ? 12 : 13)),
+                                Text(tx(name), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, fontSize: phone ? 12 : 13)),
                                 Text(
-                                  online ? 'ئۆنلاین · $dist' : 'ئۆفلاین · $dist',
+                                  tx(online ? 'ئۆنلاین · $dist' : 'ئۆفلاین · $dist'),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: phone ? 10 : 10.5, fontWeight: FontWeight.w700, color: online ? const Color(0xFF16A34A) : Colors.grey),
+                                  style: TextStyle(fontSize: phone ? 10 : 10.5, fontWeight: FontWeight.w700, color: online ? RC.bg(Color(0xFF16A34A)) : RC.bg(Colors.grey)),
                                 ),
-                                Text('ئەمڕۆ: $today', style: TextStyle(fontSize: phone ? 10 : 10.5, fontWeight: FontWeight.w800, color: const Color(0xFFEA580C))),
+                                Text(tx('ئەمڕۆ: $today'), style: TextStyle(fontSize: phone ? 10 : 10.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFFEA580C)))),
                               ],
                             ),
                           ),
@@ -967,7 +977,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                       }
 
                       return Material(
-                        color: online ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+                        color: online ? RC.bg(Color(0xFFF0FDF4)) : RC.bg(Color(0xFFF8FAFC)),
                         borderRadius: BorderRadius.circular(14),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(14),
@@ -976,29 +986,29 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: online ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0)),
+                              border: Border.all(color: online ? RC.bg(Color(0xFF86EFAC)) : RC.bg(Color(0xFFE2E8F0))),
                             ),
                             child: Row(
                               children: [
                                 CircleAvatar(
                                   radius: 18,
-                                  backgroundColor: online ? const Color(0xFFDCFCE7) : const Color(0xFFE2E8F0),
-                                  child: Icon(Icons.two_wheeler_rounded, size: 18, color: online ? const Color(0xFF16A34A) : Colors.grey),
+                                  backgroundColor: online ? RC.bg(Color(0xFFDCFCE7)) : RC.bg(Color(0xFFE2E8F0)),
+                                  child: Icon(Icons.two_wheeler_rounded, size: 18, color: online ? RC.fg(Color(0xFF16A34A)) : RC.bg(Colors.grey)),
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('$name${code.isEmpty ? '' : ' ($code)'}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                                      Text(tx('$name${code.isEmpty ? '' : ' ($code)'}'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
                                       Text(
-                                        '${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • $dist • ئەمڕۆ $today گەیاندن',
-                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: online ? const Color(0xFF166534) : Colors.grey.shade600),
+                                        tx('${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • $dist • ئەمڕۆ $today گەیاندن'),
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: online ? RC.bg(Color(0xFF166534)) : RC.bg(Colors.grey.shade600)),
                                       ),
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.chevron_left_rounded, color: Color(0xFF94A3B8)),
+                                Icon(Icons.chevron_left_rounded, color: RC.fg(Color(0xFF94A3B8))),
                               ],
                             ),
                           ),
@@ -1031,25 +1041,25 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: selected ? color.withOpacity(0.12) : const Color(0xFFF8FAFC),
+          color: selected ? color.withOpacity(0.12) : RC.bg(Color(0xFFF8FAFC)),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selected ? color : const Color(0xFFE2E8F0), width: selected ? 1.6 : 1),
+          border: Border.all(color: selected ? color : RC.bg(Color(0xFFE2E8F0)), width: selected ? 1.6 : 1),
         ),
         child: Column(
           children: [
             Text(
-              '$count',
+              tx('$count'),
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: color, height: 1),
             ),
             const SizedBox(height: 4),
             Text(
-              label,
+              tx(label),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
-                color: selected ? color : const Color(0xFF64748B),
+                color: selected ? color : RC.fg(Color(0xFF64748B)),
               ),
             ),
           ],
@@ -1087,13 +1097,13 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: selected
-                ? const Color(0xFF16A34A)
-                : (incoming ? const Color(0xFFF59E0B) : const Color(0xFFE2E8F0)),
+                ? RC.bg(Color(0xFF16A34A))
+                : (incoming ? RC.bg(Color(0xFFF59E0B)) : RC.bg(Color(0xFFE2E8F0))),
             width: selected || incoming ? 1.8 : 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: RC.bg(Colors.black).withOpacity(0.04),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -1110,17 +1120,17 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
-                    order['order_number']?.toString() ?? 'RA-?',
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFFEA580C)),
+                    tx(order['order_number']?.toString() ?? 'RA-?'),
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: RC.fg(Color(0xFFEA580C))),
                   ),
                   if (selected)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFDCFCE7),
+                        color: RC.bg(Color(0xFFDCFCE7)),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text('هەڵبژێردراو', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFF166534))),
+                      child: Text(tx('هەڵبژێردراو'), style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534)))),
                     ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1129,7 +1139,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      _statusLabel(status),
+                      tx(_statusLabel(status)),
                       style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 11.5),
                     ),
                   ),
@@ -1137,18 +1147,18 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'کڕیار: ${customer?['name'] ?? order['customer_name'] ?? '—'}  •  ${IraqPhoneFormatter.display((customer?['phone'] ?? order['customer_phone'] ?? '').toString())}',
+                tx('کڕیار: ${customer?['name'] ?? order['customer_name'] ?? '—'}  •  ${IraqPhoneFormatter.display((customer?['phone'] ?? order['customer_phone'] ?? '').toString())}'),
                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
               ),
               const SizedBox(height: 4),
               Text(
-                'فرۆشگا: ${store?['name_ku'] ?? '—'}',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.grey.shade800),
+                tx('فرۆشگا: ${store?['name_ku'] ?? '—'}'),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: RC.fg(Colors.grey.shade800)),
               ),
               const SizedBox(height: 4),
               Text(
-                'ناونیشان: ${order['delivery_address'] ?? '—'}',
-                style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
+                tx('ناونیشان: ${order['delivery_address'] ?? '—'}'),
+                style: TextStyle(fontSize: 12.5, color: RC.fg(Colors.grey.shade700)),
               ),
               const SizedBox(height: 6),
               InkWell(
@@ -1158,32 +1168,32 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
-                    color: driver == null ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+                    color: driver == null ? RC.bg(Color(0xFFFEF2F2)) : RC.bg(Color(0xFFF0FDF4)),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: driver == null ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0)),
+                    border: Border.all(color: driver == null ? RC.bg(Color(0xFFFECACA)) : RC.bg(Color(0xFFBBF7D0))),
                   ),
                   child: Row(
                     children: [
                       Icon(
                         Icons.two_wheeler_rounded,
                         size: 18,
-                        color: driver == null ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                        color: driver == null ? RC.fg(Color(0xFFDC2626)) : RC.bg(Color(0xFF16A34A)),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'ماتۆرسوار: ${driver?['name'] ?? 'دیاری نەکراوە — کرتە بکە بۆ هەڵبژاردن'}',
+                          tx('ماتۆرسوار: ${driver?['name'] ?? 'دیاری نەکراوە — کرتە بکە بۆ هەڵبژاردن'}'),
                           style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w800,
-                            color: driver == null ? const Color(0xFFDC2626) : const Color(0xFF166534),
+                            color: driver == null ? RC.bg(Color(0xFFDC2626)) : RC.bg(Color(0xFF166534)),
                           ),
                         ),
                       ),
                       Icon(
                         Icons.edit_rounded,
                         size: 16,
-                        color: driver == null ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                        color: driver == null ? RC.fg(Color(0xFFDC2626)) : RC.bg(Color(0xFF16A34A)),
                       ),
                     ],
                   ),
@@ -1203,7 +1213,7 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        '${it['product_name'] ?? 'بەرهەم'} × ${it['quantity'] ?? 1}',
+                        tx('${it['product_name'] ?? 'بەرهەم'} × ${it['quantity'] ?? 1}'),
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                       ),
                     );
@@ -1217,29 +1227,29 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
-                    formatIqd(order['total_amount'] as num?, lang: widget.lang),
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFFB45309)),
+                    tx(formatIqd(order['total_amount'] as num?, lang: widget.lang)),
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: RC.fg(Color(0xFFB45309))),
                   ),
                   if (incoming) ...[
                     TextButton(
                       onPressed: () => _setStatus(order, 'rejected', reason: 'ڕەتکرایەوە لە وەرگرتنی طلب'),
-                      child: const Text('ڕەتکردنەوە', style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.w800)),
+                      child: Text(tx('ڕەتکردنەوە'), style: TextStyle(color: RC.fg(Color(0xFFDC2626)), fontWeight: FontWeight.w800)),
                     ),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF16A34A),
-                        foregroundColor: Colors.white,
+                        backgroundColor: RC.bg(Color(0xFF16A34A)),
+                        foregroundColor: RC.fg(Colors.white),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () => _setStatus(order, 'preparing'),
                       icon: const Icon(Icons.check_circle_rounded, size: 18),
-                      label: const Text('قبوڵکردن', style: TextStyle(fontWeight: FontWeight.w900)),
+                      label: Text(tx('قبوڵکردن'), style: TextStyle(fontWeight: FontWeight.w900)),
                     ),
                     OutlinedButton.icon(
                       onPressed: () => _assignDriver(order),
                       icon: const Icon(Icons.two_wheeler_rounded, size: 17),
                       label: Text(
-                        driver == null ? 'ناردنی ماتۆرسوار' : 'گۆڕینی شۆفێر',
+                        tx(driver == null ? 'ناردنی ماتۆرسوار' : 'گۆڕینی شۆفێر'),
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ),
@@ -1248,28 +1258,28 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                       onPressed: () => _assignDriver(order),
                       icon: const Icon(Icons.two_wheeler_rounded, size: 17),
                       label: Text(
-                        driver == null ? 'ناردنی ماتۆرسوار' : 'گۆڕینی شۆفێر',
+                        tx(driver == null ? 'ناردنی ماتۆرسوار' : 'گۆڕینی شۆفێر'),
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF16A34A),
-                        foregroundColor: Colors.white,
+                        backgroundColor: RC.bg(Color(0xFF16A34A)),
+                        foregroundColor: RC.fg(Colors.white),
                       ),
                       onPressed: () => _setStatus(order, 'ready'),
-                      child: const Text('ئامادەیە', style: TextStyle(fontWeight: FontWeight.w900)),
+                      child: Text(tx('ئامادەیە'), style: TextStyle(fontWeight: FontWeight.w900)),
                     ),
                   ] else if (status == 'ready') ...[
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF16A34A),
-                        foregroundColor: Colors.white,
+                        backgroundColor: RC.bg(Color(0xFF16A34A)),
+                        foregroundColor: RC.fg(Colors.white),
                       ),
                       onPressed: () => _assignDriver(order),
                       icon: const Icon(Icons.two_wheeler_rounded, size: 18),
                       label: Text(
-                        driver == null ? 'ناردنی ماتۆرسوار' : 'گۆڕینی شۆفێر',
+                        tx(driver == null ? 'ناردنی ماتۆرسوار' : 'گۆڕینی شۆفێر'),
                         style: const TextStyle(fontWeight: FontWeight.w900),
                       ),
                     ),
@@ -1277,15 +1287,15 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                     OutlinedButton.icon(
                       onPressed: () => _assignDriver(order),
                       icon: const Icon(Icons.two_wheeler_rounded, size: 17),
-                      label: const Text('شۆفێر', style: TextStyle(fontWeight: FontWeight.w800)),
+                      label: Text(tx('شۆفێر'), style: TextStyle(fontWeight: FontWeight.w800)),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
-                        foregroundColor: Colors.white,
+                        backgroundColor: RC.bg(Color(0xFF059669)),
+                        foregroundColor: RC.fg(Colors.white),
                       ),
                       onPressed: () => _setStatus(order, 'delivered'),
-                      child: const Text('تەواوکردن', style: TextStyle(fontWeight: FontWeight.w900)),
+                      child: Text(tx('تەواوکردن'), style: TextStyle(fontWeight: FontWeight.w900)),
                     ),
                   ],
                 ],

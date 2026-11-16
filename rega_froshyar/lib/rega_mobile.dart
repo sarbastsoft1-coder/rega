@@ -39,6 +39,13 @@ class RegaResponsive {
 
   static bool isPhone(BuildContext context) => sizeOf(context).width < RegaBreakpoints.phone;
 
+  static bool isTablet(BuildContext context) {
+    final w = sizeOf(context).width;
+    return w >= RegaBreakpoints.phone && w < RegaBreakpoints.desktop;
+  }
+
+  static bool isDesktop(BuildContext context) => sizeOf(context).width >= RegaBreakpoints.desktop;
+
   static double pagePadding(BuildContext context) {
     final w = sizeOf(context).width;
     if (w < 360) return 10;
@@ -50,6 +57,12 @@ class RegaResponsive {
   static double dialogMaxWidth(BuildContext context, {double cap = 640}) {
     final w = sizeOf(context).width;
     return math.min(w * 0.92, cap);
+  }
+
+  static EdgeInsets dialogInset(BuildContext context, {double cap = 640, double vertical = 24}) {
+    final maxW = dialogMaxWidth(context, cap: cap);
+    final horizontal = math.max(12.0, (sizeOf(context).width - maxW) / 2);
+    return EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical);
   }
 
   static double scale(BuildContext context, double base) {
@@ -65,6 +78,49 @@ class RegaResponsive {
     if (w < RegaBreakpoints.phone) return phone;
     if (w < RegaBreakpoints.desktop) return tablet;
     return desktop;
+  }
+
+  static int gridCountForWidth(double w, {int phone = 2, int tablet = 3, int desktop = 4}) {
+    if (w < RegaBreakpoints.phone) return phone;
+    if (w < RegaBreakpoints.desktop) return tablet;
+    return desktop;
+  }
+
+  // ── Tablet / iPad layout helpers ───────────────────────────────────────
+  /// Forms (login, register, profile edit) — keeps fields readable on iPad.
+  static const double formMaxWidth = 560;
+
+  /// Lists & detail pages (cart, orders, settings) on tablets.
+  static const double readingMaxWidth = 820;
+
+  /// Catalog / dashboard grids on large tablets & desktop browsers.
+  static const double wideMaxWidth = 1080;
+
+  static bool isLandscape(BuildContext context) {
+    final s = sizeOf(context);
+    return s.width > s.height;
+  }
+
+  /// Phone in landscape (short height) — use compact headers / 2-pane layouts.
+  static bool isCompactHeight(BuildContext context) => sizeOf(context).height < 500;
+
+  /// True for iPad / Android tablets (shortest side >= 600, any orientation).
+  static bool isTabletDevice(BuildContext context) => sizeOf(context).shortestSide >= RegaBreakpoints.phone;
+
+  /// Centers [child] and caps its width so phone layouts do not stretch
+  /// edge-to-edge on tablets. Child still fills the width on phones.
+  static Widget constrain({
+    required Widget child,
+    double maxWidth = readingMaxWidth,
+    AlignmentGeometry alignment = Alignment.topCenter,
+  }) {
+    return Align(
+      alignment: alignment,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: SizedBox(width: double.infinity, child: child),
+      ),
+    );
   }
 
   static Widget appBuilder(BuildContext context, Widget? child, {TextDirection? direction}) {

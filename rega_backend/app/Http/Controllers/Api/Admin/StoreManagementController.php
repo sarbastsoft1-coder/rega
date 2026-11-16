@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Models\StoreCategory;
 use App\Models\User;
+use App\Services\OrderProfitService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -73,7 +74,7 @@ class StoreManagementController extends Controller
             'cover_url' => ['nullable', 'string', 'max:500'],
             'delivery_time' => ['nullable', 'string', 'max:60'],
             'base_delivery_fee' => ['nullable', 'integer', 'min:0'],
-            'commission_rate' => ['nullable', 'numeric', 'min:0', 'max:50'],
+            'commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'discount_badge' => ['nullable', 'string', 'max:80'],
             'rating' => ['nullable', 'numeric', 'min:0', 'max:10'],
             'review_count' => ['nullable', 'integer', 'min:0'],
@@ -138,7 +139,9 @@ class StoreManagementController extends Controller
                 'cover_url' => $validated['cover_url'] ?? 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80',
                 'delivery_time' => $validated['delivery_time'] ?? '20-30 خولەک',
                 'base_delivery_fee' => $validated['base_delivery_fee'] ?? 1500,
-                'commission_rate' => $validated['commission_rate'] ?? 12.00,
+                // Seed from Accounting global default when admin does not pass a rate.
+                'commission_rate' => $validated['commission_rate']
+                    ?? app(OrderProfitService::class)->globalCommissionPercentage(),
                 'discount_badge' => $validated['discount_badge'] ?? null,
                 'rating' => $validated['rating'] ?? 9.60,
                 'review_count' => $validated['review_count'] ?? 0,
@@ -212,7 +215,7 @@ class StoreManagementController extends Controller
             'cover_url' => ['nullable', 'string', 'max:500'],
             'delivery_time' => ['nullable', 'string', 'max:60'],
             'base_delivery_fee' => ['nullable', 'integer', 'min:0'],
-            'commission_rate' => ['nullable', 'numeric', 'min:0', 'max:50'],
+            'commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'discount_badge' => ['nullable', 'string', 'max:80'],
             'rating' => ['nullable', 'numeric', 'min:0', 'max:10'],
             'review_count' => ['nullable', 'integer', 'min:0'],

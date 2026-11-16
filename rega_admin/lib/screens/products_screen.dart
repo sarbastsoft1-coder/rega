@@ -10,6 +10,8 @@ import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import 'store_menu_categories_screen.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 class ProductsScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
@@ -86,7 +88,7 @@ class _ProductsScreenState extends State<ProductsScreen>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
+        content: Text(tx(msg)),
         backgroundColor: error ? RegaColors.crimson : RegaColors.emeraldDark,
       ),
     );
@@ -132,16 +134,16 @@ class _ProductsScreenState extends State<ProductsScreen>
 
   Widget _productImagePlaceholder() {
     return Container(
-      color: const Color(0xFFF1F5F9),
+      color: RC.bg(Color(0xFFF1F5F9)),
       alignment: Alignment.center,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.image_outlined, size: 36, color: Colors.black38),
+          Icon(Icons.image_outlined, size: 36, color: RC.fg(Colors.black38)),
           const SizedBox(height: 6),
           Text(
             AppStrings.tr('item_image_placeholder', widget.lang),
-            style: const TextStyle(color: Colors.black45, fontWeight: FontWeight.w700),
+            style: TextStyle(color: RC.fg(Colors.black45), fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -256,9 +258,9 @@ class _ProductsScreenState extends State<ProductsScreen>
           return AlertDialog(
             insetPadding: AdminBreakpoints.dialogInset(ctx),
             title: Text(
-              isEdit
+              tx(isEdit
                   ? AppStrings.tr('edit_vendor_item', widget.lang)
-                  : AppStrings.tr('add_vendor_item', widget.lang),
+                  : AppStrings.tr('add_vendor_item', widget.lang)),
             ),
             content: SizedBox(
               width: AdminBreakpoints.dialogWidth(ctx, max: 500),
@@ -276,7 +278,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                         final m = s as Map<String, dynamic>;
                         return DropdownMenuItem<int>(
                           value: m['id'] as int,
-                          child: Text(m['name_ku']?.toString() ?? ''),
+                          child: Text(tx(m['name_ku']?.toString() ?? '')),
                         );
                       }).toList(),
                       onChanged: saving
@@ -291,7 +293,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                     ),
                     const SizedBox(height: 12),
                     if (catsLoading)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.symmetric(vertical: 8),
                         child: LinearProgressIndicator(),
                       )
@@ -311,7 +313,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                             final m = c as Map<String, dynamic>;
                             return DropdownMenuItem<int?>(
                               value: m['id'] as int,
-                              child: Text(m['name_ku']?.toString() ?? ''),
+                              child: Text(tx(m['name_ku']?.toString() ?? '')),
                             );
                           }),
                         ],
@@ -341,8 +343,8 @@ class _ProductsScreenState extends State<ProductsScreen>
                             controller: costCtrl,
                             enabled: !saving,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'نرخی کڕین / Cost (IQD) *',
+                            decoration: InputDecoration(
+                              labelText: tx('نرخی کڕین / Cost (IQD) *'),
                             ),
                           ),
                         ),
@@ -405,7 +407,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                                   ? RegaColors.crimson
                                   : (imageUploadOk || hasPreview)
                                       ? RegaColors.orange
-                                      : const Color(0xFFE2E8F0),
+                                      : RC.bg(Color(0xFFE2E8F0)),
                               width: 1.5,
                             ),
                           ),
@@ -432,22 +434,22 @@ class _ProductsScreenState extends State<ProductsScreen>
                                     _productImagePlaceholder(),
                                   if (!hasPreview)
                                     Container(
-                                      color: const Color(0xAA0F172A),
+                                      color: RC.bg(Color(0xAA0F172A)),
                                       alignment: Alignment.center,
                                       child: Column(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
-                                          const Icon(
+                                          Icon(
                                             Icons.add_photo_alternate_rounded,
-                                            color: Colors.white,
+                                            color: RC.fg(Colors.white),
                                             size: 40,
                                           ),
                                           const SizedBox(height: 8),
                                           Text(
                                             AppStrings.tr('item_image_tap_hint', widget.lang),
                                             textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              color: Colors.white,
+                                            style: TextStyle(
+                                              color: RC.fg(Colors.white),
                                               fontWeight: FontWeight.w800,
                                               fontSize: 13,
                                             ),
@@ -457,19 +459,19 @@ class _ProductsScreenState extends State<ProductsScreen>
                                     ),
                                   if (busyImage)
                                     Container(
-                                      color: const Color(0x880F172A),
+                                      color: RC.bg(Color(0x880F172A)),
                                       alignment: Alignment.center,
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const CircularProgressIndicator(color: Colors.white),
+                                          CircularProgressIndicator(color: RC.bg(Colors.white)),
                                           const SizedBox(height: 10),
                                           Text(
-                                            pickingImage
+                                            tx(pickingImage
                                                 ? AppStrings.tr('item_image_compressing', widget.lang)
-                                                : AppStrings.tr('item_image_uploading', widget.lang),
-                                            style: const TextStyle(
-                                              color: Colors.white,
+                                                : AppStrings.tr('item_image_uploading', widget.lang)),
+                                            style: TextStyle(
+                                              color: RC.fg(Colors.white),
                                               fontWeight: FontWeight.w800,
                                             ),
                                           ),
@@ -491,15 +493,15 @@ class _ProductsScreenState extends State<ProductsScreen>
                         onPressed: (saving || busyImage) ? null : pickCompressAndUpload,
                         style: FilledButton.styleFrom(
                           backgroundColor: RegaColors.orange,
-                          foregroundColor: Colors.white,
+                          foregroundColor: RC.fg(Colors.white),
                         ),
                         icon: busyImage
-                            ? const SizedBox(
+                            ? SizedBox(
                                 width: 16,
                                 height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.white,
+                                  color: RC.bg(Colors.white),
                                 ),
                               )
                             : Icon(
@@ -509,13 +511,13 @@ class _ProductsScreenState extends State<ProductsScreen>
                                 size: 18,
                               ),
                         label: Text(
-                          busyImage
+                          tx(busyImage
                               ? (pickingImage
                                   ? AppStrings.tr('item_image_compressing', widget.lang)
                                   : AppStrings.tr('item_image_uploading', widget.lang))
                               : (hasPreview
                                   ? AppStrings.tr('item_image_change', widget.lang)
-                                  : AppStrings.tr('item_image_pick', widget.lang)),
+                                  : AppStrings.tr('item_image_pick', widget.lang))),
                         ),
                       ),
                     ),
@@ -533,7 +535,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                     if (imageUploadError != null) ...[
                       const SizedBox(height: 8),
                       Text(
-                        imageUploadError!,
+                        tx(imageUploadError!),
                         style: const TextStyle(
                           color: RegaColors.crimson,
                           fontWeight: FontWeight.w700,
@@ -558,8 +560,8 @@ class _ProductsScreenState extends State<ProductsScreen>
                             onChanged: (_) => setDialogState(() {
                               imageUploadOk = false;
                             }),
-                            decoration: const InputDecoration(
-                              hintText: 'https://...',
+                            decoration: InputDecoration(
+                              hintText: tx('https://...'),
                               isDense: true,
                             ),
                           ),
@@ -570,9 +572,9 @@ class _ProductsScreenState extends State<ProductsScreen>
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(
-                        isAvailable
+                        tx(isAvailable
                             ? AppStrings.tr('item_available', widget.lang)
-                            : AppStrings.tr('item_unavailable', widget.lang),
+                            : AppStrings.tr('item_unavailable', widget.lang)),
                       ),
                       value: isAvailable,
                       onChanged: saving ? null : (v) => setDialogState(() => isAvailable = v),
@@ -649,10 +651,10 @@ class _ProductsScreenState extends State<ProductsScreen>
                         }
                       },
                 child: saving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
                       )
                     : Text(AppStrings.tr('save', widget.lang)),
               ),
@@ -721,7 +723,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                       final m = s as Map<String, dynamic>;
                       return DropdownMenuItem<int?>(
                         value: m['id'] as int,
-                        child: Text(m['name_ku']?.toString() ?? ''),
+                        child: Text(tx(m['name_ku']?.toString() ?? '')),
                       );
                     }),
                   ],
@@ -748,15 +750,15 @@ class _ProductsScreenState extends State<ProductsScreen>
         const SizedBox(height: 14),
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator())
               : _error != null
                   ? ErrorRetryView(message: _error!, onRetry: _load)
                   : _products.isEmpty
                       ? Center(
                           child: Text(
                             AppStrings.tr('no_results', widget.lang),
-                            style: const TextStyle(
-                              color: Color(0xFF64748B),
+                            style: TextStyle(
+                              color: RC.fg(Color(0xFF64748B)),
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -802,20 +804,20 @@ class _ProductsScreenState extends State<ProductsScreen>
                                       Container(
                                         height: 105,
                                         width: double.infinity,
-                                        color: const Color(0xFF1E293B),
+                                        color: RC.bg(Color(0xFF1E293B)),
                                         child: imageUrl.isNotEmpty
                                             ? Image.network(
                                                 imageUrl,
                                                 fit: BoxFit.cover,
-                                                errorBuilder: (_, _, _) => const Icon(
+                                                errorBuilder: (_, _, _) => Icon(
                                                   Icons.fastfood_rounded,
-                                                  color: Colors.white54,
+                                                  color: RC.fg(Colors.white54),
                                                   size: 36,
                                                 ),
                                               )
-                                            : const Icon(
+                                            : Icon(
                                                 Icons.fastfood_rounded,
-                                                color: Colors.white54,
+                                                color: RC.fg(Colors.white54),
                                                 size: 36,
                                               ),
                                       ),
@@ -834,8 +836,8 @@ class _ProductsScreenState extends State<ProductsScreen>
                                             ),
                                             child: Text(
                                               AppStrings.tr('only_discounted', widget.lang),
-                                              style: const TextStyle(
-                                                color: Colors.white,
+                                              style: TextStyle(
+                                                color: RC.fg(Colors.white),
                                                 fontSize: 10.5,
                                                 fontWeight: FontWeight.w800,
                                               ),
@@ -855,7 +857,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                p['name_ku']?.toString() ?? '',
+                                                tx(p['name_ku']?.toString() ?? ''),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
@@ -865,26 +867,26 @@ class _ProductsScreenState extends State<ProductsScreen>
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
-                                                [
+                                                tx([
                                                   store?['name_ku']?.toString() ?? '',
                                                   if (menuCat?['name_ku'] != null)
                                                     menuCat!['name_ku'].toString(),
-                                                ].where((s) => s.isNotEmpty).join(' • '),
+                                                ].where((s) => s.isNotEmpty).join(' • ')),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 11,
-                                                  color: Color(0xFF64748B),
+                                                  color: RC.fg(Color(0xFF64748B)),
                                                 ),
                                               ),
                                               const SizedBox(height: 6),
                                               Row(
                                                 children: [
                                                   Text(
-                                                    formatIqd(
+                                                    tx(formatIqd(
                                                       hasDiscount ? disc : price,
                                                       lang: widget.lang,
-                                                    ),
+                                                    )),
                                                     style: const TextStyle(
                                                       fontWeight: FontWeight.w900,
                                                       color: RegaColors.emeraldDark,
@@ -894,7 +896,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                                                   if (hasDiscount) ...[
                                                     const SizedBox(width: 8),
                                                     Text(
-                                                      formatIqd(price, lang: widget.lang),
+                                                      tx(formatIqd(price, lang: widget.lang)),
                                                       style: const TextStyle(
                                                         decoration: TextDecoration.lineThrough,
                                                         color: RegaColors.crimson,
@@ -924,12 +926,12 @@ class _ProductsScreenState extends State<ProductsScreen>
                                                     },
                                                   ),
                                                   Text(
-                                                    avail
+                                                    tx(avail
                                                         ? AppStrings.tr('item_available', widget.lang)
                                                         : AppStrings.tr(
                                                             'item_unavailable',
                                                             widget.lang,
-                                                          ),
+                                                          )),
                                                     style: TextStyle(
                                                       fontSize: 11,
                                                       fontWeight: FontWeight.w700,
@@ -986,12 +988,12 @@ class _ProductsScreenState extends State<ProductsScreen>
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             labelColor: RegaColors.orange,
-            unselectedLabelColor: const Color(0xFF64748B),
+            unselectedLabelColor: RC.fg(Color(0xFF64748B)),
             indicatorColor: RegaColors.orange,
             labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-            tabs: const [
-              Tab(text: 'بەرهەمەکان (Vendor Items)'),
-              Tab(text: 'ڕووکاری فرۆشگا / چیپەکان'),
+            tabs: [
+              Tab(text: tx('بەرهەمەکان (Vendor Items)')),
+              Tab(text: tx('ڕووکاری فرۆشگا / چیپەکان')),
             ],
           ),
         ),

@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../state/driver_nav_notifier.dart';
 import '../state/driver_session_notifier.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 /// Brand-first launch screen for the delivery app (green accent).
 class DriverSplashScreen extends StatefulWidget {
   const DriverSplashScreen({super.key});
@@ -105,7 +107,7 @@ class _DriverSplashScreenState extends State<DriverSplashScreen>
         return Opacity(
           opacity: _exitFade.value,
           child: Scaffold(
-            backgroundColor: const Color(0xFF0B1120),
+            backgroundColor: RC.bg(Color(0xFF0B1120)),
             body: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
@@ -113,15 +115,17 @@ class _DriverSplashScreenState extends State<DriverSplashScreen>
                   radius: 1.05,
                   colors: [
                     DriverSplashScreen.accent.withValues(alpha: 0.22 * _glowPulse.value),
-                    const Color(0xFF0B1120),
-                    const Color(0xFF022C22),
+                    RC.bg(Color(0xFF0B1120)),
+                    RC.bg(Color(0xFF022C22)),
                   ],
                   stops: const [0.0, 0.55, 1.0],
                 ),
               ),
               child: SafeArea(
                 child: Center(
-                  child: Column(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       FadeTransition(
@@ -147,11 +151,11 @@ class _DriverSplashScreenState extends State<DriverSplashScreen>
                             child: Image.asset(
                               DriverSplashScreen.logoAsset,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const ColoredBox(
-                                color: Colors.black,
+                              errorBuilder: (_, __, ___) => ColoredBox(
+                                color: RC.bg(Colors.black),
                                 child: Center(
                                   child: Text(
-                                    'R',
+                                    tx('R'),
                                     style: TextStyle(
                                       color: DriverSplashScreen.accent,
                                       fontSize: 72,
@@ -168,14 +172,14 @@ class _DriverSplashScreenState extends State<DriverSplashScreen>
                       const SizedBox(height: 28),
                       FadeTransition(
                         opacity: _wordFade,
-                        child: const Text(
-                          'REGA',
+                        child: Text(
+                          tx('REGA'),
                           style: TextStyle(
                             fontFamily: 'NotoKufiArabic',
                             fontSize: 34,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 6,
-                            color: Colors.white,
+                            color: RC.fg(Colors.white),
                           ),
                         ),
                       ),
@@ -183,7 +187,7 @@ class _DriverSplashScreenState extends State<DriverSplashScreen>
                       FadeTransition(
                         opacity: _wordFade,
                         child: Text(
-                          'کاپتنی ڕێگا',
+                          tx('کاپتنی ڕێگا'),
                           style: TextStyle(
                             fontFamily: 'NotoKufiArabic',
                             fontSize: 14,
@@ -193,6 +197,7 @@ class _DriverSplashScreenState extends State<DriverSplashScreen>
                         ),
                       ),
                     ],
+                  ),
                   ),
                 ),
               ),

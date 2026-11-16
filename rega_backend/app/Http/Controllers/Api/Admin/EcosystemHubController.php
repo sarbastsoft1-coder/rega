@@ -253,7 +253,7 @@ class EcosystemHubController extends Controller
             $deliveryFee = $neighborhood ? (int) $neighborhood->delivery_fee : (int) $store->base_delivery_fee;
 
             $profitService = app(\App\Services\OrderProfitService::class);
-            $commissionRate = $profitService->globalCommissionPercentage();
+            $commissionRate = $profitService->commissionForStore($store);
             $preparedItems = [];
 
             foreach ($validated['items'] as $entry) {

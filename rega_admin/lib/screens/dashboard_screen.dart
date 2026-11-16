@@ -9,6 +9,8 @@ import '../core/theme/app_theme.dart';
 import '../map/mapbox_tiles.dart';
 import '../widgets/admin_top_header.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 /// Representation of a dashboard recent order
 class RecentOrderEntry {
   final String orderCode;
@@ -214,9 +216,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // 1. Top Executive Header Area (Matching Screenshot)
               _buildTopHeader(),
               if (_isLoading)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 4),
-                  child: LinearProgressIndicator(minHeight: 2, color: Color(0xFF113E2E), backgroundColor: Colors.transparent),
+                  child: LinearProgressIndicator(minHeight: 2, color: RC.bg(Color(0xFF113E2E)), backgroundColor: Colors.transparent),
                 ),
               const SizedBox(height: 16),
 
@@ -262,8 +264,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               style: TextStyle(
                 fontSize: 12.5,
                 color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFF94A3B8)
-                    : const Color(0xFF6B7280),
+                    ? RC.bg(Color(0xFF94A3B8))
+                    : RC.bg(Color(0xFF6B7280)),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -337,8 +339,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 value: _todayOrders,
                 trend: AppStrings.tr('dashboard_kpi_system_orders_trend', widget.lang),
                 icon: Icons.receipt_long_rounded,
-                iconBg: const Color(0xFFFFEDD5),
-                iconColor: const Color(0xFFEA580C),
+                iconBg: RC.bg(Color(0xFFFFEDD5)),
+                iconColor: RC.fg(Color(0xFFEA580C)),
                 onTap: () => widget.onNavigateTab(1), // وەرگرتنی طلب
               ),
             ),
@@ -350,8 +352,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 value: _activeCouriers,
                 trend: AppStrings.tr('dashboard_kpi_active_couriers_trend', widget.lang),
                 icon: Icons.two_wheeler_rounded,
-                iconBg: const Color(0xFFE8F5E9),
-                iconColor: const Color(0xFF16A34A),
+                iconBg: RC.bg(Color(0xFFE8F5E9)),
+                iconColor: RC.fg(Color(0xFF16A34A)),
                 onTap: () => widget.onNavigateTab(3),
               ),
             ),
@@ -363,8 +365,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 value: _totalCustomers,
                 trend: AppStrings.tr('dashboard_kpi_customers_trend', widget.lang),
                 icon: Icons.groups_rounded,
-                iconBg: const Color(0xFFE0F2FE),
-                iconColor: const Color(0xFF0284C7),
+                iconBg: RC.bg(Color(0xFFE0F2FE)),
+                iconColor: RC.fg(Color(0xFF0284C7)),
                 onTap: () => widget.onNavigateTab(4),
               ),
             ),
@@ -376,8 +378,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 value: _totalStores,
                 trend: AppStrings.tr('dashboard_kpi_vendors_trend', widget.lang),
                 icon: Icons.storefront_rounded,
-                iconBg: const Color(0xFFF3E8FF),
-                iconColor: const Color(0xFF9333EA),
+                iconBg: RC.bg(Color(0xFFF3E8FF)),
+                iconColor: RC.fg(Color(0xFF9333EA)),
                 onTap: () => widget.onNavigateTab(5),
               ),
             ),
@@ -406,10 +408,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFF1F5F9)),
+          border: Border.all(color: isDark ? RC.bg(Color(0xFF1F2937)) : RC.bg(Color(0xFFF1F5F9))),
           boxShadow: [
             BoxShadow(
-              color: isDark ? Colors.black26 : const Color(0x06000000),
+              color: isDark ? RC.bg(Colors.black26) : RC.bg(Color(0x06000000)),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -423,11 +425,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Flexible(
                 child: Text(
-                  title,
+                  tx(title),
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B5563),
+                    color: isDark ? RC.bg(Color(0xFF94A3B8)) : RC.bg(Color(0xFF4B5563)),
                   ),
                 ),
               ),
@@ -444,7 +446,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            value,
+            tx(value),
             style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w900,
@@ -456,11 +458,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             children: [
               Text(
-                trend,
-                style: const TextStyle(
+                tx(trend),
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF16A34A),
+                  color: RC.fg(Color(0xFF16A34A)),
                 ),
               ),
             ],
@@ -549,14 +551,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.circle, size: 7, color: Color(0xFF16A34A)),
+                      Icon(Icons.circle, size: 7, color: RC.fg(Color(0xFF16A34A))),
                       const SizedBox(width: 5),
                       Text(
                         AppStrings.tr('dashboard_delivery_riders_on_duty', widget.lang),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF16A34A),
+                          color: RC.fg(Color(0xFF16A34A)),
                         ),
                       ),
                     ],
@@ -593,8 +595,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             point: _centerLocus,
                             radius: 38,
                             useRadiusInMeter: false,
-                            color: const Color(0xFFFF5722).withValues(alpha: 0.15),
-                            borderColor: const Color(0xFFFF5722),
+                            color: RC.bg(Color(0xFFFF5722)).withValues(alpha: 0.15),
+                            borderColor: RC.bg(Color(0xFFFF5722)),
                             borderStrokeWidth: 1.5,
                           ),
                         ],
@@ -611,17 +613,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.location_on_rounded, size: 22, color: Color(0xFFFF5722)),
+                                Icon(Icons.location_on_rounded, size: 22, color: RC.fg(Color(0xFFFF5722))),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: AdminSurfaces.of(context).card,
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                                    border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
+                                    boxShadow: [BoxShadow(color: RC.bg(Colors.black26), blurRadius: 4)],
                                   ),
                                   child: Text(
-                                    'کەلار',
+                                    tx('کەلار'),
                                     style: TextStyle(
                                       fontSize: 9.5,
                                       fontWeight: FontWeight.w900,
@@ -642,12 +644,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               height: 32,
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF113E2E),
+                                  color: RC.bg(Color(0xFF113E2E)),
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2),
-                                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)],
+                                  border: Border.all(color: RC.bg(Colors.white), width: 2),
+                                  boxShadow: [BoxShadow(color: RC.bg(Colors.black26), blurRadius: 6)],
                                 ),
-                                child: const Icon(Icons.two_wheeler_rounded, size: 16, color: Colors.white),
+                                child: Icon(Icons.two_wheeler_rounded, size: 16, color: RC.fg(Colors.white)),
                               ),
                             ),
                           ),
@@ -663,7 +665,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       decoration: BoxDecoration(
                         color: AdminSurfaces.of(context).card,
                         borderRadius: BorderRadius.circular(8),
-                        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
+                        boxShadow: [BoxShadow(color: RC.bg(Colors.black12), blurRadius: 6)],
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -747,9 +749,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: surfaces.textPrimary,
                     ),
                   ),
-                  _buildLegendDot(const Color(0xFF166534), AppStrings.tr('chart_legend_delivered', widget.lang)),
-                  _buildLegendDot(const Color(0xFFEA580C), AppStrings.tr('chart_legend_pending', widget.lang)),
-                  _buildLegendDot(const Color(0xFFCBD5E1), AppStrings.tr('chart_legend_on_the_way', widget.lang)),
+                  _buildLegendDot(RC.bg(Color(0xFF166534)), AppStrings.tr('chart_legend_delivered', widget.lang)),
+                  _buildLegendDot(RC.bg(Color(0xFFEA580C)), AppStrings.tr('chart_legend_pending', widget.lang)),
+                  _buildLegendDot(RC.bg(Color(0xFFCBD5E1)), AppStrings.tr('chart_legend_on_the_way', widget.lang)),
                 ],
               ),
               Container(
@@ -768,9 +770,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     dropdownColor: surfaces.card,
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
                     items: [
-                      DropdownMenuItem(value: days7, child: Text(days7)),
-                      DropdownMenuItem(value: days14, child: Text(days14)),
-                      DropdownMenuItem(value: days30, child: Text(days30)),
+                      DropdownMenuItem(value: days7, child: Text(tx(days7))),
+                      DropdownMenuItem(value: days14, child: Text(tx(days14))),
+                      DropdownMenuItem(value: days30, child: Text(tx(days30))),
                     ],
                     onChanged: (v) {
                       if (v == days14) {
@@ -796,12 +798,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 // Y-Axis labels (0, 100, 200, 300, 400)
                 Column(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('400', style: TextStyle(fontSize: 10.5, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w700)),
-                    Text('300', style: TextStyle(fontSize: 10.5, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w700)),
-                    Text('200', style: TextStyle(fontSize: 10.5, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w700)),
-                    Text('100', style: TextStyle(fontSize: 10.5, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w700)),
-                    Text('0', style: TextStyle(fontSize: 10.5, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w700)),
+                  children: [
+                    Text(tx('400'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
+                    Text(tx('300'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
+                    Text(tx('200'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
+                    Text(tx('100'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
+                    Text(tx('0'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
                   ],
                 ),
                 const SizedBox(width: 10),
@@ -828,7 +830,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Positioned.fill(
                           child: Center(
                             child: Text(
-                              'زانیارییە داراییەکان لە سێرڤەرەوە باردەکرێن...',
+                              tx('زانیارییە داراییەکان لە سێرڤەرەوە باردەکرێن...'),
                               style: TextStyle(fontSize: 12, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600),
                             ),
                           ),
@@ -866,7 +868,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(width: 4),
         Text(
-          label,
+          tx(label),
           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
         ),
       ],
@@ -895,15 +897,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(height: hOnTheWay, color: const Color(0xFFCBD5E1)),
-              Container(height: hPending, color: const Color(0xFFEA580C)),
-              Container(height: hCompleted, color: const Color(0xFF166534)),
+              Container(height: hOnTheWay, color: RC.bg(Color(0xFFCBD5E1))),
+              Container(height: hPending, color: RC.bg(Color(0xFFEA580C))),
+              Container(height: hCompleted, color: RC.bg(Color(0xFF166534))),
             ],
           ),
         ),
         const SizedBox(height: 6),
         Text(
-          d.date,
+          tx(d.date),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -987,12 +989,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.receipt_long_outlined, size: 36, color: Color(0xFFCBD5E1)),
+                      children: [
+                        Icon(Icons.receipt_long_outlined, size: 36, color: RC.fg(Color(0xFFCBD5E1))),
                         SizedBox(height: 8),
                         Text(
-                          'هیچ داواکارییەکی نوێ نییە',
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                          tx('هیچ داواکارییەکی نوێ نییە'),
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF94A3B8))),
                         ),
                       ],
                     ),
@@ -1049,7 +1051,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: active ? const Color(0xFF113E2E) : surfaces.chipFill,
+          color: active ? RC.bg(Color(0xFF113E2E)) : surfaces.chipFill,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
@@ -1057,7 +1059,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-            color: active ? Colors.white : surfaces.textSecondary,
+            color: active ? RC.bg(Colors.white) : surfaces.textSecondary,
           ),
         ),
       ),
@@ -1081,7 +1083,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    o.orderCode,
+                    tx(o.orderCode),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
@@ -1096,7 +1098,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    _statusLabel(o.status),
+                    tx(_statusLabel(o.status)),
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
@@ -1108,14 +1110,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              o.customerName,
+              tx(o.customerName),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: surfaces.textPrimary),
             ),
             const SizedBox(height: 2),
             Text(
-              o.storeName,
+              tx(o.storeName),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: surfaces.textSecondary),
@@ -1127,14 +1129,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    o.courierName,
+                    tx(o.courierName),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textPrimary),
                   ),
                 ),
                 Text(
-                  o.time,
+                  tx(o.time),
                   style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
                 ),
               ],
@@ -1162,7 +1164,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Row(
               children: [
                 Text(
-                  o.orderCode,
+                  tx(o.orderCode),
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
@@ -1179,7 +1181,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             flex: 2,
             child: Text(
-              o.customerName,
+              tx(o.customerName),
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
@@ -1192,7 +1194,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             flex: 2,
             child: Text(
-              o.storeName,
+              tx(o.storeName),
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
@@ -1224,7 +1226,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    o.courierName,
+                    tx(o.courierName),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -1250,7 +1252,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  _statusLabel(o.status),
+                  tx(_statusLabel(o.status)),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
@@ -1265,7 +1267,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             flex: 1,
             child: Text(
-              o.time,
+              tx(o.time),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -1283,20 +1285,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     switch (status) {
       case 'delivered':
       case 'completed':
-        return const Color(0xFF16A34A);
+        return RC.bg(Color(0xFF16A34A));
       case 'on_the_way':
       case 'arrived_customer':
       case 'picked_up':
-        return const Color(0xFFEA580C);
+        return RC.bg(Color(0xFFEA580C));
       case 'preparing':
       case 'ready':
-        return const Color(0xFF4338CA);
+        return RC.bg(Color(0xFF4338CA));
       case 'cancelled':
       case 'rejected':
-        return const Color(0xFFDC2626);
+        return RC.bg(Color(0xFFDC2626));
       case 'pending':
       default:
-        return const Color(0xFFD97706);
+        return RC.bg(Color(0xFFD97706));
     }
   }
 
@@ -1310,20 +1312,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     switch (status) {
       case 'delivered':
       case 'completed':
-        return dark ? const Color(0xFF14532D) : const Color(0xFFDCFCE7);
+        return dark ? RC.bg(Color(0xFF14532D)) : RC.bg(Color(0xFFDCFCE7));
       case 'on_the_way':
       case 'arrived_customer':
       case 'picked_up':
-        return dark ? const Color(0xFF3B2112) : const Color(0xFFFFEDD5);
+        return dark ? RC.bg(Color(0xFF3B2112)) : RC.bg(Color(0xFFFFEDD5));
       case 'preparing':
       case 'ready':
-        return dark ? const Color(0xFF1E1B4B) : const Color(0xFFE0E7FF);
+        return dark ? RC.bg(Color(0xFF1E1B4B)) : RC.bg(Color(0xFFE0E7FF));
       case 'cancelled':
       case 'rejected':
-        return dark ? const Color(0xFF3F1D1D) : const Color(0xFFFEE2E2);
+        return dark ? RC.bg(Color(0xFF3F1D1D)) : RC.bg(Color(0xFFFEE2E2));
       case 'pending':
       default:
-        return dark ? const Color(0xFF422006) : const Color(0xFFFEF3C7);
+        return dark ? RC.bg(Color(0xFF422006)) : RC.bg(Color(0xFFFEF3C7));
     }
   }
 }

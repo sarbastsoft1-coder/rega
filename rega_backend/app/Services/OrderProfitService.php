@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\PlatformSetting;
 use App\Models\Product;
+use App\Models\Store;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -24,6 +25,18 @@ class OrderProfitService
         $raw = PlatformSetting::getValue(self::SETTINGS_KEY, 20);
 
         return max(0.0, min(100.0, (float) $raw));
+    }
+
+    /**
+     * Per-vendor rate from stores.commission_rate, falling back to the global default.
+     */
+    public function commissionForStore(?Store $store): float
+    {
+        if ($store !== null && $store->commission_rate !== null) {
+            return max(0.0, min(100.0, (float) $store->commission_rate));
+        }
+
+        return $this->globalCommissionPercentage();
     }
 
     /**

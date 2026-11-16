@@ -7,6 +7,8 @@ import '../core/theme/app_theme.dart';
 import '../state/admin_app_notifier.dart';
 import '../state/admin_domain_notifiers.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 /// Top header actions row containing:
 /// 1. Interactive Search Bar (Global Spotlight Search)
 /// 2. Admin Profile Dropdown (Profile, Language, Dark Mode, Logout)
@@ -49,7 +51,7 @@ class AdminTopBarRow extends StatelessWidget {
       children: [
         AdminGlobalSearchBar(
           controller: searchCtrl,
-          hintText: hintText.isEmpty ? AppStrings.tr('search_system', context.watch<AdminAppNotifier>().lang) : hintText,
+          hintText: tx(hintText.isEmpty ? AppStrings.tr('search_system', context.watch<AdminAppNotifier>().lang) : hintText),
           onChanged: onSearchChanged,
           compact: compactSearch,
         ),
@@ -109,7 +111,7 @@ class AdminLocaleToggle extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    _label(code, lang),
+                    tx(_label(code, lang)),
                     style: TextStyle(
                       fontWeight: lang == code ? FontWeight.w900 : FontWeight.w700,
                       fontSize: 13,
@@ -134,7 +136,7 @@ class AdminLocaleToggle extends StatelessWidget {
             Icon(Icons.language_rounded, size: 16, color: surfaces.textSecondary),
             const SizedBox(width: 6),
             Text(
-              lang.toUpperCase(),
+              tx(lang.toUpperCase()),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
@@ -233,7 +235,7 @@ class _AdminGlobalSearchBarState extends State<AdminGlobalSearchBar> {
   void _openSpotlightSearch(BuildContext context) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
+      barrierColor: RC.bg(Colors.black).withValues(alpha: 0.5),
       builder: (ctx) => _SpotlightSearchDialog(initialQuery: _ctrl.text),
     );
   }
@@ -288,7 +290,7 @@ class _AdminGlobalSearchBarState extends State<AdminGlobalSearchBar> {
           const SizedBox(width: 10),
           InkWell(
             onTap: () => _openSpotlightSearch(context),
-            child: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+            child: Icon(Icons.search_rounded, size: 18, color: RC.fg(Color(0xFF94A3B8))),
           ),
           const SizedBox(width: 6),
           Expanded(
@@ -297,8 +299,8 @@ class _AdminGlobalSearchBarState extends State<AdminGlobalSearchBar> {
               onChanged: widget.onChanged,
               onSubmitted: (_) => _openSpotlightSearch(context),
               decoration: InputDecoration(
-                hintText: widget.hintText,
-                hintStyle: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                hintText: txn(widget.hintText),
+                hintStyle: TextStyle(fontSize: 11.5, color: RC.fg(Color(0xFF94A3B8))),
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
@@ -312,9 +314,9 @@ class _AdminGlobalSearchBarState extends State<AdminGlobalSearchBar> {
                 widget.onChanged?.call('');
                 setState(() {});
               },
-              child: const Padding(
+              child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 6),
-                child: Icon(Icons.close_rounded, size: 16, color: Color(0xFF94A3B8)),
+                child: Icon(Icons.close_rounded, size: 16, color: RC.fg(Color(0xFF94A3B8))),
               ),
             ),
         ],
@@ -499,11 +501,11 @@ class _SpotlightSearchDialogState extends State<_SpotlightSearchDialog> {
               decoration: BoxDecoration(
                 color: surfaces.mutedFill,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFEA580C), width: 1.5),
+                border: Border.all(color: RC.bg(Color(0xFFEA580C)), width: 1.5),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.search_rounded, color: Color(0xFFEA580C), size: 22),
+                  Icon(Icons.search_rounded, color: RC.fg(Color(0xFFEA580C)), size: 22),
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextField(
@@ -512,7 +514,7 @@ class _SpotlightSearchDialogState extends State<_SpotlightSearchDialog> {
                       onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         hintText: AppStrings.tr('search_system', lang),
-                        hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                        hintStyle: TextStyle(fontSize: 13, color: RC.fg(Color(0xFF94A3B8))),
                         border: InputBorder.none,
                         isDense: true,
                       ),
@@ -521,7 +523,7 @@ class _SpotlightSearchDialogState extends State<_SpotlightSearchDialog> {
                   if (_queryCtrl.text.isNotEmpty)
                     InkWell(
                       onTap: () => setState(() => _queryCtrl.clear()),
-                      child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF94A3B8)),
+                      child: Icon(Icons.close_rounded, size: 18, color: RC.fg(Color(0xFF94A3B8))),
                     ),
                 ],
               ),
@@ -537,7 +539,7 @@ class _SpotlightSearchDialogState extends State<_SpotlightSearchDialog> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.search_off_rounded, size: 40, color: Color(0xFFCBD5E1)),
+                          Icon(Icons.search_off_rounded, size: 40, color: RC.fg(Color(0xFFCBD5E1))),
                           SizedBox(height: 8),
                           Text(AppStrings.tr('no_results', lang), style: TextStyle(color: AdminSurfaces.of(context).textSecondary, fontWeight: FontWeight.w700)),
                         ],
@@ -555,20 +557,20 @@ class _SpotlightSearchDialogState extends State<_SpotlightSearchDialog> {
                             width: 38,
                             height: 38,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFF7ED),
+                              color: RC.bg(Color(0xFFFFF7ED)),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Icon(item['icon'] as IconData, color: const Color(0xFFEA580C), size: 20),
+                            child: Icon(item['icon'] as IconData, color: RC.fg(Color(0xFFEA580C)), size: 20),
                           ),
                           title: Text(
-                            item['title'] as String,
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                            tx(item['title'] as String),
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF0F172A))),
                           ),
                           subtitle: Text(
-                            item['sub'] as String,
+                            tx(item['sub'] as String),
                             style: TextStyle(fontSize: 11.5, color: AdminSurfaces.of(context).textSecondary, fontWeight: FontWeight.w600),
                           ),
-                          trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF94A3B8)),
+                          trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: RC.fg(Color(0xFF94A3B8))),
                           onTap: () {
                             Navigator.pop(context);
                             final path = item['path'] as String;
@@ -610,7 +612,7 @@ class AdminProfileDropdown extends StatelessWidget {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.45),
+      barrierColor: RC.bg(Colors.black).withValues(alpha: 0.45),
       builder: (ctx) => Dialog(
         backgroundColor: surfaces.dialog,
         surfaceTintColor: Colors.transparent,
@@ -636,12 +638,12 @@ class AdminProfileDropdown extends StatelessWidget {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: surfaces.isDark ? const Color(0xFF3B2112) : const Color(0xFFFFF7ED),
+                      color: surfaces.isDark ? RC.bg(Color(0xFF3B2112)) : RC.bg(Color(0xFFFFF7ED)),
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFFFEDD5), width: 2),
+                      border: Border.all(color: RC.bg(Color(0xFFFFEDD5)), width: 2),
                     ),
-                    child: const Center(
-                      child: Icon(Icons.admin_panel_settings_rounded, color: Color(0xFFEA580C), size: 28),
+                    child: Center(
+                      child: Icon(Icons.admin_panel_settings_rounded, color: RC.fg(Color(0xFFEA580C)), size: 28),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -650,7 +652,7 @@ class AdminProfileDropdown extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          userName,
+                          tx(userName),
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w900,
@@ -659,7 +661,7 @@ class AdminProfileDropdown extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          userEmail.isEmpty ? AppStrings.tr('nav_staff', lang) : userEmail,
+                          tx(userEmail.isEmpty ? AppStrings.tr('nav_staff', lang) : userEmail),
                           style: TextStyle(fontSize: 11.5, color: surfaces.textSecondary, fontWeight: FontWeight.w600),
                         ),
                       ],
@@ -672,11 +674,11 @@ class AdminProfileDropdown extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      AppStrings.statusLabel('verified', lang),
+                      tx(AppStrings.statusLabel('verified', lang)),
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
-                        color: surfaces.isDark ? const Color(0xFF86EFAC) : const Color(0xFF15803D),
+                        color: surfaces.isDark ? RC.bg(Color(0xFF86EFAC)) : RC.bg(Color(0xFF15803D)),
                       ),
                     ),
                   ),
@@ -733,14 +735,14 @@ class AdminProfileDropdown extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   child: Row(
                     children: [
-                      const Icon(Icons.logout_rounded, color: Color(0xFFDC2626), size: 20),
+                      Icon(Icons.logout_rounded, color: RC.fg(Color(0xFFDC2626)), size: 20),
                       const SizedBox(width: 12),
                       Text(
                         AppStrings.tr('logout', lang),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFFDC2626),
+                          color: RC.fg(Color(0xFFDC2626)),
                         ),
                       ),
                     ],
@@ -771,7 +773,7 @@ class AdminProfileDropdown extends StatelessWidget {
             ListTile(
               leading: Icon(
                 lang == 'ku' ? Icons.check_circle_rounded : Icons.language_rounded,
-                color: lang == 'ku' ? const Color(0xFFEA580C) : surfaces.textSecondary,
+                color: lang == 'ku' ? RC.fg(Color(0xFFEA580C)) : surfaces.textSecondary,
               ),
               title: Text(AppStrings.tr('lang_ku', lang), style: const TextStyle(fontWeight: FontWeight.w800)),
               onTap: () {
@@ -782,7 +784,7 @@ class AdminProfileDropdown extends StatelessWidget {
             ListTile(
               leading: Icon(
                 lang == 'ar' ? Icons.check_circle_rounded : Icons.language_rounded,
-                color: lang == 'ar' ? const Color(0xFFEA580C) : surfaces.textSecondary,
+                color: lang == 'ar' ? RC.fg(Color(0xFFEA580C)) : surfaces.textSecondary,
               ),
               title: Text(AppStrings.tr('lang_ar', lang), style: const TextStyle(fontWeight: FontWeight.w800)),
               onTap: () {
@@ -793,7 +795,7 @@ class AdminProfileDropdown extends StatelessWidget {
             ListTile(
               leading: Icon(
                 lang == 'en' ? Icons.check_circle_rounded : Icons.language_rounded,
-                color: lang == 'en' ? const Color(0xFFEA580C) : surfaces.textSecondary,
+                color: lang == 'en' ? RC.fg(Color(0xFFEA580C)) : surfaces.textSecondary,
               ),
               title: Text(AppStrings.tr('lang_en', lang), style: const TextStyle(fontWeight: FontWeight.w800)),
               onTap: () {
@@ -838,11 +840,11 @@ class AdminProfileDropdown extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    tx(title),
                     style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: surfaces.textPrimary),
                   ),
                   Text(
-                    subtitle,
+                    tx(subtitle),
                     style: TextStyle(fontSize: 10.5, color: surfaces.textSecondary, fontWeight: FontWeight.w600),
                   ),
                 ],
@@ -865,7 +867,7 @@ class AdminProfileDropdown extends StatelessWidget {
       child: InkWell(
         onTap: () => _showProfileDialog(context),
         borderRadius: BorderRadius.circular(12),
-        hoverColor: const Color(0xFFEA580C).withValues(alpha: 0.06),
+        hoverColor: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.06),
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: compact ? 2 : 6, vertical: 4),
           child: Row(
@@ -888,7 +890,7 @@ class AdminProfileDropdown extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        name,
+                        tx(name),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1022,7 +1024,7 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
 
     await showDialog<void>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.45),
+      barrierColor: RC.bg(Colors.black).withValues(alpha: 0.45),
       builder: (ctx) => Consumer<AdminInboxNotifier>(
         builder: (ctx, inboxState, _) {
           final lang = ctx.watch<AdminAppNotifier>().lang;
@@ -1057,12 +1059,12 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFF7ED),
+                              color: RC.bg(Color(0xFFFFF7ED)),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.notifications_active_rounded,
-                              color: Color(0xFFEA580C),
+                              color: RC.fg(Color(0xFFEA580C)),
                               size: 22,
                             ),
                           ),
@@ -1079,9 +1081,9 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                                 ),
                               ),
                               Text(
-                                unread > 0
+                                tx(unread > 0
                                     ? AppStrings.trParams('unread_waiting', lang, {'n': '$unread'})
-                                    : AppStrings.tr('all_read', lang),
+                                    : AppStrings.tr('all_read', lang)),
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: AdminSurfaces.of(context).textSecondary,
@@ -1103,7 +1105,7 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFFEA580C),
+                              color: RC.fg(Color(0xFFEA580C)),
                             ),
                           ),
                         ),
@@ -1167,9 +1169,9 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFEA580C),
-                      side: const BorderSide(color: Color(0xFFFFEDD5)),
-                      backgroundColor: const Color(0xFFFFF7ED),
+                      foregroundColor: RC.fg(Color(0xFFEA580C)),
+                      side: BorderSide(color: RC.bg(Color(0xFFFFEDD5))),
+                      backgroundColor: RC.bg(Color(0xFFFFF7ED)),
                       padding: const EdgeInsets.symmetric(vertical: 11),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -1234,7 +1236,7 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                     children: [
                       Flexible(
                         child: Text(
-                          title,
+                          tx(title),
                           style: TextStyle(
                             fontSize: 12.5,
                             fontWeight:
@@ -1247,8 +1249,8 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                         Container(
                           width: 8,
                           height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFEA580C),
+                          decoration: BoxDecoration(
+                            color: RC.bg(Color(0xFFEA580C)),
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -1256,7 +1258,7 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    subtitle,
+                    tx(subtitle),
                     style: TextStyle(
                       fontSize: 11,
                       color: AdminSurfaces.of(context).textSecondary,
@@ -1266,7 +1268,7 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                   if (time.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
-                      time,
+                      tx(time),
                       style: TextStyle(
                         fontSize: 10,
                         color: AdminSurfaces.of(context).textTertiary,
@@ -1309,14 +1311,14 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                   right: -4,
                   child: Container(
                     padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEA580C),
+                    decoration: BoxDecoration(
+                      color: RC.bg(Color(0xFFEA580C)),
                       shape: BoxShape.circle,
                     ),
                     constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                     child: Center(
                       child: Text(
-                        badge,
+                        tx(badge),
                         style: TextStyle(
                           color: AdminSurfaces.of(context).card,
                           fontSize: 9,

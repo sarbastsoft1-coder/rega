@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'blocked_account.dart';
 import 'rega_mobile.dart';
 
+import 'rega_i18n.dart';
 class CustomerApiService {
   CustomerApiService._();
   static final CustomerApiService instance = CustomerApiService._();
@@ -94,7 +95,7 @@ class CustomerApiService {
         .timeout(const Duration(seconds: 8));
 
     if (loginRes.statusCode == 403) {
-      final body = jsonDecode(loginRes.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(loginRes.body) as Map<String, dynamic>;
       if (body['code']?.toString() == 'account_blocked') {
         await clearToken();
         throw AccountBlockedException.fromBody(body);
@@ -102,7 +103,7 @@ class CustomerApiService {
     }
 
     if (loginRes.statusCode >= 200 && loginRes.statusCode < 300) {
-      final body = jsonDecode(loginRes.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(loginRes.body) as Map<String, dynamic>;
       final tok = body['data']?['token']?.toString();
       if (tok != null && tok.isNotEmpty) {
         await _persistToken(tok);
@@ -135,7 +136,7 @@ class CustomerApiService {
         .timeout(const Duration(seconds: 8));
 
     if (regRes.statusCode >= 200 && regRes.statusCode < 300) {
-      final body = jsonDecode(regRes.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(regRes.body) as Map<String, dynamic>;
       final tok = body['data']?['token']?.toString();
       if (tok != null && tok.isNotEmpty) {
         await _persistToken(tok);
@@ -146,7 +147,7 @@ class CustomerApiService {
 
     // Phone already taken (Laravel unique validation → 422).
     if (regRes.statusCode == 422) {
-      final body = jsonDecode(regRes.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(regRes.body) as Map<String, dynamic>;
       final errors = body['errors'];
       final phoneErr = errors is Map ? errors['phone'] : null;
       if (phoneErr != null) {
@@ -167,7 +168,7 @@ class CustomerApiService {
       if (res.statusCode == 403) {
         Map<String, dynamic> body = {};
         try {
-          body = jsonDecode(res.body) as Map<String, dynamic>;
+          body = regaJsonDecode(res.body) as Map<String, dynamic>;
         } catch (_) {}
         await clearToken();
         if (body['code']?.toString() == 'account_blocked') {
@@ -180,7 +181,7 @@ class CustomerApiService {
         return null;
       }
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>?;
       }
     } on AccountBlockedException {
@@ -199,7 +200,7 @@ class CustomerApiService {
           )
           .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         final data = body['data'];
         if (data is Map<String, dynamic>) return data;
         if (data is Map) return Map<String, dynamic>.from(data);
@@ -215,7 +216,7 @@ class CustomerApiService {
           .get(Uri.parse('$baseUrl/public/bootstrap'), headers: _headers())
           .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>?;
       }
     } catch (_) {}
@@ -228,11 +229,34 @@ class CustomerApiService {
           .get(Uri.parse('$baseUrl/public/stores/$storeId'), headers: _headers())
           .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>?;
       }
     } catch (_) {}
     return null;
+  }
+
+  /// Stores for one customer-home section only (category_id from admin جۆری فرۆشیار).
+  Future<List<Map<String, dynamic>>> fetchStoresByCategory(int categoryId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/public/stores').replace(
+        queryParameters: {'category_id': '$categoryId'},
+      );
+      final res = await http
+          .get(uri, headers: _headers())
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
+        final data = body['data'];
+        if (data is List) {
+          return data
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      }
+    } catch (_) {}
+    return const [];
   }
 
   Future<Map<String, dynamic>?> placeBackendOrder({
@@ -274,7 +298,7 @@ class CustomerApiService {
           .timeout(const Duration(seconds: 6));
 
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>?;
       }
     } catch (_) {}
@@ -289,7 +313,7 @@ class CustomerApiService {
       );
       final res = await http.get(uri, headers: _headers()).timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as List<dynamic>? ?? [];
       }
     } catch (_) {}
@@ -306,7 +330,7 @@ class CustomerApiService {
             .get(Uri.parse('$baseUrl/customer/notifications'), headers: _headers())
             .timeout(const Duration(seconds: 6));
         if (res.statusCode == 200) {
-          final body = jsonDecode(res.body) as Map<String, dynamic>;
+          final body = regaJsonDecode(res.body) as Map<String, dynamic>;
           return body['data'] as List<dynamic>? ?? [];
         }
         // Stale / revoked Sanctum token → drop it and fall back to public broadcasts.
@@ -319,7 +343,7 @@ class CustomerApiService {
           .get(Uri.parse('$baseUrl/public/notifications'), headers: _headers())
           .timeout(const Duration(seconds: 6));
       if (pub.statusCode == 200) {
-        final body = jsonDecode(pub.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(pub.body) as Map<String, dynamic>;
         return body['data'] as List<dynamic>? ?? [];
       }
     } catch (_) {}

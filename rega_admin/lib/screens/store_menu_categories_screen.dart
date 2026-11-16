@@ -9,6 +9,8 @@ import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 /// Admin CRUD for in-store menu category chips (ڕووکاری فرۆشگا):
 /// select home category + store, primary image + secondary (chip) image.
 class StoreMenuCategoriesScreen extends StatefulWidget {
@@ -79,7 +81,7 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
+        content: Text(tx(msg)),
         backgroundColor: error ? RegaColors.crimson : RegaColors.emeraldDark,
       ),
     );
@@ -126,9 +128,9 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('سڕینەوەی ${row['name_ku']}'),
+        title: Text(tx('سڕینەوەی ${row['name_ku']}')),
         content: Text(
-          'ئایا دڵنیایت؟ ${(row['products_count'] ?? 0)} بەرهەم لەم بەشەدا هەیە.',
+          tx('ئایا دڵنیایت؟ ${(row['products_count'] ?? 0)} بەرهەم لەم بەشەدا هەیە.'),
         ),
         actions: [
           TextButton(
@@ -203,7 +205,7 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                Text(tx(label), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                 const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -224,15 +226,15 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                 OutlinedButton.icon(
                   onPressed: saving ? null : onPick,
                   icon: const Icon(Icons.photo_library_rounded, size: 18),
-                  label: const Text('هەڵبژاردنی وێنە (+compress)'),
+                  label: Text(tx('هەڵبژاردنی وێنە (+compress)')),
                 ),
                 const SizedBox(height: 6),
                 TextField(
                   controller: ctrl,
                   onChanged: (_) => setDialogState(() {}),
-                  decoration: const InputDecoration(
-                    labelText: 'یان بەستەری وێنە',
-                    hintText: 'https://...',
+                  decoration: InputDecoration(
+                    labelText: tx('یان بەستەری وێنە'),
+                    hintText: tx('https://...'),
                   ),
                 ),
               ],
@@ -241,7 +243,7 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
 
           return AlertDialog(
             insetPadding: AdminBreakpoints.dialogInset(ctx),
-            title: Text(isEdit ? 'دەستکاری بەشی مێنیو / چیپ' : 'زیادکردنی بەشی مێنیو (چیپ)'),
+            title: Text(tx(isEdit ? 'دەستکاری بەشی مێنیو / چیپ' : 'زیادکردنی بەشی مێنیو (چیپ)')),
             content: SizedBox(
               width: AdminBreakpoints.dialogWidth(ctx, max: 520),
               child: SingleChildScrollView(
@@ -249,27 +251,27 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      'ئەم بەشانە لە ڕووکاری فرۆشگا (چیپ بار) و گریدی بابەتەکان دەردەکەون. '
-                      'وێنەی سەرەکی بۆ کارتی گەورە، وێنەی دووەم (sec) بۆ ئایکۆنی چیپ.',
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                    Text(
+                      tx('ئەم بەشانە لە ڕووکاری فرۆشگا (چیپ بار) و گریدی بابەتەکان دەردەکەون. '
+                      'وێنەی سەرەکی بۆ کارتی گەورە، وێنەی دووەم (sec) بۆ ئایکۆنی چیپ.'),
+                      style: TextStyle(fontSize: 12, color: RC.fg(Colors.black54)),
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<int?>(
                       initialValue: homeCategoryId,
-                      decoration: const InputDecoration(
-                        labelText: 'بەشی سەرەکی ئەپ (فلتەر / هەڵبژاردن)',
+                      decoration: InputDecoration(
+                        labelText: tx('بەشی سەرەکی ئەپ (فلتەر / هەڵبژاردن)'),
                       ),
                       items: [
-                        const DropdownMenuItem<int?>(
+                        DropdownMenuItem<int?>(
                           value: null,
-                          child: Text('هەموو بەشەکان'),
+                          child: Text(tx('هەموو بەشەکان')),
                         ),
                         ..._homeCategories.map((c) {
                           final m = c as Map<String, dynamic>;
                           return DropdownMenuItem<int?>(
                             value: m['id'] as int,
-                            child: Text(m['name_ku']?.toString() ?? ''),
+                            child: Text(tx(m['name_ku']?.toString() ?? '')),
                           );
                         }),
                       ],
@@ -287,14 +289,14 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                     const SizedBox(height: 12),
                     DropdownButtonFormField<int?>(
                       initialValue: storeId,
-                      decoration: const InputDecoration(
-                        labelText: 'فرۆشگا *',
+                      decoration: InputDecoration(
+                        labelText: tx('فرۆشگا *'),
                       ),
                       items: storeChoices.map((s) {
                         final m = s as Map<String, dynamic>;
                         return DropdownMenuItem<int?>(
                           value: m['id'] as int,
-                          child: Text(m['name_ku']?.toString() ?? ''),
+                          child: Text(tx(m['name_ku']?.toString() ?? '')),
                         );
                       }).toList(),
                       onChanged: isEdit
@@ -304,15 +306,15 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: kuCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'ناوی بەش / چیپ (کوردی) *',
-                        hintText: 'نموونە: گریل و کەباب',
+                      decoration: InputDecoration(
+                        labelText: tx('ناوی بەش / چیپ (کوردی) *'),
+                        hintText: tx('نموونە: گریل و کەباب'),
                       ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: arCtrl,
-                      decoration: const InputDecoration(labelText: 'ناو (عەرەبی)'),
+                      decoration: InputDecoration(labelText: tx('ناو (عەرەبی)')),
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -325,11 +327,11 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                     TextField(
                       controller: orderCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'ڕیزبەندی'),
+                      decoration: InputDecoration(labelText: tx('ڕیزبەندی')),
                     ),
                     const SizedBox(height: 16),
                     imageBox(
-                      label: 'وێنەی سەرەکی (کارتی بابەت)',
+                      label: tx('وێنەی سەرەکی (کارتی بابەت)'),
                       ctrl: imgCtrl,
                       pending: pendingPrimary,
                       onPick: () async {
@@ -340,7 +342,7 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                     ),
                     const SizedBox(height: 16),
                     imageBox(
-                      label: 'وێنەی دووەم / Sec image (ئایکۆنی چیپ)',
+                      label: tx('وێنەی دووەم / Sec image (ئایکۆنی چیپ)'),
                       ctrl: secImgCtrl,
                       pending: pendingSecondary,
                       onPick: () async {
@@ -420,10 +422,10 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                         }
                       },
                 child: saving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
                       )
                     : Text(AppStrings.tr('save', widget.lang)),
               ),
@@ -436,9 +438,9 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
 
   Widget _placeholder(String label) {
     return Container(
-      color: const Color(0xFFF1F5F9),
+      color: RC.bg(Color(0xFFF1F5F9)),
       alignment: Alignment.center,
-      child: Text(label, style: const TextStyle(color: Colors.black45, fontWeight: FontWeight.w700)),
+      child: Text(tx(label), style: TextStyle(color: RC.fg(Colors.black45), fontWeight: FontWeight.w700)),
     );
   }
 
@@ -451,14 +453,14 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
         height: 44,
         child: resolved.isEmpty
             ? Container(
-                color: const Color(0xFFE2E8F0),
-                child: const Icon(Icons.image_outlined, size: 20, color: Colors.black38),
+                color: RC.bg(Color(0xFFE2E8F0)),
+                child: Icon(Icons.image_outlined, size: 20, color: RC.fg(Colors.black38)),
               )
             : Image.network(
                 resolved,
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => Container(
-                  color: const Color(0xFFE2E8F0),
+                  color: RC.bg(Color(0xFFE2E8F0)),
                   child: const Icon(Icons.broken_image_outlined, size: 18),
                 ),
               ),
@@ -481,14 +483,14 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'ڕووکاری فرۆشگا — بەشەکانی مێنیو / چیپ (${_rows.length})',
+                      tx('ڕووکاری فرۆشگا — بەشەکانی مێنیو / چیپ (${_rows.length})'),
                       style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                     ),
                     const SizedBox(height: 10),
                     ElevatedButton.icon(
                       onPressed: () => _showDialog(),
                       icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('زیادکردنی بەش / چیپ'),
+                      label: Text(tx('زیادکردنی بەش / چیپ')),
                     ),
                   ],
                 )
@@ -496,14 +498,14 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        'ڕووکاری فرۆشگا — بەشەکانی مێنیو / چیپ (${_rows.length})',
+                        tx('ڕووکاری فرۆشگا — بەشەکانی مێنیو / چیپ (${_rows.length})'),
                         style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                       ),
                     ),
                     ElevatedButton.icon(
                       onPressed: () => _showDialog(),
                       icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('زیادکردنی بەش / چیپ'),
+                      label: Text(tx('زیادکردنی بەش / چیپ')),
                     ),
                   ],
                 ),
@@ -520,8 +522,8 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                 child: TextField(
                   controller: _searchCtrl,
                   onSubmitted: (_) => _load(),
-                  decoration: const InputDecoration(
-                    hintText: 'گەڕان…',
+                  decoration: InputDecoration(
+                    hintText: tx('گەڕان…'),
                     prefixIcon: Icon(Icons.search_rounded, size: 18),
                   ),
                 ),
@@ -530,14 +532,14 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                 width: filterW,
                 child: DropdownButtonFormField<int?>(
                   initialValue: _homeCategoryFilter,
-                  decoration: const InputDecoration(labelText: 'بەشی سەرەکی ئەپ'),
+                  decoration: InputDecoration(labelText: tx('بەشی سەرەکی ئەپ')),
                   items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('هەموو')),
+                    DropdownMenuItem<int?>(value: null, child: Text(tx('هەموو'))),
                     ..._homeCategories.map((c) {
                       final m = c as Map<String, dynamic>;
                       return DropdownMenuItem<int?>(
                         value: m['id'] as int,
-                        child: Text(m['name_ku']?.toString() ?? ''),
+                        child: Text(tx(m['name_ku']?.toString() ?? '')),
                       );
                     }),
                   ],
@@ -554,14 +556,14 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                 width: filterW,
                 child: DropdownButtonFormField<int?>(
                   initialValue: _storeFilter,
-                  decoration: const InputDecoration(labelText: 'فرۆشگا'),
+                  decoration: InputDecoration(labelText: tx('فرۆشگا')),
                   items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('هەموو فرۆشگاکان')),
+                    DropdownMenuItem<int?>(value: null, child: Text(tx('هەموو فرۆشگاکان'))),
                     ..._storesForHomeCategory(_homeCategoryFilter).map((s) {
                       final m = s as Map<String, dynamic>;
                       return DropdownMenuItem<int?>(
                         value: m['id'] as int,
-                        child: Text(m['name_ku']?.toString() ?? ''),
+                        child: Text(tx(m['name_ku']?.toString() ?? '')),
                       );
                     }),
                   ],
@@ -577,14 +579,14 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
         ),
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator())
               : _error != null
                   ? ErrorRetryView(message: _error!, onRetry: _load)
                   : _rows.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
-                            'هیچ بەشێکی مێنیو نییە — یەکەم چیپ زیاد بکە',
-                            style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black54),
+                            tx('هیچ بەشێکی مێنیو نییە — یەکەم چیپ زیاد بکە'),
+                            style: TextStyle(fontWeight: FontWeight.w700, color: RC.fg(Colors.black54)),
                           ),
                         )
                       : ListView.separated(
@@ -609,7 +611,7 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            row['name_ku']?.toString() ?? '',
+                                            tx(row['name_ku']?.toString() ?? ''),
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w900,
                                               fontSize: 14,
@@ -617,17 +619,17 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
-                                            [
+                                            tx([
                                               if (homeCat?['name_ku'] != null)
                                                 'بەش: ${homeCat!['name_ku']}',
                                               if (store?['name_ku'] != null)
                                                 'فرۆشگا: ${store!['name_ku']}',
                                               '${row['products_count'] ?? 0} بەرهەم',
                                               '#${row['sort_order'] ?? index + 1}',
-                                            ].join(' • '),
-                                            style: const TextStyle(
+                                            ].join(' • ')),
+                                            style: TextStyle(
                                               fontSize: 11.5,
-                                              color: Color(0xFF64748B),
+                                              color: RC.fg(Color(0xFF64748B)),
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),
@@ -636,18 +638,18 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                                             spacing: 6,
                                             children: [
                                               Chip(
-                                                label: const Text('سەرەکی', style: TextStyle(fontSize: 10)),
+                                                label: Text(tx('سەرەکی'), style: TextStyle(fontSize: 10)),
                                                 visualDensity: VisualDensity.compact,
                                                 backgroundColor: row['image_url'] != null
                                                     ? RegaColors.gold.withValues(alpha: 0.25)
-                                                    : const Color(0xFFF1F5F9),
+                                                    : RC.bg(Color(0xFFF1F5F9)),
                                               ),
                                               Chip(
-                                                label: const Text('Sec', style: TextStyle(fontSize: 10)),
+                                                label: Text(tx('Sec'), style: TextStyle(fontSize: 10)),
                                                 visualDensity: VisualDensity.compact,
                                                 backgroundColor: row['secondary_image_url'] != null
-                                                    ? const Color(0xFFFFEDD5)
-                                                    : const Color(0xFFF1F5F9),
+                                                    ? RC.bg(Color(0xFFFFEDD5))
+                                                    : RC.bg(Color(0xFFF1F5F9)),
                                               ),
                                             ],
                                           ),
@@ -655,12 +657,12 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                                       ),
                                     ),
                                     IconButton(
-                                      tooltip: 'بەرەو سەرەوە',
+                                      tooltip: tx('بەرەو سەرەوە'),
                                       onPressed: index == 0 ? null : () => _moveRow(index, -1),
                                       icon: const Icon(Icons.arrow_upward_rounded, size: 20),
                                     ),
                                     IconButton(
-                                      tooltip: 'بەرەو خوارەوە',
+                                      tooltip: tx('بەرەو خوارەوە'),
                                       onPressed: index >= _rows.length - 1
                                           ? null
                                           : () => _moveRow(index, 1),

@@ -22,6 +22,8 @@ import 'state/vendor_nav_notifier.dart';
 import 'state/vendor_session_notifier.dart';
 import 'iraq_phone_formatter.dart';
 
+import 'rega_i18n.dart';
+import 'rega_colors.dart';
 // ==============================================================================
 // 🔔 خزمەتگوزاری دەنگی موزیک و ئاگادارکردنەوە بۆ داواکارییە نوێیەکان (Order Sound Service)
 // ئەم بەشە بەرپرسە لە لێدانی زەنگی گەورە و بەهێز بۆ داواکاری نوێ
@@ -89,11 +91,24 @@ const String kAppFontFamily = 'NotoKufiArabic';
 class Trans {
   static const String _prefKey = 'rega_vendor_lang';
   static final ValueNotifier<String> lang = ValueNotifier<String>('ku');
+  static const String _darkKey = 'rega_vendor_dark_mode';
+  static final ValueNotifier<bool> dark = ValueNotifier<bool>(false);
+
+  static Future<void> setDark(bool value) async {
+    dark.value = value;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_darkKey, value);
+    } catch (e) {
+      debugPrint('Error saving vendor theme: $e');
+    }
+  }
 
   static Future<void> loadSavedLang() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString(_prefKey);
+      dark.value = prefs.getBool(_darkKey) ?? false;
       if (saved != null && (saved == 'ku' || saved == 'ar' || saved == 'en')) {
         lang.value = saved;
       }
@@ -118,8 +133,8 @@ class Trans {
   static TextDirection get direction => lang.value == 'en' ? TextDirection.ltr : TextDirection.rtl;
 
   static String get(String key) {
-    if (lang.value == 'ku') return key;
-    return _dict[key]?[lang.value] ?? key;
+    if (lang.value == 'ku') return tx(key);
+    return _dict[key]?[lang.value] ?? tx(key);
   }
 
   static final Map<String, Map<String, String>> _dict = {
@@ -282,9 +297,14 @@ class _RegaVendorAppState extends State<RegaVendorApp> {
     if (router == null) {
       return const SizedBox.shrink();
     }
-    return ValueListenableBuilder<String>(
+    return ValueListenableBuilder<bool>(
+      valueListenable: Trans.dark,
+      builder: (context, isDark, _) => ValueListenableBuilder<String>(
       valueListenable: Trans.lang,
       builder: (context, currentLang, child) {
+        // Drives tx(): every on-screen string follows the selected language.
+        RegaI18n.setLang(currentLang);
+        RC.setDark(isDark);
         return MaterialApp.router(
           title: 'REGA Vendor',
           debugShowCheckedModeBanner: false,
@@ -295,6 +315,20 @@ class _RegaVendorAppState extends State<RegaVendorApp> {
             useMaterial3: true,
             scaffoldBackgroundColor: const Color(0xFFF8F9FA),
           ),
+          darkTheme: ThemeData(
+            primarySwatch: Colors.orange,
+            fontFamily: 'NotoKufiArabic',
+            useMaterial3: true,
+            brightness: Brightness.dark,
+            scaffoldBackgroundColor: RC.darkPage,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFFF06400),
+              brightness: Brightness.dark,
+              primary: const Color(0xFFF06400),
+              surface: RC.darkCard,
+            ),
+          ),
+          themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
           builder: (context, child) {
             return RegaResponsive.appBuilder(
               context,
@@ -304,6 +338,7 @@ class _RegaVendorAppState extends State<RegaVendorApp> {
           },
         );
       },
+    ),
     );
   }
 }
@@ -341,7 +376,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Directionality(
       textDirection: Trans.direction,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: RC.bg(Color(0xFFF8FAFC)),
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -355,18 +390,21 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: RC.bg(Colors.white),
                     borderRadius: BorderRadius.circular(28),
-                    boxShadow: const [
+                    boxShadow: [
                       BoxShadow(
-                        color: Color(0x0C000000),
+                        color: RC.bg(Color(0x0C000000)),
                         blurRadius: 24,
                         offset: Offset(0, 10),
                       ),
                     ],
-                    border: Border.all(color: const Color(0xFFF1F5F9)),
+                    border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 34),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: RegaResponsive.scale(context, 26).clamp(16.0, 26.0),
+                    vertical: 34,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -375,12 +413,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: 96,
                         height: 96,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEA580C),
+                          color: RC.bg(Color(0xFFEA580C)),
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+                          border: Border.all(color: RC.bg(Colors.white).withOpacity(0.2), width: 1.5),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFEA580C).withOpacity(0.35),
+                              color: RC.bg(Color(0xFFEA580C)).withOpacity(0.35),
                               blurRadius: 18,
                               offset: const Offset(0, 8),
                             ),
@@ -391,7 +429,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: _TopBarLogoWidget(
                             primaryPath: kAppLogoFilePath,
                             height: 64,
-                            fallbackColor: Colors.white,
+                            fallbackColor: RC.bg(Colors.white),
                           ),
                         ),
                       ),
@@ -400,10 +438,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       // 2. Welcome Title & Subtitle
                       Text(
                         t('بەخێر بێیت بۆ ئەپی ڕێگا'),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
-                          color: Color(0xFF0F172A),
+                          color: RC.fg(Color(0xFF0F172A)),
                           letterSpacing: -0.3,
                         ),
                         textAlign: TextAlign.center,
@@ -411,10 +449,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 6),
                       Text(
                         t('پانیڵى بەڕێوەبردنى فرۆشیاران (REGA Vendor)'),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
+                          color: RC.fg(Color(0xFF64748B)),
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -426,14 +464,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.phone_iphone_rounded, size: 18, color: Color(0xFFEA580C)),
+                            Icon(Icons.phone_iphone_rounded, size: 18, color: RC.fg(Color(0xFFEA580C))),
                             const SizedBox(width: 8),
                             Text(
                               t('ژمارەی مۆبایل'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 14,
-                                color: Color(0xFF334155),
+                                color: RC.fg(Color(0xFF334155)),
                               ),
                             ),
                           ],
@@ -449,23 +487,23 @@ class _LoginScreenState extends State<LoginScreen> {
                           textAlign: TextAlign.left,
                           inputFormatters: [IraqPhoneFormatter()],
                           decoration: InputDecoration(
-                            hintText: IraqPhoneFormatter.hint,
-                            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                            hintText: txn(IraqPhoneFormatter.hint),
+                            hintStyle: TextStyle(color: RC.fgn(Colors.grey[400]), fontSize: 14),
                             filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
-                            prefixIcon: const Icon(Icons.phone_outlined, size: 18, color: Color(0xFF94A3B8)),
+                            fillColor: RC.bg(Color(0xFFF8FAFC)),
+                            prefixIcon: Icon(Icons.phone_outlined, size: 18, color: RC.fg(Color(0xFF94A3B8))),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(color: Color(0xFFEA580C), width: 1.8),
+                              borderSide: BorderSide(color: RC.bg(Color(0xFFEA580C)), width: 1.8),
                             ),
                           ),
                         ),
@@ -478,14 +516,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.lock_outline_rounded, size: 18, color: Color(0xFFEA580C)),
+                            Icon(Icons.lock_outline_rounded, size: 18, color: RC.fg(Color(0xFFEA580C))),
                             const SizedBox(width: 8),
                             Text(
                               t('وشەی تێپەڕ'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 14,
-                                color: Color(0xFF334155),
+                                color: RC.fg(Color(0xFF334155)),
                               ),
                             ),
                           ],
@@ -496,31 +534,31 @@ class _LoginScreenState extends State<LoginScreen> {
                         controller: _passwordController,
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
-                          hintText: '••••••••',
-                          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                          hintText: tx('••••••••'),
+                          hintStyle: TextStyle(color: RC.fgn(Colors.grey[400]), fontSize: 14),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          prefixIcon: const Icon(Icons.lock_outline, size: 18, color: Color(0xFF94A3B8)),
+                          fillColor: RC.bg(Color(0xFFF8FAFC)),
+                          prefixIcon: Icon(Icons.lock_outline, size: 18, color: RC.fg(Color(0xFF94A3B8))),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                               size: 19,
-                              color: const Color(0xFF94A3B8),
+                              color: RC.fg(Color(0xFF94A3B8)),
                             ),
                             onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                           ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFFEA580C), width: 1.8),
+                            borderSide: BorderSide(color: RC.bg(Color(0xFFEA580C)), width: 1.8),
                           ),
                         ),
                       ),
@@ -540,7 +578,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               if (!mounted) return;
                               if (!ok) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('زانیاری چوونە ژوورەوە هەڵەیە')),
+                                  SnackBar(content: Text(tx('زانیاری چوونە ژوورەوە هەڵەیە'))),
                                 );
                                 return;
                               }
@@ -556,15 +594,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             } catch (_) {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('پەیوەندی سێرڤەر سەرکەوتوو نەبوو')),
+                                SnackBar(content: Text(tx('پەیوەندی سێرڤەر سەرکەوتوو نەبوو'))),
                               );
                             }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFEA580C),
-                            foregroundColor: Colors.white,
+                            backgroundColor: RC.bg(Color(0xFFEA580C)),
+                            foregroundColor: RC.fg(Colors.white),
                             elevation: 2,
-                            shadowColor: const Color(0x40EA580C),
+                            shadowColor: RC.bg(Color(0x40EA580C)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                           child: Row(
@@ -572,18 +610,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               Text(
                                 t('چوونە ژوورەوە'),
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: RC.fg(Colors.white),
                                   fontSize: 17,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              const Directionality(
+                              Directionality(
                                 textDirection: TextDirection.ltr,
                                 child: Icon(
                                   Icons.arrow_right_alt_rounded,
-                                  color: Colors.white,
+                                  color: RC.fg(Colors.white),
                                   size: 26,
                                 ),
                               ),
@@ -596,8 +634,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       // 6. Register Section
                       Text(
                         t('هێشتا نەبوویتە فرۆشیار لە ئەپی ڕێگا'),
-                        style: const TextStyle(
-                          color: Color(0xFF64748B),
+                        style: TextStyle(
+                          color: RC.fg(Color(0xFF64748B)),
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
@@ -610,7 +648,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 54,
                         child: OutlinedButton(
                           onPressed: () async {
-                            final contacts = await VendorApiService.instance.fetchSupportContacts();
+                            Map<String, dynamic> contacts = const {};
+                            try {
+                              contacts = await VendorApiService.instance.fetchSupportContacts();
+                            } catch (_) {}
                             if (!context.mounted) return;
                             await BlockedAccountContacts.showSellerRegistrationDialog(
                               context,
@@ -621,18 +662,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             );
                           },
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
+                            side: BorderSide(color: RC.bg(Color(0xFFCBD5E1)), width: 1.2),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.storefront_outlined, color: Color(0xFFEA580C), size: 20),
+                              Icon(Icons.storefront_outlined, color: RC.fg(Color(0xFFEA580C)), size: 20),
                               const SizedBox(width: 8),
                               Text(
                                 t('خۆت تۆمار بکە'),
-                                style: const TextStyle(
-                                  color: Color(0xFFEA580C),
+                                style: TextStyle(
+                                  color: RC.fg(Color(0xFFEA580C)),
                                   fontWeight: FontWeight.w800,
                                   fontSize: 15,
                                 ),
@@ -993,8 +1034,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         final (ok, msg) = res;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(msg),
-            backgroundColor: ok ? const Color(0xFF00894C) : const Color(0xFFE50010),
+            content: Text(tx(msg)),
+            backgroundColor: ok ? RC.bg(Color(0xFF00894C)) : RC.bg(Color(0xFFE50010)),
           ),
         );
         if (ok) {
@@ -1016,8 +1057,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(msg),
-                  backgroundColor: ok ? const Color(0xFF00894C) : const Color(0xFFEA580C),
+                  content: Text(tx(msg)),
+                  backgroundColor: ok ? RC.bg(Color(0xFF00894C)) : RC.bg(Color(0xFFEA580C)),
                   duration: const Duration(seconds: 4),
                 ),
               );
@@ -1047,9 +1088,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     if (saved == null) {
       setState(() => _products.removeWhere((p) => p.id == product.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('پاشەکەوتکردنی بەرهەم سەرکەوتوو نەبوو — تکایە دووبارە هەوڵ بدە', textAlign: TextAlign.center),
-          backgroundColor: Color(0xFFE50010),
+        SnackBar(
+          content: Text(tx('پاشەکەوتکردنی بەرهەم سەرکەوتوو نەبوو — تکایە دووبارە هەوڵ بدە'), textAlign: TextAlign.center),
+          backgroundColor: RC.bg(Color(0xFFE50010)),
         ),
       );
       return;
@@ -1058,9 +1099,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     await _initBackendVendorSync();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('بەرهەم پاشەکەوت کرا', textAlign: TextAlign.center),
-        backgroundColor: Color(0xFF00894C),
+      SnackBar(
+        content: Text(tx('بەرهەم پاشەکەوت کرا'), textAlign: TextAlign.center),
+        backgroundColor: RC.bg(Color(0xFF00894C)),
         duration: Duration(seconds: 2),
       ),
     );
@@ -1074,9 +1115,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     if (id == null) {
       setState(() => _categories.remove(category));
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('پاشەکەوتکردنی بەش سەرکەوتوو نەبوو — تکایە دووبارە هەوڵ بدە', textAlign: TextAlign.center),
-          backgroundColor: Color(0xFFE50010),
+        SnackBar(
+          content: Text(tx('پاشەکەوتکردنی بەش سەرکەوتوو نەبوو — تکایە دووبارە هەوڵ بدە'), textAlign: TextAlign.center),
+          backgroundColor: RC.bg(Color(0xFFE50010)),
         ),
       );
       return;
@@ -1119,8 +1160,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, textAlign: TextAlign.center),
-        backgroundColor: ok ? const Color(0xFF00894C) : const Color(0xFFE50010),
+        content: Text(tx(msg), textAlign: TextAlign.center),
+        backgroundColor: ok ? RC.bg(Color(0xFF00894C)) : RC.bg(Color(0xFFE50010)),
       ),
     );
     if (ok) {
@@ -1186,16 +1227,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
             ),
             flexibleSpace: Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFFD97706), Color(0xFFEA580C)],
+                  colors: [RC.bg(Color(0xFFD97706)), RC.bg(Color(0xFFEA580C))],
                   begin: Alignment.centerRight,
                   end: Alignment.centerLeft,
                 ),
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0x33000000),
+                    color: RC.bg(Color(0x33000000)),
                     blurRadius: 10,
                     offset: Offset(0, 4),
                   ),
@@ -1222,16 +1263,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                                   width: 44,
                                   height: 44,
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
+                                    color: RC.bg(Colors.white).withOpacity(0.2),
                                     borderRadius: BorderRadius.circular(14),
                                     border: Border.all(
-                                      color: Colors.white.withOpacity(0.4),
+                                      color: RC.bg(Colors.white).withOpacity(0.4),
                                       width: 1.5,
                                     ),
                                   ),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.storefront_outlined,
-                                    color: Colors.white,
+                                    color: RC.fg(Colors.white),
                                     size: 24,
                                   ),
                                 ),
@@ -1242,9 +1283,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                                     width: 13,
                                     height: 13,
                                     decoration: BoxDecoration(
-                                      color: _isOnline ? const Color(0xFF10B981) : const Color(0xFFF43F5E),
+                                      color: _isOnline ? RC.bg(Color(0xFF10B981)) : RC.bg(Color(0xFFF43F5E)),
                                       shape: BoxShape.circle,
-                                      border: Border.all(color: const Color(0xFFD97706), width: 2),
+                                      border: Border.all(color: RC.bg(Color(0xFFD97706)), width: 2),
                                     ),
                                   ),
                                 ),
@@ -1253,9 +1294,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                             const SizedBox(width: 10),
                             Flexible(
                               child: Text(
-                                _businessName,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                tx(_businessName),
+                                style: TextStyle(
+                                  color: RC.fg(Colors.white),
                                   fontSize: 18,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: -0.3,
@@ -1281,8 +1322,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                                 OrderSoundService.playTestTone();
                                 ScaffoldMessenger.of(context).clearSnackBars();
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('دەنگی ئاگادارکردنەوەی داواکاری چالاک کرا 🔔', textAlign: TextAlign.center),
+                                  SnackBar(
+                                    content: Text(tx('دەنگی ئاگادارکردنەوەی داواکاری چالاک کرا 🔔'), textAlign: TextAlign.center),
                                     duration: Duration(seconds: 1),
                                     behavior: SnackBarBehavior.floating,
                                   ),
@@ -1290,8 +1331,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                               } else {
                                 ScaffoldMessenger.of(context).clearSnackBars();
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('دەنگی ئاگادارکردنەوە بێدەنگ کرا 🔕', textAlign: TextAlign.center),
+                                  SnackBar(
+                                    content: Text(tx('دەنگی ئاگادارکردنەوە بێدەنگ کرا 🔕'), textAlign: TextAlign.center),
                                     duration: Duration(seconds: 1),
                                     behavior: SnackBarBehavior.floating,
                                   ),
@@ -1303,19 +1344,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                               height: 38,
                               decoration: BoxDecoration(
                                 color: _soundEnabled
-                                    ? Colors.white.withOpacity(0.2)
-                                    : Colors.black.withOpacity(0.25),
+                                    ? RC.bg(Colors.white).withOpacity(0.2)
+                                    : RC.bg(Colors.black).withOpacity(0.25),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: _soundEnabled
-                                      ? Colors.white.withOpacity(0.35)
-                                      : Colors.white.withOpacity(0.15),
+                                      ? RC.bg(Colors.white).withOpacity(0.35)
+                                      : RC.bg(Colors.white).withOpacity(0.15),
                                   width: 1,
                                 ),
                               ),
                               child: Icon(
                                 _soundEnabled ? Icons.volume_up : Icons.volume_off,
-                                color: _soundEnabled ? Colors.white : Colors.white70,
+                                color: _soundEnabled ? RC.fg(Colors.white) : RC.bg(Colors.white70),
                                 size: 19,
                               ),
                             ),
@@ -1333,11 +1374,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                               width: 38,
                               height: 38,
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.18),
+                                color: RC.bg(Colors.black).withOpacity(0.18),
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
+                                border: Border.all(color: RC.bg(Colors.white).withOpacity(0.25), width: 1),
                               ),
-                              child: const Icon(Icons.gps_fixed_rounded, color: Colors.white, size: 19),
+                              child: Icon(Icons.gps_fixed_rounded, color: RC.fg(Colors.white), size: 19),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -1353,10 +1394,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.18),
+                                color: RC.bg(Colors.black).withOpacity(0.18),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: Colors.white.withOpacity(0.25),
+                                  color: RC.bg(Colors.white).withOpacity(0.25),
                                   width: 1,
                                 ),
                               ),
@@ -1369,19 +1410,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                                     height: 22,
                                     padding: const EdgeInsets.all(2),
                                     decoration: BoxDecoration(
-                                      color: _isOnline ? const Color(0xFF10B981) : Colors.black45,
+                                      color: _isOnline ? RC.bg(Color(0xFF10B981)) : RC.bg(Colors.black45),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     alignment: _isOnline ? Alignment.centerRight : Alignment.centerLeft,
                                     child: Container(
                                       width: 18,
                                       height: 18,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.white,
+                                      decoration: BoxDecoration(
+                                        color: RC.bg(Colors.white),
                                         shape: BoxShape.circle,
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black26,
+                                            color: RC.bg(Colors.black26),
                                             blurRadius: 3,
                                             offset: Offset(0, 1),
                                           ),
@@ -1422,7 +1463,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                               actionTrailing,
                             ],
                           ),
-                          if (MediaQuery.sizeOf(context).width >= 560) _buildTopLogo(),
+                          if (MediaQuery.sizeOf(context).width >= RegaBreakpoints.phone) _buildTopLogo(),
                         ],
                       );
                     },
@@ -1443,16 +1484,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ),
     bottomNavigationBar: Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: const Border(
+        color: RC.bg(Colors.white),
+        border: Border(
           top: BorderSide(
-            color: Color(0xFFF1F5F9),
+            color: RC.bg(Color(0xFFF1F5F9)),
             width: 1.0,
           ),
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            color: RC.bg(Color(0xFF0F172A)).withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, -4),
           ),
@@ -1518,8 +1559,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }) {
     final bool isSelected = _selectedIndex == index;
     const primeOrange = Color(0xFFEA580C);
-    final iconColor = isSelected ? Colors.white : const Color(0xFF64748B);
-    final textColor = isSelected ? Colors.white : const Color(0xFF64748B);
+    final iconColor = isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF64748B));
+    final textColor = isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF64748B));
 
     // Notification badge on orders (index 3)
     final pendingCount = _orders.where((o) => o.status == OrderStatus.pending).length;
@@ -1578,7 +1619,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           ? Padding(
                               padding: const EdgeInsetsDirectional.only(start: 6),
                               child: Text(
-                                label,
+                                tx(label),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -1602,17 +1643,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEF4444),
+                      color: RC.bg(Color(0xFFEF4444)),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white, width: 2),
+                      border: Border.all(color: RC.bg(Colors.white), width: 2),
                     ),
                     constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                     child: Center(
                       child: Text(
-                        '$badgeCount',
+                        tx('$badgeCount'),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: RC.fg(Colors.white),
                           fontSize: 9.5,
                           fontWeight: FontWeight.w900,
                           height: 1,
@@ -1748,13 +1789,13 @@ class _TopBarLogoWidget extends StatelessWidget {
   }
 
   Widget _buildLogoFallbackText() {
-    final effectiveColor = fallbackColor ?? Colors.white;
+    final effectiveColor = fallbackColor ?? RC.bg(Colors.white);
     return Column(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          'REGA',
+          tx('REGA'),
           style: TextStyle(
             color: effectiveColor,
             fontSize: height > 55 ? 18 : 13,
@@ -1763,7 +1804,7 @@ class _TopBarLogoWidget extends StatelessWidget {
           ),
         ),
         Text(
-          'ڕێگا',
+          tx('ڕێگا'),
           style: TextStyle(
             color: effectiveColor,
             fontSize: height > 55 ? 12 : 9,
@@ -1853,72 +1894,73 @@ String getProductImageUrl(String name) {
 void showFullScreenImageDialog(BuildContext context, {String? imageUrl, ImageProvider? imageProvider, String? title}) {
   showDialog(
     context: context,
-    barrierColor: Colors.black.withOpacity(0.85),
+    barrierColor: RC.bg(Colors.black).withOpacity(0.85),
     builder: (ctx) {
+      final maxH = MediaQuery.sizeOf(ctx).height * 0.75;
       return Directionality(
         textDirection: TextDirection.rtl,
         child: Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: EdgeInsets.symmetric(
-            horizontal: (MediaQuery.sizeOf(ctx).width - RegaResponsive.dialogMaxWidth(ctx)) / 2,
-            vertical: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (title != null && title.isNotEmpty)
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+          insetPadding: RegaResponsive.dialogInset(ctx),
+          child: SizedBox(
+            height: maxH,
+            width: RegaResponsive.dialogMaxWidth(ctx),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (title != null && title.isNotEmpty)
+                      Expanded(
+                        child: Text(
+                          tx(title),
+                          style: TextStyle(
+                            color: RC.fg(Colors.white),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      )
+                    else
+                      const Spacer(),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: RC.bg(Colors.white).withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.close_rounded, color: RC.fg(Colors.white), size: 22),
                       ),
-                    )
-                  else
-                    const Spacer(),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(ctx),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.close_rounded, color: Colors.white, size: 22),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: InteractiveViewer(
+                      maxScale: 4.0,
+                      minScale: 0.8,
+                      child: imageProvider != null
+                          ? Image(
+                              image: imageProvider,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Icon(Icons.broken_image, color: RC.fg(Colors.white70), size: 64),
+                            )
+                          : Image.network(
+                              imageUrl ?? '',
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Icon(Icons.broken_image, color: RC.fg(Colors.white70), size: 64),
+                            ),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Flexible(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: InteractiveViewer(
-                    maxScale: 4.0,
-                    minScale: 0.8,
-                    child: imageProvider != null
-                        ? Image(
-                            image: imageProvider,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white70, size: 64),
-                          )
-                        : Image.network(
-                            imageUrl ?? '',
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white70, size: 64),
-                          ),
-                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -2000,14 +2042,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final driverUserId = (driver['user_id'] as num?)?.toInt();
     if (dbId == null || driverUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('داواکاری یان ماتۆرسوار نادروستە'), backgroundColor: Color(0xFFE50010)),
+        SnackBar(content: Text(tx('داواکاری یان ماتۆرسوار نادروستە')), backgroundColor: RC.bg(Color(0xFFE50010))),
       );
       return;
     }
     final (ok, msg, data) = await VendorApiService.instance.assignDriver(dbId, driverUserId);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: ok ? const Color(0xFF00894C) : const Color(0xFFE50010)),
+      SnackBar(content: Text(tx(msg)), backgroundColor: ok ? RC.bg(Color(0xFF00894C)) : RC.bg(Color(0xFFE50010))),
     );
     if (ok) {
       final nested = data?['driver'] as Map<String, dynamic>?;
@@ -2045,22 +2087,19 @@ class _OrdersScreenState extends State<OrdersScreen> {
         textDirection: TextDirection.rtl,
         child: AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          insetPadding: EdgeInsets.symmetric(
-            horizontal: (MediaQuery.sizeOf(ctx).width - RegaResponsive.dialogMaxWidth(ctx, cap: 440)) / 2,
-            vertical: 24,
-          ),
-          title: Text('دیاریکردنی ماتۆرسوار بۆ ${order.id}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          insetPadding: RegaResponsive.dialogInset(ctx, cap: 440),
+          title: Text(tx('دیاریکردنی ماتۆرسوار بۆ ${order.id}'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
           content: SizedBox(
             width: RegaResponsive.dialogMaxWidth(ctx, cap: 440),
             height: 420,
             child: drivers.isEmpty
-                ? const Center(child: Text('هیچ ماتۆرسوارێک بەردەست نییە'))
+                ? Center(child: Text(tx('هیچ ماتۆرسوارێک بەردەست نییە')))
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'نزیکترین بۆ فرۆشگاکەت یەکەمە — ئەمڕۆ چەند داواکاری گەیاندوویەتی',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey.shade700),
+                        tx('نزیکترین بۆ فرۆشگاکەت یەکەمە — ئەمڕۆ چەند داواکاری گەیاندوویەتی'),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Colors.grey.shade700)),
                       ),
                       const SizedBox(height: 8),
                       Expanded(
@@ -2073,23 +2112,72 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             final today = (d['today_deliveries'] as num?)?.toInt() ?? 0;
                             final todayAssigned = (d['today_orders'] as num?)?.toInt() ?? 0;
                             final near = idx == 0 && d['distance_meters'] != null ? ' · نزیکترین' : '';
-                            return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.two_wheeler_rounded, color: online ? const Color(0xFF16A34A) : Colors.grey),
-                              title: Text('${d['name'] ?? ''} (${d['driver_code'] ?? ''})$near', style: const TextStyle(fontWeight: FontWeight.w800)),
-                              subtitle: Text(
-                                '${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${_fmtDriverDistance(d['distance_meters'])}\n'
-                                'ئەمڕۆ: $today گەیاندن · $todayAssigned داواکاری • ${IraqPhoneFormatter.display((d['phone'] ?? '').toString())}',
-                              ),
-                              isThreeLine: true,
-                              trailing: ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white),
-                                onPressed: () async {
-                                  Navigator.pop(ctx);
-                                  await _assignDriverToOrder(order, d);
-                                },
-                                child: Text(online ? 'پێدان' : 'دیاریکردن'),
-                              ),
+                            final phone = RegaResponsive.isPhone(ctx);
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: phone
+                                  ? Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Icon(Icons.two_wheeler_rounded, color: online ? RC.fg(Color(0xFF16A34A)) : RC.bg(Colors.grey)),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    tx('${d['name'] ?? ''} (${d['driver_code'] ?? ''})$near'),
+                                                    style: const TextStyle(fontWeight: FontWeight.w800),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    tx('${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${_fmtDriverDistance(d['distance_meters'])}\n'
+                                                    'ئەمڕۆ: $today گەیاندن · $todayAssigned داواکاری • ${IraqPhoneFormatter.display((d['phone'] ?? '').toString())}'),
+                                                    style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade700), height: 1.35),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: RC.bg(Color(0xFF16A34A)),
+                                              foregroundColor: RC.fg(Colors.white),
+                                            ),
+                                            onPressed: () async {
+                                              Navigator.pop(ctx);
+                                              await _assignDriverToOrder(order, d);
+                                            },
+                                            child: Text(tx(online ? 'پێدان' : 'دیاریکردن')),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: Icon(Icons.two_wheeler_rounded, color: online ? RC.fg(Color(0xFF16A34A)) : RC.bg(Colors.grey)),
+                                      title: Text(tx('${d['name'] ?? ''} (${d['driver_code'] ?? ''})$near'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                                      subtitle: Text(
+                                        tx('${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${_fmtDriverDistance(d['distance_meters'])}\n'
+                                        'ئەمڕۆ: $today گەیاندن · $todayAssigned داواکاری • ${IraqPhoneFormatter.display((d['phone'] ?? '').toString())}'),
+                                      ),
+                                      isThreeLine: true,
+                                      trailing: ElevatedButton(
+                                        style: ElevatedButton.styleFrom(backgroundColor: RC.bg(Color(0xFF16A34A)), foregroundColor: RC.fg(Colors.white)),
+                                        onPressed: () async {
+                                          Navigator.pop(ctx);
+                                          await _assignDriverToOrder(order, d);
+                                        },
+                                        child: Text(tx(online ? 'پێدان' : 'دیاریکردن')),
+                                      ),
+                                    ),
                             );
                           },
                         ),
@@ -2120,77 +2208,103 @@ class _OrdersScreenState extends State<OrdersScreen> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(10, 16, 10, 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
+                padding: EdgeInsets.fromLTRB(
+                  RegaResponsive.pagePadding(context),
+                  16,
+                  RegaResponsive.pagePadding(context),
+                  8,
+                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final title = Text(
                       t('داواکارییە چالاکەکان'),
                       style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-                    ),
-                    ElevatedButton.icon(
+                    );
+                    final soundBtn = ElevatedButton.icon(
                       onPressed: onSimulate,
-                      icon: const Icon(Icons.notifications_active_rounded, size: 15, color: Colors.white),
-                      label: const Text(
-                        'تاقیکردنەوەی دەنگ',
+                      icon: Icon(Icons.notifications_active_rounded, size: 15, color: RC.fg(Colors.white)),
+                      label: Text(
+                        tx(constraints.maxWidth < RegaBreakpoints.phone ? t('دەنگ') : 'تاقیکردنەوەی دەنگ'),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w900,
-                          color: Colors.white,
+                          color: RC.fg(Colors.white),
                           letterSpacing: 0,
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF6418),
+                        backgroundColor: RC.bg(Color(0xFFFF6418)),
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                    ),
-                  ],
+                    );
+                    if (constraints.maxWidth < RegaBreakpoints.phone) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          title,
+                          const SizedBox(height: 10),
+                          Align(alignment: AlignmentDirectional.centerStart, child: soundBtn),
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: title),
+                        const SizedBox(width: 8),
+                        soundBtn,
+                      ],
+                    );
+                  },
                 ),
               ),
               // Drivers strip (same idea as admin intake)
               Container(
                 height: 148,
-                margin: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                margin: EdgeInsets.fromLTRB(
+                  RegaResponsive.pagePadding(context),
+                  0,
+                  RegaResponsive.pagePadding(context),
+                  8,
+                ),
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: RC.bg(Colors.white),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                  border: Border.all(color: RC.bg(Color(0xFFBBF7D0))),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.two_wheeler_rounded, color: Color(0xFF16A34A), size: 20),
+                        Icon(Icons.two_wheeler_rounded, color: RC.fg(Color(0xFF16A34A)), size: 20),
                         const SizedBox(width: 6),
-                        const Expanded(
-                          child: Text('ماتۆرسوارەکان (نزیکترین یەکەم)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                        Expanded(
+                          child: Text(tx('ماتۆرسوارەکان (نزیکترین یەکەم)'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
                         ),
                         Text(
-                          '$onlineCount ئۆنلاین / ${_drivers.length}',
-                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF166534)),
+                          tx('$onlineCount ئۆنلاین / ${_drivers.length}'),
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF166534))),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _selectedOrder == null
+                      tx(_selectedOrder == null
                           ? 'سەرەتا داواکارییەک هەڵبژێرە، پاشان ماتۆرسوار دەست لێدە'
-                          : 'داواکاری هەڵبژێردراو: ${_selectedOrder!.id} — نزیکترین + ئەمڕۆ چەند گەیاندن',
+                          : 'داواکاری هەڵبژێردراو: ${_selectedOrder!.id} — نزیکترین + ئەمڕۆ چەند گەیاندن'),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: _selectedOrder == null ? Colors.grey.shade600 : const Color(0xFFEA580C),
+                        color: _selectedOrder == null ? RC.bg(Colors.grey.shade600) : RC.bg(Color(0xFFEA580C)),
                       ),
                     ),
                     const SizedBox(height: 8),
                     Expanded(
                       child: _drivers.isEmpty
-                          ? Center(child: Text('هیچ ماتۆرسوارێک نییە', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w700)))
+                          ? Center(child: Text(tx('هیچ ماتۆرسوارێک نییە'), style: TextStyle(color: RC.fg(Colors.grey.shade500), fontWeight: FontWeight.w700)))
                           : ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: _drivers.length,
@@ -2206,9 +2320,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                     final order = _selectedOrder;
                                     if (order == null) {
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('سەرەتا داواکارییەک هەڵبژێرە'),
-                                          backgroundColor: Color(0xFFEA580C),
+                                        SnackBar(
+                                          content: Text(tx('سەرەتا داواکارییەک هەڵبژێرە')),
+                                          backgroundColor: RC.bg(Color(0xFFEA580C)),
                                         ),
                                       );
                                       return;
@@ -2219,28 +2333,28 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                     width: 148,
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
-                                      color: online ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+                                      color: online ? RC.bg(Color(0xFFF0FDF4)) : RC.bg(Color(0xFFF8FAFC)),
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: online ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0)),
+                                      border: Border.all(color: online ? RC.bg(Color(0xFF86EFAC)) : RC.bg(Color(0xFFE2E8F0))),
                                     ),
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Icon(Icons.two_wheeler_rounded, size: 18, color: online ? const Color(0xFF16A34A) : Colors.grey),
+                                        Icon(Icons.two_wheeler_rounded, size: 18, color: online ? RC.fg(Color(0xFF16A34A)) : RC.bg(Colors.grey)),
                                         const Spacer(),
                                         Text(
-                                          d['name']?.toString() ?? '—',
+                                          tx(d['name']?.toString() ?? '—'),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5),
                                         ),
                                         Text(
-                                          online ? 'ئۆنلاین · $dist' : 'ئۆفلاین · $dist',
-                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: online ? const Color(0xFF16A34A) : Colors.grey),
+                                          tx(online ? 'ئۆنلاین · $dist' : 'ئۆفلاین · $dist'),
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: online ? RC.bg(Color(0xFF16A34A)) : RC.bg(Colors.grey)),
                                         ),
                                         Text(
-                                          'ئەمڕۆ: $today',
-                                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFFEA580C)),
+                                          tx('ئەمڕۆ: $today'),
+                                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFFEA580C))),
                                         ),
                                       ],
                                     ),
@@ -2257,43 +2371,45 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     ? _buildEmptyState()
                     : LayoutBuilder(
                         builder: (context, constraints) {
-                          if (constraints.maxWidth >= 720) {
-                            if (activeOrders.length == 1) {
-                              return Align(
-                                alignment: Alignment.topCenter,
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(maxWidth: 540),
-                                  child: SingleChildScrollView(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    child: _buildOrderCard(context, activeOrders.first),
-                                  ),
-                                ),
-                              );
-                            }
-                            final crossAxisCount = constraints.maxWidth >= 1024 ? 3 : 2;
-                            return GridView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                crossAxisSpacing: 10,
-                                mainAxisSpacing: 10,
-                                childAspectRatio: crossAxisCount == 3 ? 0.85 : 1.0,
-                              ),
+                          final padH = RegaResponsive.pagePadding(context);
+                          final crossAxisCount = RegaResponsive.gridCountForWidth(
+                            constraints.maxWidth,
+                            phone: 1,
+                            tablet: 2,
+                            desktop: 3,
+                          );
+                          if (crossAxisCount == 1) {
+                            return ListView.builder(
+                              padding: EdgeInsets.symmetric(horizontal: padH, vertical: 6),
                               itemCount: activeOrders.length,
                               itemBuilder: (context, index) {
-                                return SingleChildScrollView(
-                                  physics: const ClampingScrollPhysics(),
-                                  child: _buildOrderCard(context, activeOrders[index]),
-                                );
+                                return _buildOrderCard(context, activeOrders[index]);
                               },
                             );
                           }
-                          return ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                          if (activeOrders.length == 1) {
+                            return Align(
+                              alignment: Alignment.topCenter,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 540),
+                                child: SingleChildScrollView(
+                                  padding: EdgeInsets.symmetric(horizontal: padH, vertical: 6),
+                                  child: _buildOrderCard(context, activeOrders.first),
+                                ),
+                              ),
+                            );
+                          }
+                          return GridView.builder(
+                            padding: EdgeInsets.symmetric(horizontal: padH, vertical: 6),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossAxisCount,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              mainAxisExtent: crossAxisCount >= 3 ? 420 : 440,
+                            ),
                             itemCount: activeOrders.length,
                             itemBuilder: (context, index) {
-                              final order = activeOrders[index];
-                              return _buildOrderCard(context, order);
+                              return _buildOrderCard(context, activeOrders[index]);
                             },
                           );
                         },
@@ -2319,15 +2435,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
       child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: selected ? const Color(0xFF16A34A) : const Color(0xFFFFEDD5),
+          color: selected ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFFFFEDD5)),
           width: selected ? 2 : 1.4,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFEA580C).withValues(alpha: 0.05),
+            color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -2346,24 +2462,24 @@ class _OrdersScreenState extends State<OrdersScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: RC.bg(Colors.white),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                  border: Border.all(color: RC.bg(Color(0xFFE2E8F0)), width: 1),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
+                      color: RC.bg(Colors.black).withOpacity(0.02),
                       blurRadius: 3,
                       offset: const Offset(0, 1),
                     ),
                   ],
                 ),
                 child: Text(
-                  idDisplay,
+                  tx(idDisplay),
                   textDirection: TextDirection.ltr,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 13,
-                    color: Color(0xFF0F172A),
+                    color: RC.fg(Color(0xFF0F172A)),
                     letterSpacing: 0,
                   ),
                 ),
@@ -2384,14 +2500,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
+                          color: RC.bg(Color(0xFF0F172A)),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          formattedPrice,
+                          tx(formattedPrice),
                           textDirection: TextDirection.rtl,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: RC.fg(Colors.white),
                             fontWeight: FontWeight.w900,
                             fontSize: 11,
                             letterSpacing: 0,
@@ -2415,13 +2531,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: (order.driverName != null && order.driverName!.trim().isNotEmpty)
-                    ? const Color(0xFFF0FDF4)
-                    : const Color(0xFFFEF2F2),
+                    ? RC.bg(Color(0xFFF0FDF4))
+                    : RC.bg(Color(0xFFFEF2F2)),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: (order.driverName != null && order.driverName!.trim().isNotEmpty)
-                      ? const Color(0xFFBBF7D0)
-                      : const Color(0xFFFECACA),
+                      ? RC.bg(Color(0xFFBBF7D0))
+                      : RC.bg(Color(0xFFFECACA)),
                 ),
               ),
               child: Row(
@@ -2431,22 +2547,22 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     Icons.two_wheeler_rounded,
                     size: 20,
                     color: (order.driverName != null && order.driverName!.trim().isNotEmpty)
-                        ? const Color(0xFF16A34A)
-                        : const Color(0xFFDC2626),
+                        ? RC.fg(Color(0xFF16A34A))
+                        : RC.bg(Color(0xFFDC2626)),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      (order.driverName != null && order.driverName!.trim().isNotEmpty)
+                      tx((order.driverName != null && order.driverName!.trim().isNotEmpty)
                           ? 'ماتۆرسوار: ${order.driverName} (${IraqPhoneFormatter.display(order.driverPhone ?? "")})'
-                          : 'ماتۆرسوار: دیاری نەکراوە — کرتە بکە بۆ هەڵبژاردن',
+                          : 'ماتۆرسوار: دیاری نەکراوە — کرتە بکە بۆ هەڵبژاردن'),
                       textDirection: TextDirection.rtl,
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.bold,
                         color: (order.driverName != null && order.driverName!.trim().isNotEmpty)
-                            ? const Color(0xFF166534)
-                            : const Color(0xFFDC2626),
+                            ? RC.bg(Color(0xFF166534))
+                            : RC.bg(Color(0xFFDC2626)),
                       ),
                     ),
                   ),
@@ -2454,8 +2570,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     Icons.edit_rounded,
                     size: 16,
                     color: (order.driverName != null && order.driverName!.trim().isNotEmpty)
-                        ? const Color(0xFF16A34A)
-                        : const Color(0xFFDC2626),
+                        ? RC.fg(Color(0xFF16A34A))
+                        : RC.bg(Color(0xFFDC2626)),
                   ),
                 ],
               ),
@@ -2491,13 +2607,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
               GestureDetector(
                 onTap: () => _showOrderDetails(context, order),
                 behavior: HitTestBehavior.opaque,
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'وردەکاری داواکاری',
+                      tx('وردەکاری داواکاری'),
                       style: TextStyle(
-                        color: Color(0xFF475569),
+                        color: RC.fg(Color(0xFF475569)),
                         fontWeight: FontWeight.bold,
                         fontSize: 12.5,
                         letterSpacing: 0,
@@ -2506,7 +2622,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     SizedBox(width: 4),
                     Icon(
                       Icons.keyboard_arrow_down_rounded,
-                      color: Color(0xFF475569),
+                      color: RC.fg(Color(0xFF475569)),
                       size: 18,
                     ),
                   ],
@@ -2531,14 +2647,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
               onPressed: () => _showAssignDriverDialog(order),
               icon: const Icon(Icons.two_wheeler_rounded, size: 17),
               label: Text(
-                (order.driverName != null && order.driverName!.trim().isNotEmpty)
+                tx((order.driverName != null && order.driverName!.trim().isNotEmpty)
                     ? 'گۆڕینی ماتۆرسوار'
-                    : 'ناردنی ماتۆرسوار',
+                    : 'ناردنی ماتۆرسوار'),
                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF16A34A),
-                side: const BorderSide(color: Color(0xFF16A34A)),
+                foregroundColor: RC.fg(Color(0xFF16A34A)),
+                side: BorderSide(color: RC.bg(Color(0xFF16A34A))),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
@@ -2585,12 +2701,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
           margin: const EdgeInsets.only(bottom: 8),
           padding: EdgeInsets.symmetric(horizontal: isSmall ? 10 : 14, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: RC.bg(Colors.white),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+            border: Border.all(color: RC.bg(Color(0xFFE2E8F0)), width: 1.0),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.015),
+                color: RC.bg(Colors.black).withOpacity(0.015),
                 blurRadius: 4,
                 offset: const Offset(0, 1),
               ),
@@ -2613,10 +2729,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       width: imgSize,
                       height: imgSize,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF2E8),
+                        color: RC.bg(Color(0xFFFFF2E8)),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: const Icon(Icons.fastfood_rounded, size: 28, color: Color(0xFFFF6418)),
+                      child: Icon(Icons.fastfood_rounded, size: 28, color: RC.fg(Color(0xFFFF6418))),
                     ),
                   ),
                 ),
@@ -2627,13 +2743,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
               // ناوی بەرهەم (لە تەنیشت وێنە بەبێ Bold، ڕاست‌چین)
               Expanded(
                 child: Text(
-                  name,
+                  tx(name),
                   textAlign: TextAlign.right,
                   textDirection: TextDirection.rtl,
                   style: TextStyle(
                     fontWeight: FontWeight.normal,
                     fontSize: nameFontSize,
-                    color: const Color(0xFF0F172A),
+                    color: RC.fg(Color(0xFF0F172A)),
                     letterSpacing: 0,
                   ),
                   maxLines: 2,
@@ -2652,10 +2768,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     mainAxisSize: MainAxisSize.min,
                     textDirection: TextDirection.ltr,
                     children: [
-                      const Text(
-                        'د.ع',
+                      Text(
+                        tx('د.ع'),
                         style: TextStyle(
-                          color: Color(0xFF64748B),
+                          color: RC.fg(Color(0xFF64748B)),
                           fontWeight: FontWeight.normal,
                           fontSize: 13,
                           letterSpacing: 0,
@@ -2663,9 +2779,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        itemPriceAmount,
+                        tx(itemPriceAmount),
                         style: TextStyle(
-                          color: const Color(0xFF0F172A),
+                          color: RC.fg(Color(0xFF0F172A)),
                           fontWeight: FontWeight.normal,
                           fontSize: priceFontSize,
                           letterSpacing: 0,
@@ -2673,9 +2789,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ),
                       const SizedBox(width: 14),
                       Text(
-                        'X $qtyNumber',
+                        tx('X $qtyNumber'),
                         style: TextStyle(
-                          color: const Color(0xFF10B981), // ڕەنگی سەوز لە وێنەکەدا
+                          color: RC.fg(Color(0xFF10B981)), // ڕەنگی سەوز لە وێنەکەدا
                           fontWeight: FontWeight.normal,
                           fontSize: priceFontSize,
                           letterSpacing: 0,
@@ -2699,20 +2815,20 @@ class _OrdersScreenState extends State<OrdersScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED), // Warm soft orange background
+        color: RC.bg(Color(0xFFFFF7ED)), // Warm soft orange background
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFED7AA), width: 1.2),
+        border: Border.all(color: RC.bg(Color(0xFFFED7AA)), width: 1.2),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFFEA580C)),
+          Icon(Icons.info_outline_rounded, size: 18, color: RC.fg(Color(0xFFEA580C))),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'تێبینی: $notes',
-              style: const TextStyle(
-                color: Color(0xFF9A3412),
+              tx('تێبینی: $notes'),
+              style: TextStyle(
+                color: RC.fg(Color(0xFF9A3412)),
                 fontWeight: FontWeight.w700,
                 fontSize: 13,
                 height: 1.35,
@@ -2733,12 +2849,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: RC.bg(Colors.black).withOpacity(0.02),
             blurRadius: 3,
             offset: const Offset(0, 1),
           ),
@@ -2747,16 +2863,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.access_time_rounded,
             size: 13,
-            color: Color(0xFF64748B),
+            color: RC.fg(Color(0xFF64748B)),
           ),
           const SizedBox(width: 4),
           Text(
-            timeDisplay,
-            style: const TextStyle(
-              color: Color(0xFF64748B),
+            tx(timeDisplay),
+            style: TextStyle(
+              color: RC.fg(Color(0xFF64748B)),
               fontWeight: FontWeight.bold,
               fontSize: 11.5,
               letterSpacing: 0,
@@ -2773,9 +2889,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
       child: Container(
         width: double.infinity,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: RC.bg(Colors.white),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.grey[200]!),
+          border: Border.all(color: RC.bg(Colors.grey[200]!)),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
@@ -2785,32 +2901,32 @@ class _OrdersScreenState extends State<OrdersScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange[50],
+                  color: RC.bgn(Colors.orange[50]),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.shopping_bag_outlined, color: Colors.orange[800], size: 32),
+                child: Icon(Icons.shopping_bag_outlined, color: RC.fgn(Colors.orange[800]), size: 32),
               ),
               const SizedBox(height: 24),
               Text(
                 t('هیچ داواکارییەک نییە'),
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1A1A1A)),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1A1A1A))),
               ),
               const SizedBox(height: 8),
               Text(
                 t('لە کاتی هاتنی داواکاری لە ئەپی کڕیاران لێرە دەردەکەوێت'),
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14, color: Colors.grey, height: 1.5),
+                style: TextStyle(fontSize: 14, color: RC.fg(Colors.grey), height: 1.5),
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: onSimulate,
-                icon: const Icon(Icons.notifications_active_rounded, size: 18, color: Colors.white),
-                label: const Text(
-                  'تاقیکردنەوەی دەنگی داواکاری نوێ',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                icon: Icon(Icons.notifications_active_rounded, size: 18, color: RC.fg(Colors.white)),
+                label: Text(
+                  tx('تاقیکردنەوەی دەنگی داواکاری نوێ'),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: RC.fg(Colors.white)),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF6418),
+                  backgroundColor: RC.bg(Color(0xFFFF6418)),
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
@@ -2828,19 +2944,19 @@ class _OrdersScreenState extends State<OrdersScreen> {
     String text;
     switch (status) {
       case OrderStatus.pending:
-        color = const Color(0xFFEA580C); // REGA Prime Orange
+        color = RC.bg(Color(0xFFEA580C)); // REGA Prime Orange
         text = t('چاوەڕوانکراو');
         break;
       case OrderStatus.preparing:
-        color = const Color(0xFFD97706); // Warm Amber Orange
+        color = RC.bg(Color(0xFFD97706)); // Warm Amber Orange
         text = t('لە ئامادەکردندایە');
         break;
       case OrderStatus.ready:
-        color = const Color(0xFF16A34A); // Clean Ready Green
+        color = RC.bg(Color(0xFF16A34A)); // Clean Ready Green
         text = t('ئامادەیە بۆ شۆفێر');
         break;
       default:
-        color = const Color(0xFF64748B);
+        color = RC.bg(Color(0xFF64748B));
         text = 'نادیار';
     }
     return Container(
@@ -2850,9 +2966,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
+        tx(text),
+        style: TextStyle(
+          color: RC.fg(Colors.white),
           fontSize: 11,
           fontWeight: FontWeight.w900,
           letterSpacing: 0,
@@ -2915,11 +3031,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
         height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF16A34A),
+          color: RC.bg(Color(0xFF16A34A)),
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF16A34A).withValues(alpha: 0.28),
+              color: RC.bg(Color(0xFF16A34A)).withValues(alpha: 0.28),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -2928,15 +3044,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.white, size: 18),
+            Icon(icon, color: RC.fg(Colors.white), size: 18),
             const SizedBox(width: 6),
             Flexible(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  tx(label),
+                  style: TextStyle(
+                    color: RC.fg(Colors.white),
                     fontWeight: FontWeight.w900,
                     fontSize: 14,
                     letterSpacing: 0,
@@ -2961,16 +3077,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
         height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFE50010), // Red from screenshot
+          color: RC.bg(Color(0xFFE50010)), // Red from screenshot
           borderRadius: BorderRadius.circular(14),
         ),
         child: Center(
           child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
+              tx(label),
+              style: TextStyle(
+                color: RC.fg(Colors.white),
                 fontWeight: FontWeight.w900,
                 fontSize: 14,
                 letterSpacing: 0,
@@ -2998,34 +3114,34 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     // Status details
     String statusLabel = 'نادیار';
-    Color statusBg = const Color(0xFFF3F4F6);
-    Color statusTextColor = const Color(0xFF374151);
+    Color statusBg = RC.bg(Color(0xFFF3F4F6));
+    Color statusTextColor = RC.bg(Color(0xFF374151));
 
     switch (order.status) {
       case OrderStatus.pending:
         statusLabel = 'چاوەڕوانی قبوڵکردن';
-        statusBg = const Color(0xFFFFEDD5);
-        statusTextColor = const Color(0xFF9A3412);
+        statusBg = RC.bg(Color(0xFFFFEDD5));
+        statusTextColor = RC.bg(Color(0xFF9A3412));
         break;
       case OrderStatus.preparing:
         statusLabel = 'لە ئامادەکردندایە';
-        statusBg = const Color(0xFFDBEAFE);
-        statusTextColor = const Color(0xFF1E40AF);
+        statusBg = RC.bg(Color(0xFFDBEAFE));
+        statusTextColor = RC.bg(Color(0xFF1E40AF));
         break;
       case OrderStatus.ready:
         statusLabel = 'ئامادەیە بۆ شۆفێر';
-        statusBg = const Color(0xFFD1FAE5);
-        statusTextColor = const Color(0xFF065F46);
+        statusBg = RC.bg(Color(0xFFD1FAE5));
+        statusTextColor = RC.bg(Color(0xFF065F46));
         break;
       case OrderStatus.completed:
         statusLabel = 'گەیەندرا و تەواوبوو';
-        statusBg = const Color(0xFFD1FAE5);
-        statusTextColor = const Color(0xFF047857);
+        statusBg = RC.bg(Color(0xFFD1FAE5));
+        statusTextColor = RC.bg(Color(0xFF047857));
         break;
       case OrderStatus.rejected:
         statusLabel = 'ڕەتکراوەتەوە';
-        statusBg = const Color(0xFFFFE4E6);
-        statusTextColor = const Color(0xFFBE123C);
+        statusBg = RC.bg(Color(0xFFFFE4E6));
+        statusTextColor = RC.bg(Color(0xFFBE123C));
         break;
     }
 
@@ -3036,12 +3152,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
           textDirection: TextDirection.rtl,
           child: Dialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-            backgroundColor: Colors.white,
+            backgroundColor: RC.bg(Colors.white),
             elevation: 16,
-            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            insetPadding: RegaResponsive.dialogInset(dialogCtx, cap: 440, vertical: 16),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: (MediaQuery.sizeOf(dialogCtx).width - 32).clamp(0.0, 440.0),
+                maxWidth: RegaResponsive.dialogMaxWidth(dialogCtx, cap: 440),
               ),
               child: SingleChildScrollView(
                 child: Padding(
@@ -3060,29 +3176,29 @@ class _OrdersScreenState extends State<OrdersScreen> {
                               width: 32,
                               height: 32,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFF6418),
+                                color: RC.bg(Color(0xFFFF6418)),
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFFFF6418).withOpacity(0.35),
+                                    color: RC.bg(Color(0xFFFF6418)).withOpacity(0.35),
                                     blurRadius: 5,
                                     offset: const Offset(0, 1.5),
                                   ),
                                 ],
                               ),
-                              child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                              child: Icon(Icons.close_rounded, color: RC.fg(Colors.white), size: 18),
                             ),
                           ),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                idDisplay,
+                                tx(idDisplay),
                                 textDirection: TextDirection.ltr,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w900,
-                                  color: Color(0xFF1B2028),
+                                  color: RC.fg(Color(0xFF1B2028)),
                                   letterSpacing: 0,
                                 ),
                               ),
@@ -3099,7 +3215,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
-                                      statusLabel,
+                                      tx(statusLabel),
                                       style: TextStyle(
                                         fontSize: 10.5,
                                         fontWeight: FontWeight.w900,
@@ -3108,11 +3224,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                     ),
                                   ),
                                   Text(
-                                    'تۆمارکراوە: $timeFormatted',
+                                    tx('تۆمارکراوە: $timeFormatted'),
                                     style: TextStyle(
                                       fontSize: 10.5,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.grey[600],
+                                      color: RC.fgn(Colors.grey[600]),
                                     ),
                                   ),
                                 ],
@@ -3123,40 +3239,31 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ),
 
                       const SizedBox(height: 10),
-                      const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                      Divider(height: 1, color: RC.bg(Color(0xFFEEEEEE))),
                       const SizedBox(height: 10),
 
                       // Customer & Delivery Information
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8F9FA),
+                          color: RC.bg(Color(0xFFF8F9FA)),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFE9ECEF)),
+                          border: Border.all(color: RC.bg(Color(0xFFE9ECEF))),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.person_rounded, size: 15, color: Color(0xFFEA580C)),
+                                Icon(Icons.person_rounded, size: 15, color: RC.fg(Color(0xFFEA580C))),
                                 const SizedBox(width: 5),
-                                const Text('کڕیار: ', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.bold)),
-                                Text(order.customerName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF1B2028))),
-                              ],
-                            ),
-                            const SizedBox(height: 5),
-                            Row(
-                              children: [
-                                const Icon(Icons.phone_rounded, size: 15, color: Color(0xFFEA580C)),
-                                const SizedBox(width: 5),
-                                const Text('مۆبایل: ', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.bold)),
-                                Directionality(
-                                  textDirection: TextDirection.ltr,
+                                Text(tx('کڕیار: '), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF6B7280)), fontWeight: FontWeight.bold)),
+                                Expanded(
                                   child: Text(
-                                    IraqPhoneFormatter.display(order.customerPhone),
-                                    textDirection: TextDirection.ltr,
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1B2028)),
+                                    tx(order.customerName),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1B2028))),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
@@ -3164,13 +3271,33 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             const SizedBox(height: 5),
                             Row(
                               children: [
-                                const Icon(Icons.location_on_rounded, size: 15, color: Color(0xFFEA580C)),
+                                Icon(Icons.phone_rounded, size: 15, color: RC.fg(Color(0xFFEA580C))),
                                 const SizedBox(width: 5),
-                                const Text('ناونیشان: ', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.bold)),
+                                Text(tx('مۆبایل: '), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF6B7280)), fontWeight: FontWeight.bold)),
+                                Expanded(
+                                  child: Directionality(
+                                    textDirection: TextDirection.ltr,
+                                    child: Text(
+                                      tx(IraqPhoneFormatter.display(order.customerPhone)),
+                                      textDirection: TextDirection.ltr,
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFF1B2028))),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 5),
+                            Row(
+                              children: [
+                                Icon(Icons.location_on_rounded, size: 15, color: RC.fg(Color(0xFFEA580C))),
+                                const SizedBox(width: 5),
+                                Text(tx('ناونیشان: '), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF6B7280)), fontWeight: FontWeight.bold)),
                                 Expanded(
                                   child: Text(
-                                    order.deliveryAddress,
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF1B2028)),
+                                    tx(order.deliveryAddress),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1B2028))),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -3191,26 +3318,26 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'لیستی کڕین',
+                          Text(
+                            tx('لیستی کڕین'),
                             style: TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w900,
-                              color: Color(0xFF1B2028),
+                              color: RC.fg(Color(0xFF1B2028)),
                             ),
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF3F4F6),
+                              color: RC.bg(Color(0xFFF3F4F6)),
                               borderRadius: BorderRadius.circular(7),
                             ),
                             child: Text(
-                              '${order.items.length} بەرهەم',
-                              style: const TextStyle(
+                              tx('${order.items.length} بەرهەم'),
+                              style: TextStyle(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF4B5563),
+                                color: RC.fg(Color(0xFF4B5563)),
                               ),
                             ),
                           ),
@@ -3246,99 +3373,128 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           margin: const EdgeInsets.only(bottom: 6),
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: RC.bg(Colors.white),
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                            border: Border.all(color: RC.bg(Color(0xFFE5E7EB))),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.02),
+                                color: RC.bg(Colors.black).withOpacity(0.02),
                                 blurRadius: 4,
                                 offset: const Offset(0, 1),
                               ),
                             ],
                           ),
-                          child: Row(
-                            children: [
-                              // Large Product Image
-                              GestureDetector(
+                          child: LayoutBuilder(
+                            builder: (itemCtx, itemConstraints) {
+                              final compact = itemConstraints.maxWidth < 360;
+                              final imgSize = compact ? 56.0 : 78.0;
+                              final priceBlock = FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  textDirection: TextDirection.ltr,
+                                  children: [
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      textDirection: TextDirection.ltr,
+                                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                                      textBaseline: TextBaseline.alphabetic,
+                                      children: [
+                                        Text(
+                                          tx('د.ع'),
+                                          textDirection: TextDirection.rtl,
+                                          style: TextStyle(
+                                            color: RC.fg(Color(0xFF6B7280)),
+                                            fontWeight: FontWeight.normal,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          tx(itemPriceAmount),
+                                          textDirection: TextDirection.ltr,
+                                          style: TextStyle(
+                                            color: RC.fg(Color(0xFF1E2024)),
+                                            fontWeight: FontWeight.normal,
+                                            fontSize: compact ? 16 : 20,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(width: compact ? 8 : 12),
+                                    Text(
+                                      tx('X $qtyNumber'),
+                                      textDirection: TextDirection.ltr,
+                                      style: TextStyle(
+                                        color: RC.fg(Color(0xFF16A34A)),
+                                        fontWeight: FontWeight.normal,
+                                        fontSize: compact ? 16 : 20,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              final nameText = Text(
+                                tx(name),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.normal,
+                                  fontSize: compact ? 13 : 14,
+                                  color: RC.fg(Color(0xFF1E2024)),
+                                ),
+                                maxLines: compact ? 2 : 3,
+                                overflow: TextOverflow.ellipsis,
+                              );
+                              final image = GestureDetector(
                                 onTap: () => showFullScreenImageDialog(dialogCtx, imageUrl: imgUrl, title: name),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(14),
                                   child: Image.network(
                                     imgUrl,
-                                    width: 78,
-                                    height: 78,
+                                    width: imgSize,
+                                    height: imgSize,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) => Container(
-                                      width: 78,
-                                      height: 78,
-                                      color: const Color(0xFFF3F4F6),
-                                      child: const Icon(Icons.fastfood_rounded, size: 30, color: Color(0xFF9CA3AF)),
+                                      width: imgSize,
+                                      height: imgSize,
+                                      color: RC.bg(Color(0xFFF3F4F6)),
+                                      child: Icon(Icons.fastfood_rounded, size: compact ? 24 : 30, color: RC.fg(Color(0xFF9CA3AF))),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              // Product Name (بەبێ Bold)
-                              Expanded(
-                                child: Text(
-                                  name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.normal,
-                                    fontSize: 14,
-                                    color: Color(0xFF1E2024),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-
-                              // نرخ و بڕی داواکاری (د.ع لە لای چەپ / پشتی نرخ، و فۆنت گەورەکراو)
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                textDirection: TextDirection.ltr,
+                              );
+                              if (compact) {
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    image,
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          nameText,
+                                          const SizedBox(height: 6),
+                                          Align(
+                                            alignment: AlignmentDirectional.centerEnd,
+                                            child: priceBlock,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }
+                              return Row(
                                 children: [
-                                  // نرخەکە: د.ع لە لای چەپ (پشتی نرخ) بەبێ bold و گەورە
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    textDirection: TextDirection.ltr,
-                                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                                    textBaseline: TextBaseline.alphabetic,
-                                    children: [
-                                      const Text(
-                                        'د.ع',
-                                        textDirection: TextDirection.rtl,
-                                        style: TextStyle(
-                                          color: Color(0xFF6B7280),
-                                          fontWeight: FontWeight.normal,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        itemPriceAmount,
-                                        textDirection: TextDirection.ltr,
-                                        style: const TextStyle(
-                                          color: Color(0xFF1E2024),
-                                          fontWeight: FontWeight.normal,
-                                          fontSize: 20,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                  image,
                                   const SizedBox(width: 12),
-                                  // بڕی داواکاری (X 1, X 2) بە قەبارەی گەورە، بەبێ bold و بە ڕەنگی سەوز
-                                  Text(
-                                    'X $qtyNumber',
-                                    textDirection: TextDirection.ltr,
-                                    style: const TextStyle(
-                                      color: Color(0xFF16A34A),
-                                      fontWeight: FontWeight.normal,
-                                      fontSize: 20,
-                                    ),
-                                  ),
+                                  Expanded(child: nameText),
+                                  const SizedBox(width: 8),
+                                  Flexible(child: priceBlock),
                                 ],
-                              ),
-                            ],
+                              );
+                            },
                           ),
                         );
                       }),
@@ -3349,11 +3505,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1B2028),
+                          color: RC.bg(Color(0xFF1B2028)),
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.12),
+                              color: RC.bg(Colors.black).withOpacity(0.12),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -3364,37 +3520,37 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('کۆی نرخ', style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 12, fontWeight: FontWeight.bold)),
-                                Text(formattedPrice, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                Text(tx('کۆی نرخ'), style: TextStyle(color: RC.fg(Color(0xFF9CA3AF)), fontSize: 12, fontWeight: FontWeight.bold)),
+                                Text(tx(formattedPrice), style: TextStyle(color: RC.fg(Colors.white), fontSize: 12, fontWeight: FontWeight.bold)),
                               ],
                             ),
                             const SizedBox(height: 5),
-                            const Row(
+                            Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('داشکان', style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 12, fontWeight: FontWeight.bold)),
-                                Text('٠ د.ع', style: TextStyle(color: Color(0xFFF87171), fontSize: 12, fontWeight: FontWeight.bold)),
+                                Text(tx('داشکان'), style: TextStyle(color: RC.fg(Color(0xFF9CA3AF)), fontSize: 12, fontWeight: FontWeight.bold)),
+                                Text(tx('٠ د.ع'), style: TextStyle(color: RC.fg(Color(0xFFF87171)), fontSize: 12, fontWeight: FontWeight.bold)),
                               ],
                             ),
-                            const Padding(
+                            Padding(
                               padding: EdgeInsets.symmetric(vertical: 6),
-                              child: Divider(height: 1, color: Color(0xFF374151)),
+                              child: Divider(height: 1, color: RC.bg(Color(0xFF374151))),
                             ),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text(
-                                  'کۆی گشتی حساب',
+                                Text(
+                                  tx('کۆی گشتی حساب'),
                                   style: TextStyle(
-                                    color: Color(0xFF34D399),
+                                    color: RC.fg(Color(0xFF34D399)),
                                     fontSize: 13,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
                                 Text(
-                                  formattedPrice,
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  tx(formattedPrice),
+                                  style: TextStyle(
+                                    color: RC.fg(Colors.white),
                                     fontSize: 15,
                                     fontWeight: FontWeight.w900,
                                   ),
@@ -3414,8 +3570,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             Expanded(
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF16A34A),
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: RC.bg(Color(0xFF16A34A)),
+                                  foregroundColor: RC.fg(Colors.white),
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   elevation: 0,
@@ -3431,8 +3587,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             Expanded(
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFE50010),
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: RC.bg(Color(0xFFE50010)),
+                                  foregroundColor: RC.fg(Colors.white),
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   elevation: 0,
@@ -3450,8 +3606,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ] else if (order.status == OrderStatus.preparing) ...[
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF16A34A),
-                            foregroundColor: Colors.white,
+                            backgroundColor: RC.bg(Color(0xFF16A34A)),
+                            foregroundColor: RC.fg(Colors.white),
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             elevation: 0,
@@ -3466,8 +3622,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ] else if (order.status == OrderStatus.ready) ...[
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF16A34A),
-                            foregroundColor: Colors.white,
+                            backgroundColor: RC.bg(Color(0xFF16A34A)),
+                            foregroundColor: RC.fg(Colors.white),
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             elevation: 0,
@@ -3486,8 +3642,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         width: double.infinity,
                         child: OutlinedButton(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF1B2028),
-                            side: const BorderSide(color: Color(0xFFD1D5DB)),
+                            foregroundColor: RC.fg(Color(0xFF1B2028)),
+                            side: BorderSide(color: RC.bg(Color(0xFFD1D5DB))),
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
@@ -3556,51 +3712,56 @@ class _ProductsScreenState extends State<ProductsScreen> {
         textDirection: TextDirection.rtl,
         child: AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          backgroundColor: Colors.white,
+          backgroundColor: RC.bg(Colors.white),
+          insetPadding: RegaResponsive.dialogInset(dialogCtx, cap: 420),
           titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
           contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           title: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFEBEE),
+                decoration: BoxDecoration(
+                  color: RC.bg(Color(0xFFFFEBEE)),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE50010), size: 22),
+                child: Icon(Icons.delete_outline_rounded, color: RC.fg(Color(0xFFE50010)), size: 22),
               ),
               const SizedBox(width: 10),
-              const Text(
-                'سڕینەوەی بەش',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF1B2028)),
+              Expanded(
+                child: Text(
+                  tx('سڕینەوەی بەش'),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1B2028))),
+                ),
               ),
             ],
           ),
-          content: Column(
+          content: SizedBox(
+            width: RegaResponsive.dialogMaxWidth(dialogCtx, cap: 420),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'ئایا دڵنیایت لە سڕینەوەی بەشی "$category"؟',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF374151), height: 1.4),
+                tx('ئایا دڵنیایت لە سڕینەوەی بەشی "$category"؟'),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFF374151)), height: 1.4),
               ),
               if (count > 0) ...[
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEB),
+                    color: RC.bg(Color(0xFFFFFBEB)),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFFDE68A)),
+                    border: Border.all(color: RC.bg(Color(0xFFFDE68A))),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.warning_amber_rounded, size: 18, color: Color(0xFFB45309)),
+                      Icon(Icons.warning_amber_rounded, size: 18, color: RC.fg(Color(0xFFB45309))),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'ئەم بەشە $count بەرهەمی تێدایە.',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                          tx('ئەم بەشە $count بەرهەمی تێدایە.'),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFF92400E))),
                         ),
                       ),
                     ],
@@ -3609,16 +3770,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
               ],
             ],
           ),
+          ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogCtx),
-              child: const Text('پاشگەزبوونەوە', style: TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.bold)),
+              child: Text(tx('پاشگەزبوونەوە'), style: TextStyle(color: RC.fg(Color(0xFF6B7280)), fontWeight: FontWeight.bold)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE50010),
-                foregroundColor: Colors.white,
+                backgroundColor: RC.bg(Color(0xFFE50010)),
+                foregroundColor: RC.fg(Colors.white),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 0,
               ),
@@ -3633,15 +3795,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 widget.onDeleteCategory?.call(category);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('بەشی "$category" بە سەرکەوتوویی سڕایەوە', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    backgroundColor: const Color(0xFFE50010),
+                    content: Text(tx('بەشی "$category" بە سەرکەوتوویی سڕایەوە'), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    backgroundColor: RC.bg(Color(0xFFE50010)),
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     duration: const Duration(seconds: 2),
                   ),
                 );
               },
-              child: const Text('سڕینەوە', style: TextStyle(fontWeight: FontWeight.w900)),
+              child: Text(tx('سڕینەوە'), style: TextStyle(fontWeight: FontWeight.w900)),
             ),
           ],
         ),
@@ -3656,51 +3818,57 @@ class _ProductsScreenState extends State<ProductsScreen> {
         textDirection: TextDirection.rtl,
         child: AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          backgroundColor: Colors.white,
+          backgroundColor: RC.bg(Colors.white),
+          insetPadding: RegaResponsive.dialogInset(dialogCtx, cap: 420),
           titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
           contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           title: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFEBEE),
+                decoration: BoxDecoration(
+                  color: RC.bg(Color(0xFFFFEBEE)),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE50010), size: 22),
+                child: Icon(Icons.delete_outline_rounded, color: RC.fg(Color(0xFFE50010)), size: 22),
               ),
               const SizedBox(width: 10),
-              const Text(
-                'سڕینەوەی بەرهەم',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF1B2028)),
+              Expanded(
+                child: Text(
+                  tx('سڕینەوەی بەرهەم'),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1B2028))),
+                ),
               ),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'ئایا دڵنیایت لە سڕینەوەی بەرهەمی "${product.name}"؟',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF374151), height: 1.4),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'ئەم بەرهەمە لە مێنۆکەت دەسڕدرێتەوە.',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-            ],
+          content: SizedBox(
+            width: RegaResponsive.dialogMaxWidth(dialogCtx, cap: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tx('ئایا دڵنیایت لە سڕینەوەی بەرهەمی "${product.name}"؟'),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFF374151)), height: 1.4),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  tx('ئەم بەرهەمە لە مێنۆکەت دەسڕدرێتەوە.'),
+                  style: TextStyle(fontSize: 12, color: RC.fgn(Colors.grey[600])),
+                ),
+              ],
+            ),
           ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogCtx),
-              child: const Text('پاشگەزبوونەوە', style: TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.bold)),
+              child: Text(tx('پاشگەزبوونەوە'), style: TextStyle(color: RC.fg(Color(0xFF6B7280)), fontWeight: FontWeight.bold)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE50010),
-                foregroundColor: Colors.white,
+                backgroundColor: RC.bg(Color(0xFFE50010)),
+                foregroundColor: RC.fg(Colors.white),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 0,
               ),
@@ -3709,15 +3877,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 widget.onDelete(product.id);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('بەرهەمی "${product.name}" بە سەرکەوتوویی سڕایەوە', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    backgroundColor: const Color(0xFFE50010),
+                    content: Text(tx('بەرهەمی "${product.name}" بە سەرکەوتوویی سڕایەوە'), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    backgroundColor: RC.bg(Color(0xFFE50010)),
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     duration: const Duration(seconds: 2),
                   ),
                 );
               },
-              child: const Text('سڕینەوە', style: TextStyle(fontWeight: FontWeight.w900)),
+              child: Text(tx('سڕینەوە'), style: TextStyle(fontWeight: FontWeight.w900)),
             ),
           ],
         ),
@@ -3743,17 +3911,22 @@ class _ProductsScreenState extends State<ProductsScreen> {
             children: [
               // 1. Search Bar
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+            padding: EdgeInsets.fromLTRB(
+              RegaResponsive.pagePadding(context),
+              12,
+              RegaResponsive.pagePadding(context),
+              6,
+            ),
             child: Container(
               height: 48,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: RC.bg(Colors.white),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+                border: Border.all(color: RC.bg(Color(0xFFE5E7EB)), width: 1),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
+                    color: RC.bg(Colors.black).withOpacity(0.02),
                     blurRadius: 4,
                     offset: const Offset(0, 1),
                   ),
@@ -3761,7 +3934,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.search, color: Color(0xFF4A4A4A), size: 22),
+                  Icon(Icons.search, color: RC.fg(Color(0xFF4A4A4A)), size: 22),
                   const SizedBox(width: 12),
                   Expanded(
                     child: TextField(
@@ -3770,19 +3943,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       onChanged: (val) => setState(() => _searchQuery = val),
                       decoration: InputDecoration(
                         hintText: t('مێنۆ و بەرهەم'),
-                        hintStyle: const TextStyle(
+                        hintStyle: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF262626),
+                          color: RC.fg(Color(0xFF262626)),
                         ),
                         border: InputBorder.none,
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                        color: RC.fg(Colors.black),
                       ),
                     ),
                   ),
@@ -3793,15 +3966,20 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
           // 2. Action & Categories Box (Header Card)
           Container(
-            margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            margin: EdgeInsets.fromLTRB(
+              RegaResponsive.pagePadding(context),
+              4,
+              RegaResponsive.pagePadding(context),
+              8,
+            ),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: RC.bg(Colors.white),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+              border: Border.all(color: RC.bg(Color(0xFFE5E7EB)), width: 1),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
+                  color: RC.bg(Colors.black).withOpacity(0.03),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -3821,9 +3999,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         child: Container(
                           height: 48,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFF7ED),
+                            color: RC.bg(Color(0xFFFFF7ED)),
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFFED7AA), width: 1.5),
+                            border: Border.all(color: RC.bg(Color(0xFFFED7AA)), width: 1.5),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: Center(
@@ -3831,13 +4009,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               fit: BoxFit.scaleDown,
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  Icon(Icons.add_rounded, color: Color(0xFFEA580C), size: 19),
+                                children: [
+                                  Icon(Icons.add_rounded, color: RC.fg(Color(0xFFEA580C)), size: 19),
                                   SizedBox(width: 5),
                                   Text(
-                                    'زیادکردنی بەشی نوێ',
+                                    tx('زیادکردنی بەشی نوێ'),
                                     style: TextStyle(
-                                      color: Color(0xFFEA580C),
+                                      color: RC.fg(Color(0xFFEA580C)),
                                       fontWeight: FontWeight.w900,
                                       fontSize: 13,
                                     ),
@@ -3858,11 +4036,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         child: Container(
                           height: 48,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEA580C),
+                            color: RC.bg(Color(0xFFEA580C)),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFEA580C).withValues(alpha: 0.28),
+                                color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.28),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3),
                               ),
@@ -3874,13 +4052,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               fit: BoxFit.scaleDown,
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  Icon(Icons.add_rounded, color: Colors.white, size: 20),
+                                children: [
+                                  Icon(Icons.add_rounded, color: RC.fg(Colors.white), size: 20),
                                   SizedBox(width: 5),
                                   Text(
-                                    'زیادکردنی بەرهەم',
+                                    tx('زیادکردنی بەرهەم'),
                                     style: TextStyle(
-                                      color: Colors.white,
+                                      color: RC.fg(Colors.white),
                                       fontWeight: FontWeight.w900,
                                       fontSize: 13,
                                     ),
@@ -3903,34 +4081,39 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     width: double.infinity,
                     height: 46,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEF2F2),
+                      color: RC.bg(Color(0xFFFEF2F2)),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFFECACA), width: 1.5),
+                      border: Border.all(color: RC.bg(Color(0xFFFECACA)), width: 1.5),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.local_offer_rounded, color: Color(0xFFE11D48), size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          t('داشکاندنی دوکان'),
-                          style: const TextStyle(
-                            color: Color(0xFFE11D48),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 13.5,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 6,
+                        runSpacing: 2,
+                        children: [
+                          Icon(Icons.local_offer_rounded, color: RC.fg(Color(0xFFE11D48)), size: 20),
+                          Text(
+                            t('داشکاندنی دوکان'),
+                            style: TextStyle(
+                              color: RC.fg(Color(0xFFE11D48)),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 13.5,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '(${t('داشکاندن بۆ هەموو دوکانەکە')})',
-                          style: TextStyle(
-                            color: Colors.red.shade300,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
+                          if (!RegaResponsive.isPhone(context))
+                            Text(
+                              tx('(${t('داشکاندن بۆ هەموو دوکانەکە')})'),
+                              style: TextStyle(
+                                color: RC.fg(Colors.red.shade300),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 11,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -3956,16 +4139,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               margin: const EdgeInsets.only(left: 8),
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                               decoration: BoxDecoration(
-                                color: isAllSelected ? const Color(0xFFEA580C) : const Color(0xFFF8FAFC),
+                                color: isAllSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFF8FAFC)),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: isAllSelected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
+                                  color: isAllSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFE2E8F0)),
                                   width: isAllSelected ? 1.5 : 1,
                                 ),
                                 boxShadow: isAllSelected
                                     ? [
                                         BoxShadow(
-                                          color: const Color(0xFFEA580C).withValues(alpha: 0.25),
+                                          color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.25),
                                           blurRadius: 6,
                                           offset: const Offset(0, 2),
                                         ),
@@ -3976,24 +4159,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    'هەمووی',
+                                    tx('هەمووی'),
                                     style: TextStyle(
                                       fontWeight: FontWeight.w900,
                                       fontSize: 13,
-                                      color: isAllSelected ? Colors.white : const Color(0xFF1E293B),
+                                      color: isAllSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF1E293B)),
                                     ),
                                   ),
                                   const SizedBox(width: 6),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: isAllSelected ? Colors.white.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
+                                      color: isAllSelected ? RC.bg(Colors.white).withValues(alpha: 0.25) : RC.bg(Color(0xFFE2E8F0)),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
-                                      '$totalCount',
+                                      tx('$totalCount'),
                                       style: TextStyle(
-                                        color: isAllSelected ? Colors.white : const Color(0xFF475569),
+                                        color: isAllSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF475569)),
                                         fontWeight: FontWeight.w900,
                                         fontSize: 11,
                                       ),
@@ -4012,16 +4195,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         return Container(
                           margin: const EdgeInsets.only(left: 8),
                           decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFF8FAFC),
+                            color: isSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFF8FAFC)),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
+                              color: isSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFE2E8F0)),
                               width: isSelected ? 1.5 : 1,
                             ),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
-                                      color: const Color(0xFFEA580C).withValues(alpha: 0.25),
+                                      color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.25),
                                       blurRadius: 6,
                                       offset: const Offset(0, 2),
                                     ),
@@ -4048,24 +4231,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        cat,
+                                        tx(cat),
                                         style: TextStyle(
                                           fontWeight: FontWeight.w900,
                                           fontSize: 13,
-                                          color: isSelected ? Colors.white : const Color(0xFF1E293B),
+                                          color: isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF1E293B)),
                                         ),
                                       ),
                                       const SizedBox(width: 6),
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: isSelected ? Colors.white.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
+                                          color: isSelected ? RC.bg(Colors.white).withValues(alpha: 0.25) : RC.bg(Color(0xFFE2E8F0)),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: Text(
-                                          '$count',
+                                          tx('$count'),
                                           style: TextStyle(
-                                            color: isSelected ? Colors.white : const Color(0xFF475569),
+                                            color: isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF475569)),
                                             fontWeight: FontWeight.w900,
                                             fontSize: 11,
                                           ),
@@ -4083,13 +4266,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   width: 20,
                                   height: 20,
                                   decoration: BoxDecoration(
-                                    color: isSelected ? Colors.white.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
+                                    color: isSelected ? RC.bg(Colors.white).withValues(alpha: 0.25) : RC.bg(Color(0xFFE2E8F0)),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
                                     Icons.close_rounded,
                                     size: 13,
-                                    color: isSelected ? Colors.white : const Color(0xFF64748B),
+                                    color: isSelected ? RC.fg(Colors.white) : RC.bg(Color(0xFF64748B)),
                                   ),
                                 ),
                               ),
@@ -4112,13 +4295,22 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 : LayoutBuilder(
                     builder: (context, constraints) {
                       final w = constraints.maxWidth;
-                      final crossAxisCount = w >= 980 ? 4 : (w >= 620 ? 3 : (w >= 400 ? 2 : 1));
-                      final childAspectRatio = w >= 620 ? 0.76 : 0.68;
+                      final crossAxisCount = w < 400
+                          ? 1
+                          : RegaResponsive.gridCountForWidth(
+                              w,
+                              phone: 2,
+                              tablet: 3,
+                              desktop: 4,
+                            );
                       return GridView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: RegaResponsive.pagePadding(context),
+                          vertical: 6,
+                        ),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: crossAxisCount,
-                          childAspectRatio: childAspectRatio,
+                          mainAxisExtent: crossAxisCount >= 3 ? 280 : 260,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
                         ),
@@ -4142,7 +4334,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.restaurant_menu_outlined, color: Color(0xFFEA580C), size: 48),
+          Icon(Icons.restaurant_menu_outlined, color: RC.fg(Color(0xFFEA580C)), size: 48),
           const SizedBox(height: 24),
           Text(t('هیچ بەرهەمێک نەدۆزرایەوە'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
@@ -4182,12 +4374,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        border: Border.all(color: RC.bg(Color(0xFFE5E7EB)), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: RC.bg(Colors.black).withOpacity(0.02),
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),
@@ -4211,8 +4403,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       image: imageProvider,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Container(
-                        color: Colors.grey[200],
-                        child: const Icon(Icons.fastfood, color: Colors.grey, size: 36),
+                        color: RC.bgn(Colors.grey[200]),
+                        child: Icon(Icons.fastfood, color: RC.fg(Colors.grey), size: 36),
                       ),
                     ),
                   ),
@@ -4224,13 +4416,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444),
+                        color: RC.bg(Color(0xFFEF4444)),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text(
-                        'داشکاندن',
+                      child: Text(
+                        tx('داشکاندن'),
                         style: TextStyle(
-                          color: Colors.white,
+                          color: RC.fg(Colors.white),
                           fontSize: 9,
                           fontWeight: FontWeight.bold,
                         ),
@@ -4244,24 +4436,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
           // Name
           Text(
-            product.name,
+            tx(product.name),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w900,
               fontSize: 14.5,
-              color: Color(0xFF1E2024),
+              color: RC.fg(Color(0xFF1E2024)),
             ),
           ),
           const SizedBox(height: 2),
 
           // Description
           Text(
-            product.description ?? 'بەرهەمی فرێش...',
+            tx(product.description ?? 'بەرهەمی فرێش...'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFF8E8E93),
+            style: TextStyle(
+              color: RC.fg(Color(0xFF8E8E93)),
               fontSize: 10.5,
             ),
           ),
@@ -4272,31 +4464,31 @@ class _ProductsScreenState extends State<ProductsScreen> {
               ? Row(
                   children: [
                     Text(
-                      discountPriceFormatted,
-                      style: const TextStyle(
-                        color: Color(0xFFEA580C),
+                      tx(discountPriceFormatted),
+                      style: TextStyle(
+                        color: RC.fg(Color(0xFFEA580C)),
                         fontWeight: FontWeight.w900,
                         fontSize: 14,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      priceFormatted,
-                      style: const TextStyle(
-                        color: Color(0xFFDC2626),
+                      tx(priceFormatted),
+                      style: TextStyle(
+                        color: RC.fg(Color(0xFFDC2626)),
                         fontWeight: FontWeight.w700,
                         fontSize: 11.5,
                         decoration: TextDecoration.lineThrough,
-                        decorationColor: Color(0xFFDC2626),
+                        decorationColor: RC.bg(Color(0xFFDC2626)),
                         decorationThickness: 1.6,
                       ),
                     ),
                   ],
                 )
               : Text(
-                  priceFormatted,
-                  style: const TextStyle(
-                    color: Color(0xFFEA580C),
+                  tx(priceFormatted),
+                  style: TextStyle(
+                    color: RC.fg(Color(0xFFEA580C)),
                     fontWeight: FontWeight.w900,
                     fontSize: 14,
                   ),
@@ -4306,58 +4498,60 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
           // Bottom Bar Actions
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Availability Badge (Right in RTL)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: product.isAvailable ? const Color(0xFFE8FAF0) : const Color(0xFFFFEBEE),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      product.isAvailable ? t('بەردەستە') : t('نابەردەست'),
-                      style: TextStyle(
-                        color: product.isAvailable ? const Color(0xFF00894C) : const Color(0xFFD32F2F),
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w900,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: product.isAvailable ? RC.bg(Color(0xFFE8FAF0)) : RC.bg(Color(0xFFFFEBEE)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          tx(product.isAvailable ? t('بەردەستە') : t('نابەردەست')),
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: product.isAvailable ? RC.bg(Color(0xFF00894C)) : RC.bg(Color(0xFFD32F2F)),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      width: 5,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: product.isAvailable ? const Color(0xFF00894C) : const Color(0xFFD32F2F),
-                        shape: BoxShape.circle,
+                      const SizedBox(width: 4),
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: product.isAvailable ? RC.bg(Color(0xFF00894C)) : RC.bg(Color(0xFFD32F2F)),
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-
-              // Edit & Delete Icons (Left in RTL)
+              const SizedBox(width: 4),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   GestureDetector(
                     onTap: () => _showEditProductDialog(context, product),
                     behavior: HitTestBehavior.opaque,
-                    child: const Padding(
+                    child: Padding(
                       padding: EdgeInsets.all(4),
-                      child: Icon(Icons.edit_outlined, color: Color(0xFF9E9E9E), size: 18),
+                      child: Icon(Icons.edit_outlined, color: RC.fg(Color(0xFF9E9E9E)), size: 18),
                     ),
                   ),
                   const SizedBox(width: 4),
                   GestureDetector(
                     onTap: () => _confirmDeleteProduct(context, product),
                     behavior: HitTestBehavior.opaque,
-                    child: const Padding(
+                    child: Padding(
                       padding: EdgeInsets.all(4),
-                      child: Icon(Icons.delete_outline_rounded, color: Color(0xFF9E9E9E), size: 18),
+                      child: Icon(Icons.delete_outline_rounded, color: RC.fg(Color(0xFF9E9E9E)), size: 18),
                     ),
                   ),
                 ],
@@ -4385,11 +4579,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
             return Directionality(
               textDirection: TextDirection.ltr,
               child: Dialog(
+                insetPadding: RegaResponsive.dialogInset(context, cap: 380),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Container(
                   padding: const EdgeInsets.all(18),
                   constraints: BoxConstraints(
-                    maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 380.0),
+                    maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 380),
                   ),
                   child: SingleChildScrollView(
                     child: Column(
@@ -4401,7 +4596,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(t('تکایە ناوی ئەو بەشە بنووسە کە دەتەوێت زیادی بکەیت'),
-                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                          style: TextStyle(color: RC.fg(Colors.grey), fontSize: 12),
                         ),
                         const SizedBox(height: 16),
                         _buildLabel(t('ناوی بەش')),
@@ -4413,7 +4608,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           localImagePath: localImagePath,
                           previewBytes: previewBytes,
                           busy: imageBusy,
-                          errorText: imageError,
+                          errorText: txn(imageError),
                           onTap: imageBusy
                               ? null
                               : () => _pickCompressUploadProductImage(
@@ -4437,7 +4632,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   padding: const EdgeInsets.symmetric(vertical: 12),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                 ),
-                                child: Text(t('پاشگەزبونەوە'), style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                                child: Text(t('پاشگەزبونەوە'), style: TextStyle(color: RC.fg(Colors.grey), fontSize: 13)),
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -4453,13 +4648,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                         }
                                       },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF00C853),
+                                  backgroundColor: RC.bg(Color(0xFF00C853)),
                                   padding: const EdgeInsets.symmetric(vertical: 12),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                   elevation: 0,
                                 ),
                                 child: Text(t('زیادکردن'),
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13.5),
+                                  style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.w900, fontSize: 13.5),
                                 ),
                               ),
                             ),
@@ -4502,15 +4697,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: RC.bg(Color(0xFFF8FAFC)),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<int?>(
           value: value,
           isExpanded: true,
-          hint: Text(t('بێ داشکاندن'), style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+          hint: Text(t('بێ داشکاندن'), style: TextStyle(color: RC.fg(Colors.grey.shade500), fontSize: 13)),
           items: [
             DropdownMenuItem<int?>(
               value: null,
@@ -4519,7 +4714,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
             ..._discountPercents.map(
               (p) => DropdownMenuItem<int?>(
                 value: p,
-                child: Text('$p%', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                child: Text(tx('$p%'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
               ),
             ),
           ],
@@ -4541,16 +4736,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
             textDirection: Trans.direction,
             child: AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              insetPadding: RegaResponsive.dialogInset(ctx, cap: 380),
               title: Text(t('داشکاندنی دوکان'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
               content: SizedBox(
-                width: (MediaQuery.sizeOf(ctx).width - 48).clamp(260.0, 360.0),
+                width: RegaResponsive.dialogMaxWidth(ctx, cap: 380),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
                       t('داشکاندن بۆ هەموو بەرهەمەکان جێبەجێ دەکرێت'),
-                      style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600, height: 1.35),
+                      style: TextStyle(fontSize: 12.5, color: RC.fg(Colors.grey.shade600), height: 1.35),
                     ),
                     const SizedBox(height: 14),
                     _buildLabel(t('ڕێژەی داشکاندن هەڵبژێرە')),
@@ -4558,54 +4754,65 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       height: 44,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: RC.bg(Color(0xFFF8FAFC)),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<int>(
                           value: selectedPercent,
                           isExpanded: true,
                           items: _discountPercents
-                              .map((p) => DropdownMenuItem(value: p, child: Text('$p%', style: const TextStyle(fontWeight: FontWeight.w800))))
+                              .map((p) => DropdownMenuItem(value: p, child: Text(tx('$p%'), style: const TextStyle(fontWeight: FontWeight.w800))))
                               .toList(),
                           onChanged: (v) => setDialogState(() => selectedPercent = v ?? 10),
                         ),
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: RC.bg(Color(0xFFE11D48)),
+                          foregroundColor: RC.fg(Colors.white),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                setDialogState(() => saving = true);
+                                await widget.onStoreDiscount?.call(selectedPercent ?? 10);
+                                if (ctx.mounted) Navigator.pop(ctx);
+                              },
+                        child: Text(t('جێبەجێکردنی داشکاندن')),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                setDialogState(() => saving = true);
+                                await widget.onStoreDiscount?.call(0);
+                                if (ctx.mounted) Navigator.pop(ctx);
+                              },
+                        child: Text(t('لابردنی داشکاندنی دوکان'), style: TextStyle(color: RC.fg(Color(0xFFE11D48)))),
+                      ),
+                    ),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: saving ? null : () => Navigator.pop(ctx),
+                        child: Text(t('پاشگەزبونەوە')),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: saving ? null : () => Navigator.pop(ctx),
-                  child: Text(t('پاشگەزبونەوە')),
-                ),
-                TextButton(
-                  onPressed: saving
-                      ? null
-                      : () async {
-                          setDialogState(() => saving = true);
-                          await widget.onStoreDiscount?.call(0);
-                          if (ctx.mounted) Navigator.pop(ctx);
-                        },
-                  child: Text(t('لابردنی داشکاندنی دوکان'), style: const TextStyle(color: Color(0xFFE11D48))),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE11D48),
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: saving
-                      ? null
-                      : () async {
-                          setDialogState(() => saving = true);
-                          await widget.onStoreDiscount?.call(selectedPercent ?? 10);
-                          if (ctx.mounted) Navigator.pop(ctx);
-                        },
-                  child: Text(t('جێبەجێکردنی داشکاندن')),
-                ),
-              ],
+              actions: const [],
             ),
           );
         },
@@ -4635,11 +4842,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
             return Directionality(
               textDirection: TextDirection.ltr,
               child: Dialog(
-                insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                insetPadding: RegaResponsive.dialogInset(context, cap: 420, vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Container(
                   constraints: BoxConstraints(
-                    maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 400.0),
+                    maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 420),
                   ),
                   child: SingleChildScrollView(
                     child: Column(
@@ -4652,17 +4859,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             children: [
                               Container(
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF7ED),
-                                  border: Border.all(color: const Color(0xFFFED7AA), width: 1.5),
+                                  color: RC.bg(Color(0xFFFFF7ED)),
+                                  border: Border.all(color: RC.bg(Color(0xFFFED7AA)), width: 1.5),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: IconButton(
                                   onPressed: () => Navigator.pop(context),
-                                  icon: const Icon(
+                                  icon: Icon(
                                     Icons.close_rounded,
-                                    color: Color(0xFFEA580C),
+                                    color: RC.fg(Color(0xFFEA580C)),
                                     size: 20,
-                                    shadows: [Shadow(color: Color(0xFFEA580C), blurRadius: 1)],
+                                    shadows: [Shadow(color: RC.bg(Color(0xFFEA580C)), blurRadius: 1)],
                                   ),
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -4680,9 +4887,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             ],
                           ),
                         ),
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Divider(height: 1, color: Color(0xFFEEEEEE)),
+                          child: Divider(height: 1, color: RC.bg(Color(0xFFEEEEEE))),
                         ),
                         
                         Padding(
@@ -4720,9 +4927,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 8),
                                     child: Text(
-                                      '${t('قازانجی سەرەتایی')}: ${gross.toInt()} د.ع',
+                                      tx('${t('قازانجی سەرەتایی')}: ${gross.toInt()} د.ع'),
                                       style: TextStyle(
-                                        color: gross > 0 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                                        color: gross > 0 ? RC.bg(Color(0xFF059669)) : RC.bg(Color(0xFFDC2626)),
                                         fontWeight: FontWeight.w800,
                                         fontSize: 12.5,
                                       ),
@@ -4745,9 +4952,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 8),
                                     child: Text(
-                                      '${t('نرخی دوای داشکاندن')}: ${after.toInt()} د.ع  (−${selectedDiscountPct}%)',
-                                      style: const TextStyle(
-                                        color: Color(0xFF059669),
+                                      tx('${t('نرخی دوای داشکاندن')}: ${after.toInt()} د.ع  (−${selectedDiscountPct}%)'),
+                                      style: TextStyle(
+                                        color: RC.fg(Color(0xFF059669)),
                                         fontWeight: FontWeight.w800,
                                         fontSize: 12.5,
                                       ),
@@ -4766,7 +4973,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 localImagePath: localImagePath,
                                 previewBytes: previewBytes,
                                 busy: imageBusy,
-                                errorText: imageError,
+                                errorText: txn(imageError),
                                 onTap: imageBusy
                                     ? null
                                     : () => _pickCompressUploadProductImage(
@@ -4802,9 +5009,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                             final cost = double.tryParse(costController.text) ?? 0;
                                             if (cost < 0 || cost >= base) {
                                               ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text('نرخی فرۆشتن دەبێت لە نرخی کڕین زیاتر بێت', textAlign: TextAlign.center),
-                                                  backgroundColor: Color(0xFFDC2626),
+                                                SnackBar(
+                                                  content: Text(tx('نرخی فرۆشتن دەبێت لە نرخی کڕین زیاتر بێت'), textAlign: TextAlign.center),
+                                                  backgroundColor: RC.bg(Color(0xFFDC2626)),
                                                 ),
                                               );
                                               return;
@@ -4824,12 +5031,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                           }
                                         },
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF00C853),
+                                    backgroundColor: RC.bg(Color(0xFF00C853)),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                     elevation: 0,
                                   ),
                                   child: Text(t('تۆمارکردنی بەرهەم'),
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14.5),
+                                    style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.w900, fontSize: 14.5),
                                   ),
                                 ),
                               ),
@@ -4857,7 +5064,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final ImagePicker picker = ImagePicker();
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: RC.bg(Colors.white),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) => Directionality(
         textDirection: Trans.direction,
@@ -4877,7 +5084,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     width: 44,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: Colors.grey[300],
+                      color: RC.bgn(Colors.grey[300]),
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
@@ -4890,7 +5097,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   children: [
                     Text(
                       t('هەڵبژاردنی وێنە'),
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF1E293B)),
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: RC.fg(Color(0xFF1E293B))),
                     ),
                     InkWell(
                       onTap: () => Navigator.of(context).pop(),
@@ -4899,10 +5106,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
+                          color: RC.bgn(Colors.grey[100]),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+                        child: Icon(Icons.close_rounded, size: 18, color: RC.fg(Colors.grey)),
                       ),
                     ),
                   ],
@@ -4916,9 +5123,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: RC.bg(Color(0xFFF8FAFC)),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                     ),
                     child: Row(
                       children: [
@@ -4926,21 +5133,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           width: 52,
                           height: 52,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFF9800), Color(0xFFF57C00)],
+                            gradient: LinearGradient(
+                              colors: [RC.bg(Color(0xFFFF9800)), RC.bg(Color(0xFFF57C00))],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFFF9800).withOpacity(0.35),
+                                color: RC.bg(Color(0xFFFF9800)).withOpacity(0.35),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 26),
+                          child: Icon(Icons.camera_alt_rounded, color: RC.fg(Colors.white), size: 26),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -4949,12 +5156,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             children: [
                               Text(
                                 t('کامێرا'),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: RC.fg(Color(0xFF1E293B))),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 t('وێنەی نوێ وەبگرە'),
-                                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                                style: TextStyle(color: RC.fgn(Colors.grey[600]), fontSize: 13),
                               ),
                             ],
                           ),
@@ -4962,13 +5169,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         Container(
                           width: 34,
                           height: 34,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFFF3E0),
+                          decoration: BoxDecoration(
+                            color: RC.bg(Color(0xFFFFF3E0)),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Trans.direction == TextDirection.rtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
-                            color: const Color(0xFFFF9800),
+                            color: RC.fg(Color(0xFFFF9800)),
                             size: 22,
                           ),
                         ),
@@ -4985,9 +5192,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: RC.bg(Color(0xFFF8FAFC)),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                     ),
                     child: Row(
                       children: [
@@ -4995,21 +5202,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           width: 52,
                           height: 52,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFF9800), Color(0xFFF57C00)],
+                            gradient: LinearGradient(
+                              colors: [RC.bg(Color(0xFFFF9800)), RC.bg(Color(0xFFF57C00))],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFFF9800).withOpacity(0.35),
+                                color: RC.bg(Color(0xFFFF9800)).withOpacity(0.35),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.photo_library_rounded, color: Colors.white, size: 26),
+                          child: Icon(Icons.photo_library_rounded, color: RC.fg(Colors.white), size: 26),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -5018,12 +5225,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             children: [
                               Text(
                                 t('گالەری'),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: RC.fg(Color(0xFF1E293B))),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 t('وێنەیەک لە موبایلەکەت هەڵبژێرە'),
-                                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                                style: TextStyle(color: RC.fgn(Colors.grey[600]), fontSize: 13),
                               ),
                             ],
                           ),
@@ -5031,13 +5238,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         Container(
                           width: 34,
                           height: 34,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFFF3E0),
+                          decoration: BoxDecoration(
+                            color: RC.bg(Color(0xFFFFF3E0)),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Trans.direction == TextDirection.rtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
-                            color: const Color(0xFFFF9800),
+                            color: RC.fg(Color(0xFFFF9800)),
                             size: 22,
                           ),
                         ),
@@ -5053,14 +5260,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   child: TextButton(
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 13),
-                      backgroundColor: const Color(0xFFE50010),
-                      foregroundColor: Colors.white,
+                      backgroundColor: RC.bg(Color(0xFFE50010)),
+                      foregroundColor: RC.fg(Colors.white),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                     onPressed: () => Navigator.of(context).pop(),
                     child: Text(
                       t('پاشگەزبوونەوە'),
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                   ),
                 ),
@@ -5113,8 +5320,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString(), textAlign: TextAlign.center),
-          backgroundColor: const Color(0xFFE50010),
+          content: Text(tx(e.toString()), textAlign: TextAlign.center),
+          backgroundColor: RC.bg(Color(0xFFE50010)),
         ),
       );
     }
@@ -5142,11 +5349,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
             return Directionality(
               textDirection: TextDirection.ltr,
               child: Dialog(
-                insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                insetPadding: RegaResponsive.dialogInset(context, cap: 420, vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Container(
                   constraints: BoxConstraints(
-                    maxWidth: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 380.0),
+                    maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 420),
                   ),
                   child: SingleChildScrollView(
                     child: Column(
@@ -5159,17 +5366,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             children: [
                               Container(
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF7ED),
-                                  border: Border.all(color: const Color(0xFFFED7AA), width: 1.5),
+                                  color: RC.bg(Color(0xFFFFF7ED)),
+                                  border: Border.all(color: RC.bg(Color(0xFFFED7AA)), width: 1.5),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: IconButton(
                                   onPressed: () => Navigator.pop(context),
-                                  icon: const Icon(
+                                  icon: Icon(
                                     Icons.close_rounded,
-                                    color: Color(0xFFEA580C),
+                                    color: RC.fg(Color(0xFFEA580C)),
                                     size: 20,
-                                    shadows: [Shadow(color: Color(0xFFEA580C), blurRadius: 1)],
+                                    shadows: [Shadow(color: RC.bg(Color(0xFFEA580C)), blurRadius: 1)],
                                   ),
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -5178,7 +5385,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               Expanded(
                                 child: Center(
                                   child: Text(
-                                    'زیادکردنی بەرهەمی نوێ',
+                                    tx('زیادکردنی بەرهەمی نوێ'),
                                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                                   ),
                                 ),
@@ -5187,9 +5394,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             ],
                           ),
                         ),
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Divider(height: 1, color: Color(0xFFEEEEEE)),
+                          child: Divider(height: 1, color: RC.bg(Color(0xFFEEEEEE))),
                         ),
                         
                         Padding(
@@ -5227,9 +5434,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 8),
                                     child: Text(
-                                      '${t('قازانجی سەرەتایی')}: ${gross.toInt()} د.ع',
+                                      tx('${t('قازانجی سەرەتایی')}: ${gross.toInt()} د.ع'),
                                       style: TextStyle(
-                                        color: gross > 0 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                                        color: gross > 0 ? RC.bg(Color(0xFF059669)) : RC.bg(Color(0xFFDC2626)),
                                         fontWeight: FontWeight.w800,
                                         fontSize: 12.5,
                                       ),
@@ -5252,9 +5459,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 8),
                                     child: Text(
-                                      '${t('نرخی دوای داشکاندن')}: ${after.toInt()} د.ع  (−${selectedDiscountPct}%)',
-                                      style: const TextStyle(
-                                        color: Color(0xFF059669),
+                                      tx('${t('نرخی دوای داشکاندن')}: ${after.toInt()} د.ع  (−${selectedDiscountPct}%)'),
+                                      style: TextStyle(
+                                        color: RC.fg(Color(0xFF059669)),
                                         fontWeight: FontWeight.w800,
                                         fontSize: 12.5,
                                       ),
@@ -5270,7 +5477,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 localImagePath: localImagePath,
                                 previewBytes: previewBytes,
                                 busy: imageBusy,
-                                errorText: imageError,
+                                errorText: txn(imageError),
                                 onTap: imageBusy
                                     ? null
                                     : () => _pickCompressUploadProductImage(
@@ -5306,9 +5513,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                             final cost = double.tryParse(costController.text) ?? 0;
                                             if (cost < 0 || cost >= base) {
                                               ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text('نرخی فرۆشتن دەبێت لە نرخی کڕین زیاتر بێت', textAlign: TextAlign.center),
-                                                  backgroundColor: Color(0xFFDC2626),
+                                                SnackBar(
+                                                  content: Text(tx('نرخی فرۆشتن دەبێت لە نرخی کڕین زیاتر بێت'), textAlign: TextAlign.center),
+                                                  backgroundColor: RC.bg(Color(0xFFDC2626)),
                                                 ),
                                               );
                                               return;
@@ -5327,12 +5534,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                           }
                                         },
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF00C853),
+                                    backgroundColor: RC.bg(Color(0xFF00C853)),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                     elevation: 0,
                                   ),
                                   child: Text(t('تۆمارکردنی بەرهەم'),
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14.5),
+                                    style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.w900, fontSize: 14.5),
                                   ),
                                 ),
                               ),
@@ -5353,7 +5560,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   Widget _buildLabel(String text) => Padding(
     padding: const EdgeInsets.only(bottom: 5),
-    child: Text(text, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.black)),
+    child: Text(tx(text), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: RC.fg(Colors.black))),
   );
   
   Widget _buildTextField(
@@ -5370,18 +5577,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
         style: const TextStyle(fontSize: 13),
         onChanged: onChanged,
         decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(color: hintColor ?? Colors.grey[400], fontSize: 12),
+          hintText: txn(hint),
+          hintStyle: TextStyle(color: hintColor ?? RC.bgn(Colors.grey[400]), fontSize: 12),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: RC.bg(Colors.white),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey[200]!),
+            borderSide: BorderSide(color: RC.bg(Colors.grey[200]!)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFF00C853)),
+            borderSide: BorderSide(color: RC.bg(Color(0xFF00C853))),
           ),
         ),
       );
@@ -5390,18 +5597,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
     height: 40,
     padding: const EdgeInsets.symmetric(horizontal: 10),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: RC.bg(Colors.white),
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: Colors.grey[200]!),
+      border: Border.all(color: RC.bg(Colors.grey[200]!)),
     ),
     child: DropdownButtonHideUnderline(
       child: DropdownButton<String>(
         isExpanded: true,
         value: value,
-        icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 20),
-        items: widget.categories.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)))).toList(),
+        icon: Icon(Icons.keyboard_arrow_down, color: RC.fg(Colors.grey), size: 20),
+        items: widget.categories.map((e) => DropdownMenuItem(value: e, child: Text(tx(e), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)))).toList(),
         onChanged: onChanged,
-        hint: Text(widget.categories.isNotEmpty ? widget.categories.first : t('بەشێک هەڵبژێرە'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black)),
+        hint: Text(tx(widget.categories.isNotEmpty ? widget.categories.first : t('بەشێک هەڵبژێرە')), style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: RC.fg(Colors.black))),
       ),
     ),
   );
@@ -5421,7 +5628,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         width: 56,
         height: 56,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
+        errorBuilder: (_, __, ___) => Icon(Icons.image_outlined, color: RC.fg(Colors.grey), size: 28),
       );
     } else if (!kIsWeb && localImagePath != null && localImagePath.isNotEmpty) {
       thumb = Image.file(
@@ -5429,7 +5636,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         width: 56,
         height: 56,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
+        errorBuilder: (_, __, ___) => Icon(Icons.image_outlined, color: RC.fg(Colors.grey), size: 28),
       );
     } else if (thumbnail != null && thumbnail.isNotEmpty) {
       thumb = Image.network(
@@ -5437,10 +5644,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
         width: 56,
         height: 56,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
+        errorBuilder: (_, __, ___) => Icon(Icons.image_outlined, color: RC.fg(Colors.grey), size: 28),
       );
     } else {
-      thumb = const Icon(Icons.add_photo_alternate_rounded, color: Color(0xFFEA580C), size: 28);
+      thumb = Icon(Icons.add_photo_alternate_rounded, color: RC.fg(Color(0xFFEA580C)), size: 28);
     }
 
     final hasImage = previewBytes != null ||
@@ -5458,12 +5665,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
             child: Ink(
               height: 120,
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
+                color: RC.bg(Color(0xFFFFF7ED)),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: errorText != null
-                      ? const Color(0xFFE11D48)
-                      : (hasImage ? const Color(0xFFEA580C) : const Color(0xFFFED7AA)),
+                      ? RC.bg(Color(0xFFE11D48))
+                      : (hasImage ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFFED7AA))),
                   width: 1.5,
                 ),
               ),
@@ -5483,8 +5690,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         const SizedBox(height: 8),
                         Text(
                           t('کرتە بکە بۆ هەڵبژاردنی وێنە'),
-                          style: const TextStyle(
-                            color: Color(0xFF9A3412),
+                          style: TextStyle(
+                            color: RC.fg(Color(0xFF9A3412)),
                             fontWeight: FontWeight.w800,
                             fontSize: 12.5,
                           ),
@@ -5494,18 +5701,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   if (busy)
                     Container(
                       decoration: BoxDecoration(
-                        color: const Color(0x880F172A),
+                        color: RC.bg(Color(0x880F172A)),
                         borderRadius: BorderRadius.circular(11),
                       ),
                       alignment: Alignment.center,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const CircularProgressIndicator(color: Colors.white),
+                          CircularProgressIndicator(color: RC.bg(Colors.white)),
                           const SizedBox(height: 8),
                           Text(
                             t('بارکردنی وێنە...'),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                            style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.w800),
                           ),
                         ],
                       ),
@@ -5521,22 +5728,22 @@ class _ProductsScreenState extends State<ProductsScreen> {
           child: ElevatedButton.icon(
             onPressed: busy ? null : onTap,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEA580C),
-              foregroundColor: Colors.white,
+              backgroundColor: RC.bg(Color(0xFFEA580C)),
+              foregroundColor: RC.fg(Colors.white),
               elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             icon: busy
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
                   )
                 : Icon(hasImage ? Icons.sync_rounded : Icons.cloud_upload_rounded, size: 18),
             label: Text(
-              busy
+              tx(busy
                   ? t('بارکردنی وێنە...')
-                  : (hasImage ? t('گۆڕینی وێنە') : t('هەڵبژاردن و بارکردنی وێنە')),
+                  : (hasImage ? t('گۆڕینی وێنە') : t('هەڵبژاردن و بارکردنی وێنە'))),
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
             ),
           ),
@@ -5544,8 +5751,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
         if (errorText != null) ...[
           const SizedBox(height: 6),
           Text(
-            errorText,
-            style: const TextStyle(color: Color(0xFFE11D48), fontWeight: FontWeight.w700, fontSize: 12),
+            tx(errorText),
+            style: TextStyle(color: RC.fg(Color(0xFFE11D48)), fontWeight: FontWeight.w700, fontSize: 12),
           ),
         ],
       ],
@@ -5806,7 +6013,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                backgroundColor: const Color(0xFFEA580C),
+                backgroundColor: RC.bg(Color(0xFFEA580C)),
                 duration: const Duration(seconds: 2),
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -5817,12 +6024,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: RC.bg(Colors.white),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              border: Border.all(color: RC.bg(Color(0xFFE5E7EB))),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: RC.bg(Colors.black).withOpacity(0.02),
                   blurRadius: 4,
                   offset: const Offset(0, 1),
                 ),
@@ -5831,14 +6038,14 @@ class _RevenueScreenState extends State<RevenueScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.refresh, size: 18, color: Color(0xFFEA580C)),
+                Icon(Icons.refresh, size: 18, color: RC.fg(Color(0xFFEA580C))),
                 const SizedBox(width: 6),
                 Text(
                   t('نوێکردنەوە'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFEA580C),
+                    color: RC.fg(Color(0xFFEA580C)),
                   ),
                 ),
               ],
@@ -5853,25 +6060,25 @@ class _RevenueScreenState extends State<RevenueScreen> {
           children: [
             Text(
               t('داهاتی فرۆشیار'),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF1E2024),
+                color: RC.fg(Color(0xFF1E2024)),
               ),
             ),
             const SizedBox(height: 2),
             Text(
               t('شیکاری وردی فرۆش و قازانجەکانت'),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: Color(0xFF8E8E93),
+                color: RC.fg(Color(0xFF8E8E93)),
                 fontWeight: FontWeight.w500,
               ),
             ),
           ],
         );
 
-        if (constraints.maxWidth < 600) {
+        if (constraints.maxWidth < RegaBreakpoints.phone) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -5885,7 +6092,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            titleColumn,
+            Flexible(child: titleColumn),
             refreshButton,
           ],
         );
@@ -5897,12 +6104,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: RC.bg(Color(0xFFE5E7EB))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: RC.bg(Colors.black).withOpacity(0.02),
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),
@@ -5934,12 +6141,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 9),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFEA580C) : Colors.transparent,
+            color: isSelected ? RC.bg(Color(0xFFEA580C)) : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: const Color(0xFFEA580C).withValues(alpha: 0.25),
+                      color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.25),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -5948,9 +6155,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
           ),
           child: Center(
             child: Text(
-              title,
+              tx(title),
               style: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF4B5563),
+                color: isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF4B5563)),
                 fontWeight: isSelected ? FontWeight.w900 : FontWeight.bold,
                 fontSize: 13,
               ),
@@ -5976,12 +6183,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFFEDD5), width: 1.4),
+        border: Border.all(color: RC.bg(Color(0xFFFFEDD5)), width: 1.4),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFEA580C).withValues(alpha: 0.05),
+            color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -6005,25 +6212,25 @@ class _RevenueScreenState extends State<RevenueScreen> {
                       children: [
                         Text(
                           t('صافی قازانج (قازانجی تۆ)'),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF9A3412),
+                            color: RC.fg(Color(0xFF9A3412)),
                           ),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFF7ED),
+                            color: RC.bg(Color(0xFFFFF7ED)),
                             borderRadius: BorderRadius.circular(5),
-                            border: Border.all(color: const Color(0xFFFED7AA)),
+                            border: Border.all(color: RC.bg(Color(0xFFFED7AA))),
                           ),
                           child: Text(
-                            periodTitle,
-                            style: const TextStyle(
+                            tx(periodTitle),
+                            style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFFEA580C),
+                              color: RC.fg(Color(0xFFEA580C)),
                             ),
                           ),
                         ),
@@ -6039,11 +6246,11 @@ class _RevenueScreenState extends State<RevenueScreen> {
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
-                            _formatAmount(netProfit),
-                            style: const TextStyle(
+                            tx(_formatAmount(netProfit)),
+                            style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w900,
-                              color: Color(0xFFEA580C),
+                              color: RC.fg(Color(0xFFEA580C)),
                               letterSpacing: -0.5,
                             ),
                           ),
@@ -6051,15 +6258,15 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEA580C),
+                              color: RC.bg(Color(0xFFEA580C)),
                               borderRadius: BorderRadius.circular(5),
                             ),
-                            child: const Text(
-                              'د.ع',
+                            child: Text(
+                              tx('د.ع'),
                               style: TextStyle(
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w900,
-                                color: Colors.white,
+                                color: RC.fg(Colors.white),
                               ),
                             ),
                           ),
@@ -6074,12 +6281,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3.5),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: RC.bg(Colors.white),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.3)),
+                  border: Border.all(color: RC.bg(Color(0xFF16A34A)).withValues(alpha: 0.3)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
+                      color: RC.bg(Colors.black).withOpacity(0.02),
                       blurRadius: 3,
                       offset: const Offset(0, 1),
                     ),
@@ -6090,13 +6297,13 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   children: [
                     Transform.flip(
                       flipX: true,
-                      child: const Icon(Icons.trending_up, color: Color(0xFF16A34A), size: 13),
+                      child: Icon(Icons.trending_up, color: RC.fg(Color(0xFF16A34A)), size: 13),
                     ),
                     const SizedBox(width: 3),
                     Text(
-                      growthText,
-                      style: const TextStyle(
-                        color: Color(0xFF16A34A),
+                      tx(growthText),
+                      style: TextStyle(
+                        color: RC.fg(Color(0xFF16A34A)),
                         fontWeight: FontWeight.w900,
                         fontSize: 10,
                       ),
@@ -6113,23 +6320,23 @@ class _RevenueScreenState extends State<RevenueScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: RC.bg(Colors.white),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              border: Border.all(color: RC.bg(Color(0xFFE5E7EB))),
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                Widget divider() => Container(width: 1, height: 22, color: const Color(0xFFE5E7EB));
-                final sales = _buildMetricCol(t('کۆی فرۆش'), '${_formatAmount(totalSales)} د.ع', const Color(0xFF1E2024));
+                Widget divider() => Container(width: 1, height: 22, color: RC.bg(Color(0xFFE5E7EB)));
+                final sales = _buildMetricCol(t('کۆی فرۆش'), '${_formatAmount(totalSales)} د.ع', RC.bg(Color(0xFF1E2024)));
                 final commissionCol = _buildMetricCol(
                   'قەرزی ئەدمین (${commissionRatePct.toStringAsFixed(0)}٪)',
                   '${_formatAmount(commission)}- د.ع',
-                  const Color(0xFFD84315),
+                  RC.bg(Color(0xFFD84315)),
                 );
-                final orders = _buildMetricCol(t('داواکارییەکان'), '$ordersCount دانە', const Color(0xFF1E2024));
-                final avg = _buildMetricCol(t('تێکڕای فرۆش'), '${_formatAmount(avgTicket)} د.ع', const Color(0xFFEA580C));
+                final orders = _buildMetricCol(t('داواکارییەکان'), '$ordersCount دانە', RC.bg(Color(0xFF1E2024)));
+                final avg = _buildMetricCol(t('تێکڕای فرۆش'), '${_formatAmount(avgTicket)} د.ع', RC.bg(Color(0xFFEA580C)));
 
-                if (constraints.maxWidth < 600) {
+                if (constraints.maxWidth < RegaBreakpoints.tablet) {
                   return Column(
                     children: [
                       Row(children: [sales, divider(), commissionCol]),
@@ -6157,15 +6364,15 @@ class _RevenueScreenState extends State<RevenueScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFFECFDF5),
+              color: RC.bg(Color(0xFFECFDF5)),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFF86EFAC)),
+              border: Border.all(color: RC.bg(Color(0xFF86EFAC))),
             ),
             child: Text(
-              loading
+              tx(loading
                   ? 'بارکردنی حیسابی قازانج…'
-                  : 'ئەمڕۆ پێویستە بدرێت بە ئەدمین: ${_formatAmount(todayAdminOwed)} د.ع  (لەسەر قازانج، نەک فرۆش)',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF166534)),
+                  : 'ئەمڕۆ پێویستە بدرێت بە ئەدمین: ${_formatAmount(todayAdminOwed)} د.ع  (لەسەر قازانج، نەک فرۆش)'),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534))),
             ),
           ),
         ],
@@ -6182,9 +6389,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
-                label,
-                style: const TextStyle(
-                  color: Color(0xFF6B7280),
+                tx(label),
+                style: TextStyle(
+                  color: RC.fg(Color(0xFF6B7280)),
                   fontSize: 9,
                   fontWeight: FontWeight.bold,
                 ),
@@ -6196,7 +6403,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
-                value,
+                tx(value),
                 style: TextStyle(
                   color: valueColor,
                   fontSize: 10,
@@ -6227,12 +6434,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: RC.bg(Color(0xFFE5E7EB))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: RC.bg(Colors.black).withOpacity(0.02),
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),
@@ -6251,19 +6458,19 @@ class _RevenueScreenState extends State<RevenueScreen> {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF7ED),
+                        color: RC.bg(Color(0xFFFFF7ED)),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.bar_chart, color: Color(0xFFEA580C), size: 18),
+                      child: Icon(Icons.bar_chart, color: RC.fg(Color(0xFFEA580C)), size: 18),
                     ),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        title,
-                        style: const TextStyle(
+                        tx(title),
+                        style: TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 13,
-                          color: Color(0xFF1E2024),
+                          color: RC.fg(Color(0xFF1E2024)),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -6277,16 +6484,16 @@ class _RevenueScreenState extends State<RevenueScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7ED),
+                    color: RC.bg(Color(0xFFFFF7ED)),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFED7AA)),
+                    border: Border.all(color: RC.bg(Color(0xFFFED7AA))),
                   ),
                   child: Text(
-                    highlightText,
+                    tx(highlightText),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFFEA580C),
+                    style: TextStyle(
+                      color: RC.fg(Color(0xFFEA580C)),
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
                     ),
@@ -6326,12 +6533,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
                           width: isActive ? 28 : 22,
                           height: normalizedHeight,
                           decoration: BoxDecoration(
-                            color: isActive ? const Color(0xFFEA580C) : const Color(0xFFFFEDD5),
+                            color: isActive ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFFFEDD5)),
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
                             boxShadow: isActive
                                 ? [
                                     BoxShadow(
-                                      color: const Color(0xFFEA580C).withValues(alpha: 0.3),
+                                      color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.3),
                                       blurRadius: 6,
                                       offset: const Offset(0, 2),
                                     ),
@@ -6341,9 +6548,9 @@ class _RevenueScreenState extends State<RevenueScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          labels[i],
+                          tx(labels[i]),
                           style: TextStyle(
-                            color: isActive ? const Color(0xFFEA580C) : const Color(0xFF6B7280),
+                            color: isActive ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFF6B7280)),
                             fontSize: 11,
                             fontWeight: isActive ? FontWeight.w900 : FontWeight.bold,
                           ),
@@ -6364,12 +6571,12 @@ class _RevenueScreenState extends State<RevenueScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: RC.bg(Color(0xFFE5E7EB))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: RC.bg(Colors.black).withOpacity(0.02),
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),
@@ -6386,19 +6593,19 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3E0),
+                      color: RC.bg(Color(0xFFFFF3E0)),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.workspace_premium, color: Color(0xFFF06400), size: 18),
+                    child: Icon(Icons.workspace_premium, color: RC.fg(Color(0xFFF06400)), size: 18),
                   ),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(
                       t('پڕداهاتترین بەرهەمەکان'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 13.5,
-                        color: Color(0xFF1E2024),
+                        color: RC.fg(Color(0xFF1E2024)),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -6410,8 +6617,8 @@ class _RevenueScreenState extends State<RevenueScreen> {
                 t('بەپێی کۆی فرۆش'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF8E8E93),
+                style: TextStyle(
+                  color: RC.fg(Color(0xFF8E8E93)),
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
@@ -6447,26 +6654,26 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
   Widget _buildTopProductItem(Map<String, dynamic> item) {
     Color rankBg = const Color(0xFFF1F3F5);
-    Color rankColor = const Color(0xFF495057);
+    Color rankColor = RC.bg(Color(0xFF495057));
 
     if (item['rank'] == '١') {
-      rankBg = const Color(0xFFFFF8E1);
-      rankColor = const Color(0xFFFF8F00);
+      rankBg = RC.bg(Color(0xFFFFF8E1));
+      rankColor = RC.bg(Color(0xFFFF8F00));
     } else if (item['rank'] == '٢') {
-      rankBg = const Color(0xFFECEFF1);
-      rankColor = const Color(0xFF546E7A);
+      rankBg = RC.bg(Color(0xFFECEFF1));
+      rankColor = RC.bg(Color(0xFF546E7A));
     } else if (item['rank'] == '٣') {
-      rankBg = const Color(0xFFEFEBE9);
-      rankColor = const Color(0xFF6D4C41);
+      rankBg = RC.bg(Color(0xFFEFEBE9));
+      rankColor = RC.bg(Color(0xFF6D4C41));
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFAF7),
+        color: RC.bg(Color(0xFFFAFAF7)),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: RC.bg(Color(0xFFE5E7EB))),
       ),
       child: Column(
         children: [
@@ -6482,7 +6689,7 @@ class _RevenueScreenState extends State<RevenueScreen> {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  item['rank'],
+                  tx(item['rank']),
                   style: TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 12,
@@ -6503,8 +6710,8 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   errorBuilder: (context, error, stackTrace) => Container(
                     width: 44,
                     height: 44,
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.fastfood, color: Colors.grey, size: 22),
+                    color: RC.bgn(Colors.grey[200]),
+                    child: Icon(Icons.fastfood, color: RC.fg(Colors.grey), size: 22),
                   ),
                 ),
               ),
@@ -6516,23 +6723,23 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item['name'],
+                      tx(item['name']),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 13.5,
-                        color: Color(0xFF1E2024),
+                        color: RC.fg(Color(0xFF1E2024)),
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${item['category']} • ${item['sold']} دانە فرۆشراوە',
+                      tx('${item['category']} • ${item['sold']} دانە فرۆشراوە'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF6B7280),
+                        color: RC.fg(Color(0xFF6B7280)),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -6546,11 +6753,11 @@ class _RevenueScreenState extends State<RevenueScreen> {
                   fit: BoxFit.scaleDown,
                   alignment: AlignmentDirectional.centerEnd,
                   child: Text(
-                    '${_formatAmount(item['revenue'])} د.ع',
-                    style: const TextStyle(
+                    tx('${_formatAmount(item['revenue'])} د.ع'),
+                    style: TextStyle(
                       fontWeight: FontWeight.w900,
                       fontSize: 13,
-                      color: Color(0xFFEA580C),
+                      color: RC.fg(Color(0xFFEA580C)),
                     ),
                   ),
                 ),
@@ -6563,8 +6770,8 @@ class _RevenueScreenState extends State<RevenueScreen> {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: (item['percent'] as double).clamp(0.0, 1.0),
-              backgroundColor: const Color(0xFFE5E7EB),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFEA580C)),
+              backgroundColor: RC.bg(Color(0xFFE5E7EB)),
+              valueColor: AlwaysStoppedAnimation<Color>(RC.bg(Color(0xFFEA580C))),
               minHeight: 4,
             ),
           ),
@@ -6604,7 +6811,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _pickImage(bool isCover) async {
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: RC.bg(Colors.white),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) => Directionality(
         textDirection: Trans.direction,
@@ -6623,7 +6830,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: 44,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: Colors.grey[300],
+                      color: RC.bgn(Colors.grey[300]),
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
@@ -6634,7 +6841,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Text(
                       t('هەڵبژاردنی وێنە'),
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF1E293B)),
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: RC.fg(Color(0xFF1E293B))),
                     ),
                     InkWell(
                       onTap: () => Navigator.of(context).pop(),
@@ -6643,10 +6850,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
+                          color: RC.bgn(Colors.grey[100]),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+                        child: Icon(Icons.close_rounded, size: 18, color: RC.fg(Colors.grey)),
                       ),
                     ),
                   ],
@@ -6658,9 +6865,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: RC.bg(Color(0xFFF8FAFC)),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                     ),
                     child: Row(
                       children: [
@@ -6668,21 +6875,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           width: 52,
                           height: 52,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFF9800), Color(0xFFF57C00)],
+                            gradient: LinearGradient(
+                              colors: [RC.bg(Color(0xFFFF9800)), RC.bg(Color(0xFFF57C00))],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFFF9800).withOpacity(0.35),
+                                color: RC.bg(Color(0xFFFF9800)).withOpacity(0.35),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 26),
+                          child: Icon(Icons.camera_alt_rounded, color: RC.fg(Colors.white), size: 26),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -6691,12 +6898,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             children: [
                               Text(
                                 t('کامێرا'),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: RC.fg(Color(0xFF1E293B))),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 t('وێنەی نوێ وەبگرە'),
-                                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                                style: TextStyle(color: RC.fgn(Colors.grey[600]), fontSize: 13),
                               ),
                             ],
                           ),
@@ -6704,13 +6911,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Container(
                           width: 34,
                           height: 34,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFFF3E0),
+                          decoration: BoxDecoration(
+                            color: RC.bg(Color(0xFFFFF3E0)),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Trans.direction == TextDirection.rtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
-                            color: const Color(0xFFFF9800),
+                            color: RC.fg(Color(0xFFFF9800)),
                             size: 22,
                           ),
                         ),
@@ -6725,9 +6932,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: RC.bg(Color(0xFFF8FAFC)),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                     ),
                     child: Row(
                       children: [
@@ -6735,21 +6942,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           width: 52,
                           height: 52,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFF9800), Color(0xFFF57C00)],
+                            gradient: LinearGradient(
+                              colors: [RC.bg(Color(0xFFFF9800)), RC.bg(Color(0xFFF57C00))],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFFF9800).withOpacity(0.35),
+                                color: RC.bg(Color(0xFFFF9800)).withOpacity(0.35),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.photo_library_rounded, color: Colors.white, size: 26),
+                          child: Icon(Icons.photo_library_rounded, color: RC.fg(Colors.white), size: 26),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -6758,12 +6965,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             children: [
                               Text(
                                 t('گالەری'),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: RC.fg(Color(0xFF1E293B))),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 t('وێنەیەک لە موبایلەکەت هەڵبژێرە'),
-                                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                                style: TextStyle(color: RC.fgn(Colors.grey[600]), fontSize: 13),
                               ),
                             ],
                           ),
@@ -6771,13 +6978,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Container(
                           width: 34,
                           height: 34,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFFF3E0),
+                          decoration: BoxDecoration(
+                            color: RC.bg(Color(0xFFFFF3E0)),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Trans.direction == TextDirection.rtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
-                            color: const Color(0xFFFF9800),
+                            color: RC.fg(Color(0xFFFF9800)),
                             size: 22,
                           ),
                         ),
@@ -6791,14 +6998,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: TextButton(
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 13),
-                      backgroundColor: const Color(0xFFE50010),
-                      foregroundColor: Colors.white,
+                      backgroundColor: RC.bg(Color(0xFFE50010)),
+                      foregroundColor: RC.fg(Colors.white),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                     onPressed: () => Navigator.of(context).pop(),
                     child: Text(
                       t('پاشگەزبوونەوە'),
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                   ),
                 ),
@@ -6837,18 +7044,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 fit: BoxFit.cover,
                 width: width,
                 height: height,
-                errorBuilder: (context, error, stackTrace) => Icon(defaultIcon, color: Colors.grey[400], size: isWide ? 26 : 22),
+                errorBuilder: (context, error, stackTrace) => Icon(defaultIcon, color: RC.fgn(Colors.grey[400]), size: isWide ? 26 : 22),
               )
             : Image.file(
                 File(file.path),
                 fit: BoxFit.cover,
                 width: width,
                 height: height,
-                errorBuilder: (context, error, stackTrace) => Icon(defaultIcon, color: Colors.grey[400], size: isWide ? 26 : 22),
+                errorBuilder: (context, error, stackTrace) => Icon(defaultIcon, color: RC.fgn(Colors.grey[400]), size: isWide ? 26 : 22),
               ),
       );
     }
-    return Icon(defaultIcon, color: Colors.grey[400], size: isWide ? 26 : 22);
+    return Icon(defaultIcon, color: RC.fgn(Colors.grey[400]), size: isWide ? 26 : 22);
   }
 
   Widget _buildImageSubCard({
@@ -6863,16 +7070,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
+        color: RC.bg(Color(0xFFF9FAFB)),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: RC.bg(Colors.grey[200]!)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1F2937)),
+            tx(title),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: RC.fg(Color(0xFF1F2937))),
           ),
           const SizedBox(height: 8),
           Row(
@@ -6883,8 +7090,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   width: isWide ? 64 : 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.grey[300]!),
+                    color: RC.bg(Colors.white),
+                    border: Border.all(color: RC.bg(Colors.grey[300]!)),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
@@ -6896,20 +7103,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: onPick,
-                  icon: const Icon(Icons.upload_outlined, size: 16, color: Color(0xFF00897B)),
+                  icon: Icon(Icons.upload_outlined, size: 16, color: RC.fg(Color(0xFF00897B))),
                   label: Text(
-                    buttonText,
-                    style: const TextStyle(
-                      color: Color(0xFF1F2937),
+                    tx(buttonText),
+                    style: TextStyle(
+                      color: RC.fg(Color(0xFF1F2937)),
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.white,
+                    backgroundColor: RC.bg(Colors.white),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    side: BorderSide(color: Colors.grey[300]!),
+                    side: BorderSide(color: RC.bg(Colors.grey[300]!)),
                   ),
                 ),
               ),
@@ -6970,7 +7177,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Directionality(
       textDirection: Trans.direction,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.symmetric(
+          horizontal: RegaResponsive.pagePadding(context),
+          vertical: 16,
+        ),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720),
@@ -6981,16 +7191,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: RC.bg(Colors.white),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[200]!),
+                border: Border.all(color: RC.bg(Colors.grey[200]!)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(t('ڕێکخستنی دوکان'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
                   const SizedBox(height: 4),
-                  Text(t('زانیاری بنەڕەتی، زمان و کاتژمێری کارکردن'), style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                  Text(t('زانیاری بنەڕەتی، زمان و کاتژمێری کارکردن'), style: TextStyle(color: RC.fgn(Colors.grey[500]), fontSize: 12)),
                 ],
               ),
             ),
@@ -7000,7 +7210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSectionCard(
               title: t('کاتی کارکردن'),
               icon: Icons.access_time,
-              iconColor: const Color(0xFF00897B),
+              iconColor: RC.fg(Color(0xFF00897B)),
               children: [
                 Row(
                   children: [
@@ -7015,18 +7225,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF9FAFB),
+                                color: RC.bg(Color(0xFFF9FAFB)),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey[200]!),
+                                border: Border.all(color: RC.bg(Colors.grey[200]!)),
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    formatTime(_openTime),
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1F2937)),
+                                    tx(formatTime(_openTime)),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: RC.fg(Color(0xFF1F2937))),
                                   ),
-                                  Icon(Icons.keyboard_arrow_down, color: Colors.grey[400], size: 20),
+                                  Icon(Icons.keyboard_arrow_down, color: RC.fgn(Colors.grey[400]), size: 20),
                                 ],
                               ),
                             ),
@@ -7046,18 +7256,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF9FAFB),
+                                color: RC.bg(Color(0xFFF9FAFB)),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey[200]!),
+                                border: Border.all(color: RC.bg(Colors.grey[200]!)),
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    formatTime(_closeTime),
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1F2937)),
+                                    tx(formatTime(_closeTime)),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: RC.fg(Color(0xFF1F2937))),
                                   ),
-                                  Icon(Icons.keyboard_arrow_down, color: Colors.grey[400], size: 20),
+                                  Icon(Icons.keyboard_arrow_down, color: RC.fgn(Colors.grey[400]), size: 20),
                                 ],
                               ),
                             ),
@@ -7075,7 +7285,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSectionCard(
               title: t('زمانی بەرنامە'),
               icon: Icons.translate,
-              iconColor: const Color(0xFFF06400),
+              iconColor: RC.fg(Color(0xFFF06400)),
               badge: widget.language == 'ku' ? t('کوردی') : widget.language == 'ar' ? 'عربي' : 'English',
               children: [
                 Row(
@@ -7089,6 +7299,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+
+            // 3. Appearance (light / dark)
+            ValueListenableBuilder<bool>(
+              valueListenable: Trans.dark,
+              builder: (context, isDark, _) => _buildSectionCard(
+                title: t('ڕووکار'),
+                icon: isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                iconColor: RC.fg(Color(0xFFF06400)),
+                badge: isDark ? t('تاریک') : t('ڕووناک'),
+                children: [
+                  Row(
+                    children: [
+                      _buildThemeBtn(t('ڕووناک'), Icons.light_mode_rounded, false, isDark),
+                      const SizedBox(width: 8),
+                      _buildThemeBtn(t('تاریک'), Icons.dark_mode_rounded, true, isDark),
+                    ],
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 24),
             
             // 4. Save Button
@@ -7097,13 +7328,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 widget.onNameChange(nameController.text);
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('گۆڕانکارییەکان پاشەکەوت کران'))));
               }, 
-              icon: const Icon(Icons.save_outlined, color: Colors.white, size: 20),
+              icon: Icon(Icons.save_outlined, color: RC.fg(Colors.white), size: 20),
               label: Text(
                 t('پاشەکەوتکردنی گۆڕانکارییەکان'),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.bold, fontSize: 14),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00897B), 
+                backgroundColor: RC.bg(Color(0xFF00897B)), 
                 minimumSize: const Size(double.infinity, 52),
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -7117,14 +7348,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await context.read<VendorSessionNotifier>().logout();
                 if (context.mounted) context.go('/login');
               }, 
-              icon: const Icon(Icons.logout, color: Colors.white, size: 20),
+              icon: Icon(Icons.logout, color: RC.fg(Colors.white), size: 20),
               label: Text(
                 t('چوونە دەرەوە لە هەژمار'),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.bold, fontSize: 14),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD32F2F),
-                foregroundColor: Colors.white,
+                backgroundColor: RC.bg(Color(0xFFD32F2F)),
+                foregroundColor: RC.fg(Colors.white),
                 minimumSize: const Size(double.infinity, 52),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -7142,6 +7373,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
 );
   }
 
+  Widget _buildThemeBtn(String label, IconData icon, bool dark, bool current) {
+    final selected = dark == current;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => Trans.setDark(dark),
+        child: Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: selected ? RC.bg(Color(0xFFF06400)) : RC.bg(const Color(0xFFF9FAFB)),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? RC.bg(Color(0xFFF06400)) : RC.bg(const Color(0xFFE5E7EB)),
+              width: 2,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: selected ? RC.fg(Colors.white) : RC.fg(const Color(0xFF1F2937))),
+              const SizedBox(width: 6),
+              Text(
+                tx(label),
+                style: TextStyle(
+                  color: selected ? RC.bg(Colors.white) : RC.fg(const Color(0xFF1F2937)),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildLangBtn(String label, String code) {
     bool isSelected = widget.language == code;
     return Expanded(
@@ -7150,21 +7416,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Container(
           height: 48,
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFF06400) : const Color(0xFFF9FAFB),
+            color: isSelected ? RC.bg(Color(0xFFF06400)) : RC.bg(Color(0xFFF9FAFB)),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? const Color(0xFFF06400) : Colors.grey[200]!,
+              color: isSelected ? RC.bg(Color(0xFFF06400)) : RC.bg(Colors.grey[200]!),
               width: 2,
             ),
             boxShadow: isSelected
-                ? [BoxShadow(color: const Color(0xFFF06400).withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2))]
+                ? [BoxShadow(color: RC.bg(Color(0xFFF06400)).withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2))]
                 : [],
           ),
           child: Center(
             child: Text(
-              label,
+              tx(label),
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.grey[800],
+                color: isSelected ? RC.bg(Colors.white) : RC.bgn(Colors.grey[800]),
                 fontWeight: FontWeight.w900,
                 fontSize: 13,
               ),
@@ -7182,51 +7448,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? badge,
     required List<Widget> children,
   }) {
+    final badgeWidget = badge == null
+        ? null
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: RC.bg(Color(0xFFFFF3E0)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              tx(badge),
+              style: TextStyle(
+                color: RC.fg(Color(0xFFE65100)),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          );
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: RC.bg(Colors.grey[200]!)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // In RTL, first child is on the RIGHT
-              Row(
-                mainAxisSize: MainAxisSize.min,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final titleRow = Row(
                 children: [
-                  Icon(icon, color: iconColor ?? const Color(0xFF00897B), size: 20),
+                  Icon(icon, color: iconColor ?? RC.fg(Color(0xFF00897B)), size: 20),
                   const SizedBox(width: 8),
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF111827)),
-                  ),
-                ],
-              ),
-              // In RTL, second child is on the LEFT
-              if (badge != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3E0),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    badge,
-                    style: const TextStyle(
-                      color: Color(0xFFE65100),
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      tx(title),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: RC.fg(Color(0xFF111827))),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                )
-              else
-                const SizedBox.shrink(),
-            ],
+                ],
+              );
+              if (badgeWidget == null) return titleRow;
+              if (constraints.maxWidth < RegaBreakpoints.phone) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    titleRow,
+                    const SizedBox(height: 8),
+                    Align(alignment: AlignmentDirectional.centerStart, child: badgeWidget),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: titleRow),
+                  const SizedBox(width: 8),
+                  badgeWidget,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
           ...children,
@@ -7239,8 +7523,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6.0),
       child: Text(
-        text,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1F2937)),
+        tx(text),
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: RC.fg(Color(0xFF1F2937))),
       ),
     );
   }
@@ -7249,18 +7533,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return TextField(
       textAlign: TextAlign.right,
       decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+        hintText: txn(hint),
+        hintStyle: TextStyle(color: RC.fgn(Colors.grey[400]), fontSize: 13),
         filled: true,
-        fillColor: Colors.grey[50],
+        fillColor: RC.bgn(Colors.grey[50]),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[200]!),
+          borderSide: BorderSide(color: RC.bg(Colors.grey[200]!)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[200]!),
+          borderSide: BorderSide(color: RC.bg(Colors.grey[200]!)),
         ),
       ),
     );

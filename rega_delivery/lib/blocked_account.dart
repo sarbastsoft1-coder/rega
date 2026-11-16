@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'rega_mobile.dart';
 
+import 'rega_i18n.dart';
+import 'rega_colors.dart';
 class AccountBlockedException implements Exception {
   final String message;
   final Map<String, dynamic> contact;
@@ -82,47 +85,53 @@ class BlockedAccountContacts {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Row(
+        insetPadding: RegaResponsive.dialogInset(ctx, cap: 400),
+        title: Row(
           children: [
-            Icon(Icons.block_rounded, color: Color(0xFFDC2626)),
+            Icon(Icons.block_rounded, color: RC.fg(Color(0xFFDC2626))),
             SizedBox(width: 8),
             Expanded(
-              child: Text('هەژمار مسدودکراوە', style: TextStyle(fontWeight: FontWeight.w900)),
+              child: Text(tx('هەژمار مسدودکراوە'), style: TextStyle(fontWeight: FontWeight.w900)),
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(contacts.message, style: const TextStyle(fontWeight: FontWeight.w600, height: 1.45)),
-            const SizedBox(height: 16),
-            _ContactBtn(
-              icon: Icons.chat_rounded,
-              color: const Color(0xFF16A34A),
-              label: 'WhatsApp  ${contacts.whatsapp}',
-              onTap: () => contacts._open(contacts.whatsappUri, clipboardFallback: contacts.whatsapp),
+        content: SizedBox(
+          width: RegaResponsive.dialogMaxWidth(ctx, cap: 400),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(tx(contacts.message), style: const TextStyle(fontWeight: FontWeight.w600, height: 1.45)),
+                const SizedBox(height: 16),
+                _ContactBtn(
+                  icon: Icons.chat_rounded,
+                  color: RC.bg(Color(0xFF16A34A)),
+                  label: 'WhatsApp  ${contacts.whatsapp}',
+                  onTap: () => contacts._open(contacts.whatsappUri, clipboardFallback: contacts.whatsapp),
+                ),
+                const SizedBox(height: 8),
+                _ContactBtn(
+                  icon: Icons.send_rounded,
+                  color: RC.bg(Color(0xFF0284C7)),
+                  label: 'Telegram  @${contacts.telegramUsername}',
+                  onTap: () => contacts._open(contacts.telegramUri, clipboardFallback: '@${contacts.telegramUsername}'),
+                ),
+                const SizedBox(height: 8),
+                _ContactBtn(
+                  icon: Icons.phone_rounded,
+                  color: RC.bg(Color(0xFFEA580C)),
+                  label: 'Call  ${contacts.phone}',
+                  onTap: () => contacts._open(contacts.telUri, clipboardFallback: contacts.phone),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            _ContactBtn(
-              icon: Icons.send_rounded,
-              color: const Color(0xFF0284C7),
-              label: 'Telegram  @${contacts.telegramUsername}',
-              onTap: () => contacts._open(contacts.telegramUri, clipboardFallback: '@${contacts.telegramUsername}'),
-            ),
-            const SizedBox(height: 8),
-            _ContactBtn(
-              icon: Icons.phone_rounded,
-              color: const Color(0xFFEA580C),
-              label: 'Call  ${contacts.phone}',
-              onTap: () => contacts._open(contacts.telUri, clipboardFallback: contacts.phone),
-            ),
-          ],
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('باشە', style: TextStyle(fontWeight: FontWeight.w800)),
+            child: Text(tx('باشە'), style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -158,7 +167,7 @@ class _ContactBtn extends StatelessWidget {
               Icon(icon, color: color, size: 20),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(label, style: TextStyle(fontWeight: FontWeight.w800, color: color, fontSize: 13)),
+                child: Text(tx(label), style: TextStyle(fontWeight: FontWeight.w800, color: color, fontSize: 13)),
               ),
               Icon(Icons.open_in_new_rounded, color: color.withValues(alpha: 0.7), size: 16),
             ],

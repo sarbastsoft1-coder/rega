@@ -1,3 +1,4 @@
+import '../../rega_i18n.dart';
 class AppStrings {
   static const Map<String, Map<String, String>> _dict = {
     'app_title': {
@@ -245,6 +246,16 @@ class AppStrings {
       'ar': 'تحديث',
       'en': 'Refresh',
     },
+    'expand_menu': {
+      'ku': 'فراوانکردنی مێنیو',
+      'ar': 'توسيع القائمة',
+      'en': 'Expand menu',
+    },
+    'collapse_menu': {
+      'ku': 'بچووککردنەوەی مێنیو',
+      'ar': 'طي القائمة',
+      'en': 'Collapse menu',
+    },
     'logout': {
       'ku': 'چوونە دەرەوە',
       'ar': 'تسجيل الخروج',
@@ -421,9 +432,44 @@ class AppStrings {
       'en': 'Amount',
     },
     'iqd': {
-      'ku': 'د.ع',
+      'ku': 'ع.د',
       'ar': 'د.ع',
       'en': 'IQD',
+    },
+    'lat_label': {
+      'ku': 'پانی شوێن',
+      'ar': 'خط العرض',
+      'en': 'Latitude',
+    },
+    'lng_label': {
+      'ku': 'درێژی شوێن',
+      'ar': 'خط الطول',
+      'en': 'Longitude',
+    },
+    'vendor_status_active': {
+      'ku': 'چالاک',
+      'ar': 'نشط',
+      'en': 'Active',
+    },
+    'vendor_status_blocked': {
+      'ku': 'مسدود',
+      'ar': 'محظور',
+      'en': 'Blocked',
+    },
+    'delivery_fee_label': {
+      'ku': 'نرخی گەیاندنی ماتۆرسوار',
+      'ar': 'أجرة التوصيل',
+      'en': 'Delivery fee',
+    },
+    'rating_out_of_10': {
+      'ku': 'ڕێژەی ئەستێرە لە ١٠',
+      'ar': 'التقييم من ١٠',
+      'en': 'Rating out of 10',
+    },
+    'coords_invalid': {
+      'ku': 'پانی / درێژی نادروستە',
+      'ar': 'خط العرض / الطول غير صالح',
+      'en': 'Invalid latitude / longitude',
     },
     'excel_backup_title': {
       'ku': 'باکئەپی Excel',
@@ -665,6 +711,26 @@ class AppStrings {
       'ar': '© 2026 سوق ريكا — كلار، إقليم كردستان',
       'en': '© 2026 REGA Marketplace — Kalar, Kurdistan Region',
     },
+    'login_ecosystem_badge': {
+      'ku': '⚡ سیستەمی یەکگرتووی کەلار — کڕیار • فرۆشیار • شۆفێر • ئەدمین',
+      'ar': '⚡ نظام كلار الموحد — عميل • تاجر • سائق • مشرف',
+      'en': '⚡ Kalar Unified System — Customer • Seller • Driver • Admin',
+    },
+    'login_server_online': {
+      'ku': 'PostgreSQL ئۆنلاینە',
+      'ar': 'PostgreSQL متصل',
+      'en': 'PostgreSQL Online',
+    },
+    'login_server_offline': {
+      'ku': 'سێرڤەر ئۆفلاینە (ڕێکخستن)',
+      'ar': 'الخادم غير متصل (إعدادات)',
+      'en': 'Server Offline (Settings)',
+    },
+    'login_server_checking': {
+      'ku': 'پشکنین...',
+      'ar': 'جاري الفحص...',
+      'en': 'Checking...',
+    },
     'api_url_label': {
       'ku': 'ناونیشانی بنەڕەتی API',
       'ar': 'عنوان واجهة البرمجة الأساسي',
@@ -897,10 +963,131 @@ class AppStrings {
     'stores_title': {'ku': 'بەڕێوەبردنی فرۆشیاران', 'ar': 'إدارة المتاجر', 'en': 'Vendor Management'},
     'stores_subtitle': {'ku': 'چاوەدێری و بەڕێوەبردنی فرۆشیار و چێشتخانەکان', 'ar': 'مراقبة وإدارة البائعين والمطاعم', 'en': 'Monitor and manage vendors and restaurants'},
     'add_vendor': {'ku': 'زیادکردنی فرۆشیار', 'ar': 'إضافة متجر', 'en': 'Add Vendor'},
+    'add_vendor_new': {'ku': 'زیادکردنی فرۆشیاری نوێ', 'ar': 'إضافة متجر جديد', 'en': 'Add new vendor'},
+    'edit_vendor': {'ku': 'دەستکاریکردنی فرۆشیار', 'ar': 'تعديل المتجر', 'en': 'Edit vendor'},
+    'edit_vendor_hint': {
+      'ku': 'دەستکاری زانیارییەکانی ئەم فرۆشگایە بکە لە داتابەیسدا',
+      'ar': 'عدّل بيانات هذا المتجر في قاعدة البيانات',
+      'en': 'Edit this store’s details in the database',
+    },
+    'add_vendor_hint': {
+      'ku': 'زانیارییە سەرەکییەکانی فرۆشگا و چێشتخانە تۆمار بکە',
+      'ar': 'أدخل البيانات الأساسية للمتجر أو المطعم',
+      'en': 'Enter the main store / restaurant details',
+    },
     'search_vendor': {'ku': '...گەڕان بە ناوی فرۆشیار', 'ar': '...البحث باسم المتجر', 'en': 'Search by vendor name...'},
     'kpi_total_vendors': {'ku': 'کۆی فرۆشیاران', 'ar': 'إجمالي المتاجر', 'en': 'Total Vendors'},
     'kpi_active_vendors': {'ku': 'فرۆشیاری چالاک', 'ar': 'المتاجر النشطة', 'en': 'Active Vendors'},
     'cuisine_type': {'ku': 'جۆری خواردن', 'ar': 'نوع المأكولات', 'en': 'Cuisine type'},
+    'vendor_cover_image': {
+      'ku': 'وێنەی ڕووکەشی فرۆشگا (بەشی سەرەکی ئەپ)',
+      'ar': 'صورة غلاف المتجر (القسم الرئيسي للتطبيق)',
+      'en': 'Store cover image (app home section)',
+    },
+    'vendor_type_app': {
+      'ku': 'جۆری فرۆشیار (بەشی ئەپ) *',
+      'ar': 'نوع المتجر (قسم التطبيق) *',
+      'en': 'Vendor type (app section) *',
+    },
+    'vendor_type_hint': {
+      'ku': 'هەمان ناوەکانی سەرەکی کڕیار: سوپەرمارکێت، خواردنگە، فست فوود… تەنها لەم بەشەدا دەردەکەوێت',
+      'ar': 'نفس أسماء الصفحة الرئيسية للعميل: سوبرماركت، مطعم، وجبات سريعة… يظهر فقط تحت هذا القسم',
+      'en': 'Same as customer home tiles: supermarket, restaurant, fast food… appears only under that section',
+    },
+    'no_categories_vendor': {
+      'ku': 'هیچ بەشێک نەدۆزرایەوە. سەرەتا لە کاتالۆگ / جۆرەکان بەشێک زیاد بکە.',
+      'ar': 'لم يتم العثور على أقسام. أضف قسماً أولاً من الكتالوج / الأنواع.',
+      'en': 'No sections found. Add a section first in Catalog / Types.',
+    },
+    'vendor_name_label': {
+      'ku': 'ناوی فرۆشیار (چێشتخانە / کافێ / مارکێت) *',
+      'ar': 'اسم المتجر (مطعم / مقهى / ماركت) *',
+      'en': 'Vendor name (restaurant / café / market) *',
+    },
+    'vendor_name_hint': {
+      'ku': 'بۆ نموونە: چێشتخانەی ئارام، کافێ ڕۆژ، مارکێتی کەلار',
+      'ar': 'مثال: مطعم آرام، مقهى روز، ماركت كلار',
+      'en': 'e.g. Aram Restaurant, Roz Café, Kalar Market',
+    },
+    'vendor_short_desc': {
+      'ku': 'پێناسەی کورت',
+      'ar': 'وصف قصير',
+      'en': 'Short description',
+    },
+    'vendor_short_desc_hint': {
+      'ku': 'پێناسەیەکی کورت لەسەر فرۆشگاکە',
+      'ar': 'وصف قصير عن المتجر',
+      'en': 'A short description of the store',
+    },
+    'password_min_hint': {
+      'ku': 'لانیکەم ٦ پیت',
+      'ar': '٦ أحرف على الأقل',
+      'en': 'At least 6 characters',
+    },
+    'vendor_location_map': {
+      'ku': 'شوێنی فرۆشگا (نەخشە) *',
+      'ar': 'موقع المتجر (الخريطة) *',
+      'en': 'Store location (map) *',
+    },
+    'vendor_address_hint': {
+      'ku': 'ناونیشانی فرۆشگا — نموونە: ناو بازاڕی کەلار',
+      'ar': 'عنوان المتجر — مثال: داخل سوق كلار',
+      'en': 'Store address — e.g. Kalar bazaar center',
+    },
+    'vendor_map_hint': {
+      'ku': 'کاتێک فرۆشیار ماتۆرسوار دیاری دەکات، ئەم شوێنە لەسەر نەخشەی ماتۆرسوار دەردەکەوێت.',
+      'ar': 'يظهر هذا الموقع على خريطة السائق عند تعيين سائق.',
+      'en': 'This location appears on the captain map when the vendor assigns a driver.',
+    },
+    'vendor_status_label': {
+      'ku': 'دۆخی فرۆشیار',
+      'ar': 'حالة المتجر',
+      'en': 'Vendor status',
+    },
+    'rating_example': {
+      'ku': 'نموونە: ٨.٥ یان ٩.٨ لە ١٠',
+      'ar': 'مثال: 8.5 أو 9.8 من 10',
+      'en': 'e.g. 8.5 or 9.8 / 10',
+    },
+    'vendor_password_required': {
+      'ku': 'وشەی نهێنی پێویستە بۆ هەژماری فرۆشیار (لانیکەم ٦ پیت)',
+      'ar': 'كلمة المرور مطلوبة لحساب البائع (٦ أحرف على الأقل)',
+      'en': 'Password is required for the vendor account (at least 6 characters)',
+    },
+    'vendor_category_required': {
+      'ku': 'تکایە جۆری فرۆشیار هەڵبژێرە (مارکێت، کافێ، …)',
+      'ar': 'يرجى اختيار نوع المتجر (ماركت، مقهى، …)',
+      'en': 'Please select a vendor type (market, café, …)',
+    },
+    'vendor_updated': {
+      'ku': 'فرۆشیار لە داتابەیس نوێکرایەوە ✅',
+      'ar': 'تم تحديث المتجر في قاعدة البيانات ✅',
+      'en': 'Vendor updated in the database ✅',
+    },
+    'vendor_created': {
+      'ku': 'فرۆشیاری نوێ زیادکرا ✅',
+      'ar': 'تمت إضافة متجر جديد ✅',
+      'en': 'New vendor added ✅',
+    },
+    'no_vendors': {
+      'ku': 'هیچ فرۆشگایەک لە سیستەمدا نییە',
+      'ar': 'لا توجد متاجر في النظام',
+      'en': 'No stores in the system',
+    },
+    'today_prefix': {'ku': 'ئەمڕۆ:', 'ar': 'اليوم:', 'en': 'Today:'},
+    'type_label': {'ku': 'جۆر:', 'ar': 'النوع:', 'en': 'Type:'},
+    'address_label': {'ku': 'ناونیشان:', 'ar': 'العنوان:', 'en': 'Address:'},
+    'loc_kalar_bazaar': {'ku': 'ناو بازاڕی کەلار', 'ar': 'داخل سوق كلار', 'en': 'Kalar bazaar center'},
+    'loc_shahidan': {'ku': 'گەڕەکی شەهیدان', 'ar': 'حي الشهداء', 'en': 'Shahidan neighborhood'},
+    'loc_mamostayan': {'ku': 'گەڕەکی مامۆستایان', 'ar': 'حي المعلمين', 'en': 'Teachers neighborhood'},
+    'loc_serbexoyi': {'ku': 'گەڕەکی سەربەخۆیی', 'ar': 'حي الاستقلال', 'en': 'Independence neighborhood'},
+    'cat_restaurant': {'ku': 'خواردنگە', 'ar': 'مطعم', 'en': 'Restaurant'},
+    'cat_supermarket': {'ku': 'سوپەرمارکێت', 'ar': 'سوبرماركت', 'en': 'Supermarket'},
+    'cat_fast_food': {'ku': 'فست فوود', 'ar': 'وجبات سريعة', 'en': 'Fast food'},
+    'cat_produce': {'ku': 'سەوزە و میوە', 'ar': 'خضار وفواكه', 'en': 'Produce'},
+    'cat_cafe': {'ku': 'کافێ', 'ar': 'مقهى', 'en': 'Café'},
+    'cat_dairy_sweets': {'ku': 'شیرەمەنی و شیرینی', 'ar': 'ألبان وحلويات', 'en': 'Dairy & sweets'},
+    'cuisine_fallback': {'ku': 'خواردنی خێرا', 'ar': 'وجبات سريعة', 'en': 'Fast food'},
     // ── Finance / Reports ──────────────────────────────────────
     'finance_title': {'ku': 'ڕاپۆرت و شیکاری', 'ar': 'التقارير والتحليل', 'en': 'Reports & Analytics'},
     'finance_subtitle': {'ku': 'پوختەی کارایی و داهاتی خزمەتگوزاری دلیڤەری', 'ar': 'ملخص أداء وإيرادات خدمة التوصيل', 'en': 'Delivery performance and revenue summary'},
@@ -942,13 +1129,303 @@ class AppStrings {
     'city_duhok': {'ku': 'دهۆک', 'ar': 'دهوك', 'en': 'Duhok'},
     'city_kalar': {'ku': 'کەلار', 'ar': 'كلار', 'en': 'Kalar'},
     'city_kirkuk': {'ku': 'کەرکووک', 'ar': 'كركوك', 'en': 'Kirkuk'},
+    // ── Accounting & Profit ─────────────────────────────────────
+    'acc_title': {
+      'ku': 'ژمێریاری و قازانج',
+      'ar': 'المحاسبة والأرباح',
+      'en': 'Accounting & Profit',
+    },
+    'acc_subtitle': {
+      'ku': 'بەڕێوەبردنی قازانج و کۆمیسیۆن',
+      'ar': 'إدارة الأرباح والعمولات',
+      'en': 'Profit & commission management',
+    },
+    'acc_period_today': {'ku': 'ڕۆژانە', 'ar': 'يومي', 'en': 'Daily'},
+    'acc_period_week': {'ku': 'هەفتانە', 'ar': 'أسبوعي', 'en': 'Weekly'},
+    'acc_period_month': {'ku': 'مانگانە', 'ar': 'شهري', 'en': 'Monthly'},
+    'acc_period_year': {'ku': 'ساڵانە', 'ar': 'سنوي', 'en': 'Yearly'},
+    'acc_tab_dashboard': {'ku': 'داشبۆرد', 'ar': 'لوحة', 'en': 'Dashboard'},
+    'acc_tab_shops': {'ku': 'قازانجی دوکان', 'ar': 'أرباح المتجر', 'en': 'Shop profit'},
+    'acc_tab_orders': {'ku': 'ژمێریاری داواکاری', 'ar': 'محاسبة الطلبات', 'en': 'Order accounting'},
+    'acc_tab_settings': {'ku': 'ڕێکخستنی قازانج', 'ar': 'إعدادات الربح', 'en': 'Profit settings'},
+    'acc_tab_reports': {'ku': 'ڕاپۆرتەکان', 'ar': 'التقارير', 'en': 'Reports'},
+    'acc_tab_transactions': {'ku': 'مامەڵەکان', 'ar': 'المعاملات', 'en': 'Transactions'},
+    'acc_retry': {'ku': 'دووبارە هەوڵبدە', 'ar': 'أعد المحاولة', 'en': 'Try again'},
+    'acc_kpi_total_orders': {'ku': 'کۆی داواکاری', 'ar': 'إجمالي الطلبات', 'en': 'Total orders'},
+    'acc_kpi_completed': {'ku': 'تەواوکراو', 'ar': 'مكتمل', 'en': 'Completed'},
+    'acc_kpi_cancelled': {'ku': 'هەڵوەشاوە', 'ar': 'ملغى', 'en': 'Cancelled'},
+    'acc_kpi_total_sales': {'ku': 'کۆی فرۆش', 'ar': 'إجمالي المبيعات', 'en': 'Total sales'},
+    'acc_kpi_total_costs': {'ku': 'کۆی تێچوو', 'ar': 'إجمالي التكلفة', 'en': 'Total costs'},
+    'acc_kpi_gross_profit': {'ku': 'قازانجی گشتی', 'ar': 'الربح الإجمالي', 'en': 'Gross profit'},
+    'acc_kpi_admin_profit': {'ku': 'قازانجی ئەدمین', 'ar': 'ربح المشرف', 'en': 'Admin profit'},
+    'acc_kpi_seller_profit': {'ku': 'قازانجی فرۆشیار', 'ar': 'ربح البائع', 'en': 'Seller profit'},
+    'acc_default_rate': {
+      'ku': 'پێشوەختە {pct}%',
+      'ar': 'افتراضي {pct}%',
+      'en': 'Default {pct}%',
+    },
+    'acc_profit_by_shop': {'ku': 'قازانج بەپێی دوکان', 'ar': 'الربح حسب المتجر', 'en': 'Profit by shop'},
+    'acc_top_products': {'ku': 'بەرهەمە قازانجدارەکان', 'ar': 'المنتجات الأكثر ربحاً', 'en': 'Top profitable products'},
+    'acc_revenue_trend': {'ku': 'ڕێڕەوی داهات', 'ar': 'اتجاه الإيرادات', 'en': 'Revenue trend'},
+    'acc_sales_label': {'ku': 'فرۆش: {amount}', 'ar': 'المبيعات: {amount}', 'en': 'Sales: {amount}'},
+    'acc_qty_label': {'ku': 'دانە: {qty}', 'ar': 'الكمية: {qty}', 'en': 'Qty: {qty}'},
+    'acc_search_shop': {
+      'ku': 'گەڕان بە ناوی دوکان…',
+      'ar': 'بحث باسم المتجر…',
+      'en': 'Search by shop name…',
+    },
+    'acc_no_shops': {'ku': 'هیچ دوکانێک نەدۆزرایەوە', 'ar': 'لم يتم العثور على متاجر', 'en': 'No shops found'},
+    'acc_shop_list_meta': {
+      'ku': 'کۆمیسیۆن: {rate}% · داواکاری: {orders} · تەواوکراو: {completed}\nفرۆش: {sales} · قازانج: {profit}',
+      'ar': 'العمولة: {rate}% · الطلبات: {orders} · مكتمل: {completed}\nالمبيعات: {sales} · الربح: {profit}',
+      'en': 'Commission: {rate}% · Orders: {orders} · Completed: {completed}\nSales: {sales} · Profit: {profit}',
+    },
+    'acc_admin_owed': {'ku': 'قەرزی ئەدمین', 'ar': 'مستحق للمشرف', 'en': 'Admin owed'},
+    'acc_shop_fallback': {'ku': 'دوکان', 'ar': 'متجر', 'en': 'Shop'},
+    'acc_shop_detail_hint': {
+      'ku': 'هەڵبژێردراو — قەرزی ئەدمین بەپێی قازانج',
+      'ar': 'المحدد — مستحق المشرف حسب الربح',
+      'en': 'Selected — admin owed from profit',
+    },
+    'acc_today_owed_title': {
+      'ku': 'ئەمڕۆ پێویستە بدرێت بە ئەدمین',
+      'ar': 'المستحق اليوم للمشرف',
+      'en': 'Due to admin today',
+    },
+    'acc_today_sales_meta': {
+      'ku': 'فرۆشی ئەمڕۆ: {sales} · قازانج: {profit} · ڕێژە: {pct}%',
+      'ar': 'مبيعات اليوم: {sales} · الربح: {profit} · النسبة: {pct}%',
+      'en': 'Today sales: {sales} · Profit: {profit} · Rate: {pct}%',
+    },
+    'acc_example_formula': {
+      'ku': 'نموونە: قازانج ٢٬٠٠٠ × ١٠٪ = ٢٠٠ د.ع بۆ ئەدمین (لەسەر قازانج، نەک فرۆش)',
+      'ar': 'مثال: ربح 2,000 × 10٪ = 200 د.ع للمشرف (من الربح وليس من المبيعات)',
+      'en': 'Example: profit 2,000 × 10% = 200 IQD to admin (on profit, not sales)',
+    },
+    'acc_chip_sales_period': {'ku': 'فرۆش (ماوە)', 'ar': 'المبيعات (الفترة)', 'en': 'Sales (period)'},
+    'acc_chip_cost': {'ku': 'تێچوو', 'ar': 'التكلفة', 'en': 'Cost'},
+    'acc_chip_profit': {'ku': 'قازانج', 'ar': 'الربح', 'en': 'Profit'},
+    'acc_chip_admin_owed_pct': {
+      'ku': 'قەرزی ئەدمین {pct}%',
+      'ar': 'مستحق المشرف {pct}%',
+      'en': 'Admin owed {pct}%',
+    },
+    'acc_chip_seller_share': {'ku': 'بەشی فرۆشیار', 'ar': 'حصة البائع', 'en': 'Seller share'},
+    'acc_chip_refunds': {'ku': 'گەڕاندنەوە', 'ar': 'المرتجعات', 'en': 'Refunds'},
+    'acc_daily_owed_title': {
+      'ku': 'ڕۆژانە — چەند دەبێت بدرێت بە ئەدمین',
+      'ar': 'يومياً — المبلغ المستحق للمشرف',
+      'en': 'Daily — amount owed to admin',
+    },
+    'acc_no_completed_sales': {
+      'ku': 'هیچ فرۆشێکی تەواوکراو لەم ماوەیەدا نییە',
+      'ar': 'لا توجد مبيعات مكتملة في هذه الفترة',
+      'en': 'No completed sales in this period',
+    },
+    'acc_daily_row_meta': {
+      'ku': 'فرۆش {sales} · قازانج {profit} · {orders} داواکاری',
+      'ar': 'المبيعات {sales} · الربح {profit} · {orders} طلب',
+      'en': 'Sales {sales} · Profit {profit} · {orders} orders',
+    },
+    'acc_for_admin': {'ku': 'بۆ ئەدمین', 'ar': 'للمشرف', 'en': 'To admin'},
+    'acc_products': {'ku': 'بەرهەمەکان', 'ar': 'المنتجات', 'en': 'Products'},
+    'acc_admin_share': {
+      'ku': 'بەشی ئەدمین: {amount}',
+      'ar': 'حصة المشرف: {amount}',
+      'en': 'Admin share: {amount}',
+    },
+    'acc_order_history': {'ku': 'مێژووی داواکاری', 'ar': 'سجل الطلبات', 'en': 'Order history'},
+    'acc_order_search_hint': {
+      'ku': 'ژمارەی داواکاری',
+      'ar': 'رقم الطلب',
+      'en': 'Order ID / Number',
+    },
+    'acc_status_all': {'ku': 'هەموو', 'ar': 'الكل', 'en': 'All'},
+    'acc_filter': {'ku': 'فلتەر', 'ar': 'تصفية', 'en': 'Filter'},
+    'acc_no_orders': {
+      'ku': 'هیچ داواکارییەک نەدۆزرایەوە',
+      'ar': 'لم يتم العثور على طلبات',
+      'en': 'No orders found',
+    },
+    'acc_order_row_meta': {
+      'ku': '{status} · فرۆش {sales} · قازانج {profit} · کۆمیسیۆن {pct}%',
+      'ar': '{status} · المبيعات {sales} · الربح {profit} · العمولة {pct}%',
+      'en': '{status} · Sales {sales} · Profit {profit} · Commission {pct}%',
+    },
+    'acc_chip_sales': {'ku': 'فرۆش', 'ar': 'المبيعات', 'en': 'Sales'},
+    'acc_chip_admin': {'ku': 'ئەدمین', 'ar': 'المشرف', 'en': 'Admin'},
+    'acc_chip_seller': {'ku': 'فرۆشیار', 'ar': 'البائع', 'en': 'Seller'},
+    'acc_items_snapshot': {
+      'ku': 'بەرهەمەکان (تۆمار)',
+      'ar': 'المنتجات (لقطة)',
+      'en': 'Items (snapshot)',
+    },
+    'acc_item_row_meta': {
+      'ku': 'کڕین {cost} · فرۆش {sell} · کۆمیسیۆن {pct}%',
+      'ar': 'الشراء {cost} · البيع {sell} · العمولة {pct}%',
+      'en': 'Cost {cost} · Sell {sell} · Commission {pct}%',
+    },
+    'acc_full_refund': {'ku': 'گەڕاندنەوەی تەواو', 'ar': 'استرجاع كامل', 'en': 'Full refund'},
+    'acc_settings_title': {
+      'ku': 'ڕێکخستنی قازانج و کۆمیسیۆن',
+      'ar': 'إعدادات الربح والعمولة',
+      'en': 'Profit & commission settings',
+    },
+    'acc_settings_help': {
+      'ku': 'فرۆشیار هەڵبژێرە و ڕێژەی تایبەتی خۆی دابنێ. «ڕێژەی گشتی» تەنها بۆ دوکانە نوێیەکان وەک بنەما کۆپی دەکرێت — گۆڕینی گشتی ڕێژەی دوکانە هەبووەکان ناگۆڕێت. کۆمیسیۆن لەسەر قازانجی سەرەتایی (فرۆش − تێچوو) حیساب دەکرێت.',
+      'ar': 'اختر البائع وعيّن نسبته الخاصة. «النسبة العامة» تُنسخ فقط للمتاجر الجديدة كأساس — تغييرها لا يعدل نسب المتاجر الحالية. تُحسب العمولة من الربح الأولي (البيع − التكلفة).',
+      'en': 'Pick a vendor and set their own rate. The global rate is only copied as a default for new shops — changing it does not update existing shops. Commission is calculated on initial profit (sale − cost).',
+    },
+    'acc_vendor_store': {'ku': 'فرۆشیار / دوکان', 'ar': 'البائع / المتجر', 'en': 'Vendor / shop'},
+    'acc_vendor_helper': {
+      'ku': 'هەر فرۆشیارێک دەتوانێت ڕێژەی جیاوازی خۆی هەبێت',
+      'ar': 'يمكن لكل بائع أن يملك نسبة مختلفة',
+      'en': 'Each vendor can have a different rate',
+    },
+    'acc_global_rate_option': {
+      'ku': 'ڕێژەی گشتی (پێشوەختە) — {pct}%',
+      'ar': 'النسبة العامة (افتراضي) — {pct}%',
+      'en': 'Global rate (default) — {pct}%',
+    },
+    'acc_global_rate_label': {
+      'ku': 'ڕێژەی کۆمیسیۆنی گشتی (%)',
+      'ar': 'نسبة العمولة العامة (%)',
+      'en': 'Global commission rate (%)',
+    },
+    'acc_vendor_rate_label': {
+      'ku': 'ڕێژەی کۆمیسیۆنی {name} (%)',
+      'ar': 'نسبة عمولة {name} (%)',
+      'en': 'Commission rate for {name} (%)',
+    },
+    'acc_rate_helper': {
+      'ku': '٠ تا ١٠٠ — تەنها بۆ داواکارییە نوێیەکان جێبەجێ دەبێت',
+      'ar': '٠ إلى ١٠٠ — تُطبَّق على الطلبات الجديدة فقط',
+      'en': '0–100 — applies to new orders only',
+    },
+    'acc_example_global': {
+      'ku': 'نموونەی حیسابکردن (ڕێژەی گشتی)',
+      'ar': 'مثال الحساب (النسبة العامة)',
+      'en': 'Calculation example (global rate)',
+    },
+    'acc_example_vendor': {
+      'ku': 'نموونەی حیسابکردن ({name})',
+      'ar': 'مثال الحساب ({name})',
+      'en': 'Calculation example ({name})',
+    },
+    'acc_example_gross': {
+      'ku': 'قازانجی سەرەتایی: {amount}',
+      'ar': 'الربح الأولي: {amount}',
+      'en': 'Initial profit: {amount}',
+    },
+    'acc_example_rate': {
+      'ku': 'ڕێژەی ئەدمین: {pct}%',
+      'ar': 'نسبة المشرف: {pct}%',
+      'en': 'Admin rate: {pct}%',
+    },
+    'acc_example_admin_gets': {
+      'ku': '→ ئەدمین وەردەگرێت: {amount}',
+      'ar': '→ يحصل المشرف على: {amount}',
+      'en': '→ Admin receives: {amount}',
+    },
+    'acc_example_seller_keeps': {
+      'ku': '→ فرۆشیار دەمێنێتەوە: {amount}',
+      'ar': '→ يتبقى للبائع: {amount}',
+      'en': '→ Seller keeps: {amount}',
+    },
+    'acc_rate_invalid': {
+      'ku': 'ڕێژە دەبێت لە نێوان ٠ و ١٠٠ بێت',
+      'ar': 'يجب أن تكون النسبة بين ٠ و ١٠٠',
+      'en': 'Rate must be between 0 and 100',
+    },
+    'acc_saved_global': {
+      'ku': 'ڕێژەی گشتی پاشەکەوت کرا',
+      'ar': 'تم حفظ النسبة العامة',
+      'en': 'Global rate saved',
+    },
+    'acc_saved_vendor': {
+      'ku': 'ڕێژەی {name} پاشەکەوت کرا',
+      'ar': 'تم حفظ نسبة {name}',
+      'en': 'Rate for {name} saved',
+    },
+    'acc_note_global': {
+      'ku': 'نوێکردنەوەی ڕێژەی گشتی لە پانێڵی ژمێریاری',
+      'ar': 'تحديث النسبة العامة من لوحة المحاسبة',
+      'en': 'Updated global default from admin accounting UI',
+    },
+    'acc_note_vendor': {
+      'ku': 'نوێکردنەوەی کۆمیسیۆنی دوکان لە پانێڵی ژمێریاری',
+      'ar': 'تحديث عمولة المتجر من لوحة المحاسبة',
+      'en': 'Updated store commission from admin accounting UI',
+    },
+    'acc_history_title': {'ku': 'مێژووی گۆڕانکاری', 'ar': 'سجل التغييرات', 'en': 'Change history'},
+    'acc_global_scope': {'ku': 'ڕێژەی گشتی', 'ar': 'النسبة العامة', 'en': 'Global rate'},
+    'acc_system': {'ku': 'سیستەم', 'ar': 'النظام', 'en': 'System'},
+    'acc_vendor_fallback': {'ku': 'فرۆشیار', 'ar': 'البائع', 'en': 'Vendor'},
+    'acc_report_title': {
+      'ku': 'ڕاپۆرت ({period})',
+      'ar': 'تقرير ({period})',
+      'en': 'Report ({period})',
+    },
+    'acc_kpi_revenue': {'ku': 'داهات', 'ar': 'الإيرادات', 'en': 'Revenue'},
+    'acc_kpi_orders_short': {'ku': 'داواکاری', 'ar': 'الطلبات', 'en': 'Orders'},
+    'acc_report_range': {
+      'ku': 'لە {from} تا {to}',
+      'ar': 'من {from} إلى {to}',
+      'en': 'From {from} to {to}',
+    },
+    'acc_csv_export_hint': {
+      'ku': 'CSV لە ڕێگەی /admin/accounting/reports/export هەناردە دەکرێت.',
+      'ar': 'يمكن تصدير CSV عبر /admin/accounting/reports/export.',
+      'en': 'CSV can be exported via /admin/accounting/reports/export.',
+    },
+    'acc_no_refund_tx': {
+      'ku': 'هیچ مامەڵەی گەڕاندنەوەیەک نییە',
+      'ar': 'لا توجد معاملات استرجاع',
+      'en': 'No refund transactions',
+    },
+    'acc_refund_row_meta': {
+      'ku': 'فرۆش −{sales} · ئەدمین −{admin}\n{reason} · {date}',
+      'ar': 'المبيعات −{sales} · المشرف −{admin}\n{reason} · {date}',
+      'en': 'Sales −{sales} · Admin −{admin}\n{reason} · {date}',
+    },
+    'acc_order_number_fallback': {
+      'ku': 'داواکاری #{id}',
+      'ar': 'طلب #{id}',
+      'en': 'Order #{id}',
+    },
   };
 
   static String _norm(String lang) => lang == 'ckb' ? 'ku' : lang;
 
   static String tr(String key, String lang) {
     final normalized = _norm(lang);
-    return _dict[key]?[normalized] ?? _dict[key]?['ku'] ?? key;
+    return _dict[key]?[normalized] ?? _dict[key]?['ku'] ?? tx(key);
+  }
+
+  /// Pick name_ku / name_ar / name_en (or title_*) for the active UI language.
+  static String localizedName(
+    Map<String, dynamic>? map,
+    String lang, {
+    String fallbackKey = 'store_fallback',
+  }) {
+    if (map == null) return tr(fallbackKey, lang);
+    final normalized = _norm(lang);
+    String pick(String a, String b) {
+      final v = map[a]?.toString().trim() ?? '';
+      if (v.isNotEmpty) return v;
+      return map[b]?.toString().trim() ?? '';
+    }
+
+    final ku = pick('name_ku', 'title_ku');
+    final ar = pick('name_ar', 'title_ar');
+    final en = pick('name_en', 'title_en');
+    if (normalized == 'en') {
+      return en.isNotEmpty ? en : (ku.isNotEmpty ? ku : (ar.isNotEmpty ? ar : tr(fallbackKey, lang)));
+    }
+    if (normalized == 'ar') {
+      return ar.isNotEmpty ? ar : (ku.isNotEmpty ? ku : (en.isNotEmpty ? en : tr(fallbackKey, lang)));
+    }
+    return ku.isNotEmpty ? ku : (en.isNotEmpty ? en : (ar.isNotEmpty ? ar : tr(fallbackKey, lang)));
   }
 
   /// Replace `{name}` placeholders in a translated template.

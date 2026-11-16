@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../state/vendor_nav_notifier.dart';
 import '../state/vendor_session_notifier.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 /// Brand-first launch screen for the vendor app (orange accent).
 class VendorSplashScreen extends StatefulWidget {
   const VendorSplashScreen({super.key});
@@ -105,7 +107,7 @@ class _VendorSplashScreenState extends State<VendorSplashScreen>
         return Opacity(
           opacity: _exitFade.value,
           child: Scaffold(
-            backgroundColor: const Color(0xFF0B1120),
+            backgroundColor: RC.bg(Color(0xFF0B1120)),
             body: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
@@ -113,15 +115,17 @@ class _VendorSplashScreenState extends State<VendorSplashScreen>
                   radius: 1.05,
                   colors: [
                     VendorSplashScreen.accent.withValues(alpha: 0.24 * _glowPulse.value),
-                    const Color(0xFF0B1120),
-                    const Color(0xFF1C0A00),
+                    RC.bg(Color(0xFF0B1120)),
+                    RC.bg(Color(0xFF1C0A00)),
                   ],
                   stops: const [0.0, 0.55, 1.0],
                 ),
               ),
               child: SafeArea(
                 child: Center(
-                  child: Column(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       FadeTransition(
@@ -147,11 +151,11 @@ class _VendorSplashScreenState extends State<VendorSplashScreen>
                             child: Image.asset(
                               VendorSplashScreen.logoAsset,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const ColoredBox(
-                                color: Colors.black,
+                              errorBuilder: (_, __, ___) => ColoredBox(
+                                color: RC.bg(Colors.black),
                                 child: Center(
                                   child: Text(
-                                    'R',
+                                    tx('R'),
                                     style: TextStyle(
                                       color: VendorSplashScreen.accent,
                                       fontSize: 72,
@@ -168,14 +172,14 @@ class _VendorSplashScreenState extends State<VendorSplashScreen>
                       const SizedBox(height: 28),
                       FadeTransition(
                         opacity: _wordFade,
-                        child: const Text(
-                          'REGA',
+                        child: Text(
+                          tx('REGA'),
                           style: TextStyle(
                             fontFamily: 'NotoKufiArabic',
                             fontSize: 34,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 6,
-                            color: Colors.white,
+                            color: RC.fg(Colors.white),
                           ),
                         ),
                       ),
@@ -183,7 +187,7 @@ class _VendorSplashScreenState extends State<VendorSplashScreen>
                       FadeTransition(
                         opacity: _wordFade,
                         child: Text(
-                          'ڕێگا فرۆشیار',
+                          tx('ڕێگا فرۆشیار'),
                           style: TextStyle(
                             fontFamily: 'NotoKufiArabic',
                             fontSize: 14,
@@ -193,6 +197,7 @@ class _VendorSplashScreenState extends State<VendorSplashScreen>
                         ),
                       ),
                     ],
+                  ),
                   ),
                 ),
               ),

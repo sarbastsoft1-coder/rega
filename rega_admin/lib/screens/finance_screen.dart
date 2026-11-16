@@ -8,6 +8,8 @@ import '../core/theme/admin_breakpoints.dart';
 import '../widgets/admin_top_header.dart';
 import '../core/theme/app_theme.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 class FinanceScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
@@ -176,17 +178,17 @@ class _FinanceScreenState extends State<FinanceScreen> {
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              Icon(Icons.check_circle_rounded, color: RC.fg(Colors.white), size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  '${AppStrings.tr('excel_backup_done', widget.lang)}: $name',
+                  tx('${AppStrings.tr('excel_backup_done', widget.lang)}: $name'),
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
             ],
           ),
-          backgroundColor: const Color(0xFF113E2E),
+          backgroundColor: RC.bg(Color(0xFF113E2E)),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
@@ -195,8 +197,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${AppStrings.tr('excel_backup_failed', widget.lang)}: $e'),
-          backgroundColor: const Color(0xFFDC2626),
+          content: Text(tx('${AppStrings.tr('excel_backup_failed', widget.lang)}: $e')),
+          backgroundColor: RC.bg(Color(0xFFDC2626)),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -276,14 +278,14 @@ class _FinanceScreenState extends State<FinanceScreen> {
             ),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEA580C),
-                foregroundColor: Colors.white,
+                backgroundColor: RC.bg(Color(0xFFEA580C)),
+                foregroundColor: RC.fg(Colors.white),
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               onPressed: _exportReport,
-              icon: const Icon(Icons.file_download_outlined, size: 18, color: Colors.white),
+              icon: Icon(Icons.file_download_outlined, size: 18, color: RC.fg(Colors.white)),
               label: Text(
                 AppStrings.tr('export_report', widget.lang),
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
@@ -378,17 +380,17 @@ class _FinanceScreenState extends State<FinanceScreen> {
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: const Color(0xFF64748B)),
+          Icon(icon, size: 16, color: RC.fg(Color(0xFF64748B))),
           const SizedBox(width: 8),
           DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: value,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
+              icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -398,7 +400,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 for (var i = 0; i < items.length; i++)
                   DropdownMenuItem<String>(
                     value: items[i],
-                    child: Text(labels != null && i < labels.length ? labels[i] : items[i]),
+                    child: Text(tx(labels != null && i < labels.length ? labels[i] : items[i])),
                   ),
               ],
               onChanged: onChanged,
@@ -435,8 +437,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 title: AppStrings.tr('kpi_total_orders', widget.lang),
                 value: _totalOrders,
                 icon: Icons.inventory_2_outlined,
-                iconBg: const Color(0xFFFFEDD5),
-                iconColor: const Color(0xFFEA580C),
+                iconBg: RC.bg(Color(0xFFFFEDD5)),
+                iconColor: RC.fg(Color(0xFFEA580C)),
               ),
             ),
             // Card 2: داهاتی گشتی (Live from DB)
@@ -446,8 +448,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 title: AppStrings.tr('kpi_total_revenue', widget.lang),
                 value: _totalRevenue,
                 icon: Icons.monetization_on_outlined,
-                iconBg: const Color(0xFFFFEDD5),
-                iconColor: const Color(0xFFEA580C),
+                iconBg: RC.bg(Color(0xFFFFEDD5)),
+                iconColor: RC.fg(Color(0xFFEA580C)),
               ),
             ),
             // Card 3: ڕێژەی تەواوکردن (Live from DB)
@@ -457,8 +459,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 title: AppStrings.tr('kpi_completion_rate', widget.lang),
                 value: _completionRate,
                 icon: Icons.check_circle_outline_rounded,
-                iconBg: const Color(0xFFDCFCE7),
-                iconColor: const Color(0xFF16A34A),
+                iconBg: RC.bg(Color(0xFFDCFCE7)),
+                iconColor: RC.fg(Color(0xFF16A34A)),
               ),
             ),
             // Card 4: کاتی گەیاندنی ناوەند (Live from DB)
@@ -468,8 +470,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 title: AppStrings.tr('kpi_avg_delivery', widget.lang),
                 value: _avgDeliveryTime,
                 icon: Icons.access_time_rounded,
-                iconBg: const Color(0xFFFFEDD5),
-                iconColor: const Color(0xFFEA580C),
+                iconBg: RC.bg(Color(0xFFFFEDD5)),
+                iconColor: RC.fg(Color(0xFFEA580C)),
               ),
             ),
           ],
@@ -493,7 +495,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -507,7 +509,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
+                tx(title),
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
@@ -516,7 +518,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                value,
+                tx(value),
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
@@ -608,7 +610,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -629,7 +631,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
           Expanded(
             child: _topStores.isEmpty
                 ? Center(
-                    child: Text(AppStrings.tr('loading_from_server', widget.lang), style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+                    child: Text(AppStrings.tr('loading_from_server', widget.lang), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)))),
                   )
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -646,17 +648,22 @@ class _FinanceScreenState extends State<FinanceScreen> {
           ),
           const SizedBox(height: 12),
           // X-axis scale labels — scaled to live max
-          Padding(
-            padding: const EdgeInsets.only(right: 90),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('0', style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
-                Text(_formatInt((_topStoresMax / 3).round()), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
-                Text(_formatInt(((_topStoresMax * 2) / 3).round()), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
-                Text(_formatInt(_topStoresMax), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
-              ],
-            ),
+          Builder(
+            builder: (context) {
+              final phone = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
+              return Padding(
+                padding: EdgeInsets.only(right: phone ? 12 : 90),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(tx('0'), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
+                    Text(tx(_formatInt((_topStoresMax / 3).round())), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
+                    Text(tx(_formatInt(((_topStoresMax * 2) / 3).round())), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
+                    Text(tx(_formatInt(_topStoresMax)), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -665,15 +672,18 @@ class _FinanceScreenState extends State<FinanceScreen> {
 
   Widget _buildVendorBarRow(String name, int value, int max) {
     final ratio = (value / max).clamp(0.0, 1.0);
+    final phone = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
+    final nameW = phone ? 64.0 : 85.0;
+    final valueW = phone ? 40.0 : 52.0;
     return Row(
       children: [
         SizedBox(
-          width: 85,
+          width: nameW,
           child: Text(
-            name,
+            tx(name),
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: phone ? 11 : 12,
               fontWeight: FontWeight.w700,
               color: AdminSurfaces.of(context).textPrimary,
             ),
@@ -696,7 +706,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 child: Container(
                   height: 22,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF16503B),
+                    color: RC.bg(Color(0xFF16503B)),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -706,13 +716,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
         ),
         const SizedBox(width: 10),
         SizedBox(
-          width: 52,
+          width: valueW,
           child: Text(
-            _toDigits(_formatInt(value)),
-            style: const TextStyle(
-              fontSize: 12,
+            tx(_toDigits(_formatInt(value))),
+            style: TextStyle(
+              fontSize: phone ? 11 : 12,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF1E293B),
+              color: RC.fg(Color(0xFF1E293B)),
             ),
           ),
         ),
@@ -731,7 +741,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -762,19 +772,19 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       painter: _DonutChartPainter(
                         slices: [
                           if (_rawTotalOrders <= 0)
-                            const _Slice(1.0, Color(0xFFE2E8F0))
+                            _Slice(1.0, RC.bg(Color(0xFFE2E8F0)))
                           else ...[
                             _Slice(
                               (_deliveredCount / _rawTotalOrders).clamp(0.0, 1.0),
-                              const Color(0xFF16503B),
+                              RC.bg(Color(0xFF16503B)),
                             ),
                             _Slice(
                               (_activeCount / _rawTotalOrders).clamp(0.0, 1.0),
-                              const Color(0xFFEA580C),
+                              RC.bg(Color(0xFFEA580C)),
                             ),
                             _Slice(
                               (_cancelledCount / _rawTotalOrders).clamp(0.0, 1.0),
-                              const Color(0xFFCBD5E1),
+                              RC.bg(Color(0xFFCBD5E1)),
                             ),
                           ],
                         ],
@@ -785,7 +795,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          _totalOrders,
+                          tx(_totalOrders),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
@@ -793,7 +803,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                           ),
                         ),
                         Text(
-                          'داواکاری',
+                          tx('داواکاری'),
                           style: TextStyle(
                             fontSize: 10,
                             color: AdminSurfaces.of(context).textTertiary,
@@ -801,10 +811,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
                           ),
                         ),
                         Text(
-                          _completionRate,
-                          style: const TextStyle(
+                          tx(_completionRate),
+                          style: TextStyle(
                             fontSize: 10,
-                            color: Color(0xFF16A34A),
+                            color: RC.fg(Color(0xFF16A34A)),
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -820,9 +830,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildDonutLegendItem(const Color(0xFF16503B), AppStrings.tr('legend_delivered', widget.lang), '${_toDigits(_deliveredPct)}٪'),
-              _buildDonutLegendItem(const Color(0xFFEA580C), AppStrings.tr('legend_on_way', widget.lang), '${_toDigits(_activePct)}٪'),
-              _buildDonutLegendItem(const Color(0xFFCBD5E1), AppStrings.tr('legend_cancelled', widget.lang), '${_toDigits(_cancelledPct)}٪'),
+              _buildDonutLegendItem(RC.bg(Color(0xFF16503B)), AppStrings.tr('legend_delivered', widget.lang), '${_toDigits(_deliveredPct)}٪'),
+              _buildDonutLegendItem(RC.bg(Color(0xFFEA580C)), AppStrings.tr('legend_on_way', widget.lang), '${_toDigits(_activePct)}٪'),
+              _buildDonutLegendItem(RC.bg(Color(0xFFCBD5E1)), AppStrings.tr('legend_cancelled', widget.lang), '${_toDigits(_cancelledPct)}٪'),
             ],
           ),
         ],
@@ -841,13 +851,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
         ),
         const SizedBox(width: 5),
         Text(
-          label,
-          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+          tx(label),
+          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: RC.fg(Color(0xFF64748B))),
         ),
         const SizedBox(width: 3),
         Text(
-          pct,
-          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
+          tx(pct),
+          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF1E293B))),
         ),
       ],
     );
@@ -864,7 +874,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -887,7 +897,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 ? Center(
                     child: Text(
                       AppStrings.tr('loading_from_server', widget.lang),
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                      style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8))),
                     ),
                   )
                 : CustomPaint(
@@ -910,7 +920,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.circle, size: 8, color: Color(0xFF16503B)),
+                  Icon(Icons.circle, size: 8, color: RC.fg(Color(0xFF16503B))),
                   SizedBox(width: 6),
                   Text(AppStrings.tr('orders_axis', widget.lang), style: TextStyle(fontSize: 11, color: AdminSurfaces.of(context).textSecondary, fontWeight: FontWeight.w600)),
                 ],
@@ -918,7 +928,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.circle, size: 8, color: Color(0xFFEA580C)),
+                  Icon(Icons.circle, size: 8, color: RC.fg(Color(0xFFEA580C))),
                   SizedBox(width: 6),
                   Text(AppStrings.tr('revenue_axis', widget.lang), style: TextStyle(fontSize: 11, color: AdminSurfaces.of(context).textSecondary, fontWeight: FontWeight.w600)),
                 ],
@@ -941,7 +951,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -971,7 +981,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     child: Center(
                       child: Text(
                         AppStrings.tr('no_courier_data', widget.lang),
-                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF94A3B8))),
                       ),
                     ),
                   );
@@ -1066,7 +1076,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                           child: Center(
                             child: Text(
                               AppStrings.tr('no_courier_data', widget.lang),
-                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF94A3B8))),
                             ),
                           ),
                         ),
@@ -1103,10 +1113,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
         children: [
           Row(
             children: [
-              Text(rank, style: TextStyle(fontSize: 12, color: surfaces.textTertiary, fontWeight: FontWeight.w800)),
+              Text(tx(rank), style: TextStyle(fontSize: 12, color: surfaces.textTertiary, fontWeight: FontWeight.w800)),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                child: Text(tx(name), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
               ),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1115,7 +1125,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   (i) => Icon(
                     i < starCount ? Icons.star_rounded : Icons.star_border_rounded,
                     size: 14,
-                    color: const Color(0xFFF59E0B),
+                    color: RC.fg(Color(0xFFF59E0B)),
                   ),
                 ),
               ),
@@ -1126,9 +1136,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
             spacing: 12,
             runSpacing: 6,
             children: [
-              Text('تەواو: $completedOrders', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: surfaces.textPrimary)),
-              Text('کات: $avgTime', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary)),
-              Text('هەڵسەنگاندن: $rating', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary)),
+              Text(tx('تەواو: $completedOrders'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: surfaces.textPrimary)),
+              Text(tx('کات: $avgTime'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary)),
+              Text(tx('هەڵسەنگاندن: $rating'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary)),
             ],
           ),
         ],
@@ -1156,7 +1166,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 SizedBox(
                   width: 20,
                   child: Text(
-                    rank,
+                    tx(rank),
                     style: TextStyle(fontSize: 12, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -1167,15 +1177,15 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     color: AdminSurfaces.of(context).chipFill,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.person_rounded, size: 18, color: Color(0xFF94A3B8)),
+                  child: Icon(Icons.person_rounded, size: 18, color: RC.fg(Color(0xFF94A3B8))),
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  name,
-                  style: const TextStyle(
+                  tx(name),
+                  style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 13,
-                    color: Color(0xFF1E293B),
+                    color: RC.fg(Color(0xFF1E293B)),
                   ),
                 ),
               ],
@@ -1186,7 +1196,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
           Expanded(
             flex: 3,
             child: Text(
-              completedOrders,
+              tx(completedOrders),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 12.5,
@@ -1200,7 +1210,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
           Expanded(
             flex: 3,
             child: Text(
-              avgTime,
+              tx(avgTime),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 12,
@@ -1223,13 +1233,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     return Icon(
                       Icons.star_rounded,
                       size: 16,
-                      color: isFilled ? const Color(0xFFF59E0B) : const Color(0xFFE2E8F0),
+                      color: isFilled ? RC.fg(Color(0xFFF59E0B)) : RC.bg(Color(0xFFE2E8F0)),
                     );
                   }),
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  rating,
+                  tx(rating),
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w900,
@@ -1372,7 +1382,7 @@ class _DualAxisLineChartPainter extends CustomPainter {
 
     textPainter.text = TextSpan(
       text: AppStrings.tr('revenue_axis', lang),
-      style: TextStyle(fontSize: 9.5, color: Color(0xFFEA580C), fontWeight: FontWeight.w700),
+      style: TextStyle(fontSize: 9.5, color: RC.fg(Color(0xFFEA580C)), fontWeight: FontWeight.w700),
     );
     textPainter.layout();
     textPainter.paint(canvas, Offset(leftPadding + chartWidth - textPainter.width + 4, topPadding - 18));
@@ -1392,7 +1402,7 @@ class _DualAxisLineChartPainter extends CustomPainter {
       final rightVal = ((maxGmv * i) / 4).round();
       textPainter.text = TextSpan(
         text: _fmt(rightVal),
-        style: const TextStyle(fontSize: 9, color: Color(0xFFEA580C), fontWeight: FontWeight.w600),
+        style: TextStyle(fontSize: 9, color: RC.fg(Color(0xFFEA580C)), fontWeight: FontWeight.w600),
       );
       textPainter.layout();
       textPainter.paint(canvas, Offset(leftPadding + chartWidth + 6, y - textPainter.height / 2));
@@ -1443,8 +1453,8 @@ class _DualAxisLineChartPainter extends CustomPainter {
       }
     }
 
-    drawSeries(greenPoints, const Color(0xFF16503B));
-    drawSeries(orangePoints, const Color(0xFFEA580C));
+    drawSeries(greenPoints, RC.bg(Color(0xFF16503B)));
+    drawSeries(orangePoints, RC.bg(Color(0xFFEA580C)));
   }
 
   @override

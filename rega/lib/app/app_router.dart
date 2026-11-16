@@ -9,6 +9,7 @@ import '../state/orders_notifier.dart';
 import '../state/session_notifier.dart';
 import 'splash_screen.dart';
 
+import '../rega_i18n.dart';
 typedef CustomerShellBuilder = Widget Function(
   BuildContext context,
   int tabIndex,
@@ -133,16 +134,16 @@ GoRouter createCustomerRouter({
           }
           if (order == null) {
             return Scaffold(
-              appBar: AppBar(title: const Text('REGA')),
+              appBar: AppBar(title: Text(tx('REGA'))),
               body: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('داواکاری نەدۆزرایەوە'),
+                    Text(tx('داواکاری نەدۆزرایەوە')),
                     const SizedBox(height: 12),
                     ElevatedButton(
                       onPressed: () => context.go('/orders'),
-                      child: const Text('گەڕانەوە بۆ داواکارییەکان'),
+                      child: Text(tx('گەڕانەوە بۆ داواکارییەکان')),
                     ),
                   ],
                 ),

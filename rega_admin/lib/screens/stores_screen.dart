@@ -8,6 +8,8 @@ import '../widgets/admin_top_header.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 /// Representation of a vendor item matching the exact design in the screenshot
 class VendorItem {
   final int id;
@@ -104,16 +106,42 @@ class _StoresScreenState extends State<StoresScreen> {
   String _selectedStatus = 'all';
   int _currentPage = 1;
 
-  // Live Top KPI metrics from PostgreSQL database
-  String _registeredVendors = '٠';
-  String _activeVendors = '٠';
-  String _pendingApproval = '٠';
-  String _todayOrders = '٠';
+  // Live Top KPI metrics from PostgreSQL database (raw; digits formatted at display time)
+  int _registeredVendors = 0;
+  int _activeVendors = 0;
+  int _pendingApproval = 0;
+  int _todayOrders = 0;
 
   List<VendorItem> _vendors = [];
   /// Marketplace home categories from admin (مارکێت، کافێ، …) — used when adding/filtering vendors.
   List<Map<String, dynamic>> _homeCategories = [];
   bool _isLoading = true;
+
+  String get _lang => widget.lang;
+  String _t(String key) => AppStrings.tr(key, _lang);
+  String _d(dynamic input) => AppStrings.digits(input, _lang);
+
+  String _categoryLabel(Map<String, dynamic> cat) =>
+      AppStrings.localizedName(cat, _lang, fallbackKey: 'cuisine_fallback');
+
+  String _cuisineLabelForKey(String cuisineKey) {
+    for (final cat in _homeCategories) {
+      final ku = cat['name_ku']?.toString() ?? '';
+      if (ku == cuisineKey) return _categoryLabel(cat);
+    }
+    return cuisineKey;
+  }
+
+  String _vendorCuisineLabel(VendorItem v) {
+    if (v.categoryId > 0) {
+      for (final cat in _homeCategories) {
+        if ((cat['id'] as num?)?.toInt() == v.categoryId) {
+          return _categoryLabel(cat);
+        }
+      }
+    }
+    return _cuisineLabelForKey(v.cuisine);
+  }
 
   @override
   void initState() {
@@ -167,14 +195,19 @@ class _StoresScreenState extends State<StoresScreen> {
 
       final mapped = res.map((m) {
         final map = m as Map<String, dynamic>;
-        final name = map['name_ku']?.toString() ?? map['name_en']?.toString() ?? 'فرۆشگا';
+        final name = map['name_ku']?.toString() ??
+            map['name_en']?.toString() ??
+            AppStrings.tr('store_fallback', widget.lang);
         final cat = map['category'] as Map<String, dynamic>?;
-        final cuisine = cat?['name_ku']?.toString() ?? 'خواردنی خێرا';
+        // Stable filter key (KU); display label is resolved via [_vendorCuisineLabel].
+        final cuisine = cat?['name_ku']?.toString() ??
+            cat?['name_en']?.toString() ??
+            AppStrings.tr('cuisine_fallback', widget.lang);
         final catId = (map['category_id'] as num?)?.toInt() ??
             (cat?['id'] as num?)?.toInt() ??
             0;
         final zone = map['neighborhood'] as Map<String, dynamic>?;
-        final city = zone?['city']?.toString() ?? 'کەلار';
+        final city = zone?['city']?.toString() ?? AppStrings.cityDbValue('city_kalar');
         final isApproved = map['is_approved'] == true;
         final activeOrders = (map['active_orders_count'] as num?)?.toInt() ?? 0;
         final rawRating = (map['rating'] as num?)?.toDouble() ?? 9.6;
@@ -205,10 +238,10 @@ class _StoresScreenState extends State<StoresScreen> {
       setState(() {
         _vendors = mapped;
         _homeCategories = cats;
-        _registeredVendors = _toKurdishDigits(totalCount);
-        _activeVendors = _toKurdishDigits(activeCount);
-        _pendingApproval = _toKurdishDigits(pendingCount);
-        _todayOrders = _toKurdishDigits(totalActiveOrders);
+        _registeredVendors = totalCount;
+        _activeVendors = activeCount;
+        _pendingApproval = pendingCount;
+        _todayOrders = totalActiveOrders;
         _isLoading = false;
         // Drop stale filter if category was renamed/removed
         if (_selectedCuisine != 'all' &&
@@ -252,7 +285,7 @@ class _StoresScreenState extends State<StoresScreen> {
     final addressCtrl = TextEditingController(text: existing?.address ?? '');
     final latCtrl = TextEditingController(text: (existing?.lat ?? 34.6836).toStringAsFixed(6));
     final lngCtrl = TextEditingController(text: (existing?.lng ?? 45.3189).toStringAsFixed(6));
-    const defaultCity = 'کەلار';
+    final defaultCity = AppStrings.cityDbValue('city_kalar');
     String status = existing?.status ?? 'active';
     String imageUrl = existing?.imageUrl ?? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&q=80';
     bool isSaving = false;
@@ -263,35 +296,58 @@ class _StoresScreenState extends State<StoresScreen> {
             ? (_homeCategories.first['id'] as num?)?.toInt()
             : null);
     const feePresets = [1000, 1500, 2000, 2500, 3000];
-    const locationPresets = <Map<String, dynamic>>[
-      {'name': 'ناو بازاڕی کەلار', 'lat': 34.6836, 'lng': 45.3189},
-      {'name': 'گەڕەکی شەهیدان', 'lat': 34.6912, 'lng': 45.3264},
-      {'name': 'گەڕەکی مامۆستایان', 'lat': 34.6750, 'lng': 45.3100},
-      {'name': 'گەڕەکی سەربەخۆیی', 'lat': 34.6980, 'lng': 45.3050},
+    final locationPresets = <Map<String, dynamic>>[
+      {'nameKey': 'loc_kalar_bazaar', 'lat': 34.6836, 'lng': 45.3189},
+      {'nameKey': 'loc_shahidan', 'lat': 34.6912, 'lng': 45.3264},
+      {'nameKey': 'loc_mamostayan', 'lat': 34.6750, 'lng': 45.3100},
+      {'nameKey': 'loc_serbexoyi', 'lat': 34.6980, 'lng': 45.3050},
     ];
 
-    final imagePresets = [
-      {'name': 'خواردنی کوردی', 'url': 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&q=80'},
-      {'name': 'گریل و کەباب', 'url': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&q=80'},
-      {'name': 'پیتزا و فاست فود', 'url': 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=160&q=80'},
-      {'name': 'کافێ و خواردنەوە', 'url': 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=160&q=80'},
-      {'name': 'شیرینی و کێک', 'url': 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=160&q=80'},
-    ];
+    // Same names/images as customer home tiles. Selecting a chip sets cover + category_id.
+    final imagePresets = _homeCategories.isNotEmpty
+        ? _homeCategories.map((cat) {
+            final name = _categoryLabel(cat);
+            final img = cat['image_url']?.toString()?.trim();
+            final id = (cat['id'] as num?)?.toInt();
+            return {
+              'name': name,
+              'url': (img != null && img.isNotEmpty)
+                  ? img
+                  : 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&q=80',
+              'category_id': id,
+            };
+          }).where((p) => (p['name'] as String).isNotEmpty).toList()
+        : <Map<String, dynamic>>[
+            {'name': _t('cat_restaurant'), 'url': 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&q=80', 'category_id': null},
+            {'name': _t('cat_supermarket'), 'url': 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=160&q=80', 'category_id': null},
+            {'name': _t('cat_fast_food'), 'url': 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=160&q=80', 'category_id': null},
+            {'name': _t('cat_produce'), 'url': 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=160&q=80', 'category_id': null},
+            {'name': _t('cat_cafe'), 'url': 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=160&q=80', 'category_id': null},
+            {'name': _t('cat_dairy_sweets'), 'url': 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=160&q=80', 'category_id': null},
+          ];
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
+      barrierColor: RC.bg(Colors.black).withValues(alpha: 0.5),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
           final mq = MediaQuery.of(ctx);
-          final screenW = mq.size.width;
           final screenH = mq.size.height;
-          final isNarrow = screenW < AdminBreakpoints.phone;
-          final isCompact = screenW < 420;
+          // Breakpoints from dialog content width — not full window (avoids side-by-side overflow).
           final dialogW = AdminBreakpoints.dialogWidth(ctx, max: 560);
-          final padH = isCompact ? 14.0 : (isNarrow ? 18.0 : 24.0);
-          final padV = isCompact ? 14.0 : 20.0;
+          final isCompact = dialogW < 420;
+          final stackFields = dialogW < 520;
+          final padH = isCompact ? 14.0 : (stackFields ? 16.0 : 22.0);
+          final padV = isCompact ? 14.0 : 18.0;
           final maxDialogH = (screenH - mq.viewInsets.bottom - 32).clamp(320.0, screenH * 0.92);
+          final lang = widget.lang;
+          final latLabel = AppStrings.tr('lat_label', lang);
+          final lngLabel = AppStrings.tr('lng_label', lang);
+          final activeLabel = AppStrings.tr('vendor_status_active', lang);
+          final blockedLabel = AppStrings.statusLabel('under_review', lang);
+          final feeTitle =
+              '${AppStrings.tr('delivery_fee_label', lang)} (${AppStrings.tr('iqd', lang)})';
+          final ratingTitle = AppStrings.tr('rating_out_of_10', lang);
 
           Widget statusChip({
             required bool selected,
@@ -310,10 +366,10 @@ class _StoresScreenState extends State<StoresScreen> {
                 constraints: const BoxConstraints(minHeight: 46),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 decoration: BoxDecoration(
-                  color: selected ? activeBg : const Color(0xFFF8FAFC),
+                  color: selected ? activeBg : RC.bg(Color(0xFFF8FAFC)),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: selected ? activeBorder : const Color(0xFFE2E8F0),
+                    color: selected ? activeBorder : RC.bg(Color(0xFFE2E8F0)),
                     width: selected ? 1.5 : 1,
                   ),
                 ),
@@ -323,21 +379,21 @@ class _StoresScreenState extends State<StoresScreen> {
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: selected ? activeDot : const Color(0xFF94A3B8),
+                        color: selected ? activeDot : RC.bg(Color(0xFF94A3B8)),
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        label,
+                        tx(label),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: isCompact ? 11.5 : 12.5,
                           fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                          color: selected ? activeText : const Color(0xFF64748B),
+                          color: selected ? activeText : RC.bg(Color(0xFF64748B)),
                           height: 1.25,
                         ),
                       ),
@@ -351,9 +407,9 @@ class _StoresScreenState extends State<StoresScreen> {
           final feeBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'نرخی گەیاندنی ماتۆرسوار (د.ع)',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+              Text(
+                tx(feeTitle),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
               ),
               const SizedBox(height: 6),
               _buildDialogInput(
@@ -371,8 +427,8 @@ class _StoresScreenState extends State<StoresScreen> {
                   final selected = feeCtrl.text.trim() == fee.toString();
                   return FilterChip(
                     selected: selected,
-                    label: Text('$fee'),
-                    selectedColor: const Color(0xFFFFEDD5),
+                    label: Text(tx('$fee')),
+                    selectedColor: RC.bg(Color(0xFFFFEDD5)),
                     visualDensity: VisualDensity.compact,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     onSelected: (_) => setDialogState(() => feeCtrl.text = fee.toString()),
@@ -385,9 +441,9 @@ class _StoresScreenState extends State<StoresScreen> {
           final ratingBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'ڕێژەی ئەستێرە لە ١٠',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+              Text(
+                tx(ratingTitle),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
               ),
               const SizedBox(height: 6),
               _buildDialogInput(
@@ -399,37 +455,40 @@ class _StoresScreenState extends State<StoresScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'نموونە: 8.5 یان 9.8 لە ١٠',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+                AppStrings.tr('rating_example', lang),
+                style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey.shade600), fontWeight: FontWeight.w600),
               ),
             ],
           );
 
           final cancelBtn = OutlinedButton(
             style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF64748B),
-              backgroundColor: const Color(0xFFF8FAFC),
-              side: const BorderSide(color: Color(0xFFE2E8F0)),
+              foregroundColor: RC.fg(Color(0xFF64748B)),
+              backgroundColor: RC.bg(Color(0xFFF8FAFC)),
+              side: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
               padding: EdgeInsets.symmetric(horizontal: isCompact ? 14 : 20, vertical: 13),
-              minimumSize: Size(isNarrow ? double.infinity : 0, 46),
+              minimumSize: Size(stackFields ? double.infinity : 0, 46),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('پاشگەزبوونەوە', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            child: Text(
+              AppStrings.tr('cancel', lang),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
           );
 
           final saveBtn = ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEA580C),
-              foregroundColor: Colors.white,
+              backgroundColor: RC.bg(Color(0xFFEA580C)),
+              foregroundColor: RC.fg(Colors.white),
               elevation: 0,
               padding: EdgeInsets.symmetric(horizontal: isCompact ? 14 : 24, vertical: 13),
-              minimumSize: Size(isNarrow ? double.infinity : 0, 46),
+              minimumSize: Size(stackFields ? double.infinity : 0, 46),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             icon: Icon(isEdit ? Icons.save_rounded : Icons.add_business_rounded, size: 18),
             label: Text(
-              isEdit ? 'پاشەکەوتکردن' : AppStrings.tr('add_vendor', widget.lang),
+              tx(isEdit ? AppStrings.tr('save', lang) : AppStrings.tr('add_vendor', lang)),
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
             ),
             onPressed: isSaving ? null : () async {
@@ -439,9 +498,9 @@ class _StoresScreenState extends State<StoresScreen> {
                           final password = passwordCtrl.text.trim();
                           if (!isEdit && password.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('وشەی نهێنی پێویستە بۆ هەژماری فرۆشیار (لانیکەم ٦ پیت)'),
-                                backgroundColor: Color(0xFFDC2626),
+                              SnackBar(
+                                content: Text(AppStrings.tr('vendor_password_required', lang)),
+                                backgroundColor: RC.bg(Color(0xFFDC2626)),
                               ),
                             );
                             return;
@@ -449,8 +508,8 @@ class _StoresScreenState extends State<StoresScreen> {
                           if (password.isNotEmpty && password.length < 6) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(AppStrings.tr('customer_password_min', widget.lang)),
-                                backgroundColor: const Color(0xFFDC2626),
+                                content: Text(AppStrings.tr('customer_password_min', lang)),
+                                backgroundColor: RC.bg(Color(0xFFDC2626)),
                               ),
                             );
                             return;
@@ -458,9 +517,9 @@ class _StoresScreenState extends State<StoresScreen> {
 
                           if (selectedCategoryId == null || selectedCategoryId! <= 0) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('تکایە جۆری فرۆشیار هەڵبژێرە (مارکێت، کافێ، …)'),
-                                backgroundColor: Color(0xFFDC2626),
+                              SnackBar(
+                                content: Text(AppStrings.tr('vendor_category_required', lang)),
+                                backgroundColor: RC.bg(Color(0xFFDC2626)),
                               ),
                             );
                             return;
@@ -484,9 +543,9 @@ class _StoresScreenState extends State<StoresScreen> {
                           if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
                             setDialogState(() => isSaving = false);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Latitude / Longitude نادروستە'),
-                                backgroundColor: Color(0xFFDC2626),
+                              SnackBar(
+                                content: Text(AppStrings.tr('coords_invalid', lang)),
+                                backgroundColor: RC.bg(Color(0xFFDC2626)),
                               ),
                             );
                             return;
@@ -527,10 +586,10 @@ class _StoresScreenState extends State<StoresScreen> {
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(isEdit
-                                      ? 'فرۆشیار لە داتابەیس نوێکرایەوە ✅'
-                                      : 'فرۆشیاری نوێ زیادکرا ✅'),
-                                  backgroundColor: const Color(0xFF16A34A),
+                                  content: Text(tx(isEdit
+                                      ? AppStrings.tr('vendor_updated', lang)
+                                      : AppStrings.tr('vendor_created', lang))),
+                                  backgroundColor: RC.bg(Color(0xFF16A34A)),
                                 ),
                               );
                             }
@@ -540,8 +599,8 @@ class _StoresScreenState extends State<StoresScreen> {
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(e.toString()),
-                                  backgroundColor: const Color(0xFFDC2626),
+                                  content: Text(tx(e.toString())),
+                                  backgroundColor: RC.bg(Color(0xFFDC2626)),
                                 ),
                               );
                             }
@@ -550,8 +609,10 @@ class _StoresScreenState extends State<StoresScreen> {
             },
           );
 
-          return Dialog(
-            backgroundColor: Colors.white,
+          return Directionality(
+            textDirection: lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
+            child: Dialog(
+            backgroundColor: RC.bg(Colors.white),
             surfaceTintColor: Colors.transparent,
             elevation: 16,
             insetPadding: EdgeInsets.symmetric(
@@ -560,7 +621,7 @@ class _StoresScreenState extends State<StoresScreen> {
             ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(isCompact ? 18 : 24),
-              side: const BorderSide(color: Color(0xFFE2E8F0)),
+              side: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
             ),
             child: ConstrainedBox(
               constraints: BoxConstraints(
@@ -584,13 +645,13 @@ class _StoresScreenState extends State<StoresScreen> {
                             width: isCompact ? 40 : 48,
                             height: isCompact ? 40 : 48,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFF7ED),
+                              color: RC.bg(Color(0xFFFFF7ED)),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: const Color(0xFFFFEDD5)),
+                              border: Border.all(color: RC.bg(Color(0xFFFFEDD5))),
                             ),
                             child: Icon(
                               isEdit ? Icons.edit_note_rounded : Icons.storefront_rounded,
-                              color: const Color(0xFFEA580C),
+                              color: RC.fg(Color(0xFFEA580C)),
                               size: isCompact ? 22 : 26,
                             ),
                           ),
@@ -600,7 +661,9 @@ class _StoresScreenState extends State<StoresScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  isEdit ? 'دەستکاریکردنی فرۆشیار' : 'زیادکردنی فرۆشیاری نوێ',
+                                  tx(isEdit
+                                      ? AppStrings.tr('edit_vendor', lang)
+                                      : AppStrings.tr('add_vendor_new', lang)),
                                   style: TextStyle(
                                     fontWeight: FontWeight.w900,
                                     fontSize: isCompact ? 15.5 : 17.5,
@@ -610,9 +673,9 @@ class _StoresScreenState extends State<StoresScreen> {
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
-                                  isEdit
-                                      ? 'دەستکاری زانیارییەکانی ئەم فرۆشگایە بکە لە داتابەیسدا'
-                                      : 'زانیارییە سەرەکییەکانی فرۆشگا و چێشتخانە تۆمار بکە',
+                                  tx(isEdit
+                                      ? AppStrings.tr('edit_vendor_hint', lang)
+                                      : AppStrings.tr('add_vendor_hint', lang)),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -634,13 +697,13 @@ class _StoresScreenState extends State<StoresScreen> {
                                 color: AdminSurfaces.of(context).chipFill,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
+                              child: Icon(Icons.close_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
                             ),
                           ),
                         ],
                       ),
                       SizedBox(height: isCompact ? 12 : 16),
-                      const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                      Divider(height: 1, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
                       SizedBox(height: isCompact ? 12 : 16),
 
                               // Cover image + presets
@@ -657,45 +720,51 @@ class _StoresScreenState extends State<StoresScreen> {
                                         width: 72,
                                         height: 72,
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFF8FAFC),
+                                          color: RC.bg(Color(0xFFF8FAFC)),
                                           borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                                          border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                                         ),
-                                        child: const Icon(Icons.storefront_rounded, color: Color(0xFFEA580C)),
+                                        child: Icon(Icons.storefront_rounded, color: RC.fg(Color(0xFFEA580C))),
                                       ),
                                     ),
                                   ),
                                 ),
                                 const SizedBox(height: 10),
-                                const Text(
-                                  'وێنەی ڕووکەشی فرۆشگا',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                                Text(
+                                  AppStrings.tr('vendor_cover_image', lang),
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
                                 ),
                                 const SizedBox(height: 6),
                                 Wrap(
                                   spacing: 6,
                                   runSpacing: 6,
                                   children: imagePresets.map((preset) {
-                                    final isSelected = imageUrl == preset['url'];
+                                    final presetUrl = preset['url']?.toString() ?? '';
+                                    final presetId = (preset['category_id'] as num?)?.toInt();
+                                    final isSelected = (presetId != null && selectedCategoryId == presetId) ||
+                                        (presetId == null && imageUrl == presetUrl);
                                     return InkWell(
-                                      onTap: () => setDialogState(() => imageUrl = preset['url']!),
+                                      onTap: () => setDialogState(() {
+                                        imageUrl = presetUrl;
+                                        if (presetId != null) selectedCategoryId = presetId;
+                                      }),
                                       borderRadius: BorderRadius.circular(8),
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                         decoration: BoxDecoration(
-                                          color: isSelected ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
+                                          color: isSelected ? RC.bg(Color(0xFFFFF7ED)) : RC.bg(Color(0xFFF8FAFC)),
                                           borderRadius: BorderRadius.circular(8),
                                           border: Border.all(
-                                            color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
+                                            color: isSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFE2E8F0)),
                                             width: isSelected ? 1.5 : 1,
                                           ),
                                         ),
                                         child: Text(
-                                          preset['name']!,
+                                          tx(preset['name']?.toString() ?? ''),
                                           style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                            color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                                            color: isSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFF64748B)),
                                           ),
                                         ),
                                       ),
@@ -717,11 +786,11 @@ class _StoresScreenState extends State<StoresScreen> {
                                           width: 58,
                                           height: 58,
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFFF8FAFC),
+                                            color: RC.bg(Color(0xFFF8FAFC)),
                                             borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                                            border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                                           ),
-                                          child: const Icon(Icons.storefront_rounded, color: Color(0xFFEA580C)),
+                                          child: Icon(Icons.storefront_rounded, color: RC.fg(Color(0xFFEA580C))),
                                         ),
                                       ),
                                     ),
@@ -730,35 +799,41 @@ class _StoresScreenState extends State<StoresScreen> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          const Text(
-                                            'وێنەی ڕووکەشی فرۆشگا',
-                                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                                          Text(
+                                            AppStrings.tr('vendor_cover_image', lang),
+                                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
                                           ),
                                           const SizedBox(height: 6),
                                           Wrap(
                                             spacing: 6,
                                             runSpacing: 6,
                                             children: imagePresets.map((preset) {
-                                              final isSelected = imageUrl == preset['url'];
+                                              final presetUrl = preset['url']?.toString() ?? '';
+                                              final presetId = (preset['category_id'] as num?)?.toInt();
+                                              final isSelected = (presetId != null && selectedCategoryId == presetId) ||
+                                                  (presetId == null && imageUrl == presetUrl);
                                               return InkWell(
-                                                onTap: () => setDialogState(() => imageUrl = preset['url']!),
+                                                onTap: () => setDialogState(() {
+                                                  imageUrl = presetUrl;
+                                                  if (presetId != null) selectedCategoryId = presetId;
+                                                }),
                                                 borderRadius: BorderRadius.circular(8),
                                                 child: Container(
                                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                                   decoration: BoxDecoration(
-                                                    color: isSelected ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
+                                                    color: isSelected ? RC.bg(Color(0xFFFFF7ED)) : RC.bg(Color(0xFFF8FAFC)),
                                                     borderRadius: BorderRadius.circular(8),
                                                     border: Border.all(
-                                                      color: isSelected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
+                                                      color: isSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFE2E8F0)),
                                                       width: isSelected ? 1.5 : 1,
                                                     ),
                                                   ),
                                                   child: Text(
-                                                    preset['name']!,
+                                                    tx(preset['name']?.toString() ?? ''),
                                                     style: TextStyle(
                                                       fontSize: 11,
                                                       fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                                      color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                                                      color: isSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFF64748B)),
                                                     ),
                                                   ),
                                                 ),
@@ -773,15 +848,15 @@ class _StoresScreenState extends State<StoresScreen> {
 
                               const SizedBox(height: 14),
 
-                              // Marketplace category
-                              const Text(
-                                'جۆری فرۆشیار (بەشی ئەپ) *',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                              // Marketplace category — same names as customer home
+                              Text(
+                                AppStrings.tr('vendor_type_app', lang),
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'کڕیار ئەم فرۆشیارە لەم بەشەدا دەبینێت (مارکێت، کافێ، …)',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+                                AppStrings.tr('vendor_type_hint', lang),
+                                style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey.shade600), fontWeight: FontWeight.w600),
                               ),
                               const SizedBox(height: 8),
                               if (_homeCategories.isEmpty)
@@ -789,13 +864,13 @@ class _StoresScreenState extends State<StoresScreen> {
                                   width: double.infinity,
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFEF3C7),
+                                    color: RC.bg(Color(0xFFFEF3C7)),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFF59E0B)),
+                                    border: Border.all(color: RC.bg(Color(0xFFF59E0B))),
                                   ),
-                                  child: const Text(
-                                    'هیچ بەشێک نەدۆزرایەوە. سەرەتا لە کاتالۆگ / جۆرەکان بەشێک زیاد بکە.',
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF92400E)),
+                                  child: Text(
+                                    AppStrings.tr('no_categories_vendor', lang),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF92400E))),
                                   ),
                                 )
                               else
@@ -804,27 +879,33 @@ class _StoresScreenState extends State<StoresScreen> {
                                   runSpacing: 8,
                                   children: _homeCategories.map((cat) {
                                     final id = (cat['id'] as num?)?.toInt();
-                                    final name = cat['name_ku']?.toString() ?? '';
+                                    final name = _categoryLabel(cat);
                                     final selected = id != null && selectedCategoryId == id;
                                     return FilterChip(
                                       selected: selected,
-                                      label: Text(name),
-                                      selectedColor: const Color(0xFFFFEDD5),
-                                      checkmarkColor: const Color(0xFFEA580C),
+                                      label: Text(tx(name)),
+                                      selectedColor: RC.bg(Color(0xFFFFEDD5)),
+                                      checkmarkColor: RC.bg(Color(0xFFEA580C)),
                                       visualDensity: VisualDensity.compact,
                                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                       labelStyle: TextStyle(
                                         fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                                        color: selected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                                        color: selected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFF64748B)),
                                         fontSize: 12,
                                       ),
                                       side: BorderSide(
-                                        color: selected ? const Color(0xFFEA580C) : const Color(0xFFE2E8F0),
+                                        color: selected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFE2E8F0)),
                                         width: selected ? 1.5 : 1,
                                       ),
                                       onSelected: id == null
                                           ? null
-                                          : (_) => setDialogState(() => selectedCategoryId = id),
+                                          : (_) => setDialogState(() {
+                                                selectedCategoryId = id;
+                                                final cover = cat['image_url']?.toString()?.trim();
+                                                if (cover != null && cover.isNotEmpty) {
+                                                  imageUrl = cover;
+                                                }
+                                              }),
                                     );
                                   }).toList(),
                                 ),
@@ -832,21 +913,21 @@ class _StoresScreenState extends State<StoresScreen> {
                               const SizedBox(height: 14),
                               _buildDialogInput(
                                 controller: nameCtrl,
-                                label: 'ناوی فرۆشیار (چێشتخانە / کافێ / مارکێت) *',
-                                hint: 'بۆ نموونە: چێشتخانەی ئارام، کافێ ڕۆژ، مارکێتی کەلار',
+                                label: AppStrings.tr('vendor_name_label', lang),
+                                hint: AppStrings.tr('vendor_name_hint', lang),
                                 icon: Icons.storefront_outlined,
                               ),
                               const SizedBox(height: 12),
                               _buildDialogInput(
                                 controller: subtitleCtrl,
-                                label: 'پێناسەی کورت (وەک: خواردنی کوردی و گریل)',
-                                hint: 'پێناسەیەکی کورت لەسەر فرۆشگاکە',
+                                label: AppStrings.tr('vendor_short_desc', lang),
+                                hint: AppStrings.tr('vendor_short_desc_hint', lang),
                                 icon: Icons.subtitles_outlined,
                               ),
                               const SizedBox(height: 12),
                               _buildDialogInput(
                                 controller: phoneCtrl,
-                                label: 'ژمارەی مۆبایل *',
+                                label: AppStrings.tr('mobile_label', lang),
                                 hint: '0750 000 0000',
                                 icon: Icons.phone_outlined,
                                 isPhone: true,
@@ -855,23 +936,23 @@ class _StoresScreenState extends State<StoresScreen> {
                               _buildDialogInput(
                                 controller: passwordCtrl,
                                 label: isEdit
-                                    ? AppStrings.tr('password_new_optional', widget.lang)
-                                    : '${AppStrings.tr('password_label', widget.lang)} *',
-                                hint: isEdit ? '••••••••' : 'لانیکەم ٦ پیت',
+                                    ? AppStrings.tr('password_new_optional', lang)
+                                    : '${AppStrings.tr('password_label', lang)} *',
+                                hint: isEdit ? '••••••••' : AppStrings.tr('password_min_hint', lang),
                                 icon: Icons.lock_outline_rounded,
                                 obscureText: true,
                               ),
                               const SizedBox(height: 12),
 
-                              const Text(
-                                'شوێنی فرۆشگا (نەخشە) *',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                              Text(
+                                AppStrings.tr('vendor_location_map', lang),
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
                               ),
                               const SizedBox(height: 6),
                               _buildDialogInput(
                                 controller: addressCtrl,
                                 label: '',
-                                hint: 'ناونیشانی فرۆشگا — نموونە: ناو بازاڕی کەلار',
+                                hint: AppStrings.tr('vendor_address_hint', lang),
                                 icon: Icons.place_rounded,
                               ),
                               const SizedBox(height: 8),
@@ -879,16 +960,17 @@ class _StoresScreenState extends State<StoresScreen> {
                                 spacing: 6,
                                 runSpacing: 6,
                                 children: locationPresets.map((p) {
+                                  final locName = AppStrings.tr(p['nameKey'] as String, lang);
                                   final selected = latCtrl.text.trim() == (p['lat'] as double).toStringAsFixed(6) &&
                                       lngCtrl.text.trim() == (p['lng'] as double).toStringAsFixed(6);
                                   return FilterChip(
                                     selected: selected,
-                                    label: Text(p['name'] as String, style: const TextStyle(fontSize: 11.5)),
-                                    selectedColor: const Color(0xFFFFEDD5),
+                                    label: Text(tx(locName), style: const TextStyle(fontSize: 11.5)),
+                                    selectedColor: RC.bg(Color(0xFFFFEDD5)),
                                     visualDensity: VisualDensity.compact,
                                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                     onSelected: (_) => setDialogState(() {
-                                      addressCtrl.text = p['name'] as String;
+                                      addressCtrl.text = locName;
                                       latCtrl.text = (p['lat'] as double).toStringAsFixed(6);
                                       lngCtrl.text = (p['lng'] as double).toStringAsFixed(6);
                                     }),
@@ -896,10 +978,10 @@ class _StoresScreenState extends State<StoresScreen> {
                                 }).toList(),
                               ),
                               const SizedBox(height: 10),
-                              if (isCompact) ...[
+                              if (stackFields) ...[
                                 _buildDialogInput(
                                   controller: latCtrl,
-                                  label: 'Latitude',
+                                  label: latLabel,
                                   hint: '34.683600',
                                   icon: Icons.my_location_rounded,
                                   numeric: true,
@@ -907,7 +989,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 const SizedBox(height: 10),
                                 _buildDialogInput(
                                   controller: lngCtrl,
-                                  label: 'Longitude',
+                                  label: lngLabel,
                                   hint: '45.318900',
                                   icon: Icons.explore_rounded,
                                   numeric: true,
@@ -918,7 +1000,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                     Expanded(
                                       child: _buildDialogInput(
                                         controller: latCtrl,
-                                        label: 'Latitude',
+                                        label: latLabel,
                                         hint: '34.683600',
                                         icon: Icons.my_location_rounded,
                                         numeric: true,
@@ -928,7 +1010,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                     Expanded(
                                       child: _buildDialogInput(
                                         controller: lngCtrl,
-                                        label: 'Longitude',
+                                        label: lngLabel,
                                         hint: '45.318900',
                                         icon: Icons.explore_rounded,
                                         numeric: true,
@@ -938,13 +1020,13 @@ class _StoresScreenState extends State<StoresScreen> {
                                 ),
                               const SizedBox(height: 6),
                               Text(
-                                'کاتێک فرۆشیار ماتۆرسوار دیاری دەکات، ئەم شوێنە لەسەر نەخشەی ماتۆرسوار دەردەکەوێت.',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+                                AppStrings.tr('vendor_map_hint', lang),
+                                style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey.shade600), fontWeight: FontWeight.w600),
                               ),
                               const SizedBox(height: 14),
 
-                              // Fee + rating: stack on phone, side-by-side on wider
-                              if (isNarrow) ...[
+                              // Fee + rating: always stack inside narrow dialogs
+                              if (stackFields) ...[
                                 feeBlock,
                                 const SizedBox(height: 14),
                                 ratingBlock,
@@ -959,66 +1041,38 @@ class _StoresScreenState extends State<StoresScreen> {
                                 ),
 
                               const SizedBox(height: 14),
-                              const Text(
-                                'دۆخی فرۆشیار',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                              Text(
+                                AppStrings.tr('vendor_status_label', lang),
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
                               ),
                               const SizedBox(height: 6),
-                              if (isCompact) ...[
-                                statusChip(
-                                  selected: status == 'active',
-                                  activeBg: const Color(0xFFDCFCE7),
-                                  activeBorder: const Color(0xFF16A34A),
-                                  activeDot: const Color(0xFF16A34A),
-                                  activeText: const Color(0xFF15803D),
-                                  label: 'چالاک (Active)',
-                                  onTap: () => setDialogState(() => status = 'active'),
-                                ),
-                                const SizedBox(height: 8),
-                                statusChip(
-                                  selected: status == 'under_review',
-                                  activeBg: const Color(0xFFFEF3C7),
-                                  activeBorder: const Color(0xFFD97706),
-                                  activeDot: const Color(0xFFD97706),
-                                  activeText: const Color(0xFFB45309),
-                                  label: 'مسدود / Blocked',
-                                  onTap: () => setDialogState(() => status = 'under_review'),
-                                ),
-                              ] else
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: statusChip(
-                                        selected: status == 'active',
-                                        activeBg: const Color(0xFFDCFCE7),
-                                        activeBorder: const Color(0xFF16A34A),
-                                        activeDot: const Color(0xFF16A34A),
-                                        activeText: const Color(0xFF15803D),
-                                        label: 'چالاک (Active / Unblocked)',
-                                        onTap: () => setDialogState(() => status = 'active'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: statusChip(
-                                        selected: status == 'under_review',
-                                        activeBg: const Color(0xFFFEF3C7),
-                                        activeBorder: const Color(0xFFD97706),
-                                        activeDot: const Color(0xFFD97706),
-                                        activeText: const Color(0xFFB45309),
-                                        label: 'مسدود / Blocked',
-                                        onTap: () => setDialogState(() => status = 'under_review'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              // Always stack status — long bilingual labels overflow side-by-side.
+                              statusChip(
+                                selected: status == 'active',
+                                activeBg: RC.bg(Color(0xFFDCFCE7)),
+                                activeBorder: RC.bg(Color(0xFF16A34A)),
+                                activeDot: RC.bg(Color(0xFF16A34A)),
+                                activeText: RC.bg(Color(0xFF15803D)),
+                                label: activeLabel,
+                                onTap: () => setDialogState(() => status = 'active'),
+                              ),
+                              const SizedBox(height: 8),
+                              statusChip(
+                                selected: status == 'under_review',
+                                activeBg: RC.bg(Color(0xFFFEF3C7)),
+                                activeBorder: RC.bg(Color(0xFFD97706)),
+                                activeDot: RC.bg(Color(0xFFD97706)),
+                                activeText: RC.bg(Color(0xFFB45309)),
+                                label: blockedLabel,
+                                onTap: () => setDialogState(() => status = 'under_review'),
+                              ),
 
                       SizedBox(height: isCompact ? 12 : 16),
-                      const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                      Divider(height: 1, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
                       SizedBox(height: isCompact ? 12 : 14),
 
                       // Footer actions
-                      if (isNarrow) ...[
+                      if (stackFields) ...[
                         saveBtn,
                         const SizedBox(height: 8),
                         cancelBtn,
@@ -1036,6 +1090,7 @@ class _StoresScreenState extends State<StoresScreen> {
               ),
             ),
             ),
+          ),
           );
         },
       ),
@@ -1051,19 +1106,19 @@ class _StoresScreenState extends State<StoresScreen> {
     bool numeric = false,
     bool obscureText = false,
   }) {
-    final ltr = isPhone || numeric;
+    final forceLtr = isPhone || numeric || widget.lang == 'en';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (label.isNotEmpty) ...[
           Text(
-            label,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+            tx(label),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
           ),
           const SizedBox(height: 6),
         ],
         Directionality(
-          textDirection: ltr ? TextDirection.ltr : TextDirection.rtl,
+          textDirection: forceLtr ? TextDirection.ltr : TextDirection.rtl,
           child: TextField(
             controller: controller,
             obscureText: obscureText,
@@ -1072,29 +1127,29 @@ class _StoresScreenState extends State<StoresScreen> {
                 : (numeric
                     ? const TextInputType.numberWithOptions(decimal: true, signed: true)
                     : TextInputType.text),
-            textAlign: ltr ? TextAlign.left : TextAlign.right,
+            textAlign: forceLtr ? TextAlign.left : TextAlign.right,
             inputFormatters: isPhone
                 ? [IraqPhoneFormatter()]
                 : (numeric ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]'))] : null),
             decoration: InputDecoration(
-              hintText: isPhone ? '0750 000 0000' : hint,
-              hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-              prefixIcon: Icon(icon, size: 20, color: const Color(0xFF94A3B8)),
+              hintText: txn(isPhone ? '0750 000 0000' : hint),
+              hintStyle: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8))),
+              prefixIcon: Icon(icon, size: 20, color: RC.fg(Color(0xFF94A3B8))),
               filled: true,
-              fillColor: const Color(0xFFF8FAFC),
+              fillColor: RC.bg(Color(0xFFF8FAFC)),
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFEA580C), width: 1.8),
+                borderSide: BorderSide(color: RC.bg(Color(0xFFEA580C)), width: 1.8),
               ),
             ),
           ),
@@ -1106,15 +1161,17 @@ class _StoresScreenState extends State<StoresScreen> {
   void _showVendorDetailsDialog(VendorItem v) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.white,
+      barrierColor: RC.bg(Colors.black).withValues(alpha: 0.5),
+      builder: (ctx) => Directionality(
+        textDirection: widget.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
+        child: Dialog(
+        backgroundColor: RC.bg(Colors.white),
         surfaceTintColor: Colors.transparent,
         elevation: 16,
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: const BorderSide(color: Color(0xFFE2E8F0)),
+          side: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
         ),
         child: Builder(
           builder: (ctx2) {
@@ -1145,11 +1202,11 @@ class _StoresScreenState extends State<StoresScreen> {
                               width: 54,
                               height: 54,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
+                                color: RC.bg(Color(0xFFF8FAFC)),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                               ),
-                              child: const Icon(Icons.storefront_rounded, color: Color(0xFFEA580C)),
+                              child: Icon(Icons.storefront_rounded, color: RC.fg(Color(0xFFEA580C))),
                             ),
                           ),
                         ),
@@ -1159,14 +1216,14 @@ class _StoresScreenState extends State<StoresScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                v.name,
+                                tx(v.name),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: Color(0xFF0F172A)),
+                                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: RC.fg(Color(0xFF0F172A))),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                v.subtitle.isNotEmpty ? v.subtitle : v.cuisine,
+                                tx(v.subtitle.isNotEmpty ? v.subtitle : v.cuisine),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(fontSize: 12, color: AdminSurfaces.of(context).textSecondary, fontWeight: FontWeight.w600),
@@ -1179,28 +1236,28 @@ class _StoresScreenState extends State<StoresScreen> {
                       ],
                     ),
                     const SizedBox(height: 18),
-                    const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                    Divider(height: 1, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
                     const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: RC.bg(Color(0xFFF8FAFC)),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                       ),
                       child: Column(
                         children: [
-                          _buildDetailRow('جۆر:', v.cuisine),
-                          const Divider(height: 16, thickness: 1, color: Color(0xFFF1F5F9)),
-                          _buildDetailRow('شار:', v.city),
-                          const Divider(height: 16, thickness: 1, color: Color(0xFFF1F5F9)),
-                          _buildDetailRow('ناونیشان:', v.address.isNotEmpty ? v.address : v.city),
-                          const Divider(height: 16, thickness: 1, color: Color(0xFFF1F5F9)),
+                          _buildDetailRow(_t('type_label'), _vendorCuisineLabel(v)),
+                          Divider(height: 16, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
+                          _buildDetailRow('${_t('city')}:', AppStrings.cityLabel(v.city, _lang)),
+                          Divider(height: 16, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
+                          _buildDetailRow(_t('address_label'), v.address.isNotEmpty ? v.address : AppStrings.cityLabel(v.city, _lang)),
+                          Divider(height: 16, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
                           _buildDetailRow('GPS:', '${v.lat.toStringAsFixed(5)}, ${v.lng.toStringAsFixed(5)}'),
-                          const Divider(height: 16, thickness: 1, color: Color(0xFFF1F5F9)),
-                          _buildDetailRow('مۆبایل:', v.phone),
-                          const Divider(height: 16, thickness: 1, color: Color(0xFFF1F5F9)),
-                          _buildDetailRow('داواکاریی ئەمڕۆ:', '${_toKurdishDigits(v.todayOrders)}'),
+                          Divider(height: 16, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
+                          _buildDetailRow('${_t('phone')}:', v.phone),
+                          Divider(height: 16, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
+                          _buildDetailRow('${_t('kpi_today_orders')}:', _d(v.todayOrders)),
                         ],
                       ),
                     ),
@@ -1208,14 +1265,14 @@ class _StoresScreenState extends State<StoresScreen> {
                     if (isNarrow) ...[
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFEA580C),
-                          foregroundColor: Colors.white,
+                          backgroundColor: RC.bg(Color(0xFFEA580C)),
+                          foregroundColor: RC.fg(Colors.white),
                           elevation: 0,
                           minimumSize: const Size(double.infinity, 46),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         icon: const Icon(Icons.edit_outlined, size: 16),
-                        label: const Text('دەستکاریکردن', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                        label: Text(_t('edit'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                         onPressed: () {
                           Navigator.pop(ctx);
                           _showAddVendorDialog(existing: v);
@@ -1224,14 +1281,14 @@ class _StoresScreenState extends State<StoresScreen> {
                       const SizedBox(height: 8),
                       OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF64748B),
-                          backgroundColor: const Color(0xFFF8FAFC),
-                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          foregroundColor: RC.fg(Color(0xFF64748B)),
+                          backgroundColor: RC.bg(Color(0xFFF8FAFC)),
+                          side: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
                           minimumSize: const Size(double.infinity, 46),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text('داخستن', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                        child: Text(_t('close'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                       ),
                     ] else
                       Row(
@@ -1239,14 +1296,14 @@ class _StoresScreenState extends State<StoresScreen> {
                           Expanded(
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFF64748B),
-                                backgroundColor: const Color(0xFFF8FAFC),
-                                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                foregroundColor: RC.fg(Color(0xFF64748B)),
+                                backgroundColor: RC.bg(Color(0xFFF8FAFC)),
+                                side: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: () => Navigator.pop(ctx),
-                              child: const Text('داخستن', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                              child: Text(_t('close'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -1254,14 +1311,14 @@ class _StoresScreenState extends State<StoresScreen> {
                             flex: 2,
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFEA580C),
-                                foregroundColor: Colors.white,
+                                backgroundColor: RC.bg(Color(0xFFEA580C)),
+                                foregroundColor: RC.fg(Colors.white),
                                 elevation: 0,
                                 padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               icon: const Icon(Icons.edit_outlined, size: 16),
-                              label: const Text('دەستکاریکردن', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                              label: Text(_t('edit'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                               onPressed: () {
                                 Navigator.pop(ctx);
                                 _showAddVendorDialog(existing: v);
@@ -1277,6 +1334,7 @@ class _StoresScreenState extends State<StoresScreen> {
           },
         ),
       ),
+      ),
     );
   }
 
@@ -1288,15 +1346,15 @@ class _StoresScreenState extends State<StoresScreen> {
         children: [
           Flexible(
             flex: 2,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF4B5563))),
+            child: Text(tx(label), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: RC.fg(Color(0xFF4B5563)))),
           ),
           const SizedBox(width: 8),
           Expanded(
             flex: 3,
             child: Text(
-              value,
+              tx(value),
               textAlign: TextAlign.end,
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF111827)),
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: RC.fg(Color(0xFF111827))),
             ),
           ),
         ],
@@ -1379,16 +1437,16 @@ class _StoresScreenState extends State<StoresScreen> {
 
         final addBtn = ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFEA580C),
-            foregroundColor: Colors.white,
+            backgroundColor: RC.bg(Color(0xFFEA580C)),
+            foregroundColor: RC.fg(Colors.white),
             elevation: 0,
             minimumSize: Size(isCompact ? double.infinity : 0, 44),
             padding: EdgeInsets.symmetric(horizontal: isCompact ? 14 : 18, vertical: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            shadowColor: const Color(0xFFEA580C).withValues(alpha: 0.3),
+            shadowColor: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.3),
           ),
           onPressed: () => _showAddVendorDialog(),
-          icon: const Icon(Icons.add_rounded, size: 20, color: Colors.white),
+          icon: Icon(Icons.add_rounded, size: 20, color: RC.fg(Colors.white)),
           label: Text(
             AppStrings.tr('add_vendor', widget.lang),
             style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900),
@@ -1450,22 +1508,24 @@ class _StoresScreenState extends State<StoresScreen> {
   }
 
   // ============================================================================
-  // 2. 4 TOP KPI METRIC SUMMARY CARDS
+  // 2. 4 TOP KPI METRIC SUMMARY CARDS — 2×2 on phone, 4 across on desktop
   // ============================================================================
   Widget _buildKPICardsRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final gap = width < 400 ? 10.0 : 16.0;
-        final double cardWidth;
-        if (width >= AdminBreakpoints.kpiFourCol) {
-          cardWidth = (width - gap * 3) / 4;
-        } else if (width >= AdminBreakpoints.kpiTwoCol) {
-          cardWidth = (width - gap) / 2;
-        } else {
-          cardWidth = width;
-        }
-        Widget card({
+        // Scroll views can report infinite maxWidth — fall back to viewport.
+        final pad = AdminBreakpoints.pagePadH(context);
+        final screenW = MediaQuery.sizeOf(context).width;
+        final width = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : (screenW - pad * 2).clamp(280.0, screenW);
+
+        final gap = width < 400 ? 8.0 : 12.0;
+        final cols = width >= AdminBreakpoints.kpiFourCol ? 4 : 2;
+        final cardW = (width - gap * (cols - 1)) / cols;
+        final compact = cols == 2;
+
+        Widget cell({
           required String title,
           required String value,
           required IconData icon,
@@ -1473,14 +1533,14 @@ class _StoresScreenState extends State<StoresScreen> {
           required Color iconColor,
         }) {
           return SizedBox(
-            width: cardWidth,
+            width: cardW,
             child: _buildKPICard(
               title: title,
               value: value,
               icon: icon,
               iconBg: iconBg,
               iconColor: iconColor,
-              compact: width < 400,
+              compact: compact,
             ),
           );
         }
@@ -1489,33 +1549,33 @@ class _StoresScreenState extends State<StoresScreen> {
           spacing: gap,
           runSpacing: gap,
           children: [
-            card(
+            cell(
               title: AppStrings.tr('kpi_total_vendors', widget.lang),
-              value: _registeredVendors,
+              value: _d(_registeredVendors),
               icon: Icons.groups_rounded,
-              iconBg: const Color(0xFFDCFCE7),
-              iconColor: const Color(0xFF16A34A),
+              iconBg: RC.bg(Color(0xFFDCFCE7)),
+              iconColor: RC.fg(Color(0xFF16A34A)),
             ),
-            card(
+            cell(
               title: AppStrings.tr('kpi_active_vendors', widget.lang),
-              value: _activeVendors,
+              value: _d(_activeVendors),
               icon: Icons.person_outline_rounded,
-              iconBg: const Color(0xFFDCFCE7),
-              iconColor: const Color(0xFF16A34A),
+              iconBg: RC.bg(Color(0xFFDCFCE7)),
+              iconColor: RC.fg(Color(0xFF16A34A)),
             ),
-            card(
+            cell(
               title: AppStrings.tr('kpi_pending_approval', widget.lang),
-              value: _pendingApproval,
+              value: _d(_pendingApproval),
               icon: Icons.access_time_rounded,
-              iconBg: const Color(0xFFFEF3C7),
-              iconColor: const Color(0xFFD97706),
+              iconBg: RC.bg(Color(0xFFFEF3C7)),
+              iconColor: RC.fg(Color(0xFFD97706)),
             ),
-            card(
+            cell(
               title: AppStrings.tr('kpi_today_orders', widget.lang),
-              value: _todayOrders,
+              value: _d(_todayOrders),
               icon: Icons.description_outlined,
-              iconBg: const Color(0xFFFFEDD5),
-              iconColor: const Color(0xFFEA580C),
+              iconBg: RC.bg(Color(0xFFFFEDD5)),
+              iconColor: RC.fg(Color(0xFFEA580C)),
             ),
           ],
         );
@@ -1532,16 +1592,20 @@ class _StoresScreenState extends State<StoresScreen> {
     bool compact = false,
   }) {
     return Container(
-      padding: EdgeInsets.all(compact ? 14 : 18),
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 16,
+        vertical: compact ? 10 : 16,
+      ),
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -1550,24 +1614,26 @@ class _StoresScreenState extends State<StoresScreen> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  title,
+                  tx(title),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: compact ? 11.5 : 12.5,
+                    fontSize: compact ? 10.5 : 12.5,
                     fontWeight: FontWeight.w600,
+                    height: 1.15,
                     color: AdminSurfaces.of(context).textSecondary,
                   ),
                 ),
-                SizedBox(height: compact ? 4 : 6),
+                SizedBox(height: compact ? 3 : 6),
                 Text(
-                  value,
+                  tx(value),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: compact ? 22 : 26,
+                    fontSize: compact ? 18 : 26,
                     fontWeight: FontWeight.w900,
                     color: AdminSurfaces.of(context).textPrimary,
                     letterSpacing: -0.5,
@@ -1576,15 +1642,15 @@ class _StoresScreenState extends State<StoresScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
           Container(
-            width: compact ? 40 : 44,
-            height: compact ? 40 : 44,
+            width: compact ? 32 : 44,
+            height: compact ? 32 : 44,
             decoration: BoxDecoration(
               color: iconBg,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: iconColor, size: compact ? 20 : 22),
+            child: Icon(icon, color: iconColor, size: compact ? 16 : 22),
           ),
         ],
       ),
@@ -1615,8 +1681,8 @@ class _StoresScreenState extends State<StoresScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  label,
-                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                  tx(label),
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF64748B))),
                 ),
                 const SizedBox(height: 6),
                 child,
@@ -1638,7 +1704,7 @@ class _StoresScreenState extends State<StoresScreen> {
                 items: _cuisineFilterOptions,
                 labels: [
                   for (final c in _cuisineFilterOptions)
-                    c == 'all' ? AppStrings.tr('all_types', widget.lang) : c,
+                    c == 'all' ? AppStrings.tr('all_types', widget.lang) : _cuisineLabelForKey(c),
                 ],
                 onChanged: (v) => setState(() => _selectedCuisine = v ?? 'all'),
               ),
@@ -1686,13 +1752,13 @@ class _StoresScreenState extends State<StoresScreen> {
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
+          icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
           style: TextStyle(
             fontSize: 12.5,
             fontWeight: FontWeight.w700,
@@ -1702,23 +1768,13 @@ class _StoresScreenState extends State<StoresScreen> {
             for (var i = 0; i < items.length; i++)
               DropdownMenuItem<String>(
                 value: items[i],
-                child: Text(labels != null && i < labels.length ? labels[i] : items[i]),
+                child: Text(tx(labels != null && i < labels.length ? labels[i] : items[i])),
               ),
           ],
           onChanged: onChanged,
         ),
       ),
     );
-  }
-
-  static String _toKurdishDigits(dynamic input) {
-    const western = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-    const eastern = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-    String s = input.toString();
-    for (int i = 0; i < 10; i++) {
-      s = s.replaceAll(western[i], eastern[i]);
-    }
-    return s;
   }
 
   Widget _buildVendorMobileCard(VendorItem v) {
@@ -1746,7 +1802,7 @@ class _StoresScreenState extends State<StoresScreen> {
                     width: 42,
                     height: 42,
                     color: surfaces.chipFill,
-                    child: const Icon(Icons.storefront_rounded, size: 22, color: Color(0xFF94A3B8)),
+                    child: Icon(Icons.storefront_rounded, size: 22, color: RC.fg(Color(0xFF94A3B8))),
                   ),
                 ),
               ),
@@ -1755,12 +1811,12 @@ class _StoresScreenState extends State<StoresScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(v.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                    Text(tx(v.name), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
                     if (v.subtitle.isNotEmpty)
-                      Text(v.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: surfaces.textTertiary)),
+                      Text(tx(v.subtitle), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: surfaces.textTertiary)),
                     const SizedBox(height: 4),
                     Text(
-                      '${v.cuisine} • ${v.city}',
+                      tx('${_vendorCuisineLabel(v)} • ${AppStrings.cityLabel(v.city, _lang)}'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
@@ -1780,11 +1836,11 @@ class _StoresScreenState extends State<StoresScreen> {
             children: [
               Directionality(
                 textDirection: TextDirection.ltr,
-                child: Text(v.phone, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                child: Text(tx(v.phone), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
               ),
               Text(
-                'ئەمڕۆ: ${_toKurdishDigits(v.todayOrders)}',
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFFEA580C)),
+                tx('${_t('today_prefix')} ${_d(v.todayOrders)}'),
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: RC.fg(Color(0xFFEA580C))),
               ),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1795,7 +1851,7 @@ class _StoresScreenState extends State<StoresScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
-                      child: const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF475569)),
+                      child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -1805,7 +1861,7 @@ class _StoresScreenState extends State<StoresScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
-                      child: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF475569)),
+                      child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
                     ),
                   ),
                 ],
@@ -1831,7 +1887,7 @@ class _StoresScreenState extends State<StoresScreen> {
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1852,12 +1908,12 @@ class _StoresScreenState extends State<StoresScreen> {
                         child: Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.storefront_outlined, size: 40, color: Color(0xFFCBD5E1)),
-                              SizedBox(height: 10),
+                            children: [
+                              Icon(Icons.storefront_outlined, size: 40, color: RC.fg(Color(0xFFCBD5E1))),
+                              const SizedBox(height: 10),
                               Text(
-                                'هیچ فرۆشگایەک لە سیستەمدا نییە',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                                _t('no_vendors'),
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF94A3B8))),
                               ),
                             ],
                           ),
@@ -1868,6 +1924,7 @@ class _StoresScreenState extends State<StoresScreen> {
                   ],
                 );
               }
+              final alignStart = widget.lang == 'en' ? TextAlign.left : TextAlign.right;
               final tableWidth = constraints.maxWidth > 900 ? constraints.maxWidth : 900.0;
               return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -1885,13 +1942,13 @@ class _StoresScreenState extends State<StoresScreen> {
                         ),
                         child: Row(
                           children: [
-                            Expanded(flex: 3, child: Text('فرۆشیار', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text('جۆری خواردن', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('شار', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text('ژمارەی مۆبایل', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('داواکاریی ئەمڕۆ', textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text(_t('col_vendor'), textAlign: alignStart, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text(_t('cuisine_type'), textAlign: alignStart, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(_t('city'), textAlign: alignStart, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text(_t('col_mobile'), textAlign: alignStart, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(_t('kpi_today_orders'), textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(_t('status'), textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(_t('col_action'), textAlign: widget.lang == 'en' ? TextAlign.right : TextAlign.left, style: _headerStyle)),
                           ],
                         ),
                       ),
@@ -1903,12 +1960,12 @@ class _StoresScreenState extends State<StoresScreen> {
                           child: Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.storefront_outlined, size: 40, color: Color(0xFFCBD5E1)),
-                                SizedBox(height: 10),
+                              children: [
+                                Icon(Icons.storefront_outlined, size: 40, color: RC.fg(Color(0xFFCBD5E1))),
+                                const SizedBox(height: 10),
                                 Text(
-                                  'هیچ فرۆشگایەک لە سیستەمدا نییە',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                                  _t('no_vendors'),
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF94A3B8))),
                                 ),
                               ],
                             ),
@@ -1945,7 +2002,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                               color: AdminSurfaces.of(context).chipFill,
                                               borderRadius: BorderRadius.circular(8),
                                             ),
-                                            child: const Icon(Icons.storefront_rounded, size: 20, color: Color(0xFF94A3B8)),
+                                            child: Icon(Icons.storefront_rounded, size: 20, color: RC.fg(Color(0xFF94A3B8))),
                                           ),
                                         ),
                                       ),
@@ -1956,18 +2013,18 @@ class _StoresScreenState extends State<StoresScreen> {
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Text(
-                                              v.name,
+                                              tx(v.name),
                                               overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontWeight: FontWeight.w800,
                                                 fontSize: 13,
-                                                color: Color(0xFF1E293B),
+                                                color: RC.fg(Color(0xFF1E293B)),
                                               ),
                                             ),
                                             if (v.subtitle.isNotEmpty) ...[
                                               const SizedBox(height: 2),
                                               Text(
-                                                v.subtitle,
+                                                tx(v.subtitle),
                                                 overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
                                                   fontSize: 10.5,
@@ -1987,10 +2044,10 @@ class _StoresScreenState extends State<StoresScreen> {
                                 Expanded(
                                   flex: 3,
                                   child: Text(
-                                    v.cuisine,
+                                    tx(_vendorCuisineLabel(v)),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.right,
+                                    textAlign: alignStart,
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
@@ -2003,8 +2060,8 @@ class _StoresScreenState extends State<StoresScreen> {
                                 Expanded(
                                   flex: 2,
                                   child: Text(
-                                    v.city,
-                                    textAlign: TextAlign.right,
+                                    tx(AppStrings.cityLabel(v.city, _lang)),
+                                    textAlign: alignStart,
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
@@ -2017,11 +2074,11 @@ class _StoresScreenState extends State<StoresScreen> {
                                 Expanded(
                                   flex: 3,
                                   child: Align(
-                                    alignment: Alignment.centerRight,
+                                    alignment: widget.lang == 'en' ? Alignment.centerLeft : Alignment.centerRight,
                                     child: Directionality(
                                       textDirection: TextDirection.ltr,
                                       child: Text(
-                                        v.phone,
+                                        tx(v.phone),
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w700,
@@ -2036,7 +2093,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 Expanded(
                                   flex: 2,
                                   child: Text(
-                                    _toKurdishDigits(v.todayOrders),
+                                    tx(_d(v.todayOrders)),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontSize: 12.5,
@@ -2068,7 +2125,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                             color: AdminSurfaces.of(context).chipFill,
                                             borderRadius: BorderRadius.circular(6),
                                           ),
-                                          child: const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF475569)),
+                                          child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
                                         ),
                                       ),
                                       const SizedBox(width: 6),
@@ -2082,7 +2139,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                             color: AdminSurfaces.of(context).chipFill,
                                             borderRadius: BorderRadius.circular(6),
                                           ),
-                                          child: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF475569)),
+                                          child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
                                         ),
                                       ),
                                     ],
@@ -2120,7 +2177,11 @@ class _StoresScreenState extends State<StoresScreen> {
                   runSpacing: 10,
                   children: [
                     Text(
-                      'نمایشکردنی ${_toKurdishDigits(pagedList.length)} لە ${_toKurdishDigits(list.length)} دانە',
+                      AppStrings.trParams('showing_of', _lang, {
+                        'shown': _d(pagedList.length),
+                        'total': _d(list.length),
+                        'unit': _t('nav_stores'),
+                      }),
                       textAlign: narrowFooter ? TextAlign.center : TextAlign.start,
                       style: TextStyle(
                         fontSize: 12,
@@ -2164,17 +2225,17 @@ class _StoresScreenState extends State<StoresScreen> {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 14, vertical: compact ? 3 : 4),
       decoration: BoxDecoration(
-        color: isActive ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+        color: isActive ? RC.bg(Color(0xFFDCFCE7)) : RC.bg(Color(0xFFFEF3C7)),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
-        isActive ? 'چالاک' : (compact ? 'پێداچوونەوە' : 'پێداچوونەوە'),
+        tx(AppStrings.statusLabel(status, _lang)),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: compact ? 10.5 : 11.5,
           fontWeight: FontWeight.w800,
-          color: isActive ? const Color(0xFF16A34A) : const Color(0xFFD97706),
+          color: isActive ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFFD97706)),
         ),
       ),
     );
@@ -2188,16 +2249,16 @@ class _StoresScreenState extends State<StoresScreen> {
         width: 28,
         height: 28,
         decoration: BoxDecoration(
-          color: active ? const Color(0xFFEA580C) : Colors.transparent,
+          color: active ? RC.bg(Color(0xFFEA580C)) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
           child: Text(
-            '$page',
+            tx('$page'),
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: active ? Colors.white : const Color(0xFF64748B),
+              color: active ? RC.bg(Colors.white) : RC.bg(Color(0xFF64748B)),
             ),
           ),
         ),
@@ -2217,7 +2278,7 @@ class _StoresScreenState extends State<StoresScreen> {
           borderRadius: BorderRadius.circular(6),
         ),
         child: Center(
-          child: Icon(icon, size: 18, color: const Color(0xFF94A3B8)),
+          child: Icon(icon, size: 18, color: RC.fg(Color(0xFF94A3B8))),
         ),
       ),
     );

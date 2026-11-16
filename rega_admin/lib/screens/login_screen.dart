@@ -4,6 +4,8 @@ import '../core/localization/app_strings.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/admin_top_header.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 class LoginScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
@@ -91,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
               textDirection: TextDirection.ltr,
               decoration: InputDecoration(
                 labelText: AppStrings.tr('api_url_label', widget.lang),
-                hintText: 'http://127.0.0.1:8001/api/v1',
+                hintText: tx('http://127.0.0.1:8001/api/v1'),
               ),
             ),
             const SizedBox(height: 10),
@@ -133,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final isWide = MediaQuery.of(context).size.width >= 900;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF090D16),
+      backgroundColor: RC.bg(Color(0xFF090D16)),
       body: Row(
         children: [
           if (isWide)
@@ -141,14 +143,14 @@ class _LoginScreenState extends State<LoginScreen> {
               flex: 6,
               child: Container(
                 padding: const EdgeInsets.all(56),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Color(0xFF0F172A),
-                      Color(0xFF111827),
-                      Color(0xFF1E1B4B),
+                      RC.bg(Color(0xFF0F172A)),
+                      RC.bg(Color(0xFF111827)),
+                      RC.bg(Color(0xFF1E1B4B)),
                     ],
                   ),
                 ),
@@ -161,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: RC.bg(Colors.white),
                             borderRadius: BorderRadius.circular(18),
                           ),
                           child: Image.asset(
@@ -175,8 +177,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'REGA',
+                            Text(
+                              tx('REGA'),
                               style: TextStyle(
                                 color: RegaColors.gold,
                                 fontSize: 22,
@@ -186,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             Text(
                               AppStrings.tr('login_brand_sub', widget.lang),
-                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              style: TextStyle(color: RC.fg(Colors.white70), fontSize: 12),
                             ),
                           ],
                         ),
@@ -202,16 +204,16 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(30),
                             border: Border.all(color: RegaColors.gold.withValues(alpha: 0.4)),
                           ),
-                          child: const Text(
-                            '⚡ سیستەمی یەکگرتووی کەلار — کڕیار • فرۆشیار • شۆفێر • ئەدمین',
-                            style: TextStyle(color: RegaColors.gold, fontSize: 12, fontWeight: FontWeight.w700),
+                          child: Text(
+                            AppStrings.tr('login_ecosystem_badge', widget.lang),
+                            style: const TextStyle(color: RegaColors.gold, fontSize: 12, fontWeight: FontWeight.w700),
                           ),
                         ),
                         const SizedBox(height: 24),
                         Text(
                           AppStrings.tr('login_welcome', widget.lang),
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: RC.fg(Colors.white),
                             fontSize: 34,
                             fontWeight: FontWeight.w900,
                             height: 1.3,
@@ -220,8 +222,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 14),
                         Text(
                           AppStrings.tr('login_subtitle', widget.lang),
-                          style: const TextStyle(
-                            color: Color(0xFFCBD5E1),
+                          style: TextStyle(
+                            color: RC.fg(Color(0xFFCBD5E1)),
                             fontSize: 15,
                             height: 1.6,
                           ),
@@ -241,7 +243,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     Text(
                       AppStrings.tr('login_footer', widget.lang),
-                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      style: TextStyle(color: RC.fg(Colors.white38), fontSize: 12),
                     ),
                   ],
                 ),
@@ -258,11 +260,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Container(
                     padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 20 : 32),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: RC.bg(Colors.white),
                       borderRadius: BorderRadius.circular(28),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.3),
+                          color: RC.bg(Colors.black).withValues(alpha: 0.3),
                           blurRadius: 40,
                           offset: const Offset(0, 18),
                         ),
@@ -285,7 +287,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 decoration: BoxDecoration(
                                   color: (_serverHealthy == true
                                           ? RegaColors.emerald
-                                          : (_serverHealthy == false ? RegaColors.crimson : Colors.amber))
+                                          : (_serverHealthy == false ? RegaColors.crimson : RC.bg(Colors.amber)))
                                       .withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
@@ -297,19 +299,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                       size: 9,
                                       color: _serverHealthy == true
                                           ? RegaColors.emerald
-                                          : (_serverHealthy == false ? RegaColors.crimson : Colors.amber),
+                                          : (_serverHealthy == false ? RegaColors.crimson : RC.bg(Colors.amber)),
                                     ),
                                     const SizedBox(width: 6),
                                     Flexible(
                                       child: Text(
-                                        _serverHealthy == true
-                                            ? 'PostgreSQL ئۆنلاینە'
-                                            : (_serverHealthy == false ? 'سێرڤەر ئۆفلاینە (ڕێکخستن)' : 'پشکنین...'),
+                                        tx(_serverHealthy == true
+                                            ? AppStrings.tr('login_server_online', widget.lang)
+                                            : (_serverHealthy == false
+                                                ? AppStrings.tr('login_server_offline', widget.lang)
+                                                : AppStrings.tr('login_server_checking', widget.lang))),
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w800,
-                                          color: Color(0xFF0F172A),
+                                          color: RC.fg(Color(0xFF0F172A)),
                                         ),
                                       ),
                                     ),
@@ -330,15 +334,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: active ? RegaColors.gold : const Color(0xFFF1F5F9),
+                                          color: active ? RegaColors.gold : RC.bg(Color(0xFFF1F5F9)),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: Text(
-                                          code == 'ku' ? 'کوردی' : (code == 'ar' ? 'عربي' : 'EN'),
+                                          tx(code == 'ku' ? 'کوردی' : (code == 'ar' ? 'عربي' : 'EN')),
                                           style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w800,
-                                            color: active ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                                            color: active ? RC.bg(Color(0xFF0F172A)) : RC.bg(Color(0xFF64748B)),
                                           ),
                                         ),
                                       ),
@@ -363,17 +367,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         Text(
                           AppStrings.tr('app_title', widget.lang),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 21,
                             fontWeight: FontWeight.w900,
-                            color: Color(0xFF0F172A),
+                            color: RC.fg(Color(0xFF0F172A)),
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           AppStrings.tr('kalar_hub', widget.lang),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                          style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF64748B))),
                         ),
                         const SizedBox(height: 24),
                         if (_error != null) ...[
@@ -385,7 +389,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               border: Border.all(color: RegaColors.crimson.withValues(alpha: 0.3)),
                             ),
                             child: Text(
-                              _error!,
+                              tx(_error!),
                               style: const TextStyle(color: RegaColors.crimson, fontSize: 12, fontWeight: FontWeight.w700),
                             ),
                           ),
@@ -393,7 +397,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                         TextField(
                           controller: _idCtrl,
-                          style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w700),
+                          style: TextStyle(color: RC.fg(Color(0xFF0F172A)), fontWeight: FontWeight.w700),
                           decoration: InputDecoration(
                             labelText: AppStrings.tr('identifier_label', widget.lang),
                             prefixIcon: const Icon(Icons.person_outline_rounded),
@@ -404,7 +408,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _passCtrl,
                           obscureText: _obscure,
                           onSubmitted: (_) => _submit(),
-                          style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w700),
+                          style: TextStyle(color: RC.fg(Color(0xFF0F172A)), fontWeight: FontWeight.w700),
                           decoration: InputDecoration(
                             labelText: AppStrings.tr('password_label', widget.lang),
                             prefixIcon: const Icon(Icons.lock_outline_rounded),
@@ -420,10 +424,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: ElevatedButton.icon(
                             onPressed: _loading ? null : _submit,
                             icon: _loading
-                                ? const SizedBox(
+                                ? SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2.4, color: Color(0xFF0F172A)),
+                                    child: CircularProgressIndicator(strokeWidth: 2.4, color: RC.bg(Color(0xFF0F172A))),
                                   )
                                 : const Icon(Icons.login_rounded),
                             label: Text(AppStrings.tr('sign_in', widget.lang)),
@@ -454,9 +458,9 @@ class _FeaturePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
+        color: RC.bg(Colors.white).withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: RC.bg(Colors.white12)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -464,8 +468,8 @@ class _FeaturePill extends StatelessWidget {
           Icon(icon, color: RegaColors.gold, size: 18),
           const SizedBox(width: 8),
           Text(
-            label,
-            style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700),
+            tx(label),
+            style: TextStyle(color: RC.fg(Colors.white), fontSize: 12.5, fontWeight: FontWeight.w700),
           ),
         ],
       ),

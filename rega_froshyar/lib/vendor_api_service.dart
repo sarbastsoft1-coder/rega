@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'blocked_account.dart';
 import 'rega_mobile.dart';
 
+import 'rega_i18n.dart';
 class VendorApiService {
   VendorApiService._();
   static final VendorApiService instance = VendorApiService._();
@@ -90,7 +91,7 @@ class VendorApiService {
         .timeout(const Duration(seconds: 6));
 
     if (res.statusCode == 403) {
-      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+      final decoded = regaJsonDecode(res.body) as Map<String, dynamic>;
       if (decoded['code']?.toString() == 'account_blocked') {
         await logout();
         throw AccountBlockedException.fromBody(decoded);
@@ -98,7 +99,7 @@ class VendorApiService {
     }
 
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+      final decoded = regaJsonDecode(res.body) as Map<String, dynamic>;
       final token = decoded['data']?['token']?.toString();
       if (token != null && token.isNotEmpty) {
         _token = token;
@@ -149,7 +150,7 @@ class VendorApiService {
           })
           .timeout(const Duration(seconds: 5));
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+        final decoded = regaJsonDecode(res.body) as Map<String, dynamic>;
         final data = decoded['data'];
         if (data is Map<String, dynamic>) return data;
         if (data is Map) return Map<String, dynamic>.from(data);
@@ -164,7 +165,7 @@ class VendorApiService {
         .get(Uri.parse('$baseUrl/vendor/store'), headers: _headers())
         .timeout(const Duration(seconds: 5));
     if (res.statusCode == 200) {
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(res.body) as Map<String, dynamic>;
       return body['data'] as Map<String, dynamic>?;
     }
     return null;
@@ -179,7 +180,7 @@ class VendorApiService {
           .get(Uri.parse('$baseUrl/vendor/categories'), headers: _headers())
           .timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         final list = body['data'] as List<dynamic>? ?? [];
         categoryNameToId.clear();
         for (final item in list) {
@@ -204,7 +205,7 @@ class VendorApiService {
           .get(Uri.parse('$baseUrl/vendor/products'), headers: _headers())
           .timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as List<dynamic>? ?? [];
       }
     } catch (_) {}
@@ -217,7 +218,7 @@ class VendorApiService {
         .get(Uri.parse('$baseUrl/vendor/orders?status=all'), headers: _headers())
         .timeout(const Duration(seconds: 5));
     if (res.statusCode == 200) {
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(res.body) as Map<String, dynamic>;
       return body['data'] as List<dynamic>? ?? [];
     }
     return [];
@@ -245,7 +246,7 @@ class VendorApiService {
             body: jsonEncode({'percent': percent}),
           )
           .timeout(const Duration(seconds: 8));
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(res.body) as Map<String, dynamic>;
       final ok = res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true;
       return (ok, body['message']?.toString() ?? (ok ? 'داشکاندن جێبەجێ کرا' : 'کێشەیەک ڕوویدا'));
     } catch (_) {
@@ -296,7 +297,7 @@ class VendorApiService {
       final res = await http
           .post(Uri.parse('$baseUrl/vendor/orders/$dbOrderId/ready'), headers: _headers())
           .timeout(const Duration(seconds: 5));
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(res.body) as Map<String, dynamic>;
       final ok = res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true;
       final msg = body['message']?.toString() ?? (ok ? 'ئامادەکرا و نێردرا بۆ شۆفێر' : 'کێشەیەک ڕوویدا');
       final data = body['data'] as Map<String, dynamic>?;
@@ -313,7 +314,7 @@ class VendorApiService {
           .get(Uri.parse('$baseUrl/vendor/nearby-drivers'), headers: _headers())
           .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>?;
       }
     } catch (_) {}
@@ -326,7 +327,7 @@ class VendorApiService {
       final res = await http
           .post(Uri.parse('$baseUrl/vendor/orders/$dbOrderId/dispatch-driver'), headers: _headers())
           .timeout(const Duration(seconds: 5));
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(res.body) as Map<String, dynamic>;
       final ok = res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true;
       final msg = body['message']?.toString() ?? (ok ? 'شۆفێر دیاریکرا' : 'شۆفێر نەدۆزرایەوە');
       final data = body['data'] as Map<String, dynamic>?;
@@ -346,7 +347,7 @@ class VendorApiService {
             body: jsonEncode({'driver_id': driverUserId}),
           )
           .timeout(const Duration(seconds: 5));
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(res.body) as Map<String, dynamic>;
       final ok = res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true;
       final msg = body['message']?.toString() ?? (ok ? 'ماتۆرسوار دیاریکرا' : 'دیاریکردن سەرکەوتوو نەبوو');
       final data = body['data'] as Map<String, dynamic>?;
@@ -366,7 +367,7 @@ class VendorApiService {
           headers: _headers(),
         )
         .timeout(const Duration(seconds: 5));
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final body = regaJsonDecode(res.body) as Map<String, dynamic>;
     if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true) {
       return (true, body['message']?.toString() ?? 'سەرکەوتوو بوو');
     }
@@ -392,7 +393,7 @@ class VendorApiService {
         )
         .timeout(const Duration(seconds: 5));
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final body = regaJsonDecode(res.body) as Map<String, dynamic>;
       final id = (body['data']?['id'] as num?)?.toInt();
       if (id != null) categoryNameToId[nameKu] = id;
       return id;
@@ -435,7 +436,7 @@ class VendorApiService {
     Map<String, dynamic> decoded = {};
     if (body.isNotEmpty) {
       try {
-        final raw = jsonDecode(body);
+        final raw = regaJsonDecode(body);
         if (raw is Map<String, dynamic>) decoded = raw;
       } catch (_) {}
     }
@@ -488,7 +489,7 @@ class VendorApiService {
           )
           .timeout(const Duration(seconds: 10));
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>?;
       }
     } catch (_) {}
@@ -552,7 +553,7 @@ class VendorApiService {
           )
           .timeout(const Duration(seconds: 8));
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>?;
       }
     } catch (_) {}

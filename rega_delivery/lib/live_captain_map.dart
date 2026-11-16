@@ -13,6 +13,8 @@ import 'map/mapbox_directions.dart';
 import 'map/mapbox_tiles.dart';
 import 'rega_mobile.dart';
 
+import 'rega_i18n.dart';
+import 'rega_colors.dart';
 enum CaptainRouteStage {
   assigned,
   arrivingPickup,
@@ -807,16 +809,16 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
           polylines.add(Polyline(
             points: traveled1,
             strokeWidth: 5,
-            color: const Color(0xFF94A3B8).withValues(alpha: 0.65),
+            color: RC.bg(Color(0xFF94A3B8)).withValues(alpha: 0.65),
           ));
         }
         if (remain1.length >= 2) {
           polylines.add(Polyline(
             points: remain1,
             strokeWidth: 7,
-            color: const Color(0xFFF59E0B),
+            color: RC.bg(Color(0xFFF59E0B)),
             borderStrokeWidth: 2.5,
-            borderColor: const Color(0xFF78350F),
+            borderColor: RC.bg(Color(0xFF78350F)),
           ));
         }
         if (_legToCustomer.length >= 2) {
@@ -824,7 +826,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
             points: _legToCustomer,
             strokeWidth: 5,
             pattern: StrokePattern.dashed(segments: const [14, 10]),
-            color: const Color(0xFF16A34A).withValues(alpha: 0.7),
+            color: RC.bg(Color(0xFF16A34A)).withValues(alpha: 0.7),
           ));
         }
       } else {
@@ -832,7 +834,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
           polylines.add(Polyline(
             points: _legToStore,
             strokeWidth: 4,
-            color: const Color(0xFF94A3B8).withValues(alpha: 0.45),
+            color: RC.bg(Color(0xFF94A3B8)).withValues(alpha: 0.45),
           ));
         }
         final traveled2 = _traveledSubPolyline(_legToCustomer, _leg2Progress, _displayDriverPos);
@@ -841,16 +843,16 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
           polylines.add(Polyline(
             points: traveled2,
             strokeWidth: 5,
-            color: const Color(0xFF22C55E).withValues(alpha: 0.40),
+            color: RC.bg(Color(0xFF22C55E)).withValues(alpha: 0.40),
           ));
         }
         if (remain2.length >= 2) {
           polylines.add(Polyline(
             points: remain2,
             strokeWidth: 7.5,
-            color: const Color(0xFF00E676),
+            color: RC.bg(Color(0xFF00E676)),
             borderStrokeWidth: 2.5,
-            borderColor: const Color(0xFF065F46),
+            borderColor: RC.bg(Color(0xFF065F46)),
           ));
         }
       }
@@ -860,7 +862,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         points: [_storePoint, _customerPoint],
         strokeWidth: 5,
         pattern: StrokePattern.dashed(segments: const [14, 10]),
-        color: const Color(0xFF64748B).withValues(alpha: 0.75),
+        color: RC.bg(Color(0xFF64748B)).withValues(alpha: 0.75),
       ));
     }
 
@@ -874,7 +876,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
           alignment: Alignment.topCenter,
           child: _MapPinBadge(
             icon: Icons.storefront_rounded,
-            color: const Color(0xFFEA580C),
+            color: RC.bg(Color(0xFFEA580C)),
             label: widget.merchantName,
             isHighlighted: isToStore,
           ),
@@ -887,7 +889,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
           alignment: Alignment.topCenter,
           child: _MapPinBadge(
             icon: Icons.home_rounded,
-            color: const Color(0xFF0284C7),
+            color: RC.bg(Color(0xFF0284C7)),
             label: widget.customerName,
             isHighlighted: !isToStore,
           ),
@@ -911,7 +913,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                     height: 38 + (p * 44),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: const Color(0xFF00E676).withValues(alpha: (1 - p) * 0.38),
+                      color: RC.bg(Color(0xFF00E676)).withValues(alpha: (1 - p) * 0.38),
                     ),
                   ),
                   Transform.rotate(
@@ -920,20 +922,20 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00E676),
+                        color: RC.bg(Color(0xFF00E676)),
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFF0F172A), width: 3),
-                        boxShadow: const [
+                        border: Border.all(color: RC.bg(Color(0xFF0F172A)), width: 3),
+                        boxShadow: [
                           BoxShadow(
-                            color: Colors.black26,
+                            color: RC.bg(Colors.black26),
                             blurRadius: 10,
                             offset: Offset(0, 4),
                           ),
                         ],
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.navigation_rounded,
-                        color: Color(0xFF0F172A),
+                        color: RC.fg(Color(0xFF0F172A)),
                         size: 24,
                       ),
                     ),
@@ -943,13 +945,13 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
+                        color: RC.bg(Color(0xFF0F172A)),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        '${_speedKmh.toStringAsFixed(0)} km/h',
-                        style: const TextStyle(
-                          color: Color(0xFF00E676),
+                        tx('${_speedKmh.toStringAsFixed(0)} km/h'),
+                        style: TextStyle(
+                          color: RC.fg(Color(0xFF00E676)),
                           fontSize: 9,
                           fontWeight: FontWeight.w900,
                         ),
@@ -974,8 +976,8 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
             minZoom: 11.5,
             maxZoom: 18.5,
             backgroundColor: _mapStyleIndex == 1
-                ? const Color(0xFF0F172A)
-                : const Color(0xFFE2E8F0),
+                ? RC.bg(Color(0xFF0F172A))
+                : RC.bg(Color(0xFFE2E8F0)),
             onMapReady: () {
               _mapReady = true;
               // Overview until a real fix — do not treat Kalar overview as the driver.
@@ -1012,24 +1014,26 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         if (hasOrder)
         Positioned(
           top: 12,
-          left: 14,
-          right: 14,
+          left: RegaResponsive.pagePadding(context),
+          right: RegaResponsive.pagePadding(context),
           child: Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620),
+              constraints: BoxConstraints(
+                maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 620),
+              ),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.94),
+                  color: RC.bg(Color(0xFF0F172A)).withValues(alpha: 0.94),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: const Color(0xFF00E676).withValues(alpha: 0.45),
+                    color: RC.bg(Color(0xFF00E676)).withValues(alpha: 0.45),
                     width: 1.4,
                   ),
-                  boxShadow: const [
+                  boxShadow: [
                     BoxShadow(
-                      color: Colors.black26,
+                      color: RC.bg(Colors.black26),
                       blurRadius: 18,
                       offset: Offset(0, 8),
                     ),
@@ -1044,12 +1048,12 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00E676).withValues(alpha: 0.18),
+                        color: RC.bg(Color(0xFF00E676)).withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(
                         _navigationIcon(),
-                        color: const Color(0xFF00E676),
+                        color: RC.fg(Color(0xFF00E676)),
                         size: 24,
                       ),
                     ),
@@ -1065,18 +1069,18 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                                 height: 8,
                                 decoration: BoxDecoration(
                                   color: _backendSynced
-                                      ? const Color(0xFF00E676)
-                                      : const Color(0xFFFAC800),
+                                      ? RC.bg(Color(0xFF00E676))
+                                      : RC.bg(Color(0xFFFAC800)),
                                   shape: BoxShape.circle,
                                 ),
                               ),
                               const SizedBox(width: 5),
                               Text(
-                                _backendSynced
+                                tx(_backendSynced
                                     ? _mt('gps_live_sync')
-                                    : _mt('gps_live_kalar'),
-                                style: const TextStyle(
-                                  color: Color(0xFF00E676),
+                                    : _mt('gps_live_kalar')),
+                                style: TextStyle(
+                                  color: RC.fg(Color(0xFF00E676)),
                                   fontSize: 10,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -1085,11 +1089,11 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            _navigationHeadline(),
+                            tx(_navigationHeadline()),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: RC.fg(Colors.white),
                               fontSize: 14,
                               fontWeight: FontWeight.w900,
                             ),
@@ -1104,25 +1108,25 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00E676),
+                          color: RC.bg(Color(0xFF00E676)),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              _formatCountdown(_etaSeconds),
-                              style: const TextStyle(
-                                color: Color(0xFF0F172A),
+                              tx(_formatCountdown(_etaSeconds)),
+                              style: TextStyle(
+                                color: RC.fg(Color(0xFF0F172A)),
                                 fontSize: 16,
                                 fontWeight: FontWeight.w900,
                                 fontFeatures: [FontFeature.tabularFigures()],
                               ),
                             ),
                             Text(
-                              _formatDistance(_remainingMeters),
-                              style: const TextStyle(
-                                color: Color(0xFF064E3B),
+                              tx(_formatDistance(_remainingMeters)),
+                              style: TextStyle(
+                                color: RC.fg(Color(0xFF064E3B)),
                                 fontSize: 9,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -1149,7 +1153,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
               _MapHudButton(
                 icon: _followCaptain ? Icons.gps_fixed_rounded : Icons.gps_not_fixed_rounded,
                 active: _followCaptain,
-                tooltip: _mt('follow_driver'),
+                tooltip: tx(_mt('follow_driver')),
                 onTap: () {
                   setState(() => _followCaptain = true);
                   if (_mapReady) {
@@ -1162,7 +1166,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                 _MapHudButton(
                   icon: Icons.route_rounded,
                   active: false,
-                  tooltip: _mt('show_full_route'),
+                  tooltip: tx(_mt('show_full_route')),
                   onTap: _fitFullRoute,
                 ),
               ],
@@ -1170,7 +1174,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
               _MapHudButton(
                 icon: _mapStyleIndex == 1 ? Icons.dark_mode_rounded : Icons.layers_rounded,
                 active: _mapStyleIndex > 0,
-                tooltip: _mt('map_style'),
+                tooltip: tx(_mt('map_style')),
                 onTap: () => setState(() => _mapStyleIndex = (_mapStyleIndex + 1) % 3),
               ),
               const SizedBox(height: 8),
@@ -1179,7 +1183,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                     ? Icons.my_location_rounded
                     : Icons.location_searching_rounded,
                 active: _usingRealGps,
-                tooltip: _mt('phone_gps'),
+                tooltip: tx(_mt('phone_gps')),
                 onTap: () async {
                   setState(() => _followCaptain = true);
                   await _startRealGpsIfAvailable(requestPermission: true);
@@ -1189,7 +1193,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
               _MapHudButton(
                 icon: Icons.cloud_sync_rounded,
                 active: _backendSynced,
-                tooltip: _mt('sync_order'),
+                tooltip: tx(_mt('sync_order')),
                 onTap: syncLatestCustomerOrderFromServer,
               ),
             ],
@@ -1203,7 +1207,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
             left: 14,
             right: 70,
             child: Material(
-              color: const Color(0xFF0F172A).withValues(alpha: 0.92),
+              color: RC.bg(Color(0xFF0F172A)).withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(16),
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
@@ -1213,24 +1217,24 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                   child: Row(
                     children: [
                       if (_gpsBusy)
-                        const SizedBox(
+                        SizedBox(
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.2,
-                            color: Color(0xFFFAC800),
+                            color: RC.bg(Color(0xFFFAC800)),
                           ),
                         )
                       else
-                        const Icon(Icons.gps_fixed_rounded, color: Color(0xFFFAC800), size: 20),
+                        Icon(Icons.gps_fixed_rounded, color: RC.fg(Color(0xFFFAC800)), size: 20),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          _gpsBusy
+                          tx(_gpsBusy
                               ? _mt('gps_locating')
-                              : _mt('gps_allow_phone'),
-                          style: const TextStyle(
-                            color: Colors.white,
+                              : _mt('gps_allow_phone')),
+                          style: TextStyle(
+                            color: RC.fg(Colors.white),
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                             height: 1.35,
@@ -1269,21 +1273,21 @@ class _MapPinBadge extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: RC.bg(Colors.white),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: color, width: 1.5),
-            boxShadow: const [
-              BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+            boxShadow: [
+              BoxShadow(color: RC.bg(Colors.black26), blurRadius: 6, offset: Offset(0, 2)),
             ],
           ),
           child: Text(
-            label,
+            tx(label),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF0F172A),
+              color: RC.fg(Color(0xFF0F172A)),
             ),
           ),
         ),
@@ -1294,7 +1298,7 @@ class _MapPinBadge extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2.5),
+            border: Border.all(color: RC.bg(Colors.white), width: 2.5),
             boxShadow: [
               BoxShadow(
                 color: color.withValues(alpha: 0.45),
@@ -1303,7 +1307,7 @@ class _MapPinBadge extends StatelessWidget {
               ),
             ],
           ),
-          child: Icon(icon, color: Colors.white, size: isHighlighted ? 20 : 17),
+          child: Icon(icon, color: RC.fg(Colors.white), size: isHighlighted ? 20 : 17),
         ),
       ],
     );
@@ -1328,7 +1332,7 @@ class _MapHudButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: active ? const Color(0xFF0F172A) : Colors.white,
+        color: active ? RC.bg(Color(0xFF0F172A)) : RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(14),
         elevation: 4,
         child: InkWell(
@@ -1340,7 +1344,7 @@ class _MapHudButton extends StatelessWidget {
             child: Icon(
               icon,
               size: 21,
-              color: active ? const Color(0xFF00E676) : const Color(0xFF0F172A),
+              color: active ? RC.fg(Color(0xFF00E676)) : RC.bg(Color(0xFF0F172A)),
             ),
           ),
         ),

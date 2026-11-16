@@ -30,11 +30,13 @@ class PublicAndCustomerController extends Controller
         // Home grid uses is_featured_home; sort_order controls tile order in admin.
         $categories = $this->homeCategoriesQuery()->get();
         $banners = Banner::where('is_active', true)->with(['store:id,name_ku,slug', 'category:id,name_ku,name_ar,name_en,slug'])->orderBy('sort_order')->get();
+        // Load all approved stores so every home tile (سوپەرمارکێت، خواردنگە، فست فوود…)
+        // can show its vendors — products inherit the store's category_id.
         $featuredStores = Store::where('is_approved', true)
             ->with(['category:id,name_ku,name_ar,name_en', 'neighborhood:id,name_ku'])
             ->orderByDesc('is_featured')
             ->orderByDesc('rating')
-            ->limit(20)
+            ->limit(200)
             ->get();
 
         $settingsRows = PlatformSetting::whereIn('group', ['public', 'general', 'support'])->get();
@@ -280,7 +282,7 @@ class PublicAndCustomerController extends Controller
             $deliveryFee = $neighborhood ? (int) $neighborhood->delivery_fee : (int) $store->base_delivery_fee;
 
             $profitService = app(\App\Services\OrderProfitService::class);
-            $commissionRate = $profitService->globalCommissionPercentage();
+            $commissionRate = $profitService->commissionForStore($store);
             $preparedItems = [];
 
             foreach ($validated['items'] as $entry) {
@@ -503,7 +505,7 @@ class PublicAndCustomerController extends Controller
                 : ($neighborhood ? (int) $neighborhood->delivery_fee : (int) $store->base_delivery_fee);
 
             $profitService = app(\App\Services\OrderProfitService::class);
-            $commissionRate = $profitService->globalCommissionPercentage();
+            $commissionRate = $profitService->commissionForStore($store);
             $preparedItems = [];
 
             foreach ($validated['items'] as $entry) {

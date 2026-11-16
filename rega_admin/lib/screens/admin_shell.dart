@@ -18,6 +18,8 @@ import 'products_screen.dart';
 import 'admin_staff_screen.dart';
 import 'support_settings_screen.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 class AdminShell extends StatefulWidget {
   final ApiClient api;
   final Map<String, dynamic> currentUser;
@@ -56,6 +58,13 @@ class _AdminShellState extends State<AdminShell> {
   /// Bumped on manual refresh so the active screen remounts and reloads live API data.
   int _dataRefreshKey = 0;
   bool _refreshing = false;
+
+  /// User's explicit sidebar choice on laptop/desktop. `null` = automatic
+  /// (icon rail below [AdminBreakpoints.laptop], full sidebar above it).
+  bool? _sidebarCollapsedPref;
+
+  bool _isSidebarCollapsed(double screenWidth) =>
+      _sidebarCollapsedPref ?? screenWidth < AdminBreakpoints.laptop;
 
   @override
   void initState() {
@@ -199,10 +208,19 @@ class _AdminShellState extends State<AdminShell> {
     }
   }
 
-  Widget _buildSidebar({required bool isDrawer}) {
+  Widget _buildSidebar({required bool isDrawer, bool collapsed = false}) {
     final items = _buildNavItems();
-    return Container(
-      width: 225,
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final rail = collapsed && !isDrawer;
+    final double width = rail
+        ? AdminBreakpoints.sidebarRail
+        : (!isDrawer && screenWidth >= AdminBreakpoints.wide
+            ? AdminBreakpoints.sidebarWide
+            : AdminBreakpoints.sidebarNormal);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      width: width,
       color: RegaColors.sidebarBg,
       child: SafeArea(
         child: Column(
@@ -215,29 +233,30 @@ class _AdminShellState extends State<AdminShell> {
                   Stack(
                     alignment: Alignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.location_on_rounded,
                         size: 42,
-                        color: Color(0xFFFF5722),
+                        color: RC.fg(Color(0xFFFF5722)),
                       ),
                       Positioned(
                         top: 9,
                         child: Container(
                           width: 12,
                           height: 12,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF113E2E),
+                          decoration: BoxDecoration(
+                            color: RC.bg(Color(0xFF113E2E)),
                             shape: BoxShape.circle,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'REGA',
+                  if (!rail) const SizedBox(height: 6),
+                  if (!rail)
+                  Text(
+                    tx('REGA'),
                     style: TextStyle(
-                      color: Colors.white,
+                      color: RC.fg(Colors.white),
                       fontWeight: FontWeight.w900,
                       fontSize: 16,
                       letterSpacing: 1.2,
@@ -248,13 +267,13 @@ class _AdminShellState extends State<AdminShell> {
             ),
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: EdgeInsets.symmetric(horizontal: rail ? 10 : 14, vertical: 8),
                 itemCount: items.length,
                 itemBuilder: (ctx, idx) {
                   final item = items[idx];
                   final active = _selectedIndex == idx;
 
-                  final Color itemBg = active ? const Color(0xFFEA580C) : Colors.transparent;
+                  final Color itemBg = active ? RC.bg(Color(0xFFEA580C)) : Colors.transparent;
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6),
@@ -265,7 +284,7 @@ class _AdminShellState extends State<AdminShell> {
                         boxShadow: active
                             ? [
                                 BoxShadow(
-                                  color: const Color(0xFFEA580C).withValues(alpha: 0.35),
+                                  color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.35),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -281,23 +300,40 @@ class _AdminShellState extends State<AdminShell> {
                             _selectTab(idx);
                             if (isDrawer) Navigator.pop(ctx);
                           },
-                          child: Padding(
+                          child: rail
+                              ? Tooltip(
+                                  message: item.label,
+                                  preferBelow: false,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    child: Center(
+                                      child: Icon(
+                                        item.icon,
+                                        size: 22,
+                                        color: active ? RC.fg(Colors.white) : RC.bg(Colors.white).withValues(alpha: 0.75),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             child: Row(
                               children: [
                                 Icon(
                                   item.icon,
                                   size: 21,
-                                  color: active ? Colors.white : Colors.white.withValues(alpha: 0.75),
+                                  color: active ? RC.fg(Colors.white) : RC.bg(Colors.white).withValues(alpha: 0.75),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Text(
-                                    item.label,
+                                    tx(item.label),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: active ? FontWeight.w900 : FontWeight.w600,
-                                      color: active ? Colors.white : Colors.white.withValues(alpha: 0.85),
+                                      color: active ? RC.bg(Colors.white) : RC.bg(Colors.white).withValues(alpha: 0.85),
                                     ),
                                   ),
                                 ),
@@ -312,8 +348,16 @@ class _AdminShellState extends State<AdminShell> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-              child: Material(
+              padding: EdgeInsets.fromLTRB(rail ? 10 : 16, 8, rail ? 10 : 16, 20),
+              child: rail
+                  ? Tooltip(
+                      message: AppStrings.tr('logout', widget.lang),
+                      child: IconButton(
+                        onPressed: widget.onLogout,
+                        icon: Icon(Icons.logout_rounded, size: 21, color: RC.fg(Colors.white70)),
+                      ),
+                    )
+                  : Material(
                 color: Colors.transparent,
                 borderRadius: BorderRadius.circular(10),
                 child: InkWell(
@@ -325,14 +369,14 @@ class _AdminShellState extends State<AdminShell> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Row(
                       children: [
-                        const Icon(Icons.logout_rounded, size: 21, color: Colors.white70),
+                        Icon(Icons.logout_rounded, size: 21, color: RC.fg(Colors.white70)),
                         const SizedBox(width: 14),
                         Text(
                           AppStrings.tr('logout', widget.lang),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white70,
+                            color: RC.fg(Colors.white70),
                           ),
                         ),
                       ],
@@ -352,6 +396,7 @@ class _AdminShellState extends State<AdminShell> {
     final screenWidth = MediaQuery.sizeOf(context).width;
     // Phone / iPad portrait use drawer; wide tablets & desktop keep fixed sidebar.
     final isDesktop = screenWidth >= AdminBreakpoints.tablet;
+    final sidebarCollapsed = _isSidebarCollapsed(screenWidth);
     final surfaces = AdminSurfaces.of(context);
     final surfaceColor = surfaces.elevated;
 
@@ -361,15 +406,16 @@ class _AdminShellState extends State<AdminShell> {
       body: SafeArea(
         child: Row(
           children: [
-            if (isDesktop) _buildSidebar(isDrawer: false),
+            if (isDesktop)
+              _buildSidebar(isDrawer: false, collapsed: sidebarCollapsed),
             Expanded(
               child: Column(
                 children: [
                   // Sticky chrome: always visible language + theme + refresh on all sizes.
                   Container(
-                    height: screenWidth < AdminBreakpoints.phone ? 52 : 58,
+                    height: screenWidth < AdminBreakpoints.phone ? 48 : 58,
                     padding: EdgeInsets.symmetric(
-                      horizontal: screenWidth < AdminBreakpoints.phone ? 8 : 14,
+                      horizontal: screenWidth < AdminBreakpoints.phone ? 4 : 14,
                     ),
                     decoration: BoxDecoration(
                       color: surfaceColor,
@@ -379,9 +425,29 @@ class _AdminShellState extends State<AdminShell> {
                     ),
                     child: Row(
                       children: [
+                        if (isDesktop)
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                            tooltip: AppStrings.tr(
+                              sidebarCollapsed ? 'expand_menu' : 'collapse_menu',
+                              widget.lang,
+                            ),
+                            icon: Icon(
+                              sidebarCollapsed ? Icons.menu_rounded : Icons.menu_open_rounded,
+                            ),
+                            onPressed: () => setState(
+                              () => _sidebarCollapsedPref = !sidebarCollapsed,
+                            ),
+                          ),
                         if (!isDesktop)
                           Builder(
                             builder: (ctx) => IconButton(
+                              visualDensity: screenWidth < AdminBreakpoints.phone
+                                  ? VisualDensity.compact
+                                  : VisualDensity.standard,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                               icon: const Icon(Icons.menu_rounded),
                               onPressed: () => Scaffold.of(ctx).openDrawer(),
                             ),
@@ -393,16 +459,20 @@ class _AdminShellState extends State<AdminShell> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontWeight: FontWeight.w800,
-                              fontSize: screenWidth < AdminBreakpoints.phone ? 12 : 13,
+                              fontSize: screenWidth < AdminBreakpoints.phone ? 11 : 13,
                               color: surfaces.textPrimary,
                             ),
                           ),
                         ),
                         const AdminLocaleToggle(),
-                        const SizedBox(width: 6),
-                        const AdminThemeToggle(),
                         const SizedBox(width: 4),
+                        const AdminThemeToggle(),
                         IconButton(
+                          visualDensity: screenWidth < AdminBreakpoints.phone
+                              ? VisualDensity.compact
+                              : VisualDensity.standard,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                           tooltip: AppStrings.tr('refresh', widget.lang),
                           onPressed: _refreshing ? null : _refreshAllLiveData,
                           icon: _refreshing
@@ -416,7 +486,21 @@ class _AdminShellState extends State<AdminShell> {
                       ],
                     ),
                   ),
-                  Expanded(child: _buildActiveScreen()),
+                  // Cap page width on 1920px+ monitors so tables/forms stay readable.
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: AdminBreakpoints.contentMaxWidth,
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: _buildActiveScreen(),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

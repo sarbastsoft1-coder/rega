@@ -15,6 +15,8 @@ import '../widgets/admin_top_header.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 class DriverDocItem {
   final int? id;
   final String docType;
@@ -294,8 +296,8 @@ class _DriversScreenState extends State<DriversScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: error ? const Color(0xFFDC2626) : const Color(0xFF113E2E),
+        content: Text(tx(msg), style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: error ? RC.bg(Color(0xFFDC2626)) : RC.bg(Color(0xFF113E2E)),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -415,13 +417,13 @@ class _DriversScreenState extends State<DriversScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        title,
+                        tx(title),
                         style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                       ),
                     ),
                     if (resolved.isNotEmpty)
                       IconButton(
-                        tooltip: 'کردنەوە لە تابێکی نوێ',
+                        tooltip: tx('کردنەوە لە تابێکی نوێ'),
                         onPressed: () => _openMediaUrl(resolved),
                         icon: const Icon(Icons.open_in_new_rounded),
                       ),
@@ -446,14 +448,14 @@ class _DriversScreenState extends State<DriversScreen> {
                             ? Image.network(
                                 resolved,
                                 fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Padding(
+                                errorBuilder: (_, __, ___) => Padding(
                                   padding: EdgeInsets.all(24),
-                                  child: Text('نەتوانرا وێنە باربکرێت'),
+                                  child: Text(tx('نەتوانرا وێنە باربکرێت')),
                                 ),
                               )
-                            : const Padding(
+                            : Padding(
                                 padding: EdgeInsets.all(24),
-                                child: Text('هیچ وێنەیەک نییە'),
+                                child: Text(tx('هیچ وێنەیەک نییە')),
                               ),
                   ),
                 ),
@@ -569,237 +571,224 @@ class _DriversScreenState extends State<DriversScreen> {
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
+        builder: (ctx, setDialogState) {
+          final dialogW = AdminBreakpoints.dialogWidth(ctx, max: 560);
+          final stackFields = dialogW < 520;
+          Widget pair(Widget a, Widget b) {
+            if (stackFields) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [a, const SizedBox(height: 12), b],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)],
+            );
+          }
+
+          return AlertDialog(
+          insetPadding: AdminBreakpoints.dialogInset(ctx),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF113E2E).withValues(alpha: 0.1),
+                  color: RC.bg(Color(0xFF113E2E)).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.two_wheeler_rounded, color: Color(0xFF113E2E), size: 22),
+                child: Icon(Icons.two_wheeler_rounded, color: RC.fg(Color(0xFF113E2E)), size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  isEdit ? 'دەستکاریکردنی هەموو بەشەکانی شۆفێر / گەیاندن' : 'زیادکردنی ماتۆرسواری نوێ',
+                  tx(isEdit ? 'دەستکاریکردنی هەموو بەشەکانی شۆفێر / گەیاندن' : 'زیادکردنی ماتۆرسواری نوێ'),
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                 ),
               ),
             ],
           ),
-          content: SizedBox(
-            width: (MediaQuery.sizeOf(context).width * 0.92).clamp(280.0, 560.0),
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: dialogW,
+              maxHeight: AdminBreakpoints.dialogMaxHeight(ctx),
+            ),
+            child: SizedBox(
+            width: dialogW,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('١. زانیاری کەسی شۆفێر', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF113E2E))),
+                  Text(tx('١. زانیاری کەسی شۆفێر'), style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF113E2E)))),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: nameCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'ناوی تەواوی شۆفێر *',
-                            prefixIcon: const Icon(Icons.person_outline, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
+                  pair(
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: InputDecoration(
+                        labelText: tx('ناوی تەواوی شۆفێر *'),
+                        prefixIcon: const Icon(Icons.person_outline, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: TextField(
+                        controller: phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        textDirection: TextDirection.ltr,
+                        textAlign: TextAlign.left,
+                        inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
+                        decoration: InputDecoration(
+                          labelText: tx('ژمارەی مۆبایل *'),
+                          hintText: txn(IraqPhoneFormatter.hint),
+                          prefixIcon: const Icon(Icons.phone_android_outlined, size: 20),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Directionality(
-                          textDirection: TextDirection.ltr,
-                          child: TextField(
-                            controller: phoneCtrl,
-                            keyboardType: TextInputType.phone,
-                            textDirection: TextDirection.ltr,
-                            textAlign: TextAlign.left,
-                            inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
-                            decoration: InputDecoration(
-                              labelText: 'ژمارەی مۆبایل *',
-                              hintText: IraqPhoneFormatter.hint,
-                              prefixIcon: const Icon(Icons.phone_android_outlined, size: 20),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Directionality(
-                          textDirection: TextDirection.ltr,
-                          child: TextField(
-                            controller: homePhoneCtrl,
-                            keyboardType: TextInputType.phone,
-                            textDirection: TextDirection.ltr,
-                            textAlign: TextAlign.left,
-                            inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
-                            decoration: InputDecoration(
-                              labelText: 'ژمارەی ماڵەوە',
-                              hintText: IraqPhoneFormatter.hint,
-                              prefixIcon: const Icon(Icons.phone_outlined, size: 20),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            ),
-                          ),
+                  pair(
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: TextField(
+                        controller: homePhoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        textDirection: TextDirection.ltr,
+                        textAlign: TextAlign.left,
+                        inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
+                        decoration: InputDecoration(
+                          labelText: tx('ژمارەی ماڵەوە'),
+                          hintText: txn(IraqPhoneFormatter.hint),
+                          prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: const ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].contains(bloodType)
-                              ? bloodType
-                              : 'O+',
-                          decoration: InputDecoration(
-                            labelText: 'جۆری خوێن',
-                            prefixIcon: const Icon(Icons.bloodtype_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 'A+', child: Text('A+')),
-                            DropdownMenuItem(value: 'A-', child: Text('A-')),
-                            DropdownMenuItem(value: 'B+', child: Text('B+')),
-                            DropdownMenuItem(value: 'B-', child: Text('B-')),
-                            DropdownMenuItem(value: 'AB+', child: Text('AB+')),
-                            DropdownMenuItem(value: 'AB-', child: Text('AB-')),
-                            DropdownMenuItem(value: 'O+', child: Text('O+')),
-                            DropdownMenuItem(value: 'O-', child: Text('O-')),
-                          ],
-                          onChanged: (v) => setDialogState(() => bloodType = v ?? 'O+'),
-                        ),
+                    ),
+                    DropdownButtonFormField<String>(
+                      initialValue: const ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].contains(bloodType)
+                          ? bloodType
+                          : 'O+',
+                      decoration: InputDecoration(
+                        labelText: tx('جۆری خوێن'),
+                        prefixIcon: const Icon(Icons.bloodtype_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
-                    ],
+                      items: [
+                        DropdownMenuItem(value: 'A+', child: Text(tx('A+'))),
+                        DropdownMenuItem(value: 'A-', child: Text(tx('A-'))),
+                        DropdownMenuItem(value: 'B+', child: Text(tx('B+'))),
+                        DropdownMenuItem(value: 'B-', child: Text(tx('B-'))),
+                        DropdownMenuItem(value: 'AB+', child: Text(tx('AB+'))),
+                        DropdownMenuItem(value: 'AB-', child: Text(tx('AB-'))),
+                        DropdownMenuItem(value: 'O+', child: Text(tx('O+'))),
+                        DropdownMenuItem(value: 'O-', child: Text(tx('O-'))),
+                      ],
+                      onChanged: (v) => setDialogState(() => bloodType = v ?? 'O+'),
+                    ),
                   ),
                   const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: cityCtrl.text,
-                          decoration: InputDecoration(
-                            labelText: 'شار / دەڤەر',
-                            prefixIcon: const Icon(Icons.location_city_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 'هەولێر', child: Text('هەولێر')),
-                            DropdownMenuItem(value: 'سلێمانی', child: Text('سلێمانی')),
-                            DropdownMenuItem(value: 'دهۆک', child: Text('دهۆک')),
-                            DropdownMenuItem(value: 'کەلار', child: Text('کەلار')),
-                          ],
-                          onChanged: (v) => setDialogState(() => cityCtrl.text = v ?? 'هەولێر'),
-                        ),
+                  pair(
+                    DropdownButtonFormField<String>(
+                      initialValue: cityCtrl.text,
+                      decoration: InputDecoration(
+                        labelText: tx('شار / دەڤەر'),
+                        prefixIcon: const Icon(Icons.location_city_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: status,
-                          decoration: InputDecoration(
-                            labelText: 'دۆخی کارکردنی دلیڤەری',
-                            prefixIcon: const Icon(Icons.toggle_on_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 'active', child: Text('🟢 چالاک (بەردەست)')),
-                            DropdownMenuItem(value: 'on_the_way', child: Text('🟡 لە دلیڤەری (سەرقاڵ)')),
-                            DropdownMenuItem(value: 'offline', child: Text('⚪ ناچالاک (ئۆفلاین)')),
-                          ],
-                          onChanged: (v) => setDialogState(() => status = v ?? 'active'),
-                        ),
+                      items: [
+                        DropdownMenuItem(value: 'هەولێر', child: Text(tx('هەولێر'))),
+                        DropdownMenuItem(value: 'سلێمانی', child: Text(tx('سلێمانی'))),
+                        DropdownMenuItem(value: 'دهۆک', child: Text(tx('دهۆک'))),
+                        DropdownMenuItem(value: 'کەلار', child: Text(tx('کەلار'))),
+                      ],
+                      onChanged: (v) => setDialogState(() => cityCtrl.text = v ?? 'هەولێر'),
+                    ),
+                    DropdownButtonFormField<String>(
+                      initialValue: status,
+                      decoration: InputDecoration(
+                        labelText: tx('دۆخی کارکردنی دلیڤەری'),
+                        prefixIcon: const Icon(Icons.toggle_on_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
-                    ],
+                      items: [
+                        DropdownMenuItem(value: 'active', child: Text(tx('🟢 چالاک (بەردەست)'))),
+                        DropdownMenuItem(value: 'on_the_way', child: Text(tx('🟡 لە دلیڤەری (سەرقاڵ)'))),
+                        DropdownMenuItem(value: 'offline', child: Text(tx('⚪ ناچالاک (ئۆفلاین)'))),
+                      ],
+                      onChanged: (v) => setDialogState(() => status = v ?? 'active'),
+                    ),
                   ),
                   const SizedBox(height: 18),
-                  const Text('٢. زانیاری ماتۆڕ (جۆر / تابلۆ / ڕەنگ)', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF113E2E))),
+                  Text(tx('٢. زانیاری ماتۆڕ (جۆر / تابلۆ / ڕەنگ)'), style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF113E2E)))),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: motorTypeCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'جۆری ماتۆڕ *',
-                            prefixIcon: const Icon(Icons.two_wheeler_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                        ),
+                  pair(
+                    TextField(
+                      controller: motorTypeCtrl,
+                      decoration: InputDecoration(
+                        labelText: tx('جۆری ماتۆڕ *'),
+                        prefixIcon: const Icon(Icons.two_wheeler_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: plateCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'ژمارەی تابلۆی ماتۆڕ *',
-                            prefixIcon: const Icon(Icons.pin_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                        ),
+                    ),
+                    TextField(
+                      controller: plateCtrl,
+                      decoration: InputDecoration(
+                        labelText: tx('ژمارەی تابلۆی ماتۆڕ *'),
+                        prefixIcon: const Icon(Icons.pin_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: colorCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'ڕەنگی ماتۆڕ',
-                            prefixIcon: const Icon(Icons.palette_outlined, size: 20),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                        ),
+                  pair(
+                    TextField(
+                      controller: colorCtrl,
+                      decoration: InputDecoration(
+                        labelText: tx('ڕەنگی ماتۆڕ'),
+                        prefixIcon: const Icon(Icons.palette_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: yearCtrl,
-                          decoration: InputDecoration(
-                            labelText: 'مۆدێل / ساڵ',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                        ),
+                    ),
+                    TextField(
+                      controller: yearCtrl,
+                      decoration: InputDecoration(
+                        labelText: tx('مۆدێل / ساڵ'),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 18),
-                  const Text('٣. دارایی و پشتڕاستکردنەوە (KYC & Finance)', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF113E2E))),
+                  Text(tx('٣. دارایی و پشتڕاستکردنەوە (KYC & Finance)'), style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF113E2E)))),
                   const SizedBox(height: 10),
                   TextField(
                     controller: cashCtrl,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      labelText: 'کاشی کۆکراوە (COD د.ع)',
+                      labelText: tx('کاشی کۆکراوە (COD د.ع)'),
                       prefixIcon: const Icon(Icons.payments_outlined, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const Text('٤. بەڵگەنامە یاساییەکان (وێنە یان PDF)', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF113E2E))),
+                  Text(tx('٤. بەڵگەنامە یاساییەکان (وێنە یان PDF)'), style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF113E2E)))),
                   const SizedBox(height: 6),
-                  const Text(
-                    'بۆ هەر بەڵگەیەک دەتوانیت وێنە (.jpg/.png) یان فایل PDF بار بکەیت',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  Text(
+                    tx('بۆ هەر بەڵگەیەک دەتوانیت وێنە (.jpg/.png) یان فایل PDF بار بکەیت'),
+                    style: TextStyle(fontSize: 11, color: RC.fg(Color(0xFF64748B))),
                   ),
                   const SizedBox(height: 10),
                   _buildAdminDocUploadCard(
@@ -898,7 +887,7 @@ class _DriversScreenState extends State<DriversScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const Text('٥. زمانەکان', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF113E2E))),
+                  Text(tx('٥. زمانەکان'), style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF113E2E)))),
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.all(6),
@@ -917,12 +906,12 @@ class _DriversScreenState extends State<DriversScreen> {
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 3),
                               child: ChoiceChip(
-                                label: Center(child: Text(opt.$2, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
+                                label: Center(child: Text(tx(opt.$2), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
                                 selected: language == opt.$1,
-                                selectedColor: Colors.white,
+                                selectedColor: RC.bg(Colors.white),
                                 backgroundColor: Colors.transparent,
                                 side: BorderSide(
-                                  color: language == opt.$1 ? const Color(0xFF16A34A) : Colors.transparent,
+                                  color: language == opt.$1 ? RC.bg(Color(0xFF16A34A)) : Colors.transparent,
                                 ),
                                 onSelected: (_) => setDialogState(() => language = opt.$1),
                               ),
@@ -933,47 +922,48 @@ class _DriversScreenState extends State<DriversScreen> {
                   ),
                   const SizedBox(height: 14),
                   SwitchListTile(
-                    title: const Text('مسدودکردنی هەژمار (Block account)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    title: Text(tx('مسدودکردنی هەژمار (Block account)'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                     subtitle: Text(
-                      isAccountActive
+                      tx(isAccountActive
                           ? 'هەژمار چالاکە — دەتوانێت بچێتە ژوورەوە'
-                          : 'مسدودە — دەبێت پەیوەندی بە ئادمین بکات (WhatsApp/Telegram)',
+                          : 'مسدودە — دەبێت پەیوەندی بە ئادمین بکات (WhatsApp/Telegram)'),
                       style: const TextStyle(fontSize: 11),
                     ),
                     value: !isAccountActive,
-                    activeTrackColor: const Color(0xFFFECACA),
-                    activeThumbColor: const Color(0xFFDC2626),
+                    activeTrackColor: RC.bg(Color(0xFFFECACA)),
+                    activeThumbColor: RC.bg(Color(0xFFDC2626)),
                     onChanged: (v) => setDialogState(() => isAccountActive = !v),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('پشتڕاستکردنەوەی شۆفێر (KYC Driver Verified)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                    subtitle: const Text('ڕێگەپێدراوە بۆ وەرگرتنی داواکاری لە ئەپی گەیاندن', style: TextStyle(fontSize: 11)),
+                    title: Text(tx('پشتڕاستکردنەوەی شۆفێر (KYC Driver Verified)'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    subtitle: Text(tx('ڕێگەپێدراوە بۆ وەرگرتنی داواکاری لە ئەپی گەیاندن'), style: TextStyle(fontSize: 11)),
                     value: isVerified,
-                    activeThumbColor: const Color(0xFF113E2E),
+                    activeThumbColor: RC.bg(Color(0xFF113E2E)),
                     onChanged: (v) => setDialogState(() => isVerified = v),
                   ),
                   SwitchListTile(
-                    title: const Text('پشتڕاستکردنەوەی ماتۆڕ (Vehicle Verified)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    title: Text(tx('پشتڕاستکردنەوەی ماتۆڕ (Vehicle Verified)'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                     value: isVehicleVerified,
-                    activeThumbColor: const Color(0xFF113E2E),
+                    activeThumbColor: RC.bg(Color(0xFF113E2E)),
                     onChanged: (v) => setDialogState(() => isVehicleVerified = v),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ],
               ),
             ),
+            ),
           ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.pop(ctx),
-              child: const Text('پاشگەزبوونەوە', style: TextStyle(color: Colors.grey)),
+              child: Text(tx('پاشگەزبوونەوە'), style: TextStyle(color: RC.fg(Colors.grey))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF113E2E),
-                foregroundColor: Colors.white,
+                backgroundColor: RC.bg(Color(0xFF113E2E)),
+                foregroundColor: RC.fg(Colors.white),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
@@ -1111,15 +1101,16 @@ class _DriversScreenState extends State<DriversScreen> {
                       }
                     },
               child: saving
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
                     )
-                  : Text(isEdit ? 'پاشەکەوتکردنی هەموو گۆڕانکارییەکان' : 'زیادکردنی شۆفێر'),
+                  : Text(tx(isEdit ? 'پاشەکەوتکردنی هەموو گۆڕانکارییەکان' : 'زیادکردنی شۆفێر')),
             ),
           ],
-        ),
+        );
+        },
       ),
     );
   }
@@ -1153,44 +1144,44 @@ class _DriversScreenState extends State<DriversScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: RC.bg(Color(0xFFF8FAFC)),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.badge_outlined, size: 18, color: Color(0xFF113E2E)),
+              Icon(Icons.badge_outlined, size: 18, color: RC.fg(Color(0xFF113E2E))),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                child: Text(tx(title), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: status == 'verified'
-                      ? const Color(0xFFDCFCE7)
+                      ? RC.bg(Color(0xFFDCFCE7))
                       : status == 'rejected'
-                          ? const Color(0xFFFEE2E2)
-                          : const Color(0xFFFEF3C7),
+                          ? RC.bg(Color(0xFFFEE2E2))
+                          : RC.bg(Color(0xFFFEF3C7)),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  status == 'verified'
+                  tx(status == 'verified'
                       ? 'پشتڕاستکراوە'
                       : status == 'rejected'
                           ? 'ڕەتکراوە'
-                          : 'چاوەڕوان',
+                          : 'چاوەڕوان'),
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                     color: status == 'verified'
-                        ? const Color(0xFF16A34A)
+                        ? RC.bg(Color(0xFF16A34A))
                         : status == 'rejected'
-                            ? const Color(0xFFDC2626)
-                            : const Color(0xFFD97706),
+                            ? RC.bg(Color(0xFFDC2626))
+                            : RC.bg(Color(0xFFD97706)),
                   ),
                 ),
               ),
@@ -1200,7 +1191,7 @@ class _DriversScreenState extends State<DriversScreen> {
           TextField(
             controller: numberCtrl,
             decoration: InputDecoration(
-              labelText: 'ژمارەی بەڵگەنامە',
+              labelText: tx('ژمارەی بەڵگەنامە'),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               isDense: true,
@@ -1210,15 +1201,15 @@ class _DriversScreenState extends State<DriversScreen> {
           DropdownButtonFormField<String>(
             initialValue: status,
             decoration: InputDecoration(
-              labelText: 'دۆخی پشتڕاستکردنەوە',
+              labelText: tx('دۆخی پشتڕاستکردنەوە'),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               isDense: true,
             ),
-            items: const [
-              DropdownMenuItem(value: 'pending', child: Text('چاوەڕوانی پشکنین')),
-              DropdownMenuItem(value: 'verified', child: Text('پشتڕاستکراوە')),
-              DropdownMenuItem(value: 'rejected', child: Text('ڕەتکراوە')),
+            items: [
+              DropdownMenuItem(value: 'pending', child: Text(tx('چاوەڕوانی پشکنین'))),
+              DropdownMenuItem(value: 'verified', child: Text(tx('پشتڕاستکراوە'))),
+              DropdownMenuItem(value: 'rejected', child: Text(tx('ڕەتکراوە'))),
             ],
             onChanged: (v) {
               if (v != null) onStatus(v);
@@ -1231,15 +1222,15 @@ class _DriversScreenState extends State<DriversScreen> {
                 child: OutlinedButton.icon(
                   onPressed: onPick,
                   icon: const Icon(Icons.upload_file_rounded, size: 18),
-                  label: Text(hasFile ? 'گۆڕینی وێنە / PDF' : 'بارکردنی وێنە / PDF'),
+                  label: Text(tx(hasFile ? 'گۆڕینی وێنە / PDF' : 'بارکردنی وێنە / PDF')),
                 ),
               ),
               if (hasFile) ...[
                 const SizedBox(width: 8),
                 IconButton(
-                  tooltip: 'سڕینەوەی فایل',
+                  tooltip: tx('سڕینەوەی فایل'),
                   onPressed: onClear,
-                  icon: const Icon(Icons.delete_outline, color: Color(0xFFDC2626)),
+                  icon: Icon(Icons.delete_outline, color: RC.fg(Color(0xFFDC2626))),
                 ),
               ],
             ],
@@ -1255,7 +1246,7 @@ class _DriversScreenState extends State<DriversScreen> {
                 decoration: BoxDecoration(
                   color: AdminSurfaces.of(context).card,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                 ),
                 child: Row(
                   children: [
@@ -1277,7 +1268,7 @@ class _DriversScreenState extends State<DriversScreen> {
                                       color: AdminSurfaces.of(context).chipFill,
                                       child: Icon(
                                         isPdf ? Icons.picture_as_pdf_rounded : Icons.broken_image_outlined,
-                                        color: isPdf ? const Color(0xFFDC2626) : const Color(0xFF64748B),
+                                        color: isPdf ? RC.fg(Color(0xFFDC2626)) : RC.bg(Color(0xFF64748B)),
                                       ),
                                     ),
                                   )
@@ -1285,7 +1276,7 @@ class _DriversScreenState extends State<DriversScreen> {
                                     color: AdminSurfaces.of(context).chipFill,
                                     child: Icon(
                                       isPdf ? Icons.picture_as_pdf_rounded : Icons.image_outlined,
-                                      color: isPdf ? const Color(0xFFDC2626) : const Color(0xFF64748B),
+                                      color: isPdf ? RC.fg(Color(0xFFDC2626)) : RC.bg(Color(0xFF64748B)),
                                     ),
                                   ),
                       ),
@@ -1296,36 +1287,36 @@ class _DriversScreenState extends State<DriversScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            fileLabel,
+                            tx(fileLabel),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            isPdf ? 'PDF — کرتە بکە بۆ کردنەوە' : 'وێنە — کرتە بکە بۆ بینین',
-                            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            tx(isPdf ? 'PDF — کرتە بکە بۆ کردنەوە' : 'وێنە — کرتە بکە بۆ بینین'),
+                            style: TextStyle(fontSize: 11, color: RC.fg(Color(0xFF64748B))),
                           ),
                         ],
                       ),
                     ),
                     Icon(
                       isPdf ? Icons.open_in_new_rounded : Icons.visibility_rounded,
-                      color: const Color(0xFF113E2E),
+                      color: RC.fg(Color(0xFF113E2E)),
                     ),
                   ],
                 ),
               ),
             )
           else
-            const Row(
+            Row(
               children: [
-                Icon(Icons.insert_drive_file_outlined, size: 16, color: Color(0xFF64748B)),
+                Icon(Icons.insert_drive_file_outlined, size: 16, color: RC.fg(Color(0xFF64748B))),
                 SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'هیچ فایلێک هەڵنەبژێردراوە',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    tx('هیچ فایلێک هەڵنەبژێردراوە'),
+                    style: TextStyle(fontSize: 11, color: RC.fg(Color(0xFF64748B))),
                   ),
                 ),
               ],
@@ -1352,8 +1343,8 @@ class _DriversScreenState extends State<DriversScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(courier.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                  Text(courier.phone, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                  Text(tx(courier.name), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  Text(tx(courier.phone), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF64748B)))),
                 ],
               ),
             ),
@@ -1411,9 +1402,9 @@ class _DriversScreenState extends State<DriversScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              const Align(
+              Align(
                 alignment: Alignment.centerRight,
-                child: Text('بەڵگەنامە یاساییەکان', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                child: Text(tx('بەڵگەنامە یاساییەکان'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
               ),
               const SizedBox(height: 8),
               ...(['info_card', 'national_id', 'driver_license', 'vehicle_registration'].map((type) {
@@ -1433,26 +1424,26 @@ class _DriversScreenState extends State<DriversScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          _docTypeLabel(type),
+                          tx(_docTypeLabel(type)),
                           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                         ),
                       ),
                       Text(
-                        '$statusKu • $fileHint',
+                        tx('$statusKu • $fileHint'),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                           color: doc.status == 'verified'
-                              ? const Color(0xFF16A34A)
+                              ? RC.bg(Color(0xFF16A34A))
                               : doc.status == 'rejected'
-                                  ? const Color(0xFFDC2626)
-                                  : const Color(0xFFD97706),
+                                  ? RC.bg(Color(0xFFDC2626))
+                                  : RC.bg(Color(0xFFD97706)),
                         ),
                       ),
                       if (hasFile) ...[
                         const SizedBox(width: 6),
                         IconButton(
-                          tooltip: 'بینین / کردنەوە',
+                          tooltip: tx('بینین / کردنەوە'),
                           visualDensity: VisualDensity.compact,
                           onPressed: () => _previewDocumentFile(
                             title: _docTypeLabel(type),
@@ -1463,7 +1454,7 @@ class _DriversScreenState extends State<DriversScreen> {
                                 ? Icons.picture_as_pdf_rounded
                                 : Icons.visibility_rounded,
                             size: 18,
-                            color: const Color(0xFF113E2E),
+                            color: RC.fg(Color(0xFF113E2E)),
                           ),
                         ),
                       ],
@@ -1481,15 +1472,15 @@ class _DriversScreenState extends State<DriversScreen> {
               _showAddCourierDialog(existing: courier);
             },
             icon: const Icon(Icons.edit_rounded, size: 16),
-            label: const Text('دەستکاریکردنی هەموو بەشەکان'),
+            label: Text(tx('دەستکاریکردنی هەموو بەشەکان')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF113E2E),
-              foregroundColor: Colors.white,
+              backgroundColor: RC.bg(Color(0xFF113E2E)),
+              foregroundColor: RC.fg(Colors.white),
             ),
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('داخستن'),
+            child: Text(tx('داخستن')),
           ),
         ],
       ),
@@ -1500,8 +1491,8 @@ class _DriversScreenState extends State<DriversScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(color: AdminSurfaces.of(context).textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: Color(0xFF0F172A))),
+        Text(tx(label), style: TextStyle(color: AdminSurfaces.of(context).textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(tx(value), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: RC.fg(Color(0xFF0F172A)))),
       ],
     );
   }
@@ -1514,7 +1505,7 @@ class _DriversScreenState extends State<DriversScreen> {
     return Directionality(
       textDirection: widget.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
       child: Container(
-        color: const Color(0xFFF8F9FA),
+        color: RC.bg(Color(0xFFF8F9FA)),
         child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(horizontal: AdminBreakpoints.pagePadH(context), vertical: 16),
           child: Column(
@@ -1530,14 +1521,14 @@ class _DriversScreenState extends State<DriversScreen> {
                 children: [
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF113E2E),
-                      foregroundColor: Colors.white,
+                      backgroundColor: RC.bg(Color(0xFF113E2E)),
+                      foregroundColor: RC.fg(Colors.white),
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     onPressed: () => _showAddCourierDialog(),
-                    icon: const Icon(Icons.add, size: 18, color: Colors.white),
+                    icon: Icon(Icons.add, size: 18, color: RC.fg(Colors.white)),
                     label: Text(AppStrings.tr('add_courier', widget.lang),
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
                     ),
@@ -1697,8 +1688,8 @@ class _DriversScreenState extends State<DriversScreen> {
                 title: AppStrings.tr('kpi_total_couriers', widget.lang),
                 value: _totalDriversKPI,
                 icon: Icons.groups_rounded,
-                iconBg: const Color(0xFFF1F5F9),
-                iconColor: const Color(0xFF475569),
+                iconBg: RC.bg(Color(0xFFF1F5F9)),
+                iconColor: RC.fg(Color(0xFF475569)),
               ),
             ),
             // Card 2: چالاک
@@ -1708,8 +1699,8 @@ class _DriversScreenState extends State<DriversScreen> {
                 title: AppStrings.tr('active', widget.lang),
                 value: _activeDriversKPI,
                 icon: Icons.circle,
-                iconBg: const Color(0xFFDCFCE7),
-                iconColor: const Color(0xFF16A34A),
+                iconBg: RC.bg(Color(0xFFDCFCE7)),
+                iconColor: RC.fg(Color(0xFF16A34A)),
               ),
             ),
             // Card 3: لە دلیڤەری
@@ -1719,8 +1710,8 @@ class _DriversScreenState extends State<DriversScreen> {
                 title: AppStrings.tr('kpi_in_delivery', widget.lang),
                 value: _inDeliveryKPI,
                 icon: Icons.two_wheeler_rounded,
-                iconBg: const Color(0xFFEFF6FF),
-                iconColor: const Color(0xFF2563EB),
+                iconBg: RC.bg(Color(0xFFEFF6FF)),
+                iconColor: RC.fg(Color(0xFF2563EB)),
               ),
             ),
             // Card 4: چاوەڕوانی پەسەندکردن (Leftmost)
@@ -1730,8 +1721,8 @@ class _DriversScreenState extends State<DriversScreen> {
                 title: AppStrings.tr('kpi_pending_approval', widget.lang),
                 value: _pendingApprovalKPI,
                 icon: Icons.access_time_rounded,
-                iconBg: const Color(0xFFFEF3C7),
-                iconColor: const Color(0xFFD97706),
+                iconBg: RC.bg(Color(0xFFFEF3C7)),
+                iconColor: RC.fg(Color(0xFFD97706)),
               ),
             ),
           ],
@@ -1755,7 +1746,7 @@ class _DriversScreenState extends State<DriversScreen> {
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1779,7 +1770,7 @@ class _DriversScreenState extends State<DriversScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                title,
+                tx(title),
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
@@ -1788,7 +1779,7 @@ class _DriversScreenState extends State<DriversScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                value,
+                tx(value),
                 style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
@@ -1870,12 +1861,12 @@ class _DriversScreenState extends State<DriversScreen> {
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
+          icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
@@ -1888,9 +1879,9 @@ class _DriversScreenState extends State<DriversScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(icon, size: 15, color: const Color(0xFF64748B)),
+                    Icon(icon, size: 15, color: RC.fg(Color(0xFF64748B))),
                     const SizedBox(width: 6),
-                    Text(labels != null && i < labels.length ? labels[i] : items[i]),
+                    Text(tx(labels != null && i < labels.length ? labels[i] : items[i])),
                   ],
                 ),
               ),
@@ -1912,7 +1903,7 @@ class _DriversScreenState extends State<DriversScreen> {
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1946,9 +1937,9 @@ class _DriversScreenState extends State<DriversScreen> {
                     _mapController.move(const LatLng(34.6295, 45.3159), 14.2);
                   },
                   borderRadius: BorderRadius.circular(8),
-                  child: const Padding(
+                  child: Padding(
                     padding: EdgeInsets.all(4),
-                    child: Icon(Icons.crop_free_rounded, size: 18, color: Color(0xFF64748B)),
+                    child: Icon(Icons.crop_free_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
                   ),
                 ),
               ],
@@ -1960,12 +1951,12 @@ class _DriversScreenState extends State<DriversScreen> {
             height: 380,
             child: FlutterMap(
               mapController: _mapController,
-              options: const MapOptions(
+              options: MapOptions(
                 initialCenter: LatLng(34.6295, 45.3159),
                 initialZoom: 13.5,
                 minZoom: 10.0,
                 maxZoom: 18.0,
-                backgroundColor: Color(0xFFF1F5F9),
+                backgroundColor: RC.bg(Color(0xFFF1F5F9)),
               ),
               children: [
                 MapboxTiles.layer(
@@ -1983,14 +1974,14 @@ class _DriversScreenState extends State<DriversScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.9),
+                          color: RC.bg(Colors.white).withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Text(
-                            'کەلار',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                            tx('کەلار'),
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF0F172A))),
                           ),
                         ),
                       ),
@@ -2008,10 +1999,10 @@ class _DriversScreenState extends State<DriversScreen> {
                           child: Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: isDelivery ? const Color(0xFFEA580C) : const Color(0xFF16A34A),
-                              border: Border.all(color: Colors.white, width: 2),
-                              boxShadow: const [
-                                BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                              color: isDelivery ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFF16A34A)),
+                              border: Border.all(color: RC.bg(Colors.white), width: 2),
+                              boxShadow: [
+                                BoxShadow(color: RC.bg(Colors.black26), blurRadius: 4, offset: Offset(0, 2)),
                               ],
                             ),
                             child: Center(
@@ -2038,11 +2029,11 @@ class _DriversScreenState extends State<DriversScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _LegendItem(
-                  color: const Color(0xFF16A34A),
+                  color: RC.bg(Color(0xFF16A34A)),
                   text: '${AppStrings.tr('active', widget.lang)} ($_activeDriversKPI)',
                 ),
                 _LegendItem(
-                  color: const Color(0xFFEA580C),
+                  color: RC.bg(Color(0xFFEA580C)),
                   text: '${AppStrings.tr('kpi_in_delivery', widget.lang)} ($_inDeliveryKPI)',
                 ),
                 _LegendItem(
@@ -2070,7 +2061,7 @@ class _DriversScreenState extends State<DriversScreen> {
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -2082,10 +2073,10 @@ class _DriversScreenState extends State<DriversScreen> {
             return Column(
               children: [
                 if (list.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.all(40),
                     child: Center(
-                      child: Text('هیچ ماتۆرسوارێک بەردەست نییە', style: TextStyle(color: Color(0xFF94A3B8))),
+                      child: Text(tx('هیچ ماتۆرسوارێک بەردەست نییە'), style: TextStyle(color: RC.fg(Color(0xFF94A3B8)))),
                     ),
                   )
                 else
@@ -2113,22 +2104,22 @@ class _DriversScreenState extends State<DriversScreen> {
                         ),
                         child: Row(
                           children: [
-                            Expanded(flex: 3, child: Text('ماتۆرسوار', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text('ژمارەی مۆبایل', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('شار', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('داواکارییەکانی ئەمڕۆ', textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text(tx('ماتۆرسوار'), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text(tx('ژمارەی مۆبایل'), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(tx('شار'), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(tx('داواکارییەکانی ئەمڕۆ'), textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(tx('دۆخ'), textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(tx('کردار'), textAlign: TextAlign.left, style: _headerStyle)),
                           ],
                         ),
                       ),
 
           // Table Rows
           if (list.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(40),
               child: Center(
-                child: Text('هیچ ماتۆرسوارێک بەردەست نییە', style: TextStyle(color: Color(0xFF94A3B8))),
+                child: Text(tx('هیچ ماتۆرسوارێک بەردەست نییە'), style: TextStyle(color: RC.fg(Color(0xFF94A3B8)))),
               ),
             )
           else
@@ -2155,12 +2146,12 @@ class _DriversScreenState extends State<DriversScreen> {
                             const SizedBox(width: 8),
                             Flexible(
                               child: Text(
-                                c.name,
+                                tx(c.name),
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 12.5,
-                                  color: Color(0xFF1E293B),
+                                  color: RC.fg(Color(0xFF1E293B)),
                                 ),
                               ),
                             ),
@@ -2172,7 +2163,7 @@ class _DriversScreenState extends State<DriversScreen> {
                       Expanded(
                         flex: 3,
                         child: Text(
-                          c.phone,
+                          tx(c.phone),
                           textAlign: TextAlign.right,
                           style: TextStyle(
                             fontSize: 12,
@@ -2186,7 +2177,7 @@ class _DriversScreenState extends State<DriversScreen> {
                       Expanded(
                         flex: 2,
                         child: Text(
-                          c.city,
+                          tx(c.city),
                           textAlign: TextAlign.right,
                           style: TextStyle(
                             fontSize: 12,
@@ -2200,7 +2191,7 @@ class _DriversScreenState extends State<DriversScreen> {
                       Expanded(
                         flex: 2,
                         child: Text(
-                          '${c.todayOrders}',
+                          tx('${c.todayOrders}'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 12.5,
@@ -2232,7 +2223,7 @@ class _DriversScreenState extends State<DriversScreen> {
                                   color: AdminSurfaces.of(context).chipFill,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF475569)),
+                                child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
                               ),
                             ),
                             const SizedBox(width: 6),
@@ -2246,7 +2237,7 @@ class _DriversScreenState extends State<DriversScreen> {
                                   color: AdminSurfaces.of(context).chipFill,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF475569)),
+                                child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
                               ),
                             ),
                           ],
@@ -2283,7 +2274,7 @@ class _DriversScreenState extends State<DriversScreen> {
         runSpacing: 10,
         children: [
           Text(
-            '${_toDigits(list.length)} لە ${_toDigits(_couriers.length)} دانە نمایش دەکرێت',
+            tx('${_toDigits(list.length)} لە ${_toDigits(_couriers.length)} دانە نمایش دەکرێت'),
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -2328,17 +2319,17 @@ class _DriversScreenState extends State<DriversScreen> {
               CircleAvatar(radius: 18, backgroundImage: NetworkImage(c.avatarUrl)),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                child: Text(tx(c.name), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
               ),
               _buildStatusBadge(c.status),
             ],
           ),
           const SizedBox(height: 6),
-          Text('${c.city} • ${c.phone}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary)),
+          Text(tx('${c.city} • ${c.phone}'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary)),
           const SizedBox(height: 4),
           Text(
-            'ئەمڕۆ: ${c.todayOrders} داواکاری',
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFFEA580C)),
+            tx('ئەمڕۆ: ${c.todayOrders} داواکاری'),
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: RC.fg(Color(0xFFEA580C))),
           ),
           const SizedBox(height: 8),
           Row(
@@ -2350,7 +2341,7 @@ class _DriversScreenState extends State<DriversScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
-                  child: const Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF475569)),
+                  child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
                 ),
               ),
               const SizedBox(width: 6),
@@ -2360,7 +2351,7 @@ class _DriversScreenState extends State<DriversScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
-                  child: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF475569)),
+                  child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
                 ),
               ),
             ],
@@ -2378,19 +2369,19 @@ class _DriversScreenState extends State<DriversScreen> {
     switch (status) {
       case 'on_the_way':
         label = AppStrings.tr('kpi_in_delivery', widget.lang);
-        bg = const Color(0xFFFFEDD5);
-        text = const Color(0xFFEA580C);
+        bg = RC.bg(Color(0xFFFFEDD5));
+        text = RC.bg(Color(0xFFEA580C));
         break;
       case 'offline':
         label = AppStrings.tr('inactive', widget.lang);
-        bg = const Color(0xFFF1F5F9);
-        text = const Color(0xFF64748B);
+        bg = RC.bg(Color(0xFFF1F5F9));
+        text = RC.bg(Color(0xFF64748B));
         break;
       case 'active':
       default:
         label = AppStrings.tr('active', widget.lang);
-        bg = const Color(0xFFDCFCE7);
-        text = const Color(0xFF16A34A);
+        bg = RC.bg(Color(0xFFDCFCE7));
+        text = RC.bg(Color(0xFF16A34A));
         break;
     }
 
@@ -2401,7 +2392,7 @@ class _DriversScreenState extends State<DriversScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
-        label,
+        tx(label),
         style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w800,
@@ -2419,16 +2410,16 @@ class _DriversScreenState extends State<DriversScreen> {
         width: 28,
         height: 28,
         decoration: BoxDecoration(
-          color: active ? const Color(0xFF113E2E) : Colors.transparent,
+          color: active ? RC.bg(Color(0xFF113E2E)) : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Center(
           child: Text(
-            '$page',
+            tx('$page'),
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: active ? Colors.white : const Color(0xFF64748B),
+              color: active ? RC.bg(Colors.white) : RC.bg(Color(0xFF64748B)),
             ),
           ),
         ),
@@ -2448,7 +2439,7 @@ class _DriversScreenState extends State<DriversScreen> {
           borderRadius: BorderRadius.circular(6),
         ),
         child: Center(
-          child: Icon(icon, size: 18, color: const Color(0xFF94A3B8)),
+          child: Icon(icon, size: 18, color: RC.fg(Color(0xFF94A3B8))),
         ),
       ),
     );
@@ -2479,8 +2470,8 @@ class _LegendItem extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Text(
-          text,
-          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+          tx(text),
+          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF64748B))),
         ),
       ],
     );

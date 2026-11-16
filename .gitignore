@@ -25,3 +25,6 @@ rega_backend/public/storage
 rega_backend/public/hot
 rega_backend/storage/*.key
 
+ 
+.claude/
+*.tar.gz

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/app_theme.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 class StatKpiCard extends StatelessWidget {
   final String title;
   final String value;
@@ -44,7 +46,7 @@ class StatKpiCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              subtitle!,
+              tx(subtitle!),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -73,7 +75,7 @@ class StatKpiCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        title,
+                        tx(title),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -87,7 +89,7 @@ class StatKpiCard extends StatelessWidget {
                         fit: BoxFit.scaleDown,
                         alignment: AlignmentDirectional.centerStart,
                         child: Text(
-                          value,
+                          tx(value),
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w900,
@@ -131,7 +133,7 @@ class StatKpiCard extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: AlignmentDirectional.centerStart,
                 child: Text(
-                  value,
+                  tx(value),
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
@@ -141,7 +143,7 @@ class StatKpiCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                title,
+                tx(title),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -173,12 +175,12 @@ class StatusBadge extends StatelessWidget {
         return RegaColors.blue;
       case 'ready':
       case 'approved':
-        return const Color(0xFF0D9488);
+        return RC.bg(Color(0xFF0D9488));
       case 'picked_up':
         return RegaColors.purple;
       case 'on_the_way':
       case 'arrived_customer':
-        return const Color(0xFF0284C7);
+        return RC.bg(Color(0xFF0284C7));
       case 'delivered':
       case 'verified':
       case 'completed':
@@ -189,7 +191,7 @@ class StatusBadge extends StatelessWidget {
       case 'urgent':
         return RegaColors.crimson;
       default:
-        return const Color(0xFF64748B);
+        return RC.bg(Color(0xFF64748B));
     }
   }
 
@@ -204,7 +206,7 @@ class StatusBadge extends StatelessWidget {
         border: Border.all(color: c.withValues(alpha: 0.35)),
       ),
       child: Text(
-        AppStrings.statusLabel(status, lang),
+        tx(AppStrings.statusLabel(status, lang)),
         style: TextStyle(
           color: c,
           fontSize: 11.5,
@@ -235,7 +237,7 @@ class SectionHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          title,
+          tx(title),
           style: TextStyle(
             fontSize: narrow ? 16 : 18,
             fontWeight: FontWeight.w900,
@@ -245,7 +247,7 @@ class SectionHeader extends StatelessWidget {
         if (subtitle != null) ...[
           const SizedBox(height: 2),
           Text(
-            subtitle!,
+            tx(subtitle!),
             style: TextStyle(
               fontSize: 12,
               color: surfaces.textSecondary,
@@ -298,7 +300,7 @@ class ErrorRetryView extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              message,
+              tx(message),
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
             ),
@@ -306,7 +308,7 @@ class ErrorRetryView extends StatelessWidget {
             ElevatedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('دووبارە هەوڵبدەرەوە'),
+              label: Text(tx('دووبارە هەوڵبدەرەوە')),
             ),
           ],
         ),
@@ -367,7 +369,7 @@ class _KalarFleetRadarMapState extends State<KalarFleetRadarMap>
       borderRadius: BorderRadius.circular(18),
       child: Container(
         height: 310,
-        color: const Color(0xFF0F172A),
+        color: RC.bg(Color(0xFF0F172A)),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final size = Size(constraints.maxWidth, constraints.maxHeight);
@@ -392,13 +394,13 @@ class _KalarFleetRadarMapState extends State<KalarFleetRadarMap>
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.55),
+                          color: RC.bg(Colors.black).withValues(alpha: 0.55),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white12),
+                          border: Border.all(color: RC.bg(Colors.white12)),
                         ),
-                        child: const Text(
-                          '📍 کەلار • ڕووباری سیروان • قەڵای شێروانە',
-                          style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
+                        child: Text(
+                          tx('📍 کەلار • ڕووباری سیروان • قەڵای شێروانە'),
+                          style: TextStyle(color: RC.fg(Colors.white70), fontSize: 11, fontWeight: FontWeight.w600),
                         ),
                       ),
                     ),
@@ -413,17 +415,17 @@ class _KalarFleetRadarMapState extends State<KalarFleetRadarMap>
                         left: pos.dx - 14,
                         top: pos.dy - 14,
                         child: Tooltip(
-                          message: '${s['name_ku'] ?? ''} (${online ? 'ئۆنلاین' : 'داخراو'})',
+                          message: tx('${s['name_ku'] ?? ''} (${online ? 'ئۆنلاین' : 'داخراو'})'),
                           child: Container(
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                              color: online ? RegaColors.gold : const Color(0xFF475569),
+                              color: online ? RegaColors.gold : RC.bg(Color(0xFF475569)),
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
+                              border: Border.all(color: RC.bg(Colors.white), width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: (online ? RegaColors.gold : Colors.black).withValues(alpha: 0.45),
+                                  color: (online ? RegaColors.gold : RC.bg(Colors.black)).withValues(alpha: 0.45),
                                   blurRadius: 8,
                                 ),
                               ],
@@ -431,7 +433,7 @@ class _KalarFleetRadarMapState extends State<KalarFleetRadarMap>
                             child: Icon(
                               Icons.storefront_rounded,
                               size: 15,
-                              color: online ? const Color(0xFF0F172A) : Colors.white70,
+                              color: online ? RC.fg(Color(0xFF0F172A)) : RC.bg(Colors.white70),
                             ),
                           ),
                         ),
@@ -446,15 +448,15 @@ class _KalarFleetRadarMapState extends State<KalarFleetRadarMap>
                       final busy = d['has_active_order'] == true;
                       final pos = _latLngToPos(lat, lng, size);
                       final pinColor = !online
-                          ? const Color(0xFF64748B)
-                          : (busy ? const Color(0xFF38BDF8) : RegaColors.emerald);
+                          ? RC.bg(Color(0xFF64748B))
+                          : (busy ? RC.bg(Color(0xFF38BDF8)) : RegaColors.emerald);
 
                       return Positioned(
                         left: pos.dx - 18,
                         top: pos.dy - 18,
                         child: Tooltip(
                           message:
-                              '🏍️ ${d['name'] ?? ''} (${d['driver_code'] ?? ''}) • ${busy ? 'لە گەیاندندایە' : (online ? 'ئامادەیە' : 'ئۆفلاین')}',
+                              tx('🏍️ ${d['name'] ?? ''} (${d['driver_code'] ?? ''}) • ${busy ? 'لە گەیاندندایە' : (online ? 'ئامادەیە' : 'ئۆفلاین')}'),
                           child: SizedBox(
                             width: 36,
                             height: 36,
@@ -476,12 +478,12 @@ class _KalarFleetRadarMapState extends State<KalarFleetRadarMap>
                                   decoration: BoxDecoration(
                                     color: pinColor,
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
+                                    border: Border.all(color: RC.bg(Colors.white), width: 2),
                                   ),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.two_wheeler_rounded,
                                     size: 14,
-                                    color: Colors.white,
+                                    color: RC.fg(Colors.white),
                                   ),
                                 ),
                               ],
@@ -513,7 +515,7 @@ class _RadarLegendPill extends StatelessWidget {
         children: [
           Icon(Icons.circle, size: 9, color: color),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(color: Colors.white, fontSize: narrow ? 9.5 : 10.5)),
+          Text(tx(label), style: TextStyle(color: RC.fg(Colors.white), fontSize: narrow ? 9.5 : 10.5)),
         ],
       );
     }
@@ -522,9 +524,9 @@ class _RadarLegendPill extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.72),
       padding: EdgeInsets.symmetric(horizontal: narrow ? 8 : 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.6),
+        color: RC.bg(Colors.black).withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: RC.bg(Colors.white12)),
       ),
       child: Wrap(
         spacing: narrow ? 8 : 10,
@@ -533,7 +535,7 @@ class _RadarLegendPill extends StatelessWidget {
         children: [
           item(RegaColors.gold, 'فرۆشگا'),
           item(RegaColors.emerald, narrow ? 'شۆفێر' : 'شۆفێری ئامادە'),
-          item(const Color(0xFF38BDF8), 'لە گەیاندن'),
+          item(RC.bg(Color(0xFF38BDF8)), 'لە گەیاندن'),
         ],
       ),
     );
@@ -547,7 +549,7 @@ class _KalarRadarGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = const Color(0xFF1E293B)
+      ..color = RC.bg(Color(0xFF1E293B))
       ..strokeWidth = 1;
 
     for (double x = 0; x < size.width; x += 36) {
@@ -559,7 +561,7 @@ class _KalarRadarGridPainter extends CustomPainter {
 
     // Sirwan River curve along eastern/southern edge
     final riverPaint = Paint()
-      ..color = const Color(0xFF0EA5E9).withValues(alpha: 0.22)
+      ..color = RC.bg(Color(0xFF0EA5E9)).withValues(alpha: 0.22)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 14
       ..strokeCap = StrokeCap.round;
@@ -571,7 +573,7 @@ class _KalarRadarGridPainter extends CustomPainter {
 
     // Kalar arterial ring roads
     final roadPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.10)
+      ..color = RC.bg(Colors.white).withValues(alpha: 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
 

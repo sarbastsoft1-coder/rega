@@ -10,6 +10,8 @@ import 'customers_screen.dart';
 import 'live_radar_dialog.dart';
 import 'marketing_screen.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 class CustomerPartScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
@@ -91,7 +93,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
+        content: Text(tx(msg)),
         backgroundColor: error ? RegaColors.crimson : RegaColors.emeraldDark,
       ),
     );
@@ -107,7 +109,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: Text('پڕۆفایلی کڕیار — ${detail['name'] ?? ''}'),
+          title: Text(tx('پڕۆفایلی کڕیار — ${detail['name'] ?? ''}')),
           content: SizedBox(
             width: (MediaQuery.sizeOf(context).width * 0.92).clamp(280.0, 560.0),
             child: SingleChildScrollView(
@@ -115,34 +117,34 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('📞 مۆبایل: ${detail['phone'] ?? '-'}  |  ✉️ ئیمەیڵ: ${detail['email'] ?? '-'}'),
+                  Text(tx('📞 مۆبایل: ${detail['phone'] ?? '-'}  |  ✉️ ئیمەیڵ: ${detail['email'] ?? '-'}')),
                   const Divider(height: 24),
-                  const Text('📍 ناونیشانە تۆمارکراوەکان لە کەلار:', style: TextStyle(fontWeight: FontWeight.w900)),
+                  Text(tx('📍 ناونیشانە تۆمارکراوەکان لە کەلار:'), style: TextStyle(fontWeight: FontWeight.w900)),
                   const SizedBox(height: 8),
                   if (addresses.isEmpty)
-                    const Text('هیچ ناونیشانێک تۆمار نەکراوە')
+                    Text(tx('هیچ ناونیشانێک تۆمار نەکراوە'))
                   else
                     ...addresses.map((a) {
                       final m = a as Map<String, dynamic>;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 6),
-                        child: Text('• [${m['label'] ?? 'ماڵەوە'}] ${m['address_line'] ?? ''} (${m['neighborhood']?['name_ku'] ?? ''})'),
+                        child: Text(tx('• [${m['label'] ?? 'ماڵەوە'}] ${m['address_line'] ?? ''} (${m['neighborhood']?['name_ku'] ?? ''})')),
                       );
                     }),
                   const Divider(height: 24),
-                  Text('🛍️ دوایین داواکارییەکان (${orders.length}):', style: const TextStyle(fontWeight: FontWeight.w900)),
+                  Text(tx('🛍️ دوایین داواکارییەکان (${orders.length}):'), style: const TextStyle(fontWeight: FontWeight.w900)),
                   const SizedBox(height: 8),
                   ...orders.map((o) {
                     final m = o as Map<String, dynamic>;
                     return ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: Text('${m['order_number']}  •  🏪 ${m['store']?['name_ku'] ?? '-'}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text('📍 ${m['delivery_address'] ?? ''}'),
+                      title: Text(tx('${m['order_number']}  •  🏪 ${m['store']?['name_ku'] ?? '-'}'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(tx('📍 ${m['delivery_address'] ?? ''}')),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(formatIqd(m['total_amount'] as num?, lang: widget.lang), style: const TextStyle(fontWeight: FontWeight.w900)),
+                          Text(tx(formatIqd(m['total_amount'] as num?, lang: widget.lang)), style: const TextStyle(fontWeight: FontWeight.w900)),
                           const SizedBox(width: 8),
                           StatusBadge(status: m['status']?.toString() ?? 'pending', lang: widget.lang),
                         ],
@@ -154,7 +156,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('داخستن')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('داخستن'))),
           ],
         ),
       );
@@ -177,7 +179,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
         ? (_neighborhoods.first as Map<String, dynamic>)['id'] as int
         : null;
 
-    final addrCtrl = TextEditingController(text: 'کەلار - گەڕەکی شەهیدان، نزیک قوتابخانەی کەلار');
+    final addrCtrl = TextEditingController(text: tx('کەلار - گەڕەکی شەهیدان، نزیک قوتابخانەی کەلار'));
     final couponCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
     String paymentMethod = 'cash';
@@ -193,7 +195,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
 
           return AlertDialog(
             insetPadding: AdminBreakpoints.dialogInset(ctx),
-            title: const Text('تۆمارکردنی داواکاری ڕاستەوخۆ بۆ کڕیار (Live PostgreSQL Order)'),
+            title: Text(tx('تۆمارکردنی داواکاری ڕاستەوخۆ بۆ کڕیار (Live PostgreSQL Order)')),
             content: SizedBox(
               width: AdminBreakpoints.dialogWidth(ctx, max: 580),
               child: SingleChildScrollView(
@@ -203,12 +205,12 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                   children: [
                     DropdownButtonFormField<int?>(
                       initialValue: selectedCustomerId,
-                      decoration: const InputDecoration(labelText: 'هەڵبژاردنی کڕیار *'),
+                      decoration: InputDecoration(labelText: tx('هەڵبژاردنی کڕیار *')),
                       items: _vipCustomers.map((c) {
                         final m = c as Map<String, dynamic>;
                         return DropdownMenuItem<int?>(
                           value: m['id'] as int,
-                          child: Text('${m['name']} (${m['phone']})'),
+                          child: Text(tx('${m['name']} (${m['phone']})')),
                         );
                       }).toList(),
                       onChanged: (v) => setDialogState(() => selectedCustomerId = v),
@@ -219,12 +221,12 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                         Expanded(
                           child: DropdownButtonFormField<int>(
                             initialValue: selectedStoreId,
-                            decoration: const InputDecoration(labelText: 'فرۆشگا / چێشتخانە *'),
+                            decoration: InputDecoration(labelText: tx('فرۆشگا / چێشتخانە *')),
                             items: _stores.map((s) {
                               final m = s as Map<String, dynamic>;
                               return DropdownMenuItem<int>(
                                 value: m['id'] as int,
-                                child: Text(m['name_ku']?.toString() ?? ''),
+                                child: Text(tx(m['name_ku']?.toString() ?? '')),
                               );
                             }).toList(),
                             onChanged: (v) {
@@ -240,12 +242,12 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                         Expanded(
                           child: DropdownButtonFormField<int?>(
                             initialValue: selectedZoneId,
-                            decoration: const InputDecoration(labelText: 'گەڕەکی کەلار'),
+                            decoration: InputDecoration(labelText: tx('گەڕەکی کەلار')),
                             items: _neighborhoods.map((z) {
                               final m = z as Map<String, dynamic>;
                               return DropdownMenuItem<int?>(
                                 value: m['id'] as int,
-                                child: Text('${m['name_ku']} (${m['delivery_fee']} د.ع)'),
+                                child: Text(tx('${m['name_ku']} (${m['delivery_fee']} د.ع)')),
                               );
                             }).toList(),
                             onChanged: (v) => setDialogState(() => selectedZoneId = v),
@@ -256,15 +258,15 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                     const SizedBox(height: 12),
                     TextField(
                       controller: addrCtrl,
-                      decoration: const InputDecoration(labelText: 'ناونیشانی تەواوی گەیاندن *'),
+                      decoration: InputDecoration(labelText: tx('ناونیشانی تەواوی گەیاندن *')),
                     ),
                     const SizedBox(height: 14),
-                    const Text('🍱 هەڵبژاردنی بەرهەمەکان:', style: TextStyle(fontWeight: FontWeight.w900)),
+                    Text(tx('🍱 هەڵبژاردنی بەرهەمەکان:'), style: TextStyle(fontWeight: FontWeight.w900)),
                     const SizedBox(height: 8),
                     if (storeProducts.isEmpty)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.all(8.0),
-                        child: Text('ئەم فرۆشگایە هیچ بەرهەمێکی تێدا نییە'),
+                        child: Text(tx('ئەم فرۆشگایە هیچ بەرهەمێکی تێدا نییە')),
                       )
                     else
                       ...storeProducts.map((raw) {
@@ -276,13 +278,13 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.withValues(alpha: 0.25)),
+                            border: Border.all(color: RC.bg(Colors.grey).withValues(alpha: 0.25)),
                           ),
                           child: Row(
                             children: [
                               Expanded(
                                 child: Text(
-                                  '${p['name_ku']} — ${formatIqd(p['discount_price'] ?? p['price'], lang: widget.lang)}',
+                                  tx('${p['name_ku']} — ${formatIqd(p['discount_price'] ?? p['price'], lang: widget.lang)}'),
                                   style: const TextStyle(fontWeight: FontWeight.w700),
                                 ),
                               ),
@@ -298,7 +300,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                                     : null,
                                 icon: const Icon(Icons.remove_circle_outline_rounded),
                               ),
-                              Text('$qty', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                              Text(tx('$qty'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
                               IconButton(
                                 onPressed: () => setDialogState(() => cartQty[pid] = qty + 1),
                                 icon: const Icon(Icons.add_circle_rounded, color: RegaColors.emeraldDark),
@@ -312,12 +314,12 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                       children: [
                         Expanded(
                           child: InputDecorator(
-                            decoration: const InputDecoration(labelText: 'شێوازی پارەدان'),
+                            decoration: InputDecoration(labelText: tx('شێوازی پارەدان')),
                             child: Text(
-                              'کاش لە کاتی وەرگرتن (COD)',
+                              tx('کاش لە کاتی وەرگرتن (COD)'),
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
-                                color: Colors.grey.shade800,
+                                color: RC.fg(Colors.grey.shade800),
                               ),
                             ),
                           ),
@@ -326,7 +328,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                         Expanded(
                           child: TextField(
                             controller: couponCtrl,
-                            decoration: const InputDecoration(labelText: 'کۆپۆنی داشکاندن (نمونە: REGA25)'),
+                            decoration: InputDecoration(labelText: tx('کۆپۆنی داشکاندن (نمونە: REGA25)')),
                           ),
                         ),
                       ],
@@ -334,14 +336,14 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                     const SizedBox(height: 10),
                     TextField(
                       controller: notesCtrl,
-                      decoration: const InputDecoration(labelText: 'تێبینی کڕیار'),
+                      decoration: InputDecoration(labelText: tx('تێبینی کڕیار')),
                     ),
                   ],
                 ),
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('پاشگەزبوونەوە')),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('پاشگەزبوونەوە'))),
               ElevatedButton.icon(
                 onPressed: () async {
                   if (cartQty.isEmpty) {
@@ -372,7 +374,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                   }
                 },
                 icon: const Icon(Icons.rocket_launch_rounded, size: 18),
-                label: const Text('تۆمارکردن و ناردن بۆ چێشتخانە'),
+                label: Text(tx('تۆمارکردن و ناردن بۆ چێشتخانە')),
               ),
             ],
           );
@@ -392,8 +394,8 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
           margin: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 18, AdminBreakpoints.pagePadH(context), 0),
           padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+            gradient: LinearGradient(
+              colors: [RC.bg(Color(0xFF1E293B)), RC.bg(Color(0xFF0F172A))],
               begin: Alignment.centerRight,
               end: Alignment.centerLeft,
             ),
@@ -418,19 +420,19 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                           color: RegaColors.gold,
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Icon(Icons.shopping_bag_rounded, color: Color(0xFF0F172A), size: 26),
+                        child: Icon(Icons.shopping_bag_rounded, color: RC.fg(Color(0xFF0F172A)), size: 26),
                       ),
                       const SizedBox(width: 14),
-                      const Column(
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'بەشی کڕیاران و مارکێتپڵەیس (REGA Customer Hub)',
+                            tx('بەشی کڕیاران و مارکێتپڵەیس (REGA Customer Hub)'),
                             style: TextStyle(color: RegaColors.gold, fontSize: 18, fontWeight: FontWeight.w900),
                           ),
                           Text(
-                            'بەستراوەتەوە بە ئەپی کڕیاران (rega) • بەشەکانی سەرەکی، هەژمار، داواکاری، کۆپۆن و گەڕەکەکان',
-                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                            tx('بەستراوەتەوە بە ئەپی کڕیاران (rega) • بەشەکانی سەرەکی، هەژمار، داواکاری، کۆپۆن و گەڕەکەکان'),
+                            style: TextStyle(color: RC.fg(Colors.white70), fontSize: 12),
                           ),
                         ],
                       ),
@@ -442,20 +444,20 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: RegaColors.gold,
-                          foregroundColor: const Color(0xFF0F172A),
+                          foregroundColor: RC.fg(Color(0xFF0F172A)),
                         ),
                         onPressed: _showCreateCustomerOrderDialog,
                         icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
-                        label: const Text('داواکاری نوێ بۆ کڕیار'),
+                        label: Text(tx('داواکاری نوێ بۆ کڕیار')),
                       ),
                       FilledButton.tonalIcon(
                         style: FilledButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.12),
-                          foregroundColor: Colors.white,
+                          backgroundColor: RC.bg(Colors.white).withValues(alpha: 0.12),
+                          foregroundColor: RC.fg(Colors.white),
                         ),
                         onPressed: () => _load(),
                         icon: const Icon(Icons.sync_rounded, size: 18),
-                        label: const Text('نوێکردنەوە'),
+                        label: Text(tx('نوێکردنەوە')),
                       ),
                     ],
                   ),
@@ -468,20 +470,20 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                 indicatorColor: RegaColors.gold,
                 indicatorWeight: 3.5,
                 labelColor: RegaColors.gold,
-                unselectedLabelColor: Colors.white70,
+                unselectedLabelColor: RC.fg(Colors.white70),
                 labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
                 dividerColor: Colors.transparent,
                 tabs: [
-                  const Tab(icon: Icon(Icons.workspace_premium_rounded, size: 18), text: 'پوختە و کڕیاران'),
+                  Tab(icon: Icon(Icons.workspace_premium_rounded, size: 18), text: tx('پوختە و کڕیاران')),
                   Tab(
                     icon: const Icon(Icons.receipt_long_rounded, size: 18),
-                    text: 'داواکاری کڕیاران (${_kpis['total_customer_orders'] ?? 0})',
+                    text: tx('داواکاری کڕیاران (${_kpis['total_customer_orders'] ?? 0})'),
                   ),
-                  const Tab(icon: Icon(Icons.groups_rounded, size: 18), text: 'بەڕێوەبردنی کڕیاران'),
-                  const Tab(icon: Icon(Icons.grid_view_rounded, size: 18), text: 'بەشەکانی سەرەکی ئەپ'),
-                  const Tab(icon: Icon(Icons.notifications_active_rounded, size: 18), text: 'ئاگاداری بۆ کڕیار'),
-                  const Tab(icon: Icon(Icons.location_city_rounded, size: 18), text: 'گەڕەکەکانی کەلار'),
-                  const Tab(icon: Icon(Icons.campaign_rounded, size: 18), text: 'کۆپۆن و ڕیکلامەکان'),
+                  Tab(icon: Icon(Icons.groups_rounded, size: 18), text: tx('بەڕێوەبردنی کڕیاران')),
+                  Tab(icon: Icon(Icons.grid_view_rounded, size: 18), text: tx('بەشەکانی سەرەکی ئەپ')),
+                  Tab(icon: Icon(Icons.notifications_active_rounded, size: 18), text: tx('ئاگاداری بۆ کڕیار')),
+                  Tab(icon: Icon(Icons.location_city_rounded, size: 18), text: tx('گەڕەکەکانی کەلار')),
+                  Tab(icon: Icon(Icons.campaign_rounded, size: 18), text: tx('کۆپۆن و ڕیکلامەکان')),
                 ],
               ),
             ],
@@ -540,44 +542,44 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
           childAspectRatio: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 2.8 : 2.35,
           children: [
             StatKpiCard(
-              title: 'کۆی کڕیارانی تۆمارکراو',
+              title: tx('کۆی کڕیارانی تۆمارکراو'),
               value: '${_kpis['total_customers'] ?? 0}',
-              subtitle: '${_kpis['active_customers'] ?? 0} چالاک',
+              subtitle: tx('${_kpis['active_customers'] ?? 0} چالاک'),
               icon: Icons.groups_rounded,
               accentColor: RegaColors.goldDark,
             ),
             StatKpiCard(
-              title: 'ناونیشانەکانی کەلار',
+              title: tx('ناونیشانەکانی کەلار'),
               value: '${_kpis['saved_addresses_count'] ?? 0}',
-              subtitle: 'تۆمارکراو لە GPS',
+              subtitle: tx('تۆمارکراو لە GPS'),
               icon: Icons.pin_drop_rounded,
               accentColor: RegaColors.blue,
             ),
             StatKpiCard(
-              title: 'کۆی خەرجی کڕیاران (GMV)',
+              title: tx('کۆی خەرجی کڕیاران (GMV)'),
               value: formatIqd(_kpis['total_customer_gmv'] as num?, lang: widget.lang),
-              subtitle: '${_kpis['total_customer_orders'] ?? 0} داواکاری',
+              subtitle: tx('${_kpis['total_customer_orders'] ?? 0} داواکاری'),
               icon: Icons.shopping_bag_rounded,
               accentColor: RegaColors.emeraldDark,
             ),
             StatKpiCard(
-              title: 'کۆپۆنە چالاکەکان',
+              title: tx('کۆپۆنە چالاکەکان'),
               value: '${_kpis['active_coupons_count'] ?? 0}',
-              subtitle: 'ئامادە بۆ کڕیار',
+              subtitle: tx('ئامادە بۆ کڕیار'),
               icon: Icons.discount_rounded,
               accentColor: RegaColors.purple,
             ),
             StatKpiCard(
-              title: 'بانەر و ڕیکلامی سەرەکی',
+              title: tx('بانەر و ڕیکلامی سەرەکی'),
               value: '${_kpis['active_banners_count'] ?? 0}',
-              subtitle: 'لە شاشەی سەرەکی ئەپ',
+              subtitle: tx('لە شاشەی سەرەکی ئەپ'),
               icon: Icons.burst_mode_rounded,
               accentColor: RegaColors.orange,
             ),
             StatKpiCard(
-              title: 'هەژماری ڕاگیراو',
+              title: tx('هەژماری ڕاگیراو'),
               value: '${_kpis['suspended_customers'] ?? 0}',
-              subtitle: 'بلۆککراو',
+              subtitle: tx('بلۆککراو'),
               icon: Icons.block_rounded,
               accentColor: RegaColors.crimson,
             ),
@@ -593,18 +595,18 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'پڕخەرجترین کڕیاران و ناونیشانەکانیان',
+                    Text(
+                      tx('پڕخەرجترین کڕیاران و ناونیشانەکانیان'),
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                     ),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: RegaColors.gold,
-                        foregroundColor: const Color(0xFF0F172A),
+                        foregroundColor: RC.fg(Color(0xFF0F172A)),
                       ),
                       onPressed: () => _tabController.animateTo(2),
                       icon: const Icon(Icons.person_add_rounded, size: 17),
-                      label: const Text('زیادکردنی کڕیار'),
+                      label: Text(tx('زیادکردنی کڕیار')),
                     ),
                   ],
                 ),
@@ -620,32 +622,32 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                     leading: CircleAvatar(
                       backgroundColor: RegaColors.gold.withValues(alpha: 0.25),
                       child: Text(
-                        (c['name']?.toString() ?? 'C').characters.first,
-                        style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                        tx((c['name']?.toString() ?? 'C').characters.first),
+                        style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF0F172A))),
                       ),
                     ),
                     title: Text(
-                      '${c['name'] ?? ''}  •  📞 ${c['phone'] ?? ''}',
+                      tx('${c['name'] ?? ''}  •  📞 ${c['phone'] ?? ''}'),
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
-                    subtitle: Text('📍 $addrLine  •  🛍️ ${c['customer_orders_count'] ?? 0} داواکاری'),
+                    subtitle: Text(tx('📍 $addrLine  •  🛍️ ${c['customer_orders_count'] ?? 0} داواکاری')),
                     trailing: Wrap(
                       spacing: 10,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          formatIqd(c['total_spent'] as num?, lang: widget.lang),
+                          tx(formatIqd(c['total_spent'] as num?, lang: widget.lang)),
                           style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark),
                         ),
                         OutlinedButton.icon(
                           onPressed: () => _tabController.animateTo(2),
                           icon: const Icon(Icons.edit_rounded, size: 16),
-                          label: const Text('دەستکاری'),
+                          label: Text(tx('دەستکاری')),
                         ),
                         OutlinedButton.icon(
                           onPressed: () => _showCustomerDetailsDialog(c),
                           icon: const Icon(Icons.visibility_rounded, size: 16),
-                          label: const Text('وردەکاری'),
+                          label: Text(tx('وردەکاری')),
                         ),
                       ],
                     ),
@@ -682,7 +684,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('${o['order_number']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                        Text(tx('${o['order_number']}'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                         const SizedBox(width: 10),
                         StatusBadge(status: status, lang: widget.lang),
                         const SizedBox(width: 10),
@@ -693,7 +695,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            '📍 ناونیشان: ${o['delivery_address'] ?? '-'}',
+                            tx('📍 ناونیشان: ${o['delivery_address'] ?? '-'}'),
                             style: const TextStyle(
                               fontWeight: FontWeight.w900,
                               fontSize: 12,
@@ -705,10 +707,10 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '👤 کڕیار: ${o['customer_name'] ?? '-'} (${IraqPhoneFormatter.display((o['customer_phone'] ?? '').toString())})  •  🏪 ${o['store']?['name_ku'] ?? '-'}',
+                      tx('👤 کڕیار: ${o['customer_name'] ?? '-'} (${IraqPhoneFormatter.display((o['customer_phone'] ?? '').toString())})  •  🏪 ${o['store']?['name_ku'] ?? '-'}'),
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    Text('📍 ناونیشان: ${o['delivery_address'] ?? '-'}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text(tx('📍 ناونیشان: ${o['delivery_address'] ?? '-'}'), style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade600))),
                   ],
                 ),
                 Wrap(
@@ -716,7 +718,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
-                      formatIqd(o['total_amount'] as num?, lang: widget.lang),
+                      tx(formatIqd(o['total_amount'] as num?, lang: widget.lang)),
                       style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: RegaColors.emeraldDark),
                     ),
                     OutlinedButton.icon(
@@ -727,7 +729,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                         );
                       },
                       icon: const Icon(Icons.radar_rounded, size: 17),
-                      label: const Text('نەخشەی ١ چرکەیی'),
+                      label: Text(tx('نەخشەی ١ چرکەیی')),
                     ),
                   ],
                 ),

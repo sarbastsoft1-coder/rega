@@ -10,6 +10,8 @@ import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../map/mapbox_tiles.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 class AdminLiveRadarDialog extends StatefulWidget {
   final ApiClient api;
 
@@ -97,11 +99,11 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
           height: 34,
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFFEA580C),
+              color: RC.bg(Color(0xFFEA580C)),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
+              border: Border.all(color: RC.bg(Colors.white), width: 2),
             ),
-            child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 17),
+            child: Icon(Icons.storefront_rounded, color: RC.fg(Colors.white), size: 17),
           ),
         ),
       );
@@ -115,9 +117,9 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
             decoration: BoxDecoration(
               color: RegaColors.blue,
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
+              border: Border.all(color: RC.bg(Colors.white), width: 2),
             ),
-            child: const Icon(Icons.home_rounded, color: Colors.white, size: 17),
+            child: Icon(Icons.home_rounded, color: RC.fg(Colors.white), size: 17),
           ),
         ),
       );
@@ -133,12 +135,12 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.black87,
+                  color: RC.bg(Colors.black87),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: RegaColors.gold),
                 ),
                 child: Text(
-                  '#$ref • ${etaSecs}s',
+                  tx('#$ref • ${etaSecs}s'),
                   style: const TextStyle(
                     color: RegaColors.gold,
                     fontSize: 9.5,
@@ -155,9 +157,9 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
                   decoration: BoxDecoration(
                     color: RegaColors.gold,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.black, width: 2),
+                    border: Border.all(color: RC.bg(Colors.black), width: 2),
                   ),
-                  child: const Icon(Icons.two_wheeler_rounded, color: Colors.black, size: 18),
+                  child: Icon(Icons.two_wheeler_rounded, color: RC.fg(Colors.black), size: 18),
                 ),
               ),
             ],
@@ -186,15 +188,15 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF064E3B),
+                  color: RC.bg(Color(0xFF064E3B)),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  (user['name'] ?? d['driver_code'] ?? 'Captain').toString(),
+                  tx((user['name'] ?? d['driver_code'] ?? 'Captain').toString()),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: RC.fg(Colors.white),
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
                   ),
@@ -207,9 +209,9 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
                 decoration: BoxDecoration(
                   color: RegaColors.emerald,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(color: RC.bg(Colors.white), width: 2),
                 ),
-                child: const Icon(Icons.delivery_dining_rounded, color: Colors.white, size: 15),
+                child: Icon(Icons.delivery_dining_rounded, color: RC.fg(Colors.white), size: 15),
               ),
             ],
           ),
@@ -259,7 +261,7 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
                   vertical: isPhone ? 10 : 12,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.92),
+                  color: RC.bg(Color(0xFF0F172A)).withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(isPhone ? 14 : 18),
                   border: Border.all(color: RegaColors.gold.withValues(alpha: 0.45)),
                 ),
@@ -272,22 +274,22 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            isPhone
+                            tx(isPhone
                                 ? 'ڕاداری زیندووی کەلار'
-                                : 'ڕاداری زیندووی شاری کەلار • نوێکردنەوەی چرکە بە چرکە (1s Live GPS)',
+                                : 'ڕاداری زیندووی شاری کەلار • نوێکردنەوەی چرکە بە چرکە (1s Live GPS)'),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Colors.white,
+                              color: RC.fg(Colors.white),
                               fontWeight: FontWeight.w900,
                               fontSize: isPhone ? 13 : 15,
                             ),
                           ),
                           Text(
-                            'ئۆنلاین: ${_drivers.where((d) => (d as Map)['is_online'] == true).length} • گەشت: ${_sessions.length} • ${_tickCount}s',
+                            tx('ئۆنلاین: ${_drivers.where((d) => (d as Map)['is_online'] == true).length} • گەشت: ${_sessions.length} • ${_tickCount}s'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: const Color(0xFF94A3B8), fontSize: isPhone ? 11 : 12),
+                            style: TextStyle(color: RC.fg(Color(0xFF94A3B8)), fontSize: isPhone ? 11 : 12),
                           ),
                         ],
                       ),
@@ -295,7 +297,7 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       onPressed: () => setState(() => _darkMap = !_darkMap),
-                      tooltip: 'گۆڕینی شێوازی نەخشە',
+                      tooltip: tx('گۆڕینی شێوازی نەخشە'),
                       icon: Icon(
                         _darkMap ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
                         color: RegaColors.gold,
@@ -305,7 +307,7 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.close_rounded, color: Colors.white, size: isPhone ? 20 : 24),
+                      icon: Icon(Icons.close_rounded, color: RC.fg(Colors.white), size: isPhone ? 20 : 24),
                     ),
                   ],
                 ),

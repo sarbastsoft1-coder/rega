@@ -14,6 +14,8 @@ import '../widgets/common_widgets.dart';
 import 'drivers_screen.dart';
 import 'orders_screen.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 class DeliveryPartScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
@@ -109,7 +111,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
+        content: Text(tx(msg)),
         backgroundColor: error ? RegaColors.crimson : RegaColors.emeraldDark,
       ),
     );
@@ -131,7 +133,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
       builder: (ctx) => AlertDialog(
         insetPadding: AdminBreakpoints.dialogInset(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('دیاریکردنی ماتۆرسوار بۆ ${order['order_number']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        title: Text(tx('دیاریکردنی ماتۆرسوار بۆ ${order['order_number']}'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         content: SizedBox(
           width: AdminBreakpoints.dialogWidth(ctx, max: 460),
           height: 420,
@@ -145,11 +147,11 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
               final userId = (u['id'] as num?)?.toInt() ?? (dp['user_id'] as num?)?.toInt();
               return ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.two_wheeler_rounded, color: online ? RegaColors.emeraldDark : Colors.grey),
-                title: Text('${u['name'] ?? dp['name'] ?? ''} (${dp['driver_code'] ?? ''})', style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text('${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${u['phone'] ?? dp['phone'] ?? ''}'),
+                leading: Icon(Icons.two_wheeler_rounded, color: online ? RegaColors.emeraldDark : RC.bg(Colors.grey)),
+                title: Text(tx('${u['name'] ?? dp['name'] ?? ''} (${dp['driver_code'] ?? ''})'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(tx('${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${u['phone'] ?? dp['phone'] ?? ''}')),
                 trailing: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: RegaColors.emeraldDark, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(backgroundColor: RegaColors.emeraldDark, foregroundColor: RC.fg(Colors.white)),
                   onPressed: userId == null
                       ? null
                       : () async {
@@ -163,14 +165,14 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                             _showSnack(e.toString(), error: true);
                           }
                         },
-                  child: Text(online ? 'پێدان' : 'دیاریکردن'),
+                  child: Text(tx(online ? 'پێدان' : 'دیاریکردن')),
                 ),
               );
             },
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('داخستن')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('داخستن'))),
         ],
       ),
     );
@@ -191,14 +193,14 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
     final cashHeld = (driverProfile['cash_collected_hand'] as num?)?.toInt() ?? 0;
     final amountCtrl = TextEditingController(text: cashHeld > 0 ? '$cashHeld' : '10000');
     final noteCtrl = TextEditingController(
-      text: 'وەرگرتنەوەی پارەی کاشی کۆکراوە (COD) لە شۆفێر ${driverProfile['user']?['name'] ?? ''}',
+      text: tx('وەرگرتنەوەی پارەی کاشی کۆکراوە (COD) لە شۆفێر ${driverProfile['user']?['name'] ?? ''}'),
     );
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         insetPadding: AdminBreakpoints.dialogInset(ctx),
-        title: Text('پاکتاوکردنی کاشی شۆفێر — ${driverProfile['user']?['name'] ?? ''}'),
+        title: Text(tx('پاکتاوکردنی کاشی شۆفێر — ${driverProfile['user']?['name'] ?? ''}')),
         content: SizedBox(
           width: AdminBreakpoints.dialogWidth(ctx, max: 420),
           child: Column(
@@ -207,18 +209,18 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
               TextField(
                 controller: amountCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'بڕی کاشی وەرگیراوە لە شۆفێر (د.ع) *'),
+                decoration: InputDecoration(labelText: tx('بڕی کاشی وەرگیراوە لە شۆفێر (د.ع) *')),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: noteCtrl,
-                decoration: const InputDecoration(labelText: 'تێبینی ژمێریاری'),
+                decoration: InputDecoration(labelText: tx('تێبینی ژمێریاری')),
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('داخستن')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('داخستن'))),
           ElevatedButton.icon(
             onPressed: () async {
               final amount = int.tryParse(amountCtrl.text.trim()) ?? 0;
@@ -240,7 +242,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
               }
             },
             icon: const Icon(Icons.task_alt_rounded, size: 18),
-            label: const Text('وەرگرتن و تۆمارکردن'),
+            label: Text(tx('وەرگرتن و تۆمارکردن')),
           ),
         ],
       ),
@@ -281,8 +283,8 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('دەستکاریکردنی بەشی گەیاندن — ${order['order_number']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-                    const Text('گۆڕینی شۆفێر، ناونیشان، تێچووی گەیاندن و باری داواکاری', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(tx('دەستکاریکردنی بەشی گەیاندن — ${order['order_number']}'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                    Text(tx('گۆڕینی شۆفێر، ناونیشان، تێچووی گەیاندن و باری داواکاری'), style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey))),
                   ],
                 ),
               ),
@@ -295,27 +297,27 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('١. شۆفێری دیاریکراو و باری گەیاندن', style: TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark)),
+                  Text(tx('١. شۆفێری دیاریکراو و باری گەیاندن'), style: TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark)),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<int?>(
                     initialValue: selectedDriverUserId,
                     decoration: InputDecoration(
-                      labelText: 'شۆفێری ماتۆڕسکیل',
+                      labelText: tx('شۆفێری ماتۆڕسکیل'),
                       prefixIcon: const Icon(Icons.two_wheeler_rounded, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                     items: [
-                      const DropdownMenuItem<int?>(
+                      DropdownMenuItem<int?>(
                         value: null,
-                        child: Text('❌ بەبێ شۆفێر (دیاری نەکراوە)'),
+                        child: Text(tx('❌ بەبێ شۆفێر (دیاری نەکراوە)')),
                       ),
                       ..._drivers.map((d) {
                         final m = d as Map<String, dynamic>;
                         final online = m['is_online'] == true ? '🟢 ئۆنلاین' : '⚪ ئۆفلاین';
                         return DropdownMenuItem<int?>(
                           value: m['user_id'] as int?,
-                          child: Text('${m['user']?['name'] ?? ''} (${m['driver_code']}) — $online'),
+                          child: Text(tx('${m['user']?['name'] ?? ''} (${m['driver_code']}) — $online')),
                         );
                       }),
                     ],
@@ -344,13 +346,13 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                       ])
                         DropdownMenuItem(
                           value: s,
-                          child: Text(AppStrings.statusLabel(s == 'accepted' ? 'approved' : s, widget.lang)),
+                          child: Text(tx(AppStrings.statusLabel(s == 'accepted' ? 'approved' : s, widget.lang))),
                         ),
                     ],
                     onChanged: (v) => setDialogState(() => status = v ?? 'pending'),
                   ),
                   const SizedBox(height: 18),
-                  const Text('٢. زانیاری کڕیار و ناونیشانی گەیاندن', style: TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark)),
+                  Text(tx('٢. زانیاری کڕیار و ناونیشانی گەیاندن'), style: TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark)),
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -358,7 +360,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                         child: TextField(
                           controller: nameCtrl,
                           decoration: InputDecoration(
-                            labelText: 'ناوی کڕیار',
+                            labelText: tx('ناوی کڕیار'),
                             prefixIcon: const Icon(Icons.person_outline, size: 20),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -376,8 +378,8 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                             textAlign: TextAlign.left,
                             inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
                             decoration: InputDecoration(
-                              labelText: 'ژمارەی مۆبایلی کڕیار',
-                              hintText: IraqPhoneFormatter.hint,
+                              labelText: tx('ژمارەی مۆبایلی کڕیار'),
+                              hintText: txn(IraqPhoneFormatter.hint),
                               prefixIcon: const Icon(Icons.phone_outlined, size: 20),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -391,20 +393,20 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                   TextField(
                     controller: addressCtrl,
                     decoration: InputDecoration(
-                      labelText: 'ناونیشانی تەواوی گەیاندن (گەڕەک / کۆڵان / شوێن)',
+                      labelText: tx('ناونیشانی تەواوی گەیاندن (گەڕەک / کۆڵان / شوێن)'),
                       prefixIcon: const Icon(Icons.location_on_outlined, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const Text('٣. تێچووی دلیڤەری', style: TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark)),
+                  Text(tx('٣. تێچووی دلیڤەری'), style: TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark)),
                   const SizedBox(height: 10),
                   TextField(
                     controller: feeCtrl,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      labelText: 'نرخی گەیاندن (د.ع)',
+                      labelText: tx('نرخی گەیاندن (د.ع)'),
                       prefixIcon: const Icon(Icons.monetization_on_outlined, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -415,7 +417,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                     controller: notesCtrl,
                     maxLines: 2,
                     decoration: InputDecoration(
-                      labelText: 'تێبینی و ڕێنمایی تایبەت بۆ شۆفێر',
+                      labelText: tx('تێبینی و ڕێنمایی تایبەت بۆ شۆفێر'),
                       prefixIcon: const Icon(Icons.note_alt_outlined, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -429,12 +431,12 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('پاشگەزبوونەوە', style: TextStyle(color: Colors.grey)),
+              child: Text(tx('پاشگەزبوونەوە'), style: TextStyle(color: RC.fg(Colors.grey))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: RegaColors.emeraldDark,
-                foregroundColor: Colors.white,
+                foregroundColor: RC.fg(Colors.white),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
               ),
@@ -466,7 +468,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                   _showSnack('هەڵە لە نوێکردنەوە: $e', error: true);
                 }
               },
-              child: const Text('پاشەکەوتکردنی هەموو گۆڕانکارییەکان'),
+              child: Text(tx('پاشەکەوتکردنی هەموو گۆڕانکارییەکان')),
             ),
           ],
         ),
@@ -520,7 +522,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
               child: const Icon(Icons.tune_rounded, color: RegaColors.emeraldDark, size: 22),
             ),
             const SizedBox(width: 12),
-            const Text('ڕێکخستنی بنەڕەتی گەیاندن (Global Delivery Settings)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            Text(tx('ڕێکخستنی بنەڕەتی گەیاندن (Global Delivery Settings)'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
           ],
         ),
         content: SizedBox(
@@ -532,7 +534,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                 controller: feeCtrl,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: 'نرخی گەیاندنی ماتۆرسوار (د.ع) *',
+                  labelText: tx('نرخی گەیاندنی ماتۆرسوار (د.ع) *'),
                   prefixIcon: const Icon(Icons.two_wheeler_rounded, size: 20),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -547,7 +549,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                     children: presets.map((p) {
                       final selected = feeCtrl.text.trim() == p.toString();
                       return ChoiceChip(
-                        label: Text('$p د.ع'),
+                        label: Text(tx('$p د.ع')),
                         selected: selected,
                         onSelected: (_) {
                           feeCtrl.text = p.toString();
@@ -562,7 +564,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
               TextField(
                 controller: hoursCtrl,
                 decoration: InputDecoration(
-                  labelText: 'کاتژمێری کارکردنی گەیاندن (نموونە: 09:00 - 23:00)',
+                  labelText: tx('کاتژمێری کارکردنی گەیاندن (نموونە: 09:00 - 23:00)'),
                   prefixIcon: const Icon(Icons.access_time_outlined, size: 20),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -571,7 +573,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
               TextField(
                 controller: hotlineCtrl,
                 decoration: InputDecoration(
-                  labelText: 'هێڵی گەرمی پەیوەندی شۆفێران (Driver Hotline)',
+                  labelText: tx('هێڵی گەرمی پەیوەندی شۆفێران (Driver Hotline)'),
                   prefixIcon: const Icon(Icons.phone_in_talk_outlined, size: 20),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -580,7 +582,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
               TextField(
                 controller: phoneCtrl,
                 decoration: InputDecoration(
-                  labelText: 'ژمارەی مۆبایلی پاڵپشتی ناوەند',
+                  labelText: tx('ژمارەی مۆبایلی پاڵپشتی ناوەند'),
                   prefixIcon: const Icon(Icons.headset_mic_outlined, size: 20),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -589,11 +591,11 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('پاشگەزبوونەوە')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('پاشگەزبوونەوە'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: RegaColors.emeraldDark,
-              foregroundColor: Colors.white,
+              foregroundColor: RC.fg(Colors.white),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
@@ -612,7 +614,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                 _showSnack('هەڵە لە پاشەکەوتکردن: $e', error: true);
               }
             },
-            child: const Text('پاشەکەوتکردنی ڕێکخستنەکان'),
+            child: Text(tx('پاشەکەوتکردنی ڕێکخستنەکان')),
           ),
         ],
       ),
@@ -636,8 +638,8 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
           margin: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 18, AdminBreakpoints.pagePadH(context), 0),
           padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF059669), Color(0xFF047857)],
+            gradient: LinearGradient(
+              colors: [RC.bg(Color(0xFF059669)), RC.bg(Color(0xFF047857))],
               begin: Alignment.centerRight,
               end: Alignment.centerLeft,
             ),
@@ -665,22 +667,22 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
+                          color: RC.bg(Colors.white).withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Icon(Icons.two_wheeler_rounded, color: Colors.white, size: 26),
+                        child: Icon(Icons.two_wheeler_rounded, color: RC.fg(Colors.white), size: 26),
                       ),
                       const SizedBox(width: 14),
-                      const Column(
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'بەشی گەیاندن و شۆفێران (REGA Delivery & Fleet Hub)',
-                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                            tx('بەشی گەیاندن و شۆفێران (REGA Delivery & Fleet Hub)'),
+                            style: TextStyle(color: RC.fg(Colors.white), fontSize: 18, fontWeight: FontWeight.w900),
                           ),
                           Text(
-                            'بەستراوەتەوە بە ئەپی شۆفێران (rega_delivery) • ڕاداری چرکە بە چرکەی کەلار، ناردن، KYC و باڵانسی کاش',
-                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                            tx('بەستراوەتەوە بە ئەپی شۆفێران (rega_delivery) • ڕاداری چرکە بە چرکەی کەلار، ناردن، KYC و باڵانسی کاش'),
+                            style: TextStyle(color: RC.fg(Colors.white70), fontSize: 12),
                           ),
                         ],
                       ),
@@ -691,33 +693,33 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                     children: [
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF047857),
+                          backgroundColor: RC.bg(Colors.white),
+                          foregroundColor: RC.fg(Color(0xFF047857)),
                         ),
                         onPressed: () => _showQuickDeliverySettingsDialog(),
                         icon: const Icon(Icons.tune_rounded, size: 18),
-                        label: const Text('ڕێکخستنی نرخی گەیاندن'),
+                        label: Text(tx('ڕێکخستنی نرخی گەیاندن')),
                       ),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF047857),
+                          backgroundColor: RC.bg(Colors.white),
+                          foregroundColor: RC.fg(Color(0xFF047857)),
                         ),
                         onPressed: () => _tabController.animateTo(1),
                         icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                        label: const Text('زیادکردنی شۆفێر'),
+                        label: Text(tx('زیادکردنی شۆفێر')),
                       ),
                       FilledButton.tonalIcon(
                         style: FilledButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.2),
-                          foregroundColor: Colors.white,
+                          backgroundColor: RC.bg(Colors.white).withValues(alpha: 0.2),
+                          foregroundColor: RC.fg(Colors.white),
                         ),
                         onPressed: () {
                           _load();
                           _fetchLiveRadarTick();
                         },
                         icon: const Icon(Icons.radar_rounded, size: 18),
-                        label: Text('LIVE 1s • تیک #$_radarTicks (${_kpis['online_drivers'] ?? 0} شۆفێری ئۆنلاین)'),
+                        label: Text(tx('LIVE 1s • تیک #$_radarTicks (${_kpis['online_drivers'] ?? 0} شۆفێری ئۆنلاین)')),
                       ),
                     ],
                   ),
@@ -727,20 +729,20 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
               TabBar(
                 controller: _tabController,
                 isScrollable: true,
-                indicatorColor: Colors.white,
+                indicatorColor: RC.bg(Colors.white),
                 indicatorWeight: 3.5,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white70,
+                labelColor: RC.fg(Colors.white),
+                unselectedLabelColor: RC.fg(Colors.white70),
                 labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
                 dividerColor: Colors.transparent,
                 tabs: [
                   Tab(
                     icon: const Icon(Icons.map_rounded, size: 18),
-                    text: 'نەخشەی ١ چرکەیی و ناردن (${_dispatchQueue.length})',
+                    text: tx('نەخشەی ١ چرکەیی و ناردن (${_dispatchQueue.length})'),
                   ),
-                  const Tab(icon: Icon(Icons.badge_rounded, size: 18), text: 'شۆفێران و بەڵگەنامەی KYC'),
-                  const Tab(icon: Icon(Icons.local_shipping_rounded, size: 18), text: 'هەموو گەیاندنەکان'),
-                  const Tab(icon: Icon(Icons.account_balance_wallet_rounded, size: 18), text: 'باڵانسی کاش (COD) و حەواڵە'),
+                  Tab(icon: Icon(Icons.badge_rounded, size: 18), text: tx('شۆفێران و بەڵگەنامەی KYC')),
+                  Tab(icon: Icon(Icons.local_shipping_rounded, size: 18), text: tx('هەموو گەیاندنەکان')),
+                  Tab(icon: Icon(Icons.account_balance_wallet_rounded, size: 18), text: tx('باڵانسی کاش (COD) و حەواڵە')),
                 ],
               ),
             ],
@@ -807,9 +809,9 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
           point: LatLng(sLat, sLng),
           width: 40,
           height: 40,
-          child: const CircleAvatar(
+          child: CircleAvatar(
             backgroundColor: RegaColors.orange,
-            child: Icon(Icons.storefront_rounded, color: Colors.white, size: 18),
+            child: Icon(Icons.storefront_rounded, color: RC.fg(Colors.white), size: 18),
           ),
         ),
       );
@@ -818,9 +820,9 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
           point: LatLng(cLat, cLng),
           width: 40,
           height: 40,
-          child: const CircleAvatar(
+          child: CircleAvatar(
             backgroundColor: RegaColors.blue,
-            child: Icon(Icons.person_pin_circle_rounded, color: Colors.white, size: 20),
+            child: Icon(Icons.person_pin_circle_rounded, color: RC.fg(Colors.white), size: 20),
           ),
         ),
       );
@@ -835,12 +837,12 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
+                  color: RC.bg(Color(0xFF0F172A)),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: RegaColors.gold),
                 ),
                 child: Text(
-                  '${m['order_ref']} • ${_fmtMmSs(eta)}',
+                  tx('${m['order_ref']} • ${_fmtMmSs(eta)}'),
                   style: const TextStyle(color: RegaColors.gold, fontSize: 10, fontWeight: FontWeight.w900),
                 ),
               ),
@@ -853,9 +855,9 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                   decoration: BoxDecoration(
                     color: RegaColors.emerald,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+                    border: Border.all(color: RC.bg(Colors.white), width: 2),
                   ),
-                  child: const Icon(Icons.two_wheeler_rounded, color: Colors.white, size: 18),
+                  child: Icon(Icons.two_wheeler_rounded, color: RC.fg(Colors.white), size: 18),
                 ),
               ),
             ],
@@ -882,9 +884,9 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
               decoration: BoxDecoration(
                 color: RegaColors.gold,
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF0F172A), width: 2),
+                border: Border.all(color: RC.bg(Color(0xFF0F172A)), width: 2),
               ),
-              child: const Icon(Icons.navigation_rounded, size: 15, color: Color(0xFF0F172A)),
+              child: Icon(Icons.navigation_rounded, size: 15, color: RC.fg(Color(0xFF0F172A))),
             ),
           ),
         ),
@@ -917,7 +919,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
             child: FilledButton.tonalIcon(
               onPressed: () => setState(() => _darkMap = !_darkMap),
               icon: Icon(_darkMap ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 16),
-              label: Text(_darkMap ? 'ڕۆژ' : 'شەو'),
+              label: Text(tx(_darkMap ? 'ڕۆژ' : 'شەو')),
             ),
           ),
         ],
@@ -934,11 +936,11 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'ڕیزی ناردن و گەیاندن (${_dispatchQueue.length})',
+                  tx('ڕیزی ناردن و گەیاندن (${_dispatchQueue.length})'),
                   style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                 ),
                 Text(
-                  'بێ شۆفێر: ${_kpis['unassigned_ready_orders'] ?? 0}',
+                  tx('بێ شۆفێر: ${_kpis['unassigned_ready_orders'] ?? 0}'),
                   style: const TextStyle(color: RegaColors.orange, fontWeight: FontWeight.w800, fontSize: 12),
                 ),
               ],
@@ -947,7 +949,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
           const Divider(height: 1),
           Expanded(
             child: _dispatchQueue.isEmpty
-                ? const Center(child: Text('هیچ گەیاندنێکی چالاک لەم چرکەیەدا نییە'))
+                ? Center(child: Text(tx('هیچ گەیاندنێکی چالاک لەم چرکەیەدا نییە')))
                 : ListView.separated(
                     padding: const EdgeInsets.all(12),
                     itemCount: _dispatchQueue.length,
@@ -960,7 +962,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.grey.withValues(alpha: 0.22)),
+                          border: Border.all(color: RC.bg(Colors.grey).withValues(alpha: 0.22)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -968,15 +970,15 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('${o['order_number']}', style: const TextStyle(fontWeight: FontWeight.w900)),
+                                Text(tx('${o['order_number']}'), style: const TextStyle(fontWeight: FontWeight.w900)),
                                 StatusBadge(status: status, lang: widget.lang),
                               ],
                             ),
                             const SizedBox(height: 6),
-                            Text('🏪 ${o['store']?['name_ku'] ?? '-'}  →  👤 ${o['customer_name'] ?? '-'}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                            Text(tx('🏪 ${o['store']?['name_ku'] ?? '-'}  →  👤 ${o['customer_name'] ?? '-'}'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                             Text(
-                              '🛵 شۆفێر: ${o['driver']?['name'] ?? 'دیاری نەکراوە'}',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              tx('🛵 شۆفێر: ${o['driver']?['name'] ?? 'دیاری نەکراوە'}'),
+                              style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade600)),
                             ),
                             const SizedBox(height: 8),
                             Wrap(
@@ -990,12 +992,12 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                                   ),
                                   onPressed: () => _showEditDeliveryOrderDialog(o),
                                   icon: const Icon(Icons.edit_note_rounded, size: 16),
-                                  label: const Text('دەستکاریکردنی هەموو بەشەکانی گەیاندن'),
+                                  label: Text(tx('دەستکاریکردنی هەموو بەشەکانی گەیاندن')),
                                 ),
                                 OutlinedButton.icon(
                                   onPressed: () => _showAssignDriverDialog(o),
                                   icon: const Icon(Icons.two_wheeler_rounded, size: 15),
-                                  label: Text(hasDriver ? 'گۆڕینی شۆفێر' : 'ناردنی شۆفێر'),
+                                  label: Text(tx(hasDriver ? 'گۆڕینی شۆفێر' : 'ناردنی شۆفێر')),
                                 ),
                                 if (hasDriver && (status == 'preparing' || status == 'ready'))
                                   OutlinedButton(
@@ -1003,7 +1005,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                                       await widget.api.updateOrderStatus(o['id'] as int, 'picked_up');
                                       _load(silent: true);
                                     },
-                                    child: const Text('کاڵا هەڵگیرا (Picked up)'),
+                                    child: Text(tx('کاڵا هەڵگیرا (Picked up)')),
                                   ),
                                 if (hasDriver && status != 'on_the_way' && status != 'arrived_customer' && status != 'delivered')
                                   OutlinedButton(
@@ -1011,16 +1013,16 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                                       await widget.api.updateOrderStatus(o['id'] as int, 'on_the_way');
                                       _load(silent: true);
                                     },
-                                    child: const Text('بەڕێکەوت بۆ کڕیار'),
+                                    child: Text(tx('بەڕێکەوت بۆ کڕیار')),
                                   ),
                                 ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: RegaColors.emeraldDark,
-                                    foregroundColor: Colors.white,
+                                    foregroundColor: RC.fg(Colors.white),
                                   ),
                                   onPressed: () => _completeDelivery(o),
                                   icon: const Icon(Icons.check_circle_rounded, size: 15),
-                                  label: const Text('تەواوکردنی گەیاندن'),
+                                  label: Text(tx('تەواوکردنی گەیاندن')),
                                 ),
                               ],
                             ),
@@ -1072,44 +1074,44 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
           childAspectRatio: 2.35,
           children: [
             StatKpiCard(
-              title: 'شۆفێرانی ئۆنلاین',
+              title: tx('شۆفێرانی ئۆنلاین'),
               value: '${_kpis['online_drivers'] ?? 0} / ${_kpis['total_drivers'] ?? 0}',
-              subtitle: '${_kpis['verified_drivers'] ?? 0} پشتڕاستکراو',
+              subtitle: tx('${_kpis['verified_drivers'] ?? 0} پشتڕاستکراو'),
               icon: Icons.two_wheeler_rounded,
               accentColor: RegaColors.emeraldDark,
             ),
             StatKpiCard(
-              title: 'بەڵگەنامەی چاوەڕوانکراو (KYC)',
+              title: tx('بەڵگەنامەی چاوەڕوانکراو (KYC)'),
               value: '${_kpis['pending_kyc_docs'] ?? 0}',
-              subtitle: 'پشکنینی پێویستە',
+              subtitle: tx('پشکنینی پێویستە'),
               icon: Icons.fact_check_rounded,
               accentColor: RegaColors.orange,
             ),
             StatKpiCard(
-              title: 'گەیاندنە تەواوکراوەکان',
+              title: tx('گەیاندنە تەواوکراوەکان'),
               value: '${_kpis['completed_deliveries'] ?? 0}',
-              subtitle: 'لە ڕێگادا: ${_kpis['in_transit_orders'] ?? 0}',
+              subtitle: tx('لە ڕێگادا: ${_kpis['in_transit_orders'] ?? 0}'),
               icon: Icons.check_circle_rounded,
               accentColor: RegaColors.blue,
             ),
             StatKpiCard(
-              title: 'کۆی کرێ و داهاتی شۆفێران',
+              title: tx('کۆی کرێ و داهاتی شۆفێران'),
               value: formatIqd(_kpis['total_driver_earnings'] as num?, lang: widget.lang),
-              subtitle: 'پاداشت: ${formatIqd(_kpis['total_waiting_bonus'] as num?, lang: widget.lang)}',
+              subtitle: tx('پاداشت: ${formatIqd(_kpis['total_waiting_bonus'] as num?, lang: widget.lang)}'),
               icon: Icons.savings_rounded,
               accentColor: RegaColors.purple,
             ),
             StatKpiCard(
-              title: 'پارەی کاشی لای شۆفێران (COD)',
+              title: tx('پارەی کاشی لای شۆفێران (COD)'),
               value: formatIqd(_kpis['total_cod_cash_held'] as num?, lang: widget.lang),
-              subtitle: 'ئامادە بۆ وەرگرتنەوە',
+              subtitle: tx('ئامادە بۆ وەرگرتنەوە'),
               icon: Icons.payments_rounded,
               accentColor: RegaColors.crimson,
             ),
             StatKpiCard(
-              title: 'کۆی پاکتاوی شۆفێران',
+              title: tx('کۆی پاکتاوی شۆفێران'),
               value: formatIqd(_kpis['driver_settlements_paid'] as num?, lang: widget.lang),
-              subtitle: 'یەکلاکراوە',
+              subtitle: tx('یەکلاکراوە'),
               icon: Icons.verified_rounded,
               accentColor: RegaColors.goldDark,
             ),
@@ -1122,8 +1124,8 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'باڵانسی کاشی کۆکراوە (COD) و جزدان بۆ هەر شۆفێرێک',
+                Text(
+                  tx('باڵانسی کاشی کۆکراوە (COD) و جزدان بۆ هەر شۆفێرێک'),
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 14),
@@ -1135,18 +1137,18 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                     leading: CircleAvatar(
                       backgroundColor: dp['is_online'] == true
                           ? RegaColors.emerald.withValues(alpha: 0.2)
-                          : Colors.grey.withValues(alpha: 0.2),
+                          : RC.bg(Colors.grey).withValues(alpha: 0.2),
                       child: Icon(
                         Icons.two_wheeler_rounded,
-                        color: dp['is_online'] == true ? RegaColors.emeraldDark : Colors.grey,
+                        color: dp['is_online'] == true ? RegaColors.emeraldDark : RC.bg(Colors.grey),
                       ),
                     ),
                     title: Text(
-                      '${u?['name'] ?? ''} (${dp['driver_code'] ?? ''})  •  📞 ${u?['phone'] ?? ''}',
+                      tx('${u?['name'] ?? ''} (${dp['driver_code'] ?? ''})  •  📞 ${u?['phone'] ?? ''}'),
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     subtitle: Text(
-                      '🏍️ ${dp['motor_type'] ?? ''} (${dp['plate_number'] ?? ''})  •  📦 ${dp['total_deliveries'] ?? 0} گەیاندن  •  جزدان: ${formatIqd(dp['wallet_balance'] as num?, lang: widget.lang)}',
+                      tx('🏍️ ${dp['motor_type'] ?? ''} (${dp['plate_number'] ?? ''})  •  📦 ${dp['total_deliveries'] ?? 0} گەیاندن  •  جزدان: ${formatIqd(dp['wallet_balance'] as num?, lang: widget.lang)}'),
                     ),
                     trailing: Wrap(
                       spacing: 12,
@@ -1157,7 +1159,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              'کاشی COD: ${formatIqd(dp['cash_collected_hand'] as num?, lang: widget.lang)}',
+                              tx('کاشی COD: ${formatIqd(dp['cash_collected_hand'] as num?, lang: widget.lang)}'),
                               style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.crimson),
                             ),
                           ],
@@ -1165,7 +1167,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                         ElevatedButton.icon(
                           onPressed: () => _showSettleDriverCodDialog(dp),
                           icon: const Icon(Icons.currency_exchange_rounded, size: 16),
-                          label: const Text('پاکتاوی COD'),
+                          label: Text(tx('پاکتاوی COD')),
                         ),
                       ],
                     ),

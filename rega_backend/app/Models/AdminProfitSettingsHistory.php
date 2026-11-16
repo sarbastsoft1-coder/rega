@@ -11,6 +11,7 @@ class AdminProfitSettingsHistory extends Model
 
     protected $fillable = [
         'commission_percentage',
+        'store_id',
         'changed_by',
         'note',
     ];
@@ -25,5 +26,10 @@ class AdminProfitSettingsHistory extends Model
     public function changer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'changed_by');
+    }
+
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 }

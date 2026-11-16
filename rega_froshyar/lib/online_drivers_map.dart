@@ -7,6 +7,8 @@ import 'package:latlong2/latlong.dart';
 import 'map/mapbox_tiles.dart';
 import 'vendor_api_service.dart';
 
+import 'rega_i18n.dart';
+import 'rega_colors.dart';
 /// Live GPS of online delivery captains for the seller app.
 /// Store + driver pins only from real API coords (no fake place fallback).
 class OnlineDriversMapPage extends StatefulWidget {
@@ -117,12 +119,12 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
           height: 40,
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFFEA580C),
+              color: RC.bg(Color(0xFFEA580C)),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-              boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)],
+              border: Border.all(color: RC.bg(Colors.white), width: 2),
+              boxShadow: [BoxShadow(color: RC.bg(Colors.black26), blurRadius: 6)],
             ),
-            child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 20),
+            child: Icon(Icons.storefront_rounded, color: RC.fg(Colors.white), size: 20),
           ),
         ),
       ..._drivers.map((d) {
@@ -141,14 +143,14 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF064E3B),
+                  color: RC.bg(Color(0xFF064E3B)),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  meters != null ? '$name • ${meters}m' : name,
+                  tx(meters != null ? '$name • ${meters}m' : name),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
+                  style: TextStyle(color: RC.fg(Colors.white), fontSize: 9, fontWeight: FontWeight.w800),
                 ),
               ),
               const SizedBox(height: 2),
@@ -156,11 +158,11 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF16A34A),
+                  color: RC.bg(Color(0xFF16A34A)),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(color: RC.bg(Colors.white), width: 2),
                 ),
-                child: const Icon(Icons.two_wheeler_rounded, color: Colors.white, size: 15),
+                child: Icon(Icons.two_wheeler_rounded, color: RC.fg(Colors.white), size: 15),
               ),
             ],
           ),
@@ -169,17 +171,17 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: RC.bg(Color(0xFFF8FAFC)),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFEA580C),
-        foregroundColor: Colors.white,
+        backgroundColor: RC.bg(Color(0xFFEA580C)),
+        foregroundColor: RC.fg(Colors.white),
         title: Text(
-          'شۆفێرە ئۆنلاینەکان ($_onlineCount)',
+          tx('شۆفێرە ئۆنلاینەکان ($_onlineCount)'),
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
         actions: [
           IconButton(
-            tooltip: 'نوێکردنەوە',
+            tooltip: tx('نوێکردنەوە'),
             onPressed: () => _load(),
             icon: const Icon(Icons.refresh_rounded),
           ),
@@ -206,7 +208,7 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
             ],
           ),
           if (_loading)
-            const Positioned(
+            Positioned(
               top: 12,
               left: 0,
               right: 0,
@@ -219,7 +221,7 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
                       children: [
                         SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                         SizedBox(width: 10),
-                        Text('نوێکردنەوەی GPS...', style: TextStyle(fontWeight: FontWeight.w700)),
+                        Text(tx('نوێکردنەوەی GPS...'), style: TextStyle(fontWeight: FontWeight.w700)),
                       ],
                     ),
                   ),
@@ -232,15 +234,15 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
               left: 16,
               right: 16,
               child: Card(
-                color: const Color(0xFFFEF3C7),
+                color: RC.bg(Color(0xFFFEF3C7)),
                 child: Padding(
                   padding: const EdgeInsets.all(14),
                   child: Text(
-                    hasStore
+                    tx(hasStore
                         ? 'هیچ شۆفێرێکی ئۆنلاین لەسەر نەخشە نییە. کاتێک شۆفێر Online + GPS دەکاتەوە، لێرە دەردەکەوێت.'
-                        : 'شوێنی فرۆشگا لە سێرڤەر نییە — شۆفێرەکان دوای Online + GPS دەردەکەون (بێ شوێنی ساختە).',
+                        : 'شوێنی فرۆشگا لە سێرڤەر نییە — شۆفێرەکان دوای Online + GPS دەردەکەون (بێ شوێنی ساختە).'),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w700, height: 1.4, color: Color(0xFF92400E)),
+                    style: TextStyle(fontWeight: FontWeight.w700, height: 1.4, color: RC.fg(Color(0xFF92400E))),
                   ),
                 ),
               ),

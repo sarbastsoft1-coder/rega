@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 /// Shared admin preview / helper for blocked-account contact UI.
 /// Apps use their own copy of the same UX via [BlockedAccountContacts.show].
 class BlockedAccountContacts {
@@ -46,51 +48,51 @@ class BlockedAccountContacts {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.block_rounded, color: Color(0xFFDC2626)),
+            Icon(Icons.block_rounded, color: RC.fg(Color(0xFFDC2626))),
             SizedBox(width: 8),
-            Expanded(child: Text('هەژمار مسدودکراوە', style: TextStyle(fontWeight: FontWeight.w900))),
+            Expanded(child: Text(tx('هەژمار مسدودکراوە'), style: TextStyle(fontWeight: FontWeight.w900))),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(contacts.message, style: const TextStyle(fontWeight: FontWeight.w600, height: 1.4)),
+            Text(tx(contacts.message), style: const TextStyle(fontWeight: FontWeight.w600, height: 1.4)),
             const SizedBox(height: 16),
             _ContactBtn(
               icon: Icons.chat_rounded,
-              color: const Color(0xFF16A34A),
+              color: RC.bg(Color(0xFF16A34A)),
               label: 'WhatsApp  ${contacts.whatsapp}',
               onTap: () => Clipboard.setData(ClipboardData(text: contacts.whatsappUrl)),
             ),
             const SizedBox(height: 8),
             _ContactBtn(
               icon: Icons.send_rounded,
-              color: const Color(0xFF0284C7),
+              color: RC.bg(Color(0xFF0284C7)),
               label: 'Telegram  @${contacts.telegramUsername}',
               onTap: () => Clipboard.setData(ClipboardData(text: contacts.telegramUrl)),
             ),
             const SizedBox(height: 8),
             _ContactBtn(
               icon: Icons.phone_rounded,
-              color: const Color(0xFFEA580C),
+              color: RC.bg(Color(0xFFEA580C)),
               label: 'Call  ${contacts.phone}',
               onTap: () => Clipboard.setData(ClipboardData(text: contacts.phone)),
             ),
             const SizedBox(height: 10),
-            const Text(
-              'کرتە بکە بۆ کۆپیکردنی لینک / ژمارە',
+            Text(
+              tx('کرتە بکە بۆ کۆپیکردنی لینک / ژمارە'),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+              style: TextStyle(fontSize: 11, color: RC.fg(Color(0xFF64748B))),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('باشە', style: TextStyle(fontWeight: FontWeight.w800)),
+            child: Text(tx('باشە'), style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -126,7 +128,7 @@ class _ContactBtn extends StatelessWidget {
               Icon(icon, color: color, size: 20),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(label, style: TextStyle(fontWeight: FontWeight.w800, color: color, fontSize: 13)),
+                child: Text(tx(label), style: TextStyle(fontWeight: FontWeight.w800, color: color, fontSize: 13)),
               ),
             ],
           ),

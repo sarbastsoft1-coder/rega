@@ -153,9 +153,16 @@ class AccountingController extends Controller
             ->orderByDesc('admin_earnings')
             ->paginate(min(100, max(10, (int) $request->integer('per_page', 30))));
 
+        $items = collect($stores->items())->map(function (Store $store) {
+            $row = $store->toArray();
+            $row['commission_rate'] = $this->profitService->commissionForStore($store);
+
+            return $row;
+        })->values();
+
         return response()->json([
             'success' => true,
-            'data' => $stores->items(),
+            'data' => $items,
             'meta' => [
                 'current_page' => $stores->currentPage(),
                 'last_page' => $stores->lastPage(),
@@ -236,7 +243,7 @@ class AccountingController extends Controller
             ->where('is_profit_realized', true)
             ->whereBetween('created_at', [$todayFrom, $todayTo]);
 
-        $commissionPct = $this->profitService->globalCommissionPercentage();
+        $commissionPct = $this->profitService->commissionForStore($store);
         $adminEarnings = (int) (clone $realizedQ)->sum('admin_profit_amount');
         $grossProfit = (int) (clone $realizedQ)->sum('total_gross_profit');
         $todayAdminOwed = (int) (clone $todayQ)->sum('admin_profit_amount');
@@ -249,7 +256,9 @@ class AccountingController extends Controller
                 'shop' => [
                     'id' => $store->id,
                     'name_ku' => $store->name_ku,
+                    'name_ar' => $store->name_ar,
                     'name_en' => $store->name_en,
+                    'commission_rate' => $commissionPct,
                 ],
                 'summary' => [
                     'total_orders' => (clone $ordersQ)->count(),
@@ -381,12 +390,24 @@ class AccountingController extends Controller
 
     public function profitSettings(): JsonResponse
     {
+        $stores = Store::query()
+            ->orderBy('name_ku')
+            ->get(['id', 'name_ku', 'name_ar', 'name_en', 'commission_rate']);
+
         return response()->json([
             'success' => true,
             'data' => [
                 'commission_percentage' => $this->profitService->globalCommissionPercentage(),
+                'default_commission_percentage' => $this->profitService->globalCommissionPercentage(),
+                'stores' => $stores->map(fn (Store $s) => [
+                    'id' => $s->id,
+                    'name_ku' => $s->name_ku,
+                    'name_ar' => $s->name_ar,
+                    'name_en' => $s->name_en,
+                    'commission_rate' => $this->profitService->commissionForStore($s),
+                ]),
                 'history' => AdminProfitSettingsHistory::query()
-                    ->with('changer:id,name')
+                    ->with(['changer:id,name', 'store:id,name_ku,name_ar,name_en'])
                     ->latest()
                     ->limit(50)
                     ->get(),
@@ -398,24 +419,40 @@ class AccountingController extends Controller
     {
         $validated = $request->validate([
             'commission_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
+            'store_id' => ['nullable', 'integer', 'exists:stores,id'],
             'note' => ['nullable', 'string', 'max:255'],
         ]);
 
         $pct = round((float) $validated['commission_percentage'], 2);
+        $storeId = isset($validated['store_id']) ? (int) $validated['store_id'] : null;
 
-        DB::transaction(function () use ($pct, $validated, $request) {
-            PlatformSetting::setValue(
-                OrderProfitService::SETTINGS_KEY,
-                $pct,
-                'finance',
-                'Global admin share % of product gross profit (selling - cost)'
-            );
+        DB::transaction(function () use ($pct, $validated, $request, $storeId) {
+            if ($storeId) {
+                $store = Store::query()->lockForUpdate()->findOrFail($storeId);
+                $store->commission_rate = $pct;
+                $store->save();
 
-            AdminProfitSettingsHistory::create([
-                'commission_percentage' => $pct,
-                'changed_by' => $request->user()->id,
-                'note' => $validated['note'] ?? 'Updated global profit commission',
-            ]);
+                AdminProfitSettingsHistory::create([
+                    'commission_percentage' => $pct,
+                    'store_id' => $store->id,
+                    'changed_by' => $request->user()->id,
+                    'note' => $validated['note'] ?? ('Updated commission for '.$store->name_ku),
+                ]);
+            } else {
+                PlatformSetting::setValue(
+                    OrderProfitService::SETTINGS_KEY,
+                    $pct,
+                    'finance',
+                    'Global admin share % of product gross profit (selling - cost)'
+                );
+
+                AdminProfitSettingsHistory::create([
+                    'commission_percentage' => $pct,
+                    'store_id' => null,
+                    'changed_by' => $request->user()->id,
+                    'note' => $validated['note'] ?? 'Updated global profit commission',
+                ]);
+            }
         });
 
         return $this->profitSettings();

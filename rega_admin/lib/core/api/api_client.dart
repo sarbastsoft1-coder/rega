@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../rega_mobile.dart';
 
+import '../../rega_i18n.dart';
 class ExcelBackupFile {
   ExcelBackupFile({required this.bytes, required this.fileName});
 
@@ -214,7 +215,7 @@ class ApiClient {
     Map<String, dynamic> decoded = {};
     if (res.body.isNotEmpty) {
       try {
-        final raw = jsonDecode(utf8.decode(res.bodyBytes));
+        final raw = regaJsonDecode(utf8.decode(res.bodyBytes));
         if (raw is Map<String, dynamic>) {
           decoded = raw;
         }
@@ -522,7 +523,7 @@ class ApiClient {
       Map<String, dynamic> decoded = {};
       if (body.isNotEmpty) {
         try {
-          final raw = jsonDecode(body);
+          final raw = regaJsonDecode(body);
           if (raw is Map<String, dynamic>) decoded = raw;
         } catch (_) {}
       }
@@ -571,7 +572,7 @@ class ApiClient {
     Map<String, dynamic> decoded = {};
     if (body.isNotEmpty) {
       try {
-        final raw = jsonDecode(body);
+        final raw = regaJsonDecode(body);
         if (raw is Map<String, dynamic>) decoded = raw;
       } catch (_) {}
     }
@@ -621,7 +622,7 @@ class ApiClient {
     Map<String, dynamic> decoded = {};
     if (body.isNotEmpty) {
       try {
-        final raw = jsonDecode(body);
+        final raw = regaJsonDecode(body);
         if (raw is Map<String, dynamic>) decoded = raw;
       } catch (_) {}
     }
@@ -819,9 +820,14 @@ class ApiClient {
     return res['data'] as Map<String, dynamic>? ?? {};
   }
 
-  Future<Map<String, dynamic>> updateProfitSettings(double percentage, {String? note}) async {
+  Future<Map<String, dynamic>> updateProfitSettings(
+    double percentage, {
+    int? storeId,
+    String? note,
+  }) async {
     final res = await _send('PUT', '/admin/accounting/profit-settings', body: {
       'commission_percentage': percentage,
+      if (storeId != null) 'store_id': storeId,
       if (note != null) 'note': note,
     });
     return res['data'] as Map<String, dynamic>? ?? {};
@@ -982,7 +988,7 @@ class ApiClient {
     if (res.statusCode < 200 || res.statusCode >= 300) {
       String msg = 'هەڵەیەک ڕوویدا (${res.statusCode})';
       try {
-        final raw = jsonDecode(utf8.decode(res.bodyBytes));
+        final raw = regaJsonDecode(utf8.decode(res.bodyBytes));
         if (raw is Map && raw['message'] != null) {
           msg = raw['message'].toString();
         }

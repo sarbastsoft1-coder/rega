@@ -4,6 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'iraq_phone_formatter.dart';
 import 'l10n/customer_l10n.dart';
 
+import 'rega_i18n.dart';
+import 'rega_colors.dart';
 class AccountBlockedException implements Exception {
   final String message;
   final Map<String, dynamic> contact;
@@ -113,7 +115,7 @@ class BlockedAccountContacts {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: Row(
               children: [
-                const Icon(Icons.block_rounded, color: Color(0xFFDC2626), size: 28),
+                Icon(Icons.block_rounded, color: RC.fg(Color(0xFFDC2626)), size: 28),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -134,8 +136,8 @@ class BlockedAccountContacts {
                 const SizedBox(height: 18),
                 _ContactBtn(
                   icon: Icons.chat_rounded,
-                  color: const Color(0xFF16A34A),
-                  label: '${t('پەیوەندی لە ڕێگەی واتسئاپ')}  ${contacts.whatsapp}',
+                  color: RC.bg(Color(0xFF16A34A)),
+                  label: tx('${t('پەیوەندی لە ڕێگەی واتسئاپ')}  ${contacts.whatsapp}'),
                   onTap: () => contacts.open(
                     contacts.whatsappUri,
                     clipboardFallback: contacts.whatsapp,
@@ -145,8 +147,8 @@ class BlockedAccountContacts {
                   const SizedBox(height: 8),
                   _ContactBtn(
                     icon: Icons.phone_rounded,
-                    color: const Color(0xFFEA580C),
-                    label: '${t('تەلەفۆن بۆ ڕاژەی کریاران')}  ${contacts.phone}',
+                    color: RC.bg(Color(0xFFEA580C)),
+                    label: tx('${t('تەلەفۆن بۆ ڕاژەی کریاران')}  ${contacts.phone}'),
                     onTap: () => contacts.open(
                       contacts.telUri,
                       clipboardFallback: contacts.phone,
@@ -200,7 +202,7 @@ class _ContactBtn extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  label,
+                  tx(label),
                   style: TextStyle(fontWeight: FontWeight.w800, color: color, fontSize: 13),
                 ),
               ),

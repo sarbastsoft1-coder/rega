@@ -8,6 +8,8 @@ import '../core/theme/app_theme.dart';
 import '../core/services/excel_backup_service.dart';
 import '../widgets/admin_top_header.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 class SupportSettingsScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
@@ -167,7 +169,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           insetPadding: AdminBreakpoints.dialogInset(ctx),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Text(
-            isEdit ? 'دەستکاریکردنی هەژماری ئەدمین' : 'دروستکردنی هەژماری ئەدمین',
+            tx(isEdit ? 'دەستکاریکردنی هەژماری ئەدمین' : 'دروستکردنی هەژماری ئەدمین'),
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
           ),
           content: SizedBox(
@@ -179,7 +181,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   TextField(
                     controller: nameCtrl,
                     decoration: InputDecoration(
-                      labelText: 'ناو *',
+                      labelText: tx('ناو *'),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
@@ -187,7 +189,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   TextField(
                     controller: phoneCtrl,
                     decoration: InputDecoration(
-                      labelText: 'مۆبایل *',
+                      labelText: tx('مۆبایل *'),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
@@ -196,8 +198,8 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     controller: emailCtrl,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      labelText: 'ئیمەیڵ *',
-                      hintText: 'admin@example.com',
+                      labelText: tx('ئیمەیڵ *'),
+                      hintText: tx('admin@example.com'),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
@@ -206,25 +208,25 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     controller: passwordCtrl,
                     obscureText: true,
                     decoration: InputDecoration(
-                      labelText: isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *',
+                      labelText: txn(isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *'),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                   const SizedBox(height: 12),
                   InputDecorator(
                     decoration: InputDecoration(
-                      labelText: 'ڕۆڵ',
+                      labelText: tx('ڕۆڵ'),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text(
-                      'ئەدمین',
+                    child: Text(
+                      tx('ئەدمین'),
                       style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
                     ),
                   ),
                   SwitchListTile(
                     value: isActive,
                     onChanged: (v) => setDialogState(() => isActive = v),
-                    title: const Text('چالاک', style: TextStyle(fontWeight: FontWeight.w700)),
+                    title: Text(tx('چالاک'), style: TextStyle(fontWeight: FontWeight.w700)),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ],
@@ -234,12 +236,12 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.pop(ctx),
-              child: const Text('پاشگەزبوونەوە'),
+              child: Text(tx('پاشگەزبوونەوە')),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEA580C),
-                foregroundColor: Colors.white,
+                backgroundColor: RC.bg(Color(0xFFEA580C)),
+                foregroundColor: RC.fg(Colors.white),
               ),
               onPressed: saving
                   ? null
@@ -291,7 +293,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                         _showSnack(e.toString(), error: true);
                       }
                     },
-              child: Text(isEdit ? 'پاشەکەوتکردن' : 'دروستکردن'),
+              child: Text(tx(isEdit ? 'پاشەکەوتکردن' : 'دروستکردن')),
             ),
           ],
         ),
@@ -351,8 +353,8 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: error ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+        content: Text(tx(message)),
+        backgroundColor: error ? RC.bg(Color(0xFFDC2626)) : RC.bg(Color(0xFF16A34A)),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -364,12 +366,12 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+            Icon(Icons.check_circle_rounded, color: RC.fg(Colors.white), size: 20),
             const SizedBox(width: 10),
-            Text(message, style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text(tx(message), style: const TextStyle(fontWeight: FontWeight.w700)),
           ],
         ),
-        backgroundColor: const Color(0xFFEA580C),
+        backgroundColor: RC.bg(Color(0xFFEA580C)),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -417,8 +419,8 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${AppStrings.tr('excel_backup_failed', widget.lang)}: $e'),
-          backgroundColor: const Color(0xFFDC2626),
+          content: Text(tx('${AppStrings.tr('excel_backup_failed', widget.lang)}: $e')),
+          backgroundColor: RC.bg(Color(0xFFDC2626)),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -438,8 +440,8 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${AppStrings.tr('excel_backup_failed', widget.lang)}: $e'),
-          backgroundColor: const Color(0xFFDC2626),
+          content: Text(tx('${AppStrings.tr('excel_backup_failed', widget.lang)}: $e')),
+          backgroundColor: RC.bg(Color(0xFFDC2626)),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -455,10 +457,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFFEDD5)),
+        border: Border.all(color: RC.bg(Color(0xFFFFEDD5))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -484,9 +486,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   const SizedBox(height: 6),
                   Text(
                     AppStrings.tr('excel_backup_subtitle', widget.lang),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12.5,
-                      color: Color(0xFF64748B),
+                      color: RC.fg(Color(0xFF64748B)),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -494,24 +496,24 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               );
               final button = ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEA580C),
-                  foregroundColor: Colors.white,
+                  backgroundColor: RC.bg(Color(0xFFEA580C)),
+                  foregroundColor: RC.fg(Colors.white),
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: _exportingExcel ? null : _downloadExcelBackup,
                 icon: _exportingExcel
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
                       )
                     : const Icon(Icons.table_view_rounded, size: 18),
                 label: Text(
-                  _exportingExcel
+                  tx(_exportingExcel
                       ? AppStrings.tr('excel_backup_working', widget.lang)
-                      : AppStrings.tr('excel_backup_button', widget.lang),
+                      : AppStrings.tr('excel_backup_button', widget.lang)),
                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                 ),
               );
@@ -531,10 +533,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFEDD5),
+                      color: RC.bg(Color(0xFFFFEDD5)),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.backup_table_rounded, color: Color(0xFFEA580C), size: 26),
+                    child: Icon(Icons.backup_table_rounded, color: RC.fg(Color(0xFFEA580C)), size: 26),
                   ),
                   const SizedBox(width: 16),
                   Expanded(child: textCol),
@@ -545,7 +547,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             },
           ),
           const SizedBox(height: 20),
-          const Divider(height: 1, color: Color(0xFFFFEDD5)),
+          Divider(height: 1, color: RC.bg(Color(0xFFFFEDD5))),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -564,9 +566,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       AppStrings.tr('excel_backup_auto_hint', widget.lang),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11.5,
-                        color: Color(0xFF64748B),
+                        color: RC.fg(Color(0xFF64748B)),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -589,15 +591,15 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           const SizedBox(height: 10),
           Text(
             AppStrings.tr('excel_backup_recent', widget.lang),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF9A3412),
+              color: RC.fg(Color(0xFF9A3412)),
             ),
           ),
           const SizedBox(height: 8),
           if (_loadingBackups && _storedBackups.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             )
@@ -606,9 +608,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 AppStrings.tr('excel_backup_empty', widget.lang),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12.5,
-                  color: Color(0xFF94A3B8),
+                  color: RC.fg(Color(0xFF94A3B8)),
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -625,22 +627,22 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7ED),
+                    color: RC.bg(Color(0xFFFFF7ED)),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFFFEDD5)),
+                    border: Border.all(color: RC.bg(Color(0xFFFFEDD5))),
                   ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEA580C),
+                          color: RC.bg(Color(0xFFEA580C)),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          type.toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
+                          tx(type.toUpperCase()),
+                          style: TextStyle(
+                            color: RC.fg(Colors.white),
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                           ),
@@ -652,7 +654,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              file,
+                              tx(file),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -661,10 +663,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                               ),
                             ),
                             Text(
-                              '$modified · ${ExcelBackupService.formatBytes(size)}',
-                              style: const TextStyle(
+                              tx('$modified · ${ExcelBackupService.formatBytes(size)}'),
+                              style: TextStyle(
                                 fontSize: 11,
-                                color: Color(0xFF64748B),
+                                color: RC.fg(Color(0xFF64748B)),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -701,21 +703,21 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
         final title = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
+          children: [
             Text(
-              'ڕێکخستنەکان',
+              tx('ڕێکخستنەکان'),
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF111827),
+                color: RC.fg(Color(0xFF111827)),
               ),
             ),
             SizedBox(height: 2),
             Text(
-              'بەڕێوەبردنی هەژمار و خزمەتگوزارییەکانی REGA',
+              tx('بەڕێوەبردنی هەژمار و خزمەتگوزارییەکانی REGA'),
               style: TextStyle(
                 fontSize: 12.5,
-                color: Color(0xFF6B7280),
+                color: RC.fg(Color(0xFF6B7280)),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -724,7 +726,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
         final topActions = AdminTopBarRow(
           searchCtrl: _searchCtrl,
-          hintText: '...گەڕان لە ناو سیستەمدا',
+          hintText: tx('...گەڕان لە ناو سیستەمدا'),
           onGoToSettings: () => setState(() => _selectedSubTab = 1),
         );
 
@@ -778,8 +780,8 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     ];
 
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1.5)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: RC.bg(Color(0xFFE2E8F0)), width: 1.5)),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -796,7 +798,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: isSelected ? const Color(0xFFEA580C) : Colors.transparent,
+                      color: isSelected ? RC.bg(Color(0xFFEA580C)) : Colors.transparent,
                       width: 2.8,
                     ),
                   ),
@@ -807,15 +809,15 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     Icon(
                       tab['icon'] as IconData,
                       size: 17,
-                      color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                      color: isSelected ? RC.fg(Color(0xFFEA580C)) : RC.bg(Color(0xFF64748B)),
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      tab['name'] as String,
+                      tx(tab['name'] as String),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                        color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                        color: isSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFF64748B)),
                       ),
                     ),
                   ],
@@ -897,10 +899,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -911,48 +913,48 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'هەژمارەکانی ئەدمین',
+                  tx('هەژمارەکانی ئەدمین'),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF111827),
+                    color: RC.fg(Color(0xFF111827)),
                   ),
                 ),
               ),
               OutlinedButton.icon(
                 onPressed: _loadAdminStaff,
                 icon: const Icon(Icons.refresh_rounded, size: 16),
-                label: const Text('نوێکردنەوە'),
+                label: Text(tx('نوێکردنەوە')),
               ),
               const SizedBox(width: 8),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEA580C),
-                  foregroundColor: Colors.white,
+                  backgroundColor: RC.bg(Color(0xFFEA580C)),
+                  foregroundColor: RC.fg(Colors.white),
                 ),
                 onPressed: () => _showCreateAdminDialog(),
                 icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                label: const Text('دروستکردنی ئەدمین'),
+                label: Text(tx('دروستکردنی ئەدمین')),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            'دەتوانیت هەژماری ئەدمین دروست بکەیت — چوونە ژوورەوە بە ئیمەیڵ و وشەی نهێنی.',
-            style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+          Text(
+            tx('دەتوانیت هەژماری ئەدمین دروست بکەیت — چوونە ژوورەوە بە ئیمەیڵ و وشەی نهێنی.'),
+            style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 14),
           if (_loadingStaff)
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator(color: Color(0xFFEA580C))),
+              child: Center(child: CircularProgressIndicator(color: RC.bg(Color(0xFFEA580C)))),
             )
           else if (_adminStaff.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(16),
-              child: Text('هیچ هەژماری ئەدمین نەدۆزرایەوە', textAlign: TextAlign.center),
+              child: Text(tx('هیچ هەژماری ئەدمین نەدۆزرایەوە'), textAlign: TextAlign.center),
             )
           else
             ..._adminStaff.map((staff) {
@@ -969,10 +971,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                 child: Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: const Color(0xFFFFEDD5),
+                      backgroundColor: RC.bg(Color(0xFFFFEDD5)),
                       child: Icon(
                         Icons.admin_panel_settings_rounded,
-                        color: active ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
+                        color: active ? RC.fg(Color(0xFFEA580C)) : RC.bg(Color(0xFF94A3B8)),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -981,13 +983,13 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            staff['name']?.toString() ?? '',
+                            tx(staff['name']?.toString() ?? ''),
                             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
                           ),
                           Text(
-                            '${staff['phone'] ?? ''} • ئەدمین'
-                            '${staff['email'] != null ? ' • ${staff['email']}' : ''}',
-                            style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                            tx('${staff['phone'] ?? ''} • ئەدمین'
+                            '${staff['email'] != null ? ' • ${staff['email']}' : ''}'),
+                            style: TextStyle(fontSize: 11.5, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -995,25 +997,25 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: active ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                        color: active ? RC.bg(Color(0xFFDCFCE7)) : RC.bg(Color(0xFFFEE2E2)),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        active ? 'چالاک' : 'ناچالاک',
+                        tx(active ? 'چالاک' : 'ناچالاک'),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: active ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                          color: active ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFFDC2626)),
                         ),
                       ),
                     ),
                     IconButton(
-                      tooltip: 'دەستکاری',
+                      tooltip: tx('دەستکاری'),
                       onPressed: () => _showCreateAdminDialog(existing: staff),
-                      icon: const Icon(Icons.edit_rounded, color: Color(0xFF334155)),
+                      icon: Icon(Icons.edit_rounded, color: RC.fg(Color(0xFF334155))),
                     ),
                     IconButton(
-                      tooltip: active ? 'ناچالاککردن' : 'چالاککردن',
+                      tooltip: txn(active ? 'ناچالاککردن' : 'چالاککردن'),
                       onPressed: () async {
                         try {
                           await widget.api.toggleAdminStaffActive(id);
@@ -1025,28 +1027,28 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                       },
                       icon: Icon(
                         active ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
-                        color: active ? const Color(0xFF16A34A) : const Color(0xFF94A3B8),
+                        color: active ? RC.fg(Color(0xFF16A34A)) : RC.bg(Color(0xFF94A3B8)),
                         size: 30,
                       ),
                     ),
                     IconButton(
-                      tooltip: 'سڕینەوە',
+                      tooltip: tx('سڕینەوە'),
                       onPressed: () async {
                         final name = staff['name']?.toString() ?? '';
                         final ok = await showDialog<bool>(
                           context: context,
                           builder: (dCtx) => AlertDialog(
-                            title: const Text('سڕینەوەی ئەدمین؟', style: TextStyle(fontWeight: FontWeight.w900)),
-                            content: Text('دڵنیایت دەتەوێت «$name» بسڕیتەوە؟'),
+                            title: Text(tx('سڕینەوەی ئەدمین؟'), style: TextStyle(fontWeight: FontWeight.w900)),
+                            content: Text(tx('دڵنیایت دەتەوێت «$name» بسڕیتەوە؟')),
                             actions: [
-                              TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('پاشگەزبوونەوە')),
+                              TextButton(onPressed: () => Navigator.pop(dCtx, false), child: Text(tx('پاشگەزبوونەوە'))),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFDC2626),
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: RC.bg(Color(0xFFDC2626)),
+                                  foregroundColor: RC.fg(Colors.white),
                                 ),
                                 onPressed: () => Navigator.pop(dCtx, true),
-                                child: const Text('سڕینەوە'),
+                                child: Text(tx('سڕینەوە')),
                               ),
                             ],
                           ),
@@ -1060,7 +1062,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                           _showSnack(e.toString(), error: true);
                         }
                       },
-                      icon: const Icon(Icons.delete_forever_rounded, color: Color(0xFFDC2626)),
+                      icon: Icon(Icons.delete_forever_rounded, color: RC.fg(Color(0xFFDC2626))),
                     ),
                   ],
                 ),
@@ -1077,10 +1079,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1092,22 +1094,22 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'هەژماری بەڕێوەبەر',
+              Text(
+                tx('هەژماری بەڕێوەبەر'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: RC.fg(Color(0xFF111827)),
                 ),
               ),
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
+                  color: RC.bg(Color(0xFFFFF7ED)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.person_rounded, color: Color(0xFFEA580C), size: 20),
+                child: Icon(Icons.person_rounded, color: RC.fg(Color(0xFFEA580C)), size: 20),
               ),
             ],
           ),
@@ -1119,12 +1121,12 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7ED),
+                    color: RC.bg(Color(0xFFFFF7ED)),
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFFFEDD5), width: 2),
+                    border: Border.all(color: RC.bg(Color(0xFFFFEDD5)), width: 2),
                   ),
-                  child: const Center(
-                    child: Icon(Icons.admin_panel_settings_rounded, color: Color(0xFFEA580C), size: 36),
+                  child: Center(
+                    child: Icon(Icons.admin_panel_settings_rounded, color: RC.fg(Color(0xFFEA580C)), size: 36),
                   ),
                 ),
                 Positioned(
@@ -1132,32 +1134,32 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   right: 0,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF16A34A),
+                    decoration: BoxDecoration(
+                      color: RC.bg(Color(0xFF16A34A)),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.check, color: Colors.white, size: 12),
+                    child: Icon(Icons.check, color: RC.fg(Colors.white), size: 12),
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          const Center(
+          Center(
             child: Text(
-              'سەرپەرشتیاری گشتی سیستەم',
-              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+              tx('سەرپەرشتیاری گشتی سیستەم'),
+              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF0F172A))),
             ),
           ),
           const SizedBox(height: 2),
-          const Center(
+          Center(
             child: Text(
-              'admin@rega.krd • ناوەندی ئۆپەرەیشن',
-              style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+              tx('admin@rega.krd • ناوەندی ئۆپەرەیشن'),
+              style: TextStyle(fontSize: 11.5, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w600),
             ),
           ),
           const SizedBox(height: 20),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: RC.bg(Color(0xFFF1F5F9))),
           const SizedBox(height: 14),
           _buildInfoRow('دەسەڵات:', 'بەڕێوەبەری سەرەکی (Superadmin)'),
           const SizedBox(height: 10),
@@ -1206,10 +1208,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1221,53 +1223,53 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'کەناڵەکانی ناردنی ئاگاداری',
+              Text(
+                tx('کەناڵەکانی ناردنی ئاگاداری'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: RC.fg(Color(0xFF111827)),
                 ),
               ),
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
+                  color: RC.bg(Color(0xFFFFF7ED)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.ring_volume_rounded, color: Color(0xFFEA580C), size: 20),
+                child: Icon(Icons.ring_volume_rounded, color: RC.fg(Color(0xFFEA580C)), size: 20),
               ),
             ],
           ),
           const SizedBox(height: 18),
           _buildGatewayRow(
-            title: 'دەنگی ئاگادارکردنەوە لە وێبدا',
-            subtitle: 'لێدانی زەنگ لە کاتی هاتنی داواکاریی نوێ',
+            title: tx('دەنگی ئاگادارکردنەوە لە وێبدا'),
+            subtitle: tx('لێدانی زەنگ لە کاتی هاتنی داواکاریی نوێ'),
             icon: Icons.volume_up_rounded,
             value: _notifySound,
             onChanged: (v) => setState(() => _notifySound = v),
           ),
-          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+          Divider(height: 16, color: RC.bg(Color(0xFFF1F5F9))),
           _buildGatewayRow(
-            title: 'ئاگاداری کڕیارە نوێیەکان',
-            subtitle: 'ئاگادارکردنەوە لە کاتی دروستکردنی هەژماری نوێ',
+            title: tx('ئاگاداری کڕیارە نوێیەکان'),
+            subtitle: tx('ئاگادارکردنەوە لە کاتی دروستکردنی هەژماری نوێ'),
             icon: Icons.person_add_rounded,
             value: _notifyNewCustomer,
             onChanged: (v) => setState(() => _notifyNewCustomer = v),
           ),
-          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+          Divider(height: 16, color: RC.bg(Color(0xFFF1F5F9))),
           _buildGatewayRow(
-            title: 'ئاگاداری نامەی کورت (SMS)',
-            subtitle: 'ناردنی SMS بۆ داواکارییە هەستیارەکان',
+            title: tx('ئاگاداری نامەی کورت (SMS)'),
+            subtitle: tx('ناردنی SMS بۆ داواکارییە هەستیارەکان'),
             icon: Icons.sms_outlined,
             value: _notifySms,
             onChanged: (v) => setState(() => _notifySms = v),
           ),
-          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+          Divider(height: 16, color: RC.bg(Color(0xFFF1F5F9))),
           _buildGatewayRow(
-            title: 'ئاگاداری کێشەی سیستەم',
-            subtitle: 'ئاگاداری ڕاستەوخۆ لە کاتی لەکارکەوتن یان پەستانی بەرز',
+            title: tx('ئاگاداری کێشەی سیستەم'),
+            subtitle: tx('ئاگاداری ڕاستەوخۆ لە کاتی لەکارکەوتن یان پەستانی بەرز'),
             icon: Icons.warning_amber_rounded,
             value: _notifySystemAlert,
             onChanged: (v) => setState(() => _notifySystemAlert = v),
@@ -1275,14 +1277,14 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           const SizedBox(height: 18),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEA580C),
-              foregroundColor: Colors.white,
+              backgroundColor: RC.bg(Color(0xFFEA580C)),
+              foregroundColor: RC.fg(Colors.white),
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => _showSaveFeedback('ڕێکخستنەکانی کەناڵەکانی ئاگادارکردنەوە پاشەکەوت کران'),
-            child: const Text('پاشەکەوتکردن', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+            child: Text(tx('پاشەکەوتکردن'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -1304,9 +1306,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
+                color: RC.bg(Color(0xFFFFF7ED)),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFFEDD5)),
+                border: Border.all(color: RC.bg(Color(0xFFFFEDD5))),
               ),
               child: Row(
                 children: [
@@ -1314,30 +1316,30 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEA580C),
+                      color: RC.bg(Color(0xFFEA580C)),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.payments_rounded, color: Colors.white, size: 26),
+                    child: Icon(Icons.payments_rounded, color: RC.fg(Colors.white), size: 26),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
-                          'ڕێکخستنەکانی پارەدان و دەروازە داراییەکان',
+                          tx('ڕێکخستنەکانی پارەدان و دەروازە داراییەکان'),
                           style: TextStyle(
                             fontSize: 16.5,
                             fontWeight: FontWeight.w900,
-                            color: Color(0xFF0F172A),
+                            color: RC.fg(Color(0xFF0F172A)),
                           ),
                         ),
                         SizedBox(height: 3),
                         Text(
-                          'دیاریکردنی کرێی گەیاندن، کۆمیسیۆنی فرۆشیاران، شێوازەکانی پارەدان و کاتی خولی پارەدان',
+                          tx('دیاریکردنی کرێی گەیاندن، کۆمیسیۆنی فرۆشیاران، شێوازەکانی پارەدان و کاتی خولی پارەدان'),
                           style: TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF64748B),
+                            color: RC.fg(Color(0xFF64748B)),
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1346,16 +1348,16 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   ),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEA580C),
-                      foregroundColor: Colors.white,
+                      backgroundColor: RC.bg(Color(0xFFEA580C)),
+                      foregroundColor: RC.fg(Colors.white),
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی پارەدان نوێکرانەوە'),
                     icon: const Icon(Icons.save_rounded, size: 18),
-                    label: const Text(
-                      'پاشەکەوتکردن',
+                    label: Text(
+                      tx('پاشەکەوتکردن'),
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
                     ),
                   ),
@@ -1395,10 +1397,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1410,30 +1412,30 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'شێوازەکانی پارەدان و دەروازەکان',
+              Text(
+                tx('شێوازەکانی پارەدان و دەروازەکان'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: RC.fg(Color(0xFF111827)),
                 ),
               ),
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
+                  color: RC.bg(Color(0xFFFFF7ED)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.account_balance_rounded, color: Color(0xFFEA580C), size: 20),
+                child: Icon(Icons.account_balance_rounded, color: RC.fg(Color(0xFFEA580C)), size: 20),
               ),
             ],
           ),
           const SizedBox(height: 18),
 
           _buildGatewayRow(
-            title: 'کاش لە کاتی گەیاندن (COD)',
-            subtitle: 'تەنها شێوازی پارەدان چالاکە — پارە بە کاش لە کاتی ڕادەستکردن',
+            title: tx('کاش لە کاتی گەیاندن (COD)'),
+            subtitle: tx('تەنها شێوازی پارەدان چالاکە — پارە بە کاش لە کاتی ڕادەستکردن'),
             icon: Icons.money_rounded,
             value: _enableCod,
             onChanged: null,
@@ -1449,10 +1451,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1462,157 +1464,162 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'دراوی سیستەم و خشتەی وەرگرتن (Payouts & Currency)',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+              Expanded(
+                child: Text(
+                  tx('دراوی سیستەم و خشتەی وەرگرتن (Payouts & Currency)'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: RC.fg(Color(0xFF111827)),
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: RC.bg(Color(0xFFF1F5F9)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.currency_exchange_rounded, color: Color(0xFF334155), size: 20),
+                child: Icon(Icons.currency_exchange_rounded, color: RC.fg(Color(0xFF334155)), size: 20),
               ),
             ],
           ),
           const SizedBox(height: 20),
 
-          Wrap(
-            spacing: 20,
-            runSpacing: 16,
-            children: [
-              SizedBox(
-                width: 280,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('دراوی سەرەکی', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
-                    const SizedBox(height: 6),
-                    Container(
-                      height: 40,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: _mutedFill,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _borderColor),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _primaryCurrency,
-                          isExpanded: true,
-                          items: const [
-                            DropdownMenuItem(value: 'دیناری عێراقی', child: Text('دیناری عێراقی')),
-                            DropdownMenuItem(value: 'دۆلاری ئەمریکی', child: Text('دۆلاری ئەمریکی')),
-                          ],
-                          onChanged: (v) => setState(() => _primaryCurrency = v ?? 'دیناری عێراقی'),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final fieldW = constraints.maxWidth < 600
+                  ? constraints.maxWidth
+                  : (constraints.maxWidth < 620 ? constraints.maxWidth : 280.0);
+              Widget field(Widget child) => SizedBox(width: fieldW, child: child);
+              return Wrap(
+                spacing: 20,
+                runSpacing: 16,
+                children: [
+                  field(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(tx('دراوی سەرەکی'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 40,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: _mutedFill,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _borderColor),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _primaryCurrency,
+                              isExpanded: true,
+                              items: [
+                                DropdownMenuItem(value: 'دیناری عێراقی', child: Text(tx('دیناری عێراقی'))),
+                                DropdownMenuItem(value: 'دۆلاری ئەمریکی', child: Text(tx('دۆلاری ئەمریکی'))),
+                              ],
+                              onChanged: (v) => setState(() => _primaryCurrency = v ?? 'دیناری عێراقی'),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-
-              SizedBox(
-                width: 280,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('خولی پارەدان بە فرۆشیاران', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
-                    const SizedBox(height: 6),
-                    Container(
-                      height: 40,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: _mutedFill,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _borderColor),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _payoutSchedule,
-                          isExpanded: true,
-                          items: [
-                            DropdownMenuItem(value: 'هەفتانە', child: Text(AppStrings.tr('payout_weekly', widget.lang))),
-                            DropdownMenuItem(value: 'ڕۆژانە', child: Text(widget.lang == 'en' ? 'Daily' : (widget.lang == 'ar' ? 'يومي' : 'ڕۆژانە'))),
-                            DropdownMenuItem(value: 'مانگانە', child: Text(AppStrings.tr('payout_monthly', widget.lang))),
-                          ],
-                          onChanged: (v) => setState(() => _payoutSchedule = v ?? 'هەفتانە'),
+                  ),
+                  field(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(tx('خولی پارەدان بە فرۆشیاران'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 40,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: _mutedFill,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _borderColor),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _payoutSchedule,
+                              isExpanded: true,
+                              items: [
+                                DropdownMenuItem(value: 'هەفتانە', child: Text(AppStrings.tr('payout_weekly', widget.lang))),
+                                DropdownMenuItem(value: 'ڕۆژانە', child: Text(tx(widget.lang == 'en' ? 'Daily' : (widget.lang == 'ar' ? 'يومي' : 'ڕۆژانە')))),
+                                DropdownMenuItem(value: 'مانگانە', child: Text(AppStrings.tr('payout_monthly', widget.lang))),
+                              ],
+                              onChanged: (v) => setState(() => _payoutSchedule = v ?? 'هەفتانە'),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-
-              SizedBox(
-                width: 280,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('کەمترین باڵانس بۆ کێشانەوەی شۆفێران', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _driverMinPayoutCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        suffixText: 'دینار',
-                        filled: true,
-                        fillColor: _mutedFill,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                      ),
+                  ),
+                  field(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(tx('کەمترین باڵانس بۆ کێشانەوەی شۆفێران'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _driverMinPayoutCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            suffixText: tx('دینار'),
+                            filled: true,
+                            fillColor: _mutedFill,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-
-              SizedBox(
-                width: 280,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('کەمترین باڵانس بۆ کێشانەوەی فرۆشیاران', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _vendorMinPayoutCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        suffixText: 'دینار',
-                        filled: true,
-                        fillColor: _mutedFill,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                      ),
+                  ),
+                  field(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(tx('کەمترین باڵانس بۆ کێشانەوەی فرۆشیاران'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _vendorMinPayoutCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            suffixText: tx('دینار'),
+                            filled: true,
+                            fillColor: _mutedFill,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ],
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
           Align(
             alignment: Alignment.centerLeft,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEA580C),
-                foregroundColor: Colors.white,
+                backgroundColor: RC.bg(Color(0xFFEA580C)),
+                foregroundColor: RC.fg(Colors.white),
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی دارایی و دراو نوێکرانەوە'),
               icon: const Icon(Icons.check_circle_rounded, size: 18),
-              label: const Text('پاشەکەوتکردنی ڕێکخستنەکانی خشتەی پارەدان', style: TextStyle(fontWeight: FontWeight.w900)),
+              label: Text(tx('پاشەکەوتکردنی ڕێکخستنەکانی خشتەی پارەدان'), style: TextStyle(fontWeight: FontWeight.w900)),
             ),
           ),
         ],
@@ -1655,10 +1662,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1670,54 +1677,54 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'ئاسایشی وشەی نهێنی و هەژمار',
+              Text(
+                tx('ئاسایشی وشەی نهێنی و هەژمار'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: RC.fg(Color(0xFF111827)),
                 ),
               ),
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
+                  color: RC.bg(Color(0xFFFFF7ED)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.lock_outline_rounded, color: Color(0xFFEA580C), size: 20),
+                child: Icon(Icons.lock_outline_rounded, color: RC.fg(Color(0xFFEA580C)), size: 20),
               ),
             ],
           ),
           const SizedBox(height: 18),
           _buildGatewayRow(
-            title: 'سەلماندنی دوو قۆناغی (2FA)',
-            subtitle: 'پاراستنی هەژماری ئەدمین لە ڕێگەی کۆدی کاتی',
+            title: tx('سەلماندنی دوو قۆناغی (2FA)'),
+            subtitle: tx('پاراستنی هەژماری ئەدمین لە ڕێگەی کۆدی کاتی'),
             icon: Icons.phonelink_lock_rounded,
             value: _twoFactorAuth,
             onChanged: (v) => setState(() => _twoFactorAuth = v),
           ),
-          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+          Divider(height: 16, color: RC.bg(Color(0xFFF1F5F9))),
           _buildGatewayRow(
-            title: 'چوونەدەرەوەی خۆکار کاتی بێدەنگی',
-            subtitle: 'چوونەدەرەوە لەدوای ١٥ خولەک بێچالاکی',
+            title: tx('چوونەدەرەوەی خۆکار کاتی بێدەنگی'),
+            subtitle: tx('چوونەدەرەوە لەدوای ١٥ خولەک بێچالاکی'),
             icon: Icons.timer_outlined,
             value: _autoLogoutIdle,
             onChanged: (v) => setState(() => _autoLogoutIdle = v),
           ),
-          const Divider(height: 20, color: Color(0xFFF1F5F9)),
-          const Text('گۆڕینی وشەی نهێنی ئەدمین', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF1E293B))),
+          Divider(height: 20, color: RC.bg(Color(0xFFF1F5F9))),
+          Text(tx('گۆڕینی وشەی نهێنی ئەدمین'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF1E293B)))),
           const SizedBox(height: 10),
-          _buildPasswordInput(label: 'وشەی نهێنی ئێستا', controller: _currentPassCtrl),
+          _buildPasswordInput(label: tx('وشەی نهێنی ئێستا'), controller: _currentPassCtrl),
           const SizedBox(height: 8),
-          _buildPasswordInput(label: 'وشەی نهێنی نوێ', controller: _newPassCtrl),
+          _buildPasswordInput(label: tx('وشەی نهێنی نوێ'), controller: _newPassCtrl),
           const SizedBox(height: 8),
-          _buildPasswordInput(label: 'دووبارەکردنەوەی وشەی نهێنی', controller: _confirmPassCtrl),
+          _buildPasswordInput(label: tx('دووبارەکردنەوەی وشەی نهێنی'), controller: _confirmPassCtrl),
           const SizedBox(height: 18),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEA580C),
-              foregroundColor: Colors.white,
+              backgroundColor: RC.bg(Color(0xFFEA580C)),
+              foregroundColor: RC.fg(Colors.white),
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1728,7 +1735,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               _confirmPassCtrl.clear();
               _showSaveFeedback('ڕێکخستنەکانی ئاسایش بە سەرکەوتوویی نوێکرانەوە');
             },
-            child: const Text('پاشەکەوتکردنی ئاسایش', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+            child: Text(tx('پاشەکەوتکردنی ئاسایش'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -1740,13 +1747,13 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       controller: controller,
       obscureText: true,
       decoration: InputDecoration(
-        hintText: label,
-        hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+        hintText: txn(label),
+        hintStyle: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8))),
         filled: true,
         fillColor: _mutedFill,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
       ),
     );
   }
@@ -1766,10 +1773,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: value ? const Color(0xFFFFF7ED) : const Color(0xFFF1F5F9),
+              color: value ? RC.bg(Color(0xFFFFF7ED)) : RC.bg(Color(0xFFF1F5F9)),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: value ? const Color(0xFFEA580C) : const Color(0xFF94A3B8), size: 20),
+            child: Icon(icon, color: value ? RC.fg(Color(0xFFEA580C)) : RC.bg(Color(0xFF94A3B8)), size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1777,25 +1784,25 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  tx(title),
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    color: value ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                    color: value ? RC.bg(Color(0xFF0F172A)) : RC.bg(Color(0xFF64748B)),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  subtitle,
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                  tx(subtitle),
+                  style: TextStyle(fontSize: 11, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600),
                 ),
               ],
             ),
           ),
           Switch(
             value: value,
-            activeThumbColor: const Color(0xFFEA580C),
-            activeTrackColor: const Color(0xFFFFEDD5),
+            activeThumbColor: RC.bg(Color(0xFFEA580C)),
+            activeTrackColor: RC.bg(Color(0xFFFFEDD5)),
             onChanged: onChanged,
           ),
         ],
@@ -1805,10 +1812,28 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
   Widget _buildInfoRow(String label, String value) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
-        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+        Flexible(
+          flex: 2,
+          child: Text(
+            tx(label),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF64748B))),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          flex: 3,
+          child: Text(
+            tx(value),
+            textAlign: TextAlign.end,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF0F172A))),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }
@@ -1851,10 +1876,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1867,33 +1892,33 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'زانیاریی دامەزراوە',
+              Text(
+                tx('زانیاریی دامەزراوە'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: RC.fg(Color(0xFF111827)),
                 ),
               ),
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: RC.bg(Color(0xFFF1F5F9)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.apartment_rounded, color: Color(0xFF334155), size: 20),
+                child: Icon(Icons.apartment_rounded, color: RC.fg(Color(0xFF334155)), size: 20),
               ),
             ],
           ),
           const SizedBox(height: 20),
 
           // Field 1: ناوی پلاتفۆرم
-          _buildSettingsInputField(label: 'ناوی پلاتفۆرم', controller: _platformNameCtrl),
+          _buildSettingsInputField(label: tx('ناوی پلاتفۆرم'), controller: _platformNameCtrl),
           const SizedBox(height: 14),
 
           // Field 2: ژمارەی پەیوەندی (Call)
-          _buildSettingsInputField(label: 'تەلەفۆن (Contact)', controller: _phoneCtrl, isPhone: true),
+          _buildSettingsInputField(label: tx('تەلەفۆن (Contact)'), controller: _phoneCtrl, isPhone: true),
           const SizedBox(height: 14),
 
           // WhatsApp / Telegram shown to blocked users
@@ -1902,24 +1927,24 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFEF3C7),
+              color: RC.bg(Color(0xFFFEF3C7)),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.35)),
+              border: Border.all(color: RC.bg(Color(0xFFF59E0B)).withValues(alpha: 0.35)),
             ),
-            child: const Text(
-              'ئەم ژمارانە پیشان دەدرێن بۆ کڕیار / شۆفێر / فرۆشیار کاتێک هەژمارەکەیان مسدود دەکەیت، و هەروەها لە دیالۆگی تۆمارکردنی فرۆشگای نوێ لە ئەپی فرۆشیار (WhatsApp / Telegram / تەلەفۆن).',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, height: 1.4, color: Color(0xFF92400E)),
+            child: Text(
+              tx('ئەم ژمارانە پیشان دەدرێن بۆ کڕیار / شۆفێر / فرۆشیار کاتێک هەژمارەکەیان مسدود دەکەیت، و هەروەها لە دیالۆگی تۆمارکردنی فرۆشگای نوێ لە ئەپی فرۆشیار (WhatsApp / Telegram / تەلەفۆن).'),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, height: 1.4, color: RC.fg(Color(0xFF92400E))),
             ),
           ),
           _buildSettingsInputField(label: 'WhatsApp', controller: _whatsappCtrl, isPhone: true),
           const SizedBox(height: 14),
-          _buildSettingsInputField(label: 'Telegram ژمارە', controller: _telegramCtrl, isPhone: true),
+          _buildSettingsInputField(label: tx('Telegram ژمارە'), controller: _telegramCtrl, isPhone: true),
           const SizedBox(height: 14),
-          _buildSettingsInputField(label: 'Telegram یوزەرنەیم', controller: _telegramUserCtrl),
+          _buildSettingsInputField(label: tx('Telegram یوزەرنەیم'), controller: _telegramUserCtrl),
           const SizedBox(height: 14),
 
           // Field 3: ئیمەیڵ
-          _buildSettingsInputField(label: 'ئیمەیڵ', controller: _emailCtrl),
+          _buildSettingsInputField(label: tx('ئیمەیڵ'), controller: _emailCtrl),
           const SizedBox(height: 14),
 
           // Field 4: شار Dropdown
@@ -1927,9 +1952,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             children: [
               SizedBox(
                 width: 110,
-                child: const Text(
-                  'شار',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                child: Text(
+                  tx('شار'),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
                 ),
               ),
               Expanded(
@@ -1945,13 +1970,13 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     child: DropdownButton<String>(
                       value: _selectedCity,
                       isExpanded: true,
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
-                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-                      items: const [
-                        DropdownMenuItem(value: 'هەولێر', child: Text('هەولێر')),
-                        DropdownMenuItem(value: 'سلێمانی', child: Text('سلێمانی')),
-                        DropdownMenuItem(value: 'دهۆک', child: Text('دهۆک')),
-                        DropdownMenuItem(value: 'کەلار', child: Text('کەلار')),
+                      icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+                      items: [
+                        DropdownMenuItem(value: 'هەولێر', child: Text(tx('هەولێر'))),
+                        DropdownMenuItem(value: 'سلێمانی', child: Text(tx('سلێمانی'))),
+                        DropdownMenuItem(value: 'دهۆک', child: Text(tx('دهۆک'))),
+                        DropdownMenuItem(value: 'کەلار', child: Text(tx('کەلار'))),
                       ],
                       onChanged: (v) => setState(() => _selectedCity = v ?? 'هەولێر'),
                     ),
@@ -1965,14 +1990,14 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           // Save Button: پاشەکەوتکردن (includes WhatsApp / Telegram contact numbers)
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEA580C),
-              foregroundColor: Colors.white,
+              backgroundColor: RC.bg(Color(0xFFEA580C)),
+              foregroundColor: RC.fg(Colors.white),
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => _saveDeliveryAndPlatformSettings('ژمارەکانی پەیوەندی (تەلەفۆن / WhatsApp / Telegram)'),
-            child: const Text('پاشەکەوتکردن', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+            child: Text(tx('پاشەکەوتکردن'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -1986,10 +2011,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -2002,22 +2027,22 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'ڕێکخستنی دلیڤەری',
+              Text(
+                tx('ڕێکخستنی دلیڤەری'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: RC.fg(Color(0xFF111827)),
                 ),
               ),
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
+                  color: RC.bg(Color(0xFFDCFCE7)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.local_shipping_rounded, color: Color(0xFF16A34A), size: 20),
+                child: Icon(Icons.local_shipping_rounded, color: RC.fg(Color(0xFF16A34A)), size: 20),
               ),
             ],
           ),
@@ -2028,9 +2053,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             children: [
               SizedBox(
                 width: 100,
-                child: const Text(
-                  'مەودای گەیاندن',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                child: Text(
+                  tx('مەودای گەیاندن'),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
                 ),
               ),
               Expanded(
@@ -2046,13 +2071,13 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     child: DropdownButton<String>(
                       value: _selectedDistance,
                       isExpanded: true,
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
-                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-                      items: const [
-                        DropdownMenuItem(value: '٥ کیلۆمەتر', child: Text('٥ کیلۆمەتر')),
-                        DropdownMenuItem(value: '١٠ کیلۆمەتر', child: Text('١٠ کیلۆمەتر')),
-                        DropdownMenuItem(value: '١٥ کیلۆمەتر', child: Text('١٥ کیلۆمەتر')),
-                        DropdownMenuItem(value: '٢٠ کیلۆمەتر', child: Text('٢٠ کیلۆمەتر')),
+                      icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+                      items: [
+                        DropdownMenuItem(value: '٥ کیلۆمەتر', child: Text(tx('٥ کیلۆمەتر'))),
+                        DropdownMenuItem(value: '١٠ کیلۆمەتر', child: Text(tx('١٠ کیلۆمەتر'))),
+                        DropdownMenuItem(value: '١٥ کیلۆمەتر', child: Text(tx('١٥ کیلۆمەتر'))),
+                        DropdownMenuItem(value: '٢٠ کیلۆمەتر', child: Text(tx('٢٠ کیلۆمەتر'))),
                       ],
                       onChanged: (v) => setState(() => _selectedDistance = v ?? '١٠ کیلۆمەتر'),
                     ),
@@ -2068,9 +2093,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             children: [
               SizedBox(
                 width: 100,
-                child: const Text(
-                  'کاتی کارکردن',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                child: Text(
+                  tx('کاتی کارکردن'),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
                 ),
               ),
               Expanded(
@@ -2088,12 +2113,12 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                         child: TextField(
                           controller: _hoursCtrl,
                           textAlign: TextAlign.right,
-                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
                           decoration: const InputDecoration(border: InputBorder.none, isDense: true),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      const Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF64748B)),
+                      Icon(Icons.access_time_rounded, size: 16, color: RC.fg(Color(0xFF64748B))),
                     ],
                   ),
                 ),
@@ -2106,14 +2131,14 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'وەرگرتنی داواکاری چالاکە',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+              Text(
+                tx('وەرگرتنی داواکاری چالاکە'),
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
               ),
               Switch(
                 value: _acceptOrders,
-                activeThumbColor: const Color(0xFFEA580C),
-                activeTrackColor: const Color(0xFFFFEDD5),
+                activeThumbColor: RC.bg(Color(0xFFEA580C)),
+                activeTrackColor: RC.bg(Color(0xFFFFEDD5)),
                 onChanged: (v) => setState(() => _acceptOrders = v),
               ),
             ],
@@ -2121,13 +2146,13 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           const SizedBox(height: 18),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEA580C),
-              foregroundColor: Colors.white,
+              backgroundColor: RC.bg(Color(0xFFEA580C)),
+              foregroundColor: RC.fg(Colors.white),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
             onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی دلیڤەری پاشەکەوت کران'),
-            child: const Text('پاشەکەوتکردنی ڕێکخستنی دلیڤەری', style: TextStyle(fontWeight: FontWeight.w800)),
+            child: Text(tx('پاشەکەوتکردنی ڕێکخستنی دلیڤەری'), style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -2178,10 +2203,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -2194,22 +2219,22 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'ئاسایش و دەسەڵات',
+              Text(
+                tx('ئاسایش و دەسەڵات'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: RC.fg(Color(0xFF111827)),
                 ),
               ),
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
+                  color: RC.bg(Color(0xFFDCFCE7)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.shield_outlined, color: Color(0xFF16A34A), size: 20),
+                child: Icon(Icons.shield_outlined, color: RC.fg(Color(0xFF16A34A)), size: 20),
               ),
             ],
           ),
@@ -2220,9 +2245,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             children: [
               SizedBox(
                 width: 100,
-                child: const Text(
-                  'ڕۆڵەکانی کارگێڕی',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                child: Text(
+                  tx('ڕۆڵەکانی کارگێڕی'),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
                 ),
               ),
               Expanded(
@@ -2238,12 +2263,12 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     child: DropdownButton<String>(
                       value: _selectedRole,
                       isExpanded: true,
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
-                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-                      items: const [
-                        DropdownMenuItem(value: 'بەڕێوەبەر', child: Text('بەڕێوەبەر')),
-                        DropdownMenuItem(value: 'کارمەندی پشتگیری', child: Text('کارمەندی پشتگیری')),
-                        DropdownMenuItem(value: 'چاودێر', child: Text('چاودێر')),
+                      icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+                      items: [
+                        DropdownMenuItem(value: 'بەڕێوەبەر', child: Text(tx('بەڕێوەبەر'))),
+                        DropdownMenuItem(value: 'کارمەندی پشتگیری', child: Text(tx('کارمەندی پشتگیری'))),
+                        DropdownMenuItem(value: 'چاودێر', child: Text(tx('چاودێر'))),
                       ],
                       onChanged: (v) => setState(() => _selectedRole = v ?? 'بەڕێوەبەر'),
                     ),
@@ -2258,24 +2283,24 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'دۆخی هەژمار',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+              Text(
+                tx('دۆخی هەژمار'),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
+                  color: RC.bg(Color(0xFFDCFCE7)),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.circle, size: 8, color: Color(0xFF16A34A)),
+                  children: [
+                    Icon(Icons.circle, size: 8, color: RC.fg(Color(0xFF16A34A))),
                     SizedBox(width: 6),
                     Text(
-                      'چالاکە',
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF16A34A)),
+                      tx('چالاکە'),
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF16A34A))),
                     ),
                   ],
                 ),
@@ -2285,10 +2310,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           const SizedBox(height: 18),
 
           // Footer info text
-          const Text(
-            'هەموو تایبەتمەندییەکان دەستکەوتوون.',
+          Text(
+            tx('هەموو تایبەتمەندییەکان دەستکەوتوون.'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+            style: TextStyle(fontSize: 11, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -2302,10 +2327,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -2318,22 +2343,22 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'پارەدان و کرێ',
+              Text(
+                tx('پارەدان و کرێ'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: RC.fg(Color(0xFF111827)),
                 ),
               ),
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: RC.bg(Color(0xFFF1F5F9)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.credit_card_rounded, color: Color(0xFF334155), size: 20),
+                child: Icon(Icons.credit_card_rounded, color: RC.fg(Color(0xFF334155)), size: 20),
               ),
             ],
           ),
@@ -2344,9 +2369,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             children: [
               SizedBox(
                 width: 100,
-                child: const Text(
-                  'کرێی دلیڤەری',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                child: Text(
+                  tx('کرێی دلیڤەری'),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
                 ),
               ),
               Expanded(
@@ -2366,7 +2391,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                             controller: _deliveryFeeCtrl,
                             keyboardType: TextInputType.number,
                             textAlign: TextAlign.right,
-                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF1E293B))),
                             decoration: const InputDecoration(border: InputBorder.none, isDense: true),
                           ),
                         ),
@@ -2374,13 +2399,13 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                         alignment: Alignment.center,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF8F9FA),
-                          border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+                        decoration: BoxDecoration(
+                          color: RC.bg(Color(0xFFF8F9FA)),
+                          border: Border(right: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
                         ),
-                        child: const Text(
-                          'دینار',
-                          style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w700),
+                        child: Text(
+                          tx('دینار'),
+                          style: TextStyle(fontSize: 11.5, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w700),
                         ),
                       ),
                     ],
@@ -2396,9 +2421,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             children: [
               SizedBox(
                 width: 100,
-                child: const Text(
-                  'کۆمیسیۆنی فرۆشیار',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                child: Text(
+                  tx('کۆمیسیۆنی فرۆشیار'),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
                 ),
               ),
               Expanded(
@@ -2418,7 +2443,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                             controller: _commissionCtrl,
                             keyboardType: TextInputType.number,
                             textAlign: TextAlign.right,
-                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF1E293B))),
                             decoration: const InputDecoration(border: InputBorder.none, isDense: true),
                           ),
                         ),
@@ -2426,13 +2451,13 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         alignment: Alignment.center,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF8F9FA),
-                          border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+                        decoration: BoxDecoration(
+                          color: RC.bg(Color(0xFFF8F9FA)),
+                          border: Border(right: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
                         ),
-                        child: const Text(
-                          '%',
-                          style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w800),
+                        child: Text(
+                          tx('%'),
+                          style: TextStyle(fontSize: 13, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w800),
                         ),
                       ),
                     ],
@@ -2446,14 +2471,14 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           // Save Button: پاشەکەوتکردن
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEA580C),
-              foregroundColor: Colors.white,
+              backgroundColor: RC.bg(Color(0xFFEA580C)),
+              foregroundColor: RC.fg(Colors.white),
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی پارەدان و کرێ نوێکرانەوە'),
-            child: const Text('پاشەکەوتکردن', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+            child: Text(tx('پاشەکەوتکردن'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -2467,10 +2492,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -2483,22 +2508,22 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'ئاگادارکردنەوەکان',
+              Text(
+                tx('ئاگادارکردنەوەکان'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: RC.fg(Color(0xFF111827)),
                 ),
               ),
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
+                  color: RC.bg(Color(0xFFDCFCE7)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.notifications_active_rounded, color: Color(0xFF16A34A), size: 20),
+                child: Icon(Icons.notifications_active_rounded, color: RC.fg(Color(0xFF16A34A)), size: 20),
               ),
             ],
           ),
@@ -2506,7 +2531,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
           // Switch 1: داواکاریی نوێ
           _buildToggleRow(
-            label: 'داواکاریی نوێ',
+            label: tx('داواکاریی نوێ'),
             value: _notifyNewOrder,
             onChanged: (v) => setState(() => _notifyNewOrder = v),
           ),
@@ -2514,7 +2539,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
           // Switch 2: گۆڕانی دۆخی دلیڤەری
           _buildToggleRow(
-            label: 'گۆڕانی دۆخی دلیڤەری',
+            label: tx('گۆڕانی دۆخی دلیڤەری'),
             value: _notifyDeliveryStatus,
             onChanged: (v) => setState(() => _notifyDeliveryStatus = v),
           ),
@@ -2522,7 +2547,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
           // Switch 3: تۆمارکردنی فرۆشیاری نوێ
           _buildToggleRow(
-            label: 'تۆمارکردنی فرۆشیاری نوێ',
+            label: tx('تۆمارکردنی فرۆشیاری نوێ'),
             value: _notifyNewVendor,
             onChanged: (v) => setState(() => _notifyNewVendor = v),
           ),
@@ -2540,13 +2565,13 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          label,
-          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+          tx(label),
+          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
         ),
         Switch(
           value: value,
-          activeThumbColor: const Color(0xFFEA580C),
-          activeTrackColor: const Color(0xFFFFEDD5),
+          activeThumbColor: RC.bg(Color(0xFFEA580C)),
+          activeTrackColor: RC.bg(Color(0xFFFFEDD5)),
           onChanged: onChanged,
         ),
       ],
@@ -2563,8 +2588,8 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         SizedBox(
           width: 110,
           child: Text(
-            label,
-            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+            tx(label),
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
           ),
         ),
         Expanded(
@@ -2586,12 +2611,12 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                 inputFormatters: isPhone
                     ? <TextInputFormatter>[IraqPhoneFormatter()]
                     : const <TextInputFormatter>[],
-                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
                 decoration: InputDecoration(
                   border: InputBorder.none,
                   isDense: true,
-                  hintText: isPhone ? '0750 000 0000' : null,
-                  hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+                  hintText: txn(isPhone ? '0750 000 0000' : null),
+                  hintStyle: TextStyle(fontSize: 12.5, color: RC.fg(Color(0xFF94A3B8))),
                 ),
               ),
             ),

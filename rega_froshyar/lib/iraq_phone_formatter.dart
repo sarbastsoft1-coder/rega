@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'rega_i18n.dart';
 /// Formats Iraqi mobile numbers as `0750 000 0000` (11 digits, always LTR).
 class IraqPhoneFormatter extends TextInputFormatter {
   static const String hint = '0750 000 0000';
@@ -86,7 +87,7 @@ class IraqPhoneTextField extends StatelessWidget {
         inputFormatters: [IraqPhoneFormatter()],
         onChanged: onChanged,
         decoration: base.copyWith(
-          hintText: hintText ?? IraqPhoneFormatter.hint,
+          hintText: txn(hintText ?? IraqPhoneFormatter.hint),
         ),
       ),
     );

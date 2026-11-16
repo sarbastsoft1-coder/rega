@@ -9,6 +9,8 @@ import '../core/theme/app_theme.dart';
 import '../widgets/admin_top_header.dart';
 import 'live_radar_dialog.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 /// Representation of an order item matching the exact design in the screenshot
 class AdminOrderItem {
   final int id;
@@ -211,8 +213,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
-        backgroundColor: error ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+        content: Text(tx(msg)),
+        backgroundColor: error ? RC.bg(Color(0xFFDC2626)) : RC.bg(Color(0xFF16A34A)),
       ),
     );
   }
@@ -270,11 +272,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
       builder: (ctx) => AlertDialog(
         insetPadding: AdminBreakpoints.dialogInset(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('دیاریکردنی شۆفێر بۆ ${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        title: Text(tx('دیاریکردنی شۆفێر بۆ ${order.orderNumber}'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         content: SizedBox(
           width: AdminBreakpoints.dialogWidth(ctx, max: 440),
           child: _drivers.isEmpty
-              ? const Text('هیچ شۆفێرێکی پشتڕاستکراو بەردەست نییە.')
+              ? Text(tx('هیچ شۆفێرێکی پشتڕاستکراو بەردەست نییە.'))
               : ListView.separated(
                   shrinkWrap: true,
                   itemCount: _drivers.length,
@@ -285,21 +287,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     final online = dp['is_online'] == true;
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: (online ? const Color(0xFF16A34A) : Colors.grey).withValues(alpha: 0.16),
+                        backgroundColor: (online ? RC.bg(Color(0xFF16A34A)) : RC.bg(Colors.grey)).withValues(alpha: 0.16),
                         child: Icon(
                           Icons.two_wheeler_rounded,
-                          color: online ? const Color(0xFF16A34A) : Colors.grey,
+                          color: online ? RC.fg(Color(0xFF16A34A)) : RC.bg(Colors.grey),
                         ),
                       ),
                       title: Text(
-                        '${u['name'] ?? ''} (${dp['driver_code'] ?? ''})',
+                        tx('${u['name'] ?? ''} (${dp['driver_code'] ?? ''})'),
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
-                      subtitle: Text('${dp['motor_type'] ?? ''} • ${u['phone'] ?? ''}'),
+                      subtitle: Text(tx('${dp['motor_type'] ?? ''} • ${u['phone'] ?? ''}')),
                       trailing: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF113E2E),
-                          foregroundColor: Colors.white,
+                          backgroundColor: RC.bg(Color(0xFF113E2E)),
+                          foregroundColor: RC.fg(Colors.white),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         onPressed: () async {
@@ -313,14 +315,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             _showSnack('دیاریکردنی شۆفێر سەرکەوتوو نەبوو', error: true);
                           }
                         },
-                        child: Text(online ? 'دیاریکردن (ئۆنلاین)' : 'دیاریکردن'),
+                        child: Text(tx(online ? 'دیاریکردن (ئۆنلاین)' : 'دیاریکردن')),
                       ),
                     );
                   },
                 ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('داخستن')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('داخستن'))),
         ],
       ),
     );
@@ -350,18 +352,18 @@ class _OrdersScreenState extends State<OrdersScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEA580C).withValues(alpha: 0.1),
+                  color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.edit_note_rounded, color: Color(0xFFEA580C), size: 24),
+                child: Icon(Icons.edit_note_rounded, color: RC.fg(Color(0xFFEA580C)), size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('دەستکاریکردنی هەموو بەشەکانی داواکاری ${o.orderNumber}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                    const Text('دەستکاری کردنی کڕیار، شۆفێر، گەیاندن، ناونیشان و باری داواکاری', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(tx('دەستکاریکردنی هەموو بەشەکانی داواکاری ${o.orderNumber}'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text(tx('دەستکاری کردنی کڕیار، شۆفێر، گەیاندن، ناونیشان و باری داواکاری'), style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey))),
                   ],
                 ),
               ),
@@ -374,7 +376,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('١. زانیاری کڕیار و فرۆشگا', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                  Text(tx('١. زانیاری کڕیار و فرۆشگا'), style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFFEA580C)))),
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -382,7 +384,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         child: TextField(
                           controller: nameCtrl,
                           decoration: InputDecoration(
-                            labelText: 'ناوی کڕیار *',
+                            labelText: tx('ناوی کڕیار *'),
                             prefixIcon: const Icon(Icons.person_outline, size: 20),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -400,8 +402,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             textAlign: TextAlign.left,
                             inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
                             decoration: InputDecoration(
-                              labelText: 'ژمارەی مۆبایل',
-                              hintText: IraqPhoneFormatter.hint,
+                              labelText: tx('ژمارەی مۆبایل'),
+                              hintText: txn(IraqPhoneFormatter.hint),
                               prefixIcon: const Icon(Icons.phone_outlined, size: 20),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -418,7 +420,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         child: TextField(
                           controller: storeCtrl,
                           decoration: InputDecoration(
-                            labelText: 'ناوی فرۆشگا *',
+                            labelText: tx('ناوی فرۆشگا *'),
                             prefixIcon: const Icon(Icons.storefront_outlined, size: 20),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -430,7 +432,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         child: TextField(
                           controller: driverCtrl,
                           decoration: InputDecoration(
-                            labelText: 'ناوی شۆفێر',
+                            labelText: tx('ناوی شۆفێر'),
                             prefixIcon: const Icon(Icons.two_wheeler_outlined, size: 20),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -440,12 +442,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     ],
                   ),
                   const SizedBox(height: 18),
-                  const Text('٢. بەشی گەیاندن و ناونیشان (Delivery Part)', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFEA580C))),
+                  Text(tx('٢. بەشی گەیاندن و ناونیشان (Delivery Part)'), style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFFEA580C)))),
                   const SizedBox(height: 10),
                   TextField(
                     controller: addressCtrl,
                     decoration: InputDecoration(
-                      labelText: 'ناونیشانی گەیاندن (گەڕەک / کۆڵان / شوێن)',
+                      labelText: tx('ناونیشانی گەیاندن (گەڕەک / کۆڵان / شوێن)'),
                       prefixIcon: const Icon(Icons.location_on_outlined, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -456,7 +458,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     controller: feeCtrl,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      labelText: 'تێچووی گەیاندن (د.ع)',
+                      labelText: tx('تێچووی گەیاندن (د.ع)'),
                       prefixIcon: const Icon(Icons.monetization_on_outlined, size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -485,7 +487,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ])
                         DropdownMenuItem(
                           value: s,
-                          child: Text(AppStrings.statusLabel(s == 'accepted' ? 'approved' : s, widget.lang)),
+                          child: Text(tx(AppStrings.statusLabel(s == 'accepted' ? 'approved' : s, widget.lang))),
                         ),
                     ],
                     onChanged: (v) => setDialogState(() => status = v ?? status),
@@ -495,11 +497,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('پاشگەزبوونەوە')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('پاشگەزبوونەوە'))),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEA580C),
-                foregroundColor: Colors.white,
+                backgroundColor: RC.bg(Color(0xFFEA580C)),
+                foregroundColor: RC.fg(Colors.white),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
               ),
@@ -534,7 +536,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 widget.onOrderChanged?.call();
                 _showSnack('هەموو بەشەکانی داواکاری ${o.orderNumber} نوێکرانەوە ✅');
               },
-              child: const Text('پاشەکەوتکردنی هەموو گۆڕانکارییەکان'),
+              child: Text(tx('پاشەکەوتکردنی هەموو گۆڕانکارییەکان')),
             ),
           ],
         ),
@@ -547,14 +549,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('سڕینەوەی داواکاری ${o.orderNumber}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-        content: const Text('ئایا دڵنیایت لە سڕینەوەی ئەم داواکارییە بە تەواوی لە سیستەم؟'),
+        title: Text(tx('سڕینەوەی داواکاری ${o.orderNumber}'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        content: Text(tx('ئایا دڵنیایت لە سڕینەوەی ئەم داواکارییە بە تەواوی لە سیستەم؟')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('پاشگەزبوونەوە')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('پاشگەزبوونەوە'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
+              backgroundColor: RC.bg(Color(0xFFDC2626)),
+              foregroundColor: RC.fg(Colors.white),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () {
@@ -564,7 +566,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               });
               _showSnack('داواکاری ${o.orderNumber} سڕایەوە ✅');
             },
-            child: const Text('سڕینەوە'),
+            child: Text(tx('سڕینەوە')),
           ),
         ],
       ),
@@ -579,7 +581,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('وردەکاری داواکاری ${o.orderNumber}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+            Text(tx('وردەکاری داواکاری ${o.orderNumber}'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
             _buildStatusBadge(o.status),
           ],
         ),
@@ -596,7 +598,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 _buildInfoLine('💰 کۆی گشتی:', o.totalAmount),
                 _buildInfoLine('🕒 کاتی تۆمار:', '${o.orderTime} (${o.orderDate})'),
                 const Divider(height: 24),
-                const Text('کاڵاکانی داواکاری:', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
+                Text(tx('کاڵاکانی داواکاری:'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
                 const SizedBox(height: 8),
                 _buildItemRow('١ × پیتزای تایبەت مارگاریتا', '١٥,٠٠٠ ع.د'),
                 _buildItemRow('٢ × بیبسی سارد قتوو', '٢,٠٠٠ ع.د'),
@@ -606,8 +608,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('کۆی گشتی حساب:', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
-                    Text(o.totalAmount, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF16A34A))),
+                    Text(tx('کۆی گشتی حساب:'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                    Text(tx(o.totalAmount), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: RC.fg(Color(0xFF16A34A)))),
                   ],
                 ),
               ],
@@ -617,8 +619,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
         actions: [
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF113E2E),
-              foregroundColor: Colors.white,
+              backgroundColor: RC.bg(Color(0xFF113E2E)),
+              foregroundColor: RC.fg(Colors.white),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () {
@@ -629,11 +631,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
               );
             },
             icon: const Icon(Icons.location_on_rounded, size: 16),
-            label: const Text('بینین لەسەر نەخشەی زیندوو'),
+            label: Text(tx('بینین لەسەر نەخشەی زیندوو')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('داخستن'),
+            child: Text(tx('داخستن')),
           ),
         ],
       ),
@@ -646,8 +648,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF64748B))),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A))),
+          Text(tx(label), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: RC.fg(Color(0xFF64748B)))),
+          Text(tx(value), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: RC.fg(Color(0xFF0F172A)))),
         ],
       ),
     );
@@ -659,8 +661,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(name, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
-          Text(price, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+          Text(tx(name), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+          Text(tx(price), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
         ],
       ),
     );
@@ -714,7 +716,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              'بەڕێوەبردنی داواکارییەکان',
+              tx('بەڕێوەبردنی داواکارییەکان'),
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
@@ -723,7 +725,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             ),
             SizedBox(height: 2),
             Text(
-              'چاوەدێری و بەڕێوەبردنی هەموو داواکارییەکانی دلیڤەری',
+              tx('چاوەدێری و بەڕێوەبردنی هەموو داواکارییەکانی دلیڤەری'),
               style: TextStyle(
                 fontSize: 12.5,
                 color: AdminSurfaces.of(context).textSecondary,
@@ -735,7 +737,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
         final topActions = AdminTopBarRow(
           searchCtrl: _topSearchCtrl,
-          hintText: '...گەڕان بە ژمارەی داواکاری',
+          hintText: tx('...گەڕان بە ژمارەی داواکاری'),
           onSearchChanged: (_) => setState(() {}),
         );
 
@@ -795,48 +797,48 @@ class _OrdersScreenState extends State<OrdersScreen> {
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'کۆی داواکارییەکان',
+                title: tx('کۆی داواکارییەکان'),
                 value: _totalOrdersKPI,
-                valueColor: const Color(0xFF111827),
+                valueColor: RC.fg(Color(0xFF111827)),
                 icon: Icons.description_outlined,
-                iconBg: const Color(0xFFF1F5F9),
-                iconColor: const Color(0xFF475569),
+                iconBg: RC.bg(Color(0xFFF1F5F9)),
+                iconColor: RC.fg(Color(0xFF475569)),
               ),
             ),
             // Card 2: چاوەڕوان
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'چاوەڕوان',
+                title: tx('چاوەڕوان'),
                 value: _pendingOrdersKPI,
-                valueColor: const Color(0xFFD97706),
+                valueColor: RC.fg(Color(0xFFD97706)),
                 icon: Icons.access_time_rounded,
-                iconBg: const Color(0xFFFEF3C7),
-                iconColor: const Color(0xFFD97706),
+                iconBg: RC.bg(Color(0xFFFEF3C7)),
+                iconColor: RC.fg(Color(0xFFD97706)),
               ),
             ),
             // Card 3: لە ڕێگادایە
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'لە ڕێگادایە',
+                title: tx('لە ڕێگادایە'),
                 value: _inTransitOrdersKPI,
-                valueColor: const Color(0xFF2563EB),
+                valueColor: RC.fg(Color(0xFF2563EB)),
                 icon: Icons.local_shipping_outlined,
-                iconBg: const Color(0xFFEFF6FF),
-                iconColor: const Color(0xFF2563EB),
+                iconBg: RC.bg(Color(0xFFEFF6FF)),
+                iconColor: RC.fg(Color(0xFF2563EB)),
               ),
             ),
             // Card 4: تەواوبوو (Leftmost)
             SizedBox(
               width: cardWidth,
               child: _buildKPICard(
-                title: 'تەواوبوو',
+                title: tx('تەواوبوو'),
                 value: _deliveredOrdersKPI,
-                valueColor: const Color(0xFF16A34A),
+                valueColor: RC.fg(Color(0xFF16A34A)),
                 icon: Icons.check_circle_rounded,
-                iconBg: const Color(0xFFDCFCE7),
-                iconColor: const Color(0xFF16A34A),
+                iconBg: RC.bg(Color(0xFFDCFCE7)),
+                iconColor: RC.fg(Color(0xFF16A34A)),
               ),
             ),
           ],
@@ -861,7 +863,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -885,7 +887,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                title,
+                tx(title),
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
@@ -894,7 +896,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                value,
+                tx(value),
                 style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
@@ -922,15 +924,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
         decoration: BoxDecoration(
           color: AdminSurfaces.of(context).chipFill,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.close_rounded, size: 15, color: Color(0xFF64748B)),
+            Icon(Icons.close_rounded, size: 15, color: RC.fg(Color(0xFF64748B))),
             SizedBox(width: 6),
             Text(
-              'فلتەر',
+              tx('فلتەر'),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -1020,12 +1022,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
+          icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
@@ -1037,9 +1039,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 15, color: const Color(0xFF64748B)),
+                  Icon(icon, size: 15, color: RC.fg(Color(0xFF64748B))),
                   const SizedBox(width: 6),
-                  Text(item),
+                  Text(tx(item)),
                 ],
               ),
             );
@@ -1061,7 +1063,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         border: Border.all(color: AdminSurfaces.of(context).hairline),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1073,10 +1075,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
             return Column(
               children: [
                 if (orders.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.all(40),
                     child: Center(
-                      child: Text('هیچ داواکارییەک بەردەست نییە', style: TextStyle(color: Color(0xFF94A3B8))),
+                      child: Text(tx('هیچ داواکارییەک بەردەست نییە'), style: TextStyle(color: RC.fg(Color(0xFF94A3B8)))),
                     ),
                   )
                 else
@@ -1104,24 +1106,24 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         ),
                         child: Row(
                           children: [
-                            Expanded(flex: 2, child: Text('ژمارەی داواکاری', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text('کڕیار', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text('فرۆشیار', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text('ماتۆرسوار', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('کۆی پارە', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('کاتی داواکاری', textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('دۆخ', textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text('کردار', textAlign: TextAlign.left, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(tx('ژمارەی داواکاری'), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text(tx('کڕیار'), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text(tx('فرۆشیار'), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 3, child: Text(tx('ماتۆرسوار'), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(tx('کۆی پارە'), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(tx('کاتی داواکاری'), textAlign: TextAlign.right, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(tx('دۆخ'), textAlign: TextAlign.center, style: _headerStyle)),
+                            Expanded(flex: 2, child: Text(tx('کردار'), textAlign: TextAlign.left, style: _headerStyle)),
                           ],
                         ),
                       ),
 
                       // Table Rows
                       if (orders.isEmpty)
-                        const Padding(
+                        Padding(
               padding: EdgeInsets.all(40),
               child: Center(
-                child: Text('هیچ داواکارییەک بەردەست نییە', style: TextStyle(color: Color(0xFF94A3B8))),
+                child: Text(tx('هیچ داواکارییەک بەردەست نییە'), style: TextStyle(color: RC.fg(Color(0xFF94A3B8)))),
               ),
             )
           else
@@ -1140,12 +1142,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       Expanded(
                         flex: 2,
                         child: Text(
-                          o.orderNumber,
+                          tx(o.orderNumber),
                           textAlign: TextAlign.right,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 13,
-                            color: Color(0xFF1E293B),
+                            color: RC.fg(Color(0xFF1E293B)),
                           ),
                         ),
                       ),
@@ -1162,17 +1164,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 color: AdminSurfaces.of(context).chipFill,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.person_outline_rounded, size: 15, color: Color(0xFF94A3B8)),
+                              child: Icon(Icons.person_outline_rounded, size: 15, color: RC.fg(Color(0xFF94A3B8))),
                             ),
                             const SizedBox(width: 8),
                             Flexible(
                               child: Text(
-                                o.customerName,
+                                tx(o.customerName),
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 12.5,
-                                  color: Color(0xFF1E293B),
+                                  color: RC.fg(Color(0xFF1E293B)),
                                 ),
                               ),
                             ),
@@ -1192,17 +1194,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 color: AdminSurfaces.of(context).chipFill,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.storefront_outlined, size: 15, color: Color(0xFF94A3B8)),
+                              child: Icon(Icons.storefront_outlined, size: 15, color: RC.fg(Color(0xFF94A3B8))),
                             ),
                             const SizedBox(width: 8),
                             Flexible(
                               child: Text(
-                                o.storeName,
+                                tx(o.storeName),
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 12.5,
-                                  color: Color(0xFF1E293B),
+                                  color: RC.fg(Color(0xFF1E293B)),
                                 ),
                               ),
                             ),
@@ -1224,7 +1226,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                     color: AdminSurfaces.of(context).chipFill,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.person_outline_rounded, size: 15, color: Color(0xFF94A3B8)),
+                                  child: Icon(Icons.person_outline_rounded, size: 15, color: RC.fg(Color(0xFF94A3B8))),
                                 ),
                                 Positioned(
                                   right: 0,
@@ -1233,9 +1235,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                     width: 8,
                                     height: 8,
                                     decoration: BoxDecoration(
-                                      color: o.isDriverOnline ? const Color(0xFF10B981) : Colors.grey,
+                                      color: o.isDriverOnline ? RC.bg(Color(0xFF10B981)) : RC.bg(Colors.grey),
                                       shape: BoxShape.circle,
-                                      border: Border.all(color: Colors.white, width: 1.5),
+                                      border: Border.all(color: RC.bg(Colors.white), width: 1.5),
                                     ),
                                   ),
                                 ),
@@ -1244,12 +1246,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             const SizedBox(width: 8),
                             Flexible(
                               child: Text(
-                                o.driverName,
+                                tx(o.driverName),
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 12.5,
-                                  color: Color(0xFF1E293B),
+                                  color: RC.fg(Color(0xFF1E293B)),
                                 ),
                               ),
                             ),
@@ -1261,12 +1263,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       Expanded(
                         flex: 2,
                         child: Text(
-                          o.totalAmount,
+                          tx(o.totalAmount),
                           textAlign: TextAlign.right,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 12.5,
-                            color: Color(0xFF1E293B),
+                            color: RC.fg(Color(0xFF1E293B)),
                           ),
                         ),
                       ),
@@ -1279,15 +1281,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              o.orderTime,
-                              style: const TextStyle(
+                              tx(o.orderTime),
+                              style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 12,
-                                color: Color(0xFF1E293B),
+                                color: RC.fg(Color(0xFF1E293B)),
                               ),
                             ),
                             Text(
-                              o.orderDate,
+                              tx(o.orderDate),
                               style: TextStyle(
                                 fontSize: 10.5,
                                 color: AdminSurfaces.of(context).textTertiary,
@@ -1319,9 +1321,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 );
                               },
                               borderRadius: BorderRadius.circular(6),
-                              child: const Padding(
+                              child: Padding(
                                 padding: EdgeInsets.all(4),
-                                child: Icon(Icons.location_on_outlined, size: 18, color: Color(0xFF475569)),
+                                child: Icon(Icons.location_on_outlined, size: 18, color: RC.fg(Color(0xFF475569))),
                               ),
                             ),
                             const SizedBox(width: 4),
@@ -1330,16 +1332,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             InkWell(
                               onTap: () => _showOrderDetailsModal(o),
                               borderRadius: BorderRadius.circular(6),
-                              child: const Padding(
+                              child: Padding(
                                 padding: EdgeInsets.all(4),
-                                child: Icon(Icons.visibility_outlined, size: 18, color: Color(0xFF475569)),
+                                child: Icon(Icons.visibility_outlined, size: 18, color: RC.fg(Color(0xFF475569))),
                               ),
                             ),
                             const SizedBox(width: 4),
 
                             // More Options Vertical Dots
                             PopupMenuButton<String>(
-                              icon: const Icon(Icons.more_vert_rounded, size: 18, color: Color(0xFF475569)),
+                              icon: Icon(Icons.more_vert_rounded, size: 18, color: RC.fg(Color(0xFF475569))),
                               padding: EdgeInsets.zero,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               onSelected: (val) {
@@ -1352,33 +1354,33 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 }
                               },
                               itemBuilder: (ctx) => [
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'assign',
                                   child: Row(
                                     children: [
-                                      Icon(Icons.two_wheeler_rounded, size: 17, color: Color(0xFF113E2E)),
+                                      Icon(Icons.two_wheeler_rounded, size: 17, color: RC.fg(Color(0xFF113E2E))),
                                       SizedBox(width: 8),
-                                      Text('دیاریکردنی ماتۆرسوار', style: TextStyle(fontSize: 12.5)),
+                                      Text(tx('دیاریکردنی ماتۆرسوار'), style: TextStyle(fontSize: 12.5)),
                                     ],
                                   ),
                                 ),
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'edit',
                                   child: Row(
                                     children: [
-                                      Icon(Icons.edit_outlined, size: 17, color: Color(0xFF2563EB)),
+                                      Icon(Icons.edit_outlined, size: 17, color: RC.fg(Color(0xFF2563EB))),
                                       SizedBox(width: 8),
-                                      Text('دەستکاریکردن', style: TextStyle(fontSize: 12.5)),
+                                      Text(tx('دەستکاریکردن'), style: TextStyle(fontSize: 12.5)),
                                     ],
                                   ),
                                 ),
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'delete',
                                   child: Row(
                                     children: [
-                                      Icon(Icons.delete_outline_rounded, size: 17, color: Color(0xFFDC2626)),
+                                      Icon(Icons.delete_outline_rounded, size: 17, color: RC.fg(Color(0xFFDC2626))),
                                       SizedBox(width: 8),
-                                      Text('سڕینەوە', style: TextStyle(fontSize: 12.5, color: Color(0xFFDC2626))),
+                                      Text(tx('سڕینەوە'), style: TextStyle(fontSize: 12.5, color: RC.fg(Color(0xFFDC2626)))),
                                     ],
                                   ),
                                 ),
@@ -1418,7 +1420,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         runSpacing: 10,
         children: [
           Text(
-            'نیشاندانی ${_toDigits(orders.length)} لە کۆی ${_toDigits(_orders.length)} داواکاری',
+            tx('نیشاندانی ${_toDigits(orders.length)} لە کۆی ${_toDigits(_orders.length)} داواکاری'),
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -1464,23 +1466,23 @@ class _OrdersScreenState extends State<OrdersScreen> {
             );
           },
           borderRadius: BorderRadius.circular(6),
-          child: const Padding(
+          child: Padding(
             padding: EdgeInsets.all(4),
-            child: Icon(Icons.location_on_outlined, size: 18, color: Color(0xFF475569)),
+            child: Icon(Icons.location_on_outlined, size: 18, color: RC.fg(Color(0xFF475569))),
           ),
         ),
         const SizedBox(width: 4),
         InkWell(
           onTap: () => _showOrderDetailsModal(o),
           borderRadius: BorderRadius.circular(6),
-          child: const Padding(
+          child: Padding(
             padding: EdgeInsets.all(4),
-            child: Icon(Icons.visibility_outlined, size: 18, color: Color(0xFF475569)),
+            child: Icon(Icons.visibility_outlined, size: 18, color: RC.fg(Color(0xFF475569))),
           ),
         ),
         const SizedBox(width: 4),
         PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert_rounded, size: 18, color: Color(0xFF475569)),
+          icon: Icon(Icons.more_vert_rounded, size: 18, color: RC.fg(Color(0xFF475569))),
           padding: EdgeInsets.zero,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           onSelected: (val) {
@@ -1493,33 +1495,33 @@ class _OrdersScreenState extends State<OrdersScreen> {
             }
           },
           itemBuilder: (ctx) => [
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'assign',
               child: Row(
                 children: [
-                  Icon(Icons.two_wheeler_rounded, size: 17, color: Color(0xFF113E2E)),
+                  Icon(Icons.two_wheeler_rounded, size: 17, color: RC.fg(Color(0xFF113E2E))),
                   SizedBox(width: 8),
-                  Text('دیاریکردنی ماتۆرسوار', style: TextStyle(fontSize: 12.5)),
+                  Text(tx('دیاریکردنی ماتۆرسوار'), style: TextStyle(fontSize: 12.5)),
                 ],
               ),
             ),
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'edit',
               child: Row(
                 children: [
-                  Icon(Icons.edit_outlined, size: 17, color: Color(0xFF2563EB)),
+                  Icon(Icons.edit_outlined, size: 17, color: RC.fg(Color(0xFF2563EB))),
                   SizedBox(width: 8),
-                  Text('دەستکاریکردن', style: TextStyle(fontSize: 12.5)),
+                  Text(tx('دەستکاریکردن'), style: TextStyle(fontSize: 12.5)),
                 ],
               ),
             ),
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'delete',
               child: Row(
                 children: [
-                  Icon(Icons.delete_outline_rounded, size: 17, color: Color(0xFFDC2626)),
+                  Icon(Icons.delete_outline_rounded, size: 17, color: RC.fg(Color(0xFFDC2626))),
                   SizedBox(width: 8),
-                  Text('سڕینەوە', style: TextStyle(fontSize: 12.5, color: Color(0xFFDC2626))),
+                  Text(tx('سڕینەوە'), style: TextStyle(fontSize: 12.5, color: RC.fg(Color(0xFFDC2626)))),
                 ],
               ),
             ),
@@ -1544,7 +1546,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             children: [
               Expanded(
                 child: Text(
-                  o.orderNumber,
+                  tx(o.orderNumber),
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
@@ -1557,14 +1559,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            o.customerName,
+            tx(o.customerName),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF1E293B))),
           ),
           const SizedBox(height: 2),
           Text(
-            o.storeName,
+            tx(o.storeName),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: surfaces.textSecondary),
@@ -1575,12 +1577,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
               Icon(
                 Icons.two_wheeler_rounded,
                 size: 14,
-                color: o.isDriverOnline ? const Color(0xFF10B981) : surfaces.textSecondary,
+                color: o.isDriverOnline ? RC.fg(Color(0xFF10B981)) : surfaces.textSecondary,
               ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  o.driverName,
+                  tx(o.driverName),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
@@ -1592,12 +1594,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
           Row(
             children: [
               Text(
-                o.totalAmount,
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFFB45309)),
+                tx(o.totalAmount),
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: RC.fg(Color(0xFFB45309))),
               ),
               const Spacer(),
               Text(
-                '${o.orderTime} • ${o.orderDate}',
+                tx('${o.orderTime} • ${o.orderDate}'),
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: surfaces.textTertiary),
               ),
             ],
@@ -1617,45 +1619,45 @@ class _OrdersScreenState extends State<OrdersScreen> {
     switch (status) {
       case 'preparing':
         label = 'ئامادەکردن';
-        bg = const Color(0xFFFFEDD5);
-        text = const Color(0xFFEA580C);
+        bg = RC.bg(Color(0xFFFFEDD5));
+        text = RC.bg(Color(0xFFEA580C));
         break;
       case 'ready':
         label = 'ئامادەیە';
-        bg = const Color(0xFFE0E7FF);
-        text = const Color(0xFF4F46E5);
+        bg = RC.bg(Color(0xFFE0E7FF));
+        text = RC.bg(Color(0xFF4F46E5));
         break;
       case 'picked_up':
         label = 'وەرگیرا';
-        bg = const Color(0xFFCCFBF1);
-        text = const Color(0xFF0F766E);
+        bg = RC.bg(Color(0xFFCCFBF1));
+        text = RC.bg(Color(0xFF0F766E));
         break;
       case 'on_the_way':
         label = 'لە ڕێگادایە';
-        bg = const Color(0xFFEFF6FF);
-        text = const Color(0xFF2563EB);
+        bg = RC.bg(Color(0xFFEFF6FF));
+        text = RC.bg(Color(0xFF2563EB));
         break;
       case 'arrived_customer':
         label = 'گەیشتە کڕیار';
-        bg = const Color(0xFFDBEAFE);
-        text = const Color(0xFF1D4ED8);
+        bg = RC.bg(Color(0xFFDBEAFE));
+        text = RC.bg(Color(0xFF1D4ED8));
         break;
       case 'delivered':
         label = 'تەواوبوو';
-        bg = const Color(0xFFDCFCE7);
-        text = const Color(0xFF16A34A);
+        bg = RC.bg(Color(0xFFDCFCE7));
+        text = RC.bg(Color(0xFF16A34A));
         break;
       case 'cancelled':
       case 'rejected':
         label = 'هەڵوەشاوە';
-        bg = const Color(0xFFFEE2E2);
-        text = const Color(0xFFDC2626);
+        bg = RC.bg(Color(0xFFFEE2E2));
+        text = RC.bg(Color(0xFFDC2626));
         break;
       case 'pending':
       default:
         label = 'چاوەڕوان';
-        bg = const Color(0xFFFEF3C7);
-        text = const Color(0xFFD97706);
+        bg = RC.bg(Color(0xFFFEF3C7));
+        text = RC.bg(Color(0xFFD97706));
         break;
     }
 
@@ -1666,7 +1668,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
-        label,
+        tx(label),
         style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w800,
@@ -1684,16 +1686,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
         width: 28,
         height: 28,
         decoration: BoxDecoration(
-          color: active ? const Color(0xFFEA580C) : Colors.transparent,
+          color: active ? RC.bg(Color(0xFFEA580C)) : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Center(
           child: Text(
-            '$page',
+            tx('$page'),
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: active ? Colors.white : const Color(0xFF64748B),
+              color: active ? RC.bg(Colors.white) : RC.bg(Color(0xFF64748B)),
             ),
           ),
         ),
@@ -1713,7 +1715,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           borderRadius: BorderRadius.circular(6),
         ),
         child: Center(
-          child: Icon(icon, size: 18, color: const Color(0xFF94A3B8)),
+          child: Icon(icon, size: 18, color: RC.fg(Color(0xFF94A3B8))),
         ),
       ),
     );

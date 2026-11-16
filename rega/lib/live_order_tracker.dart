@@ -11,6 +11,8 @@ import 'map/mapbox_directions.dart';
 import 'map/mapbox_tiles.dart';
 import 'rega_mobile.dart';
 
+import 'rega_i18n.dart';
+import 'rega_colors.dart';
 /// Neighborhood centers — filled from backend zones; no frozen labels as UI source of truth.
 class KalarGeoCatalog {
   /// Downtown Kalar — default map center when user has not pinned yet.
@@ -172,16 +174,16 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
             minZoom: minZ,
             maxZoom: 18.5,
             backgroundColor: _mapStyleIndex == 1
-                ? const Color(0xFF0F172A)
-                : const Color(0xFFF1F5F9),
+                ? RC.bg(Color(0xFF0F172A))
+                : RC.bg(Color(0xFFF1F5F9)),
             onMapReady: () => _ready = true,
             onTap: (_, latLng) {
               if (widget.allowIraqWide &&
                   !KalarGeoCatalog.isInsideIraq(latLng.latitude, latLng.longitude)) {
                 ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                  const SnackBar(
-                    content: Text('تکایە شوێنێک لە ناو عێراق هەڵبژێرە'),
-                    backgroundColor: Color(0xFFDC2626),
+                  SnackBar(
+                    content: Text(tx('تکایە شوێنێک لە ناو عێراق هەڵبژێرە')),
+                    backgroundColor: RC.bg(Color(0xFFDC2626)),
                     duration: Duration(seconds: 2),
                   ),
                 );
@@ -209,19 +211,19 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: RC.bg(Colors.white),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFDC2626), width: 1.5),
-                          boxShadow: const [
-                            BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+                          border: Border.all(color: RC.bg(Color(0xFFDC2626)), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(color: RC.bg(Colors.black26), blurRadius: 6, offset: Offset(0, 2)),
                           ],
                         ),
                         child: Text(
-                          widget.pinLabel,
+                          tx(widget.pinLabel),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF0F172A),
+                          style: TextStyle(
+                            color: RC.fg(Color(0xFF0F172A)),
                             fontSize: 10,
                             fontWeight: FontWeight.w900,
                           ),
@@ -232,17 +234,17 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                         width: 34,
                         height: 34,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFDC2626),
+                          color: RC.bg(Color(0xFFDC2626)),
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2.5),
+                          border: Border.all(color: RC.bg(Colors.white), width: 2.5),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFDC2626).withValues(alpha: 0.45),
+                              color: RC.bg(Color(0xFFDC2626)).withValues(alpha: 0.45),
                               blurRadius: 8,
                             ),
                           ],
                         ),
-                        child: const Icon(Icons.home_rounded, color: Colors.white, size: 18),
+                        child: Icon(Icons.home_rounded, color: RC.fg(Colors.white), size: 18),
                       ),
                     ],
                   ),
@@ -278,13 +280,13 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF0F172A).withValues(alpha: 0.88),
+              color: RC.bg(Color(0xFF0F172A)).withValues(alpha: 0.88),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              'GPS: ${_pinned.latitude.toStringAsFixed(5)}, ${_pinned.longitude.toStringAsFixed(5)}',
-              style: const TextStyle(
-                color: Color(0xFFFAC800),
+              tx('GPS: ${_pinned.latitude.toStringAsFixed(5)}, ${_pinned.longitude.toStringAsFixed(5)}'),
+              style: TextStyle(
+                color: RC.fg(Color(0xFFFAC800)),
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
               ),
@@ -909,7 +911,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
           Polyline(
             points: traveled1,
             strokeWidth: 5,
-            color: const Color(0xFF94A3B8).withValues(alpha: 0.60),
+            color: RC.bg(Color(0xFF94A3B8)).withValues(alpha: 0.60),
           ),
         );
       }
@@ -919,9 +921,9 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
           Polyline(
             points: remain1,
             strokeWidth: 8,
-            color: const Color(0xFFF59E0B),
+            color: RC.bg(Color(0xFFF59E0B)),
             borderStrokeWidth: 2.5,
-            borderColor: const Color(0xFF78350F),
+            borderColor: RC.bg(Color(0xFF78350F)),
           ),
         );
       }
@@ -932,7 +934,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
             points: _leg2ToCustomer,
             strokeWidth: 5.5,
             pattern: StrokePattern.dashed(segments: const [14, 10]),
-            color: const Color(0xFF10B981).withValues(alpha: 0.75),
+            color: RC.bg(Color(0xFF10B981)).withValues(alpha: 0.75),
           ),
         );
       }
@@ -943,7 +945,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
           Polyline(
             points: _leg1ToStore,
             strokeWidth: 4,
-            color: const Color(0xFF94A3B8).withValues(alpha: 0.45),
+            color: RC.bg(Color(0xFF94A3B8)).withValues(alpha: 0.45),
           ),
         );
       }
@@ -958,7 +960,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
           Polyline(
             points: traveled2,
             strokeWidth: 5,
-            color: const Color(0xFF86EFAC).withValues(alpha: 0.55),
+            color: RC.bg(Color(0xFF86EFAC)).withValues(alpha: 0.55),
           ),
         );
       }
@@ -967,9 +969,9 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
           Polyline(
             points: remain2,
             strokeWidth: 8.5,
-            color: const Color(0xFF16A34A),
+            color: RC.bg(Color(0xFF16A34A)),
             borderStrokeWidth: 2.5,
-            borderColor: const Color(0xFF064E3B),
+            borderColor: RC.bg(Color(0xFF064E3B)),
           ),
         );
       }
@@ -978,7 +980,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
           Polyline(
             points: _leg2ToCustomer,
             strokeWidth: 7,
-            color: const Color(0xFF16A34A),
+            color: RC.bg(Color(0xFF16A34A)),
           ),
         );
       }
@@ -987,7 +989,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF1F5F9),
+        backgroundColor: RC.bg(Color(0xFFF1F5F9)),
         body: Stack(
           children: [
             // 1. Real Interactive Kalar Street Map
@@ -999,7 +1001,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                   initialZoom: 15.6,
                   minZoom: 11.0,
                   maxZoom: 18.5,
-                  backgroundColor: const Color(0xFFF1F5F9),
+                  backgroundColor: RC.bg(Color(0xFFF1F5F9)),
                   onMapReady: () {
                     _mapReady = true;
                     try {
@@ -1038,11 +1040,11 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                         alignment: Alignment.topCenter,
                         child: _CustomerMapPin(
                           icon: Icons.storefront_rounded,
-                          color: const Color(0xFFEA580C),
+                          color: RC.bg(Color(0xFFEA580C)),
                           label: widget.storeName,
-                          subtitle: "١. وەرگرتن لە فرۆشگا",
+                          subtitle: tx("١. وەرگرتن لە فرۆشگا"),
                           badge: isHeadingToStore ? "شۆفێر بەڕێوەیە 🛵" : "داواکاری وەرگیرا ✅",
-                          badgeColor: isHeadingToStore ? const Color(0xFFD97706) : const Color(0xFF16A34A),
+                          badgeColor: isHeadingToStore ? RC.bg(Color(0xFFD97706)) : RC.bg(Color(0xFF16A34A)),
                           isHighlighted: isHeadingToStore,
                         ),
                       ),
@@ -1055,13 +1057,13 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                         alignment: Alignment.topCenter,
                         child: _CustomerMapPin(
                           icon: Icons.home_rounded,
-                          color: const Color(0xFFDC2626),
-                          label: "شوێنی تۆ 📍",
-                          subtitle: "٢. شوێنی گەیاندن",
+                          color: RC.bg(Color(0xFFDC2626)),
+                          label: tx("شوێنی تۆ 📍"),
+                          subtitle: tx("٢. شوێنی گەیاندن"),
                           badge: isDelivered
                               ? "گەیشت 🎉"
                               : (!isHeadingToStore ? "شۆفێر بەرەو تۆ دێت 🚀" : "چاوەڕوانی وەرگرتن"),
-                          badgeColor: !isHeadingToStore ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+                          badgeColor: !isHeadingToStore ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFF64748B)),
                           isHighlighted: !isHeadingToStore && !isDelivered,
                         ),
                       ),
@@ -1088,8 +1090,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: (isHeadingToStore
-                                              ? const Color(0xFFF59E0B)
-                                              : const Color(0xFF10B981))
+                                              ? RC.bg(Color(0xFFF59E0B))
+                                              : RC.bg(Color(0xFF10B981)))
                                           .withValues(alpha: (1 - p) * 0.45),
                                     ),
                                   ),
@@ -1099,16 +1101,16 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF0F172A),
+                                        color: RC.bg(Color(0xFF0F172A)),
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
                                           color: isHeadingToStore
-                                              ? const Color(0xFFFAC800)
-                                              : const Color(0xFF00E676),
+                                              ? RC.bg(Color(0xFFFAC800))
+                                              : RC.bg(Color(0xFF00E676)),
                                           width: 1.2,
                                         ),
-                                        boxShadow: const [
-                                          BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+                                        boxShadow: [
+                                          BoxShadow(color: RC.bg(Colors.black45), blurRadius: 6, offset: Offset(0, 2)),
                                         ],
                                       ),
                                       child: Row(
@@ -1120,18 +1122,18 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                                 : Icons.two_wheeler_rounded,
                                             size: 11,
                                             color: isHeadingToStore
-                                                ? const Color(0xFFFAC800)
-                                                : const Color(0xFF00E676),
+                                                ? RC.fg(Color(0xFFFAC800))
+                                                : RC.bg(Color(0xFF00E676)),
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
-                                            isHeadingToStore
+                                            tx(isHeadingToStore
                                                 ? "بەرەو فرۆشگا بۆ وەرگرتن 🛍️"
                                                 : (_status == 'arrived_customer'
                                                     ? "گەیشتە بەردەم ماڵت 🔔"
-                                                    : "بە خواردنەکەوە بەرەو تۆ دێت 🚀"),
-                                            style: const TextStyle(
-                                              color: Colors.white,
+                                                    : "بە خواردنەکەوە بەرەو تۆ دێت 🚀")),
+                                            style: TextStyle(
+                                              color: RC.fg(Colors.white),
                                               fontSize: 9,
                                               fontWeight: FontWeight.w900,
                                             ),
@@ -1148,24 +1150,24 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                       height: 44,
                                       decoration: BoxDecoration(
                                         color: isHeadingToStore
-                                            ? const Color(0xFFFAC800)
-                                            : const Color(0xFF00E676),
+                                            ? RC.bg(Color(0xFFFAC800))
+                                            : RC.bg(Color(0xFF00E676)),
                                         shape: BoxShape.circle,
                                         border: Border.all(
-                                          color: const Color(0xFF0F172A),
+                                          color: RC.bg(Color(0xFF0F172A)),
                                           width: 3,
                                         ),
-                                        boxShadow: const [
+                                        boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black38,
+                                            color: RC.bg(Colors.black38),
                                             blurRadius: 10,
                                             offset: Offset(0, 4),
                                           ),
                                         ],
                                       ),
-                                      child: const Icon(
+                                      child: Icon(
                                         Icons.two_wheeler_rounded,
-                                        color: Color(0xFF0F172A),
+                                        color: RC.fg(Color(0xFF0F172A)),
                                         size: 24,
                                       ),
                                     ),
@@ -1179,15 +1181,15 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF0F172A),
+                                        color: RC.bg(Color(0xFF0F172A)),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
-                                        '${_speedKmh.toStringAsFixed(0)} کم/ک',
+                                        tx('${_speedKmh.toStringAsFixed(0)} کم/ک'),
                                         style: TextStyle(
                                           color: isHeadingToStore
-                                              ? const Color(0xFFFAC800)
-                                              : const Color(0xFF00E676),
+                                              ? RC.bg(Color(0xFFFAC800))
+                                              : RC.bg(Color(0xFF00E676)),
                                           fontSize: 9,
                                           fontWeight: FontWeight.w900,
                                         ),
@@ -1222,15 +1224,15 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF0F172A).withValues(alpha: 0.94),
+                            color: RC.bg(Color(0xFF0F172A)).withValues(alpha: 0.94),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                              color: const Color(0xFFFAC800).withValues(alpha: 0.55),
+                              color: RC.bg(Color(0xFFFAC800)).withValues(alpha: 0.55),
                               width: 1.5,
                             ),
-                            boxShadow: const [
+                            boxShadow: [
                               BoxShadow(
-                                color: Colors.black26,
+                                color: RC.bg(Colors.black26),
                                 blurRadius: 20,
                                 offset: Offset(0, 8),
                               ),
@@ -1245,12 +1247,12 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                   width: 38,
                                   height: 38,
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.12),
+                                    color: RC.bg(Colors.white).withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.arrow_back_ios_new_rounded,
-                                    color: Colors.white,
+                                    color: RC.fg(Colors.white),
                                     size: 18,
                                   ),
                                 ),
@@ -1267,23 +1269,23 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                           height: 8,
                                           decoration: BoxDecoration(
                                             color: _status == 'delivered'
-                                                ? const Color(0xFF22C55E)
-                                                : const Color(0xFF00E676),
+                                                ? RC.bg(Color(0xFF22C55E))
+                                                : RC.bg(Color(0xFF00E676)),
                                             shape: BoxShape.circle,
                                           ),
                                         ),
                                         const SizedBox(width: 6),
                                         Flexible(
                                           child: Text(
-                                            _liveCaptainConnected
+                                            tx(_liveCaptainConnected
                                                 ? "LIVE GPS • ڕاستەوخۆ لە مۆبایلی شۆفێرەوە"
                                                 : (_serverLiveConnected
                                                     ? "LIVE 1s • نوێکردنەوەی چرکە بە چرکە"
-                                                    : "LIVE 1s • شوێنپێهەڵگرتنی زیندوو"),
+                                                    : "LIVE 1s • شوێنپێهەڵگرتنی زیندوو")),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Color(0xFF00E676),
+                                            style: TextStyle(
+                                              color: RC.fg(Color(0xFF00E676)),
                                               fontSize: 10,
                                               fontWeight: FontWeight.w800,
                                             ),
@@ -1293,11 +1295,11 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      _statusHeadline,
+                                      tx(_statusHeadline),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                                      style: TextStyle(
+                                        color: RC.fg(Colors.white),
                                         fontSize: 13.5,
                                         fontWeight: FontWeight.w900,
                                       ),
@@ -1316,32 +1318,32 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                   ),
                                   decoration: BoxDecoration(
                                     color: _status == 'delivered'
-                                        ? const Color(0xFF22C55E)
-                                        : (isHeadingToStore ? const Color(0xFFF59E0B) : const Color(0xFFFAC800)),
+                                        ? RC.bg(Color(0xFF22C55E))
+                                        : (isHeadingToStore ? RC.bg(Color(0xFFF59E0B)) : RC.bg(Color(0xFFFAC800))),
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        _status == 'delivered'
+                                        tx(_status == 'delivered'
                                             ? 'DONE'
-                                            : _formatCountdown(_etaSeconds),
-                                        style: const TextStyle(
-                                          color: Color(0xFF0F172A),
+                                            : _formatCountdown(_etaSeconds)),
+                                        style: TextStyle(
+                                          color: RC.fg(Color(0xFF0F172A)),
                                           fontSize: 16,
                                           fontWeight: FontWeight.w900,
                                           fontFeatures: [FontFeature.tabularFigures()],
                                         ),
                                       ),
                                       Text(
-                                        _status == 'delivered'
+                                        tx(_status == 'delivered'
                                             ? 'گەیشت'
                                             : (isHeadingToStore
                                                 ? '${_formatMeters(_remainingMeters)} بۆ فرۆشگا'
-                                                : '${_formatMeters(_remainingMeters)} بۆ ماڵت'),
-                                        style: const TextStyle(
-                                          color: Color(0xFF1E293B),
+                                                : '${_formatMeters(_remainingMeters)} بۆ ماڵت')),
+                                        style: TextStyle(
+                                          color: RC.fg(Color(0xFF1E293B)),
                                           fontSize: 8.5,
                                           fontWeight: FontWeight.w800,
                                         ),
@@ -1437,11 +1439,11 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: RC.bg(Colors.white),
                         borderRadius: BorderRadius.circular(26),
-                        boxShadow: const [
+                        boxShadow: [
                           BoxShadow(
-                            color: Colors.black26,
+                            color: RC.bg(Colors.black26),
                             blurRadius: 28,
                             offset: Offset(0, -6),
                           ),
@@ -1465,15 +1467,15 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withValues(alpha: 0.94),
+        color: RC.bg(Color(0xFF0F172A)).withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.15),
+          color: RC.bg(Colors.white).withValues(alpha: 0.15),
           width: 1,
         ),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Colors.black38,
+            color: RC.bg(Colors.black38),
             blurRadius: 12,
             offset: Offset(0, 4),
           ),
@@ -1491,13 +1493,13 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(
                   color: isHeadingToStore
-                      ? const Color(0xFFF59E0B).withValues(alpha: 0.22)
-                      : Colors.white.withValues(alpha: 0.05),
+                      ? RC.bg(Color(0xFFF59E0B)).withValues(alpha: 0.22)
+                      : RC.bg(Colors.white).withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isHeadingToStore
-                        ? const Color(0xFFF59E0B)
-                        : const Color(0xFF10B981).withValues(alpha: 0.5),
+                        ? RC.bg(Color(0xFFF59E0B))
+                        : RC.bg(Color(0xFF10B981)).withValues(alpha: 0.5),
                     width: isHeadingToStore ? 1.5 : 1,
                   ),
                 ),
@@ -1506,7 +1508,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                     Icon(
                       isHeadingToStore ? Icons.two_wheeler_rounded : Icons.check_circle_rounded,
                       size: 16,
-                      color: isHeadingToStore ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                      color: isHeadingToStore ? RC.fg(Color(0xFFF59E0B)) : RC.bg(Color(0xFF10B981)),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
@@ -1517,11 +1519,11 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                           Row(
                             children: [
                               Text(
-                                '١. وەرگرتن',
+                                tx('١. وەرگرتن'),
                                 style: TextStyle(
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w900,
-                                  color: isHeadingToStore ? const Color(0xFFFAC800) : Colors.white,
+                                  color: isHeadingToStore ? RC.bg(Color(0xFFFAC800)) : RC.bg(Colors.white),
                                 ),
                               ),
                               if (isHeadingToStore) ...[
@@ -1529,8 +1531,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                 Container(
                                   width: 6,
                                   height: 6,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFF59E0B),
+                                  decoration: BoxDecoration(
+                                    color: RC.bg(Color(0xFFF59E0B)),
                                     shape: BoxShape.circle,
                                   ),
                                 ),
@@ -1538,15 +1540,15 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                             ],
                           ),
                           Text(
-                            isHeadingToStore ? 'ڕێگای زەرد بۆ فرۆشگا' : 'لە فرۆشگا وەرگیرا ✓',
+                            tx(isHeadingToStore ? 'ڕێگای زەرد بۆ فرۆشگا' : 'لە فرۆشگا وەرگیرا ✓'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 8.5,
                               fontWeight: FontWeight.w700,
                               color: isHeadingToStore
-                                  ? const Color(0xFFFDE68A)
-                                  : const Color(0xFF86EFAC),
+                                  ? RC.bg(Color(0xFFFDE68A))
+                                  : RC.bg(Color(0xFF86EFAC)),
                             ),
                           ),
                         ],
@@ -1557,9 +1559,9 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
               ),
             ),
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 5),
-            child: Icon(Icons.arrow_back_rounded, color: Colors.white30, size: 16),
+            child: Icon(Icons.arrow_back_rounded, color: RC.fg(Colors.white30), size: 16),
           ),
           // 2. Delivery Phase (Store -> Customer)
           Expanded(
@@ -1571,13 +1573,13 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(
                   color: !isHeadingToStore && !isDelivered
-                      ? const Color(0xFF10B981).withValues(alpha: 0.22)
-                      : Colors.white.withValues(alpha: 0.05),
+                      ? RC.bg(Color(0xFF10B981)).withValues(alpha: 0.22)
+                      : RC.bg(Colors.white).withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: !isHeadingToStore && !isDelivered
-                        ? const Color(0xFF10B981)
-                        : Colors.white12,
+                        ? RC.bg(Color(0xFF10B981))
+                        : RC.bg(Colors.white12),
                     width: !isHeadingToStore && !isDelivered ? 1.5 : 1,
                   ),
                 ),
@@ -1588,7 +1590,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                           ? Icons.verified_rounded
                           : (!isHeadingToStore ? Icons.local_shipping_rounded : Icons.home_rounded),
                       size: 16,
-                      color: !isHeadingToStore ? const Color(0xFF10B981) : Colors.white54,
+                      color: !isHeadingToStore ? RC.fg(Color(0xFF10B981)) : RC.bg(Colors.white54),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
@@ -1599,11 +1601,11 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                           Row(
                             children: [
                               Text(
-                                '٢. گەیاندن بۆ تۆ',
+                                tx('٢. گەیاندن بۆ تۆ'),
                                 style: TextStyle(
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w900,
-                                  color: !isHeadingToStore ? const Color(0xFF34D399) : Colors.white70,
+                                  color: !isHeadingToStore ? RC.bg(Color(0xFF34D399)) : RC.bg(Colors.white70),
                                 ),
                               ),
                               if (!isHeadingToStore && !isDelivered) ...[
@@ -1611,8 +1613,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                                 Container(
                                   width: 6,
                                   height: 6,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF10B981),
+                                  decoration: BoxDecoration(
+                                    color: RC.bg(Color(0xFF10B981)),
                                     shape: BoxShape.circle,
                                   ),
                                 ),
@@ -1620,19 +1622,19 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                             ],
                           ),
                           Text(
-                            isDelivered
+                            tx(isDelivered
                                 ? 'گەیشت 🎉'
                                 : (!isHeadingToStore
                                     ? 'ڕێگای سەوز بۆ ماڵت'
-                                    : 'ڕێگای داهاتوو (پچڕپچڕ)'),
+                                    : 'ڕێگای داهاتوو (پچڕپچڕ)')),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 8.5,
                               fontWeight: FontWeight.w700,
                               color: !isHeadingToStore
-                                  ? const Color(0xFFA7F3D0)
-                                  : Colors.white38,
+                                  ? RC.bg(Color(0xFFA7F3D0))
+                                  : RC.bg(Colors.white38),
                             ),
                           ),
                         ],
@@ -1675,12 +1677,12 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                     width: i == activeIdx ? 20 : 14,
                     height: i == activeIdx ? 20 : 14,
                     decoration: BoxDecoration(
-                      color: done ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
+                      color: done ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFFE2E8F0)),
                       shape: BoxShape.circle,
                       boxShadow: i == activeIdx
                           ? [
                               BoxShadow(
-                                color: const Color(0xFF16A34A).withValues(alpha: 0.4),
+                                color: RC.bg(Color(0xFF16A34A)).withValues(alpha: 0.4),
                                 blurRadius: 8,
                                 spreadRadius: 2,
                               ),
@@ -1688,7 +1690,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                           : null,
                     ),
                     child: done
-                        ? const Icon(Icons.check, size: 11, color: Colors.white)
+                        ? Icon(Icons.check, size: 11, color: RC.fg(Colors.white))
                         : null,
                   ),
                   if (!isLast)
@@ -1696,8 +1698,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                       child: Container(
                         height: 3,
                         color: i < activeIdx
-                            ? const Color(0xFF16A34A)
-                            : const Color(0xFFE2E8F0),
+                            ? RC.bg(Color(0xFF16A34A))
+                            : RC.bg(Color(0xFFE2E8F0)),
                       ),
                     ),
                 ],
@@ -1711,11 +1713,11 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
           children: List.generate(stepLabels.length, (i) {
             final active = i == activeIdx;
             return Text(
-              stepLabels[i],
+              tx(stepLabels[i]),
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: active ? FontWeight.w900 : FontWeight.w600,
-                color: i <= activeIdx ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                color: i <= activeIdx ? RC.bg(Color(0xFF0F172A)) : RC.bg(Color(0xFF94A3B8)),
               ),
             );
           }),
@@ -1725,10 +1727,10 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: isArrivedAtDoor ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+            color: isArrivedAtDoor ? RC.bg(Color(0xFFECFDF5)) : RC.bg(Color(0xFFFFFBEB)),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: isArrivedAtDoor ? const Color(0xFF10B981) : const Color(0xFFFCD34D),
+              color: isArrivedAtDoor ? RC.bg(Color(0xFF10B981)) : RC.bg(Color(0xFFFCD34D)),
               width: 1.5,
             ),
           ),
@@ -1736,21 +1738,21 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                isArrivedAtDoor
+                tx(isArrivedAtDoor
                     ? '🔔 شۆفێر لە بەردەم دەرگایە!'
-                    : 'داواکاری ${widget.orderCode}',
+                    : 'داواکاری ${widget.orderCode}'),
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w900,
                   color: isArrivedAtDoor
-                      ? const Color(0xFF065F46)
-                      : const Color(0xFF92400E),
+                      ? RC.bg(Color(0xFF065F46))
+                      : RC.bg(Color(0xFF92400E)),
                 ),
               ),
               const SizedBox(height: 2),
               Text(
-                '${_formatMoney(widget.totalAmount)} د.ع',
-                style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                tx('${_formatMoney(widget.totalAmount)} د.ع'),
+                style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF64748B))),
               ),
             ],
           ),
@@ -1764,12 +1766,12 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: const Color(0xFFFEF3C7),
+                color: RC.bg(Color(0xFFFEF3C7)),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.two_wheeler_rounded,
-                color: Color(0xFFB45309),
+                color: RC.fg(Color(0xFFB45309)),
                 size: 26,
               ),
             ),
@@ -1779,22 +1781,22 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _driverName,
+                    tx(_driverName),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF0F172A),
+                      color: RC.fg(Color(0xFF0F172A)),
                     ),
                   ),
                   Text(
-                    '$_vehicleLabel • $_driverPhone',
+                    tx('$_vehicleLabel • $_driverPhone'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: Color(0xFF64748B),
+                      color: RC.fg(Color(0xFF64748B)),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1804,15 +1806,15 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
             if (isArrivedAtDoor)
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF16A34A),
-                  foregroundColor: Colors.white,
+                  backgroundColor: RC.bg(Color(0xFF16A34A)),
+                  foregroundColor: RC.fg(Colors.white),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 onPressed: _confirmOrderReceivedByCustomer,
                 icon: const Icon(Icons.verified_rounded, size: 18),
-                label: const Text(
-                  'وەرمگرت ✅',
+                label: Text(
+                  tx('وەرمگرت ✅'),
                   style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5),
                 ),
               )
@@ -1820,23 +1822,23 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDF4),
+                  color: RC.bg(Color(0xFFF0FDF4)),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                  border: Border.all(color: RC.bg(Color(0xFFBBF7D0))),
                 ),
                 child: Column(
                   children: [
                     Text(
-                      '${_speedKmh.toStringAsFixed(0)} کم/ک',
-                      style: const TextStyle(
+                      tx('${_speedKmh.toStringAsFixed(0)} کم/ک'),
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF166534),
+                        color: RC.fg(Color(0xFF166534)),
                       ),
                     ),
-                    const Text(
-                      'خێرایی شۆفێر',
-                      style: TextStyle(fontSize: 9, color: Color(0xFF15803D)),
+                    Text(
+                      tx('خێرایی شۆفێر'),
+                      style: TextStyle(fontSize: 9, color: RC.fg(Color(0xFF15803D))),
                     ),
                   ],
                 ),
@@ -1856,44 +1858,44 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
         Container(
           width: 60,
           height: 60,
-          decoration: const BoxDecoration(
-            color: Color(0xFFDCFCE7),
+          decoration: BoxDecoration(
+            color: RC.bg(Color(0xFFDCFCE7)),
             shape: BoxShape.circle,
           ),
-          child: const Icon(
+          child: Icon(
             Icons.check_circle_rounded,
-            color: Color(0xFF16A34A),
+            color: RC.fg(Color(0xFF16A34A)),
             size: 40,
           ),
         ),
         const SizedBox(height: 10),
-        const Text(
-          'داواکارییەکەت بە سەلامەتی گەیشت! 🎉',
+        Text(
+          tx('داواکارییەکەت بە سەلامەتی گەیشت! 🎉'),
           style: TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w900,
-            color: Color(0xFF0F172A),
+            color: RC.fg(Color(0xFF0F172A)),
           ),
         ),
         const SizedBox(height: 4),
         Text(
-          'سوپاس بۆ بەکارهێنانی ڕێگا (REGA) • کۆی گشتی: ${_formatMoney(widget.totalAmount)} د.ع',
+          tx('سوپاس بۆ بەکارهێنانی ڕێگا (REGA) • کۆی گشتی: ${_formatMoney(widget.totalAmount)} د.ع'),
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+          style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF64748B))),
         ),
         const SizedBox(height: 14),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFAC800),
-              foregroundColor: Colors.black,
+              backgroundColor: RC.bg(Color(0xFFFAC800)),
+              foregroundColor: RC.fg(Colors.black),
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'گەڕانەوە بۆ داواکارییەکان',
+            child: Text(
+              tx('گەڕانەوە بۆ داواکارییەکان'),
               style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
             ),
           ),
@@ -1931,7 +1933,7 @@ class _CustomerMapPin extends StatelessWidget {
           duration: const Duration(milliseconds: 300),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: RC.bg(Colors.white),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isHighlighted ? color : color.withValues(alpha: 0.6),
@@ -1939,7 +1941,7 @@ class _CustomerMapPin extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: isHighlighted ? color.withValues(alpha: 0.35) : Colors.black26,
+                color: isHighlighted ? color.withValues(alpha: 0.35) : RC.bg(Colors.black26),
                 blurRadius: isHighlighted ? 12 : 6,
                 offset: const Offset(0, 2),
               ),
@@ -1949,25 +1951,25 @@ class _CustomerMapPin extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                label,
+                tx(label),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF0F172A),
+                  color: RC.fg(Color(0xFF0F172A)),
                 ),
               ),
               if (subtitle != null) ...[
                 const SizedBox(height: 1),
                 Text(
-                  subtitle!,
+                  tx(subtitle!),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 8.5,
                     fontWeight: FontWeight.w700,
-                    color: isHighlighted ? color : const Color(0xFF64748B),
+                    color: isHighlighted ? color : RC.fg(Color(0xFF64748B)),
                   ),
                 ),
               ],
@@ -1980,7 +1982,7 @@ class _CustomerMapPin extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    badge!,
+                    tx(badge!),
                     style: TextStyle(
                       fontSize: 8,
                       fontWeight: FontWeight.w900,
@@ -1999,7 +2001,7 @@ class _CustomerMapPin extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2.5),
+            border: Border.all(color: RC.bg(Colors.white), width: 2.5),
             boxShadow: [
               BoxShadow(
                 color: color.withValues(alpha: 0.45),
@@ -2008,7 +2010,7 @@ class _CustomerMapPin extends StatelessWidget {
               ),
             ],
           ),
-          child: Icon(icon, color: Colors.white, size: 18),
+          child: Icon(icon, color: RC.fg(Colors.white), size: 18),
         ),
       ],
     );
@@ -2029,7 +2031,7 @@ class _TrackerMapBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: active ? const Color(0xFF0F172A) : Colors.white,
+      color: active ? RC.bg(Color(0xFF0F172A)) : RC.bg(Colors.white),
       borderRadius: BorderRadius.circular(14),
       elevation: 4,
       child: InkWell(
@@ -2041,7 +2043,7 @@ class _TrackerMapBtn extends StatelessWidget {
           child: Icon(
             icon,
             size: 20,
-            color: active ? const Color(0xFFFAC800) : const Color(0xFF0F172A),
+            color: active ? RC.fg(Color(0xFFFAC800)) : RC.bg(Color(0xFF0F172A)),
           ),
         ),
       ),

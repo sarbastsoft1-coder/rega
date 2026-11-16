@@ -4,6 +4,8 @@ import '../core/api/api_client.dart';
 import '../core/iraq_phone_formatter.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../widgets/admin_top_header.dart';
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 /// Dedicated page to create / edit / deactivate admin accounts.
 /// Single role only: `admin` (ئەدمین).
 class AdminStaffScreen extends StatefulWidget {
@@ -60,8 +62,8 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
-        backgroundColor: error ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+        content: Text(tx(msg)),
+        backgroundColor: error ? RC.bg(Color(0xFFDC2626)) : RC.bg(Color(0xFF16A34A)),
       ),
     );
   }
@@ -73,17 +75,17 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('سڕینەوەی ئەدمین؟', style: TextStyle(fontWeight: FontWeight.w900)),
-        content: Text('دڵنیایت دەتەوێت هەژماری «$name» بسڕیتەوە؟ ئەم کارە ناگەڕێتەوە.'),
+        title: Text(tx('سڕینەوەی ئەدمین؟'), style: TextStyle(fontWeight: FontWeight.w900)),
+        content: Text(tx('دڵنیایت دەتەوێت هەژماری «$name» بسڕیتەوە؟ ئەم کارە ناگەڕێتەوە.')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('پاشگەزبوونەوە')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tx('پاشگەزبوونەوە'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
+              backgroundColor: RC.bg(Color(0xFFDC2626)),
+              foregroundColor: RC.fg(Colors.white),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('سڕینەوە'),
+            child: Text(tx('سڕینەوە')),
           ),
         ],
       ),
@@ -114,7 +116,7 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
           insetPadding: AdminBreakpoints.dialogInset(ctx),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Text(
-            isEdit ? 'دەستکاریکردنی ئەدمین' : 'دروستکردنی هەژماری ئەدمین',
+            tx(isEdit ? 'دەستکاریکردنی ئەدمین' : 'دروستکردنی هەژماری ئەدمین'),
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
           ),
           content: SizedBox(
@@ -126,7 +128,7 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                   TextField(
                     controller: nameCtrl,
                     decoration: InputDecoration(
-                      labelText: 'ناو *',
+                      labelText: tx('ناو *'),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
@@ -139,8 +141,8 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                       textAlign: TextAlign.left,
                       inputFormatters: [IraqPhoneFormatter()],
                       decoration: InputDecoration(
-                        labelText: 'مۆبایل *',
-                        hintText: '0750 000 0000',
+                        labelText: tx('مۆبایل *'),
+                        hintText: tx('0750 000 0000'),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
@@ -150,8 +152,8 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                     controller: emailCtrl,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      labelText: 'ئیمەیڵ *',
-                      hintText: 'admin@example.com',
+                      labelText: tx('ئیمەیڵ *'),
+                      hintText: tx('admin@example.com'),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
@@ -160,25 +162,25 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                     controller: passwordCtrl,
                     obscureText: true,
                     decoration: InputDecoration(
-                      labelText: isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *',
+                      labelText: txn(isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *'),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                   const SizedBox(height: 12),
                   InputDecorator(
                     decoration: InputDecoration(
-                      labelText: 'ڕۆڵ',
+                      labelText: tx('ڕۆڵ'),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text(
-                      'ئەدمین',
+                    child: Text(
+                      tx('ئەدمین'),
                       style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
                     ),
                   ),
                   SwitchListTile(
                     value: isActive,
                     onChanged: (v) => setDialogState(() => isActive = v),
-                    title: const Text('چالاک', style: TextStyle(fontWeight: FontWeight.w700)),
+                    title: Text(tx('چالاک'), style: TextStyle(fontWeight: FontWeight.w700)),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ],
@@ -188,12 +190,12 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.pop(ctx),
-              child: const Text('پاشگەزبوونەوە'),
+              child: Text(tx('پاشگەزبوونەوە')),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEA580C),
-                foregroundColor: Colors.white,
+                backgroundColor: RC.bg(Color(0xFFEA580C)),
+                foregroundColor: RC.fg(Colors.white),
               ),
               onPressed: saving
                   ? null
@@ -245,7 +247,7 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                         _snack(e.toString(), error: true);
                       }
                     },
-              child: Text(isEdit ? 'پاشەکەوتکردن' : 'دروستکردن'),
+              child: Text(tx(isEdit ? 'پاشەکەوتکردن' : 'دروستکردن')),
             ),
           ],
         ),
@@ -257,8 +259,8 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final muted = Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF94A3B8)
-        : const Color(0xFF64748B);
+        ? RC.bg(Color(0xFF94A3B8))
+        : RC.bg(Color(0xFF64748B));
     final cardBg = Theme.of(context).cardColor;
 
     return Directionality(
@@ -278,7 +280,7 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'هەژمارەکانی ئەدمین',
+                        tx('هەژمارەکانی ئەدمین'),
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
@@ -287,7 +289,7 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'دروستکردن و دەستکاریکردنی هەژماری ئەدمین — چوونە ژوورەوە بە ئیمەیڵ و وشەی نهێنی',
+                        tx('دروستکردن و دەستکاریکردنی هەژماری ئەدمین — چوونە ژوورەوە بە ئیمەیڵ و وشەی نهێنی'),
                         style: TextStyle(fontSize: 12.5, color: muted, fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -303,7 +305,7 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                           controller: _searchCtrl,
                           onSubmitted: (_) => _load(),
                           decoration: InputDecoration(
-                            hintText: 'گەڕان بە ناو، مۆبایل یان ئیمەیڵ...',
+                            hintText: tx('گەڕان بە ناو، مۆبایل یان ئیمەیڵ...'),
                             prefixIcon: const Icon(Icons.search_rounded, size: 18),
                             filled: true,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -315,24 +317,24 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                       ),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFEA580C),
-                          foregroundColor: Colors.white,
+                          backgroundColor: RC.bg(Color(0xFFEA580C)),
+                          foregroundColor: RC.fg(Colors.white),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         ),
                         onPressed: () => _showEditor(),
                         icon: const Icon(Icons.person_add_alt_1_rounded),
-                        label: const Text('دروستکردنی ئەدمین', style: TextStyle(fontWeight: FontWeight.w900)),
+                        label: Text(tx('دروستکردنی ئەدمین'), style: TextStyle(fontWeight: FontWeight.w900)),
                       ),
                       if (phone)
                         AdminTopBarRow(
                           searchCtrl: _searchCtrl,
-                          hintText: 'گەڕان...',
+                          hintText: tx('گەڕان...'),
                           onSearchChanged: (_) {},
                         )
                       else if (!narrow)
                         AdminTopBarRow(
                           searchCtrl: _searchCtrl,
-                          hintText: 'گەڕان...',
+                          hintText: tx('گەڕان...'),
                           onSearchChanged: (_) {},
                         ),
                     ],
@@ -354,7 +356,7 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
               const SizedBox(height: 14),
               Expanded(
                 child: _loading
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFFEA580C)))
+                    ? Center(child: CircularProgressIndicator(color: RC.bg(Color(0xFFEA580C))))
                     : _staff.isEmpty
                         ? Center(
                             child: Column(
@@ -363,18 +365,18 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                                 Icon(Icons.group_off_rounded, size: 48, color: muted),
                                 const SizedBox(height: 10),
                                 Text(
-                                  'هیچ هەژماری ئەدمین نییە',
+                                  tx('هیچ هەژماری ئەدمین نییە'),
                                   style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: onSurface),
                                 ),
                                 const SizedBox(height: 8),
                                 ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFEA580C),
-                                    foregroundColor: Colors.white,
+                                    backgroundColor: RC.bg(Color(0xFFEA580C)),
+                                    foregroundColor: RC.fg(Colors.white),
                                   ),
                                   onPressed: () => _showEditor(),
                                   icon: const Icon(Icons.person_add_alt_1_rounded),
-                                  label: const Text('دروستکردنی یەکەم ئەدمین'),
+                                  label: Text(tx('دروستکردنی یەکەم ئەدمین')),
                                 ),
                               ],
                             ),
@@ -394,8 +396,8 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: Theme.of(context).brightness == Brightness.dark
-                                        ? const Color(0xFF334155)
-                                        : const Color(0xFFE2E8F0),
+                                        ? RC.bg(Color(0xFF334155))
+                                        : RC.bg(Color(0xFFE2E8F0)),
                                   ),
                                 ),
                                 child: LayoutBuilder(
@@ -405,10 +407,10 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                                       crossAxisAlignment: rowPhone ? CrossAxisAlignment.start : CrossAxisAlignment.center,
                                       children: [
                                         CircleAvatar(
-                                          backgroundColor: const Color(0xFFFFEDD5),
+                                          backgroundColor: RC.bg(Color(0xFFFFEDD5)),
                                           child: Icon(
                                             Icons.admin_panel_settings_rounded,
-                                            color: active ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
+                                            color: active ? RC.fg(Color(0xFFEA580C)) : RC.bg(Color(0xFF94A3B8)),
                                           ),
                                         ),
                                         const SizedBox(width: 12),
@@ -417,7 +419,7 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                staff['name']?.toString() ?? '',
+                                                tx(staff['name']?.toString() ?? ''),
                                                 style: TextStyle(
                                                   fontWeight: FontWeight.w900,
                                                   fontSize: 14,
@@ -425,8 +427,8 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                                                 ),
                                               ),
                                               Text(
-                                                '${staff['phone'] ?? ''} • ئەدمین'
-                                                '${email != null && email.isNotEmpty ? ' • $email' : ''}',
+                                                tx('${staff['phone'] ?? ''} • ئەدمین'
+                                                '${email != null && email.isNotEmpty ? ' • $email' : ''}'),
                                                 maxLines: 2,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
@@ -447,25 +449,25 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                           decoration: BoxDecoration(
-                                            color: active ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                                            color: active ? RC.bg(Color(0xFFDCFCE7)) : RC.bg(Color(0xFFFEE2E2)),
                                             borderRadius: BorderRadius.circular(20),
                                           ),
                                           child: Text(
-                                            active ? 'چالاک' : 'ناچالاک',
+                                            tx(active ? 'چالاک' : 'ناچالاک'),
                                             style: TextStyle(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w800,
-                                              color: active ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                                              color: active ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFFDC2626)),
                                             ),
                                           ),
                                         ),
                                         IconButton(
-                                          tooltip: 'دەستکاری',
+                                          tooltip: tx('دەستکاری'),
                                           onPressed: () => _showEditor(existing: staff),
                                           icon: const Icon(Icons.edit_rounded),
                                         ),
                                         IconButton(
-                                          tooltip: active ? 'ناچالاککردن' : 'چالاککردن',
+                                          tooltip: txn(active ? 'ناچالاککردن' : 'چالاککردن'),
                                           onPressed: () async {
                                             try {
                                               await widget.api.toggleAdminStaffActive(id);
@@ -477,14 +479,14 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                                           },
                                           icon: Icon(
                                             active ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
-                                            color: active ? const Color(0xFF16A34A) : const Color(0xFF94A3B8),
+                                            color: active ? RC.fg(Color(0xFF16A34A)) : RC.bg(Color(0xFF94A3B8)),
                                             size: 32,
                                           ),
                                         ),
                                         IconButton(
-                                          tooltip: 'سڕینەوە',
+                                          tooltip: tx('سڕینەوە'),
                                           onPressed: () => _confirmDelete(staff),
-                                          icon: const Icon(Icons.delete_forever_rounded, color: Color(0xFFDC2626)),
+                                          icon: Icon(Icons.delete_forever_rounded, color: RC.fg(Color(0xFFDC2626))),
                                         ),
                                       ],
                                     );

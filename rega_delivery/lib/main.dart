@@ -18,6 +18,8 @@ import 'state/driver_session_notifier.dart';
 import 'iraq_phone_formatter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'rega_i18n.dart';
+import 'rega_colors.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(
@@ -77,6 +79,9 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<DriverSessionNotifier>();
+    // Drives tx(): every on-screen string follows the selected language.
+    RegaI18n.setLang(session.locale);
+    RC.setDark(session.isDark);
     final router = _router;
     if (router == null) return const SizedBox.shrink();
 
@@ -823,11 +828,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             'price': '${_formatMoney(fee)} ${t('iqd')}',
             'time': (m['created_at'] ?? '').toString().replaceFirst('T', ' ').split('.').first,
             'statusColor': isDelivered
-                ? const Color(0xFF16A34A)
-                : (isCancelled ? const Color(0xFFEF4444) : const Color(0xFFD97706)),
+                ? RC.bg(Color(0xFF16A34A))
+                : (isCancelled ? RC.bg(Color(0xFFEF4444)) : RC.bg(Color(0xFFD97706))),
             'statusBg': isDelivered
-                ? const Color(0xFFDCFCE7)
-                : (isCancelled ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7)),
+                ? RC.bg(Color(0xFFDCFCE7))
+                : (isCancelled ? RC.bg(Color(0xFFFEE2E2)) : RC.bg(Color(0xFFFEF3C7))),
           };
         }).toList();
       }
@@ -1017,12 +1022,14 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.check_circle, color: Colors.black),
+            Icon(Icons.check_circle, color: RC.fg(Colors.black)),
             const SizedBox(width: 8),
-            Text(msg, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+            Expanded(
+              child: Text(tx(msg), style: TextStyle(fontWeight: FontWeight.bold, color: RC.fg(Colors.black))),
+            ),
           ],
         ),
-        backgroundColor: const Color(0xFF00E676),
+        backgroundColor: RC.bg(Color(0xFF00E676)),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -1081,7 +1088,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(t('status_update_failed')),
-          backgroundColor: const Color(0xFFDC2626),
+          backgroundColor: RC.bg(Color(0xFFDC2626)),
         ),
       );
       return;
@@ -1121,7 +1128,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(t('gps_missing_online_warn')),
-              backgroundColor: const Color(0xFFD97706),
+              backgroundColor: RC.bg(Color(0xFFD97706)),
             ),
           );
         }
@@ -1130,7 +1137,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(t('gps_missing_online_warn')),
-              backgroundColor: const Color(0xFFD97706),
+              backgroundColor: RC.bg(Color(0xFFD97706)),
             ),
           );
         }
@@ -1181,11 +1188,133 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 
   // سەرپەڕەی سەرەوە: شێوازی مۆدێرن بە ڕەنگی سەوز و لۆگۆی REGA
   Widget _buildTopAppBar() {
+    final phone = RegaResponsive.isPhone(context);
+    final padH = RegaResponsive.pagePadding(context);
+    final notifBtn = InkWell(
+      onTap: () {
+        setState(() => _hasNewNotifications = false);
+        _showNotificationsBottomSheet();
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            padding: EdgeInsets.all(phone ? 8 : 10),
+            decoration: BoxDecoration(
+              color: RC.bg(Colors.white).withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(Icons.notifications_none_rounded, color: RC.fg(Colors.white), size: phone ? 24 : 28),
+          ),
+          if (_hasNewNotifications)
+            Positioned(
+              right: phone ? 8 : 10,
+              top: phone ? 8 : 10,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: RC.bg(Color(0xFFEF4444)),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: RC.bg(Color(0xFF22C55E)), width: 1.5),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+
+    final logo = SizedBox(
+      height: phone ? 40 : 52,
+      child: Center(
+        child: Image.asset(
+          'assets1/navbar_logo.png',
+          height: phone ? 36 : 48,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.delivery_dining_rounded, color: RC.fg(Colors.white), size: phone ? 20 : 24),
+                const SizedBox(width: 8),
+                Text(
+                  tx('REGA'),
+                  style: TextStyle(
+                    color: RC.fg(Colors.white),
+                    fontWeight: FontWeight.w900,
+                    fontSize: phone ? 18 : 22,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+
+    final onlineToggle = InkWell(
+      onTap: _onlineToggleBusy ? null : _toggleOnlineStatus,
+      borderRadius: BorderRadius.circular(100),
+      child: AnimatedOpacity(
+        opacity: _onlineToggleBusy ? 0.75 : 1,
+        duration: const Duration(milliseconds: 150),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: phone ? 3 : 4, vertical: phone ? 3 : 4),
+          decoration: BoxDecoration(
+            color: _isOnline ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFFEF4444)),
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(color: RC.bg(Colors.white), width: 2),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_isOnline) ...[
+                if (!phone)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      t('online'),
+                      style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  )
+                else
+                  const SizedBox(width: 6),
+                Container(
+                  width: phone ? 24 : 28,
+                  height: phone ? 24 : 28,
+                  decoration: BoxDecoration(color: RC.bg(Colors.white), shape: BoxShape.circle),
+                ),
+                if (phone) const SizedBox(width: 6),
+              ] else ...[
+                Container(
+                  width: phone ? 24 : 28,
+                  height: phone ? 24 : 28,
+                  decoration: BoxDecoration(color: RC.bg(Colors.white), shape: BoxShape.circle),
+                ),
+                if (!phone)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      t('offline'),
+                      style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  )
+                else
+                  const SizedBox(width: 6),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+
     return Container(
-      height: 80,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: const BoxDecoration(
-        color: Color(0xFF22C55E), // ڕەنگی سەوزی براند
+      height: phone ? 72 : 80,
+      padding: EdgeInsets.symmetric(horizontal: padH),
+      decoration: BoxDecoration(
+        color: RC.bg(Color(0xFF22C55E)),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(32),
           bottomRight: Radius.circular(32),
@@ -1197,127 +1326,14 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-          // ئایکۆنی ئاگادارکردنەوەکان (Right in RTL - Index 0)
-          InkWell(
-            onTap: () {
-              setState(() => _hasNewNotifications = false);
-              _showNotificationsBottomSheet();
-            },
-            borderRadius: BorderRadius.circular(20),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 28),
-                ),
-                if (_hasNewNotifications)
-                  Positioned(
-                    right: 10,
-                    top: 10,
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFF22C55E), width: 1.5),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+              notifBtn,
+              Flexible(child: logo),
+              onlineToggle,
+            ],
           ),
-
-          // لۆگۆی REGA (بەکارهێنانی وێنە لە جیاتی تێکست)
-          SizedBox(
-            height: 52,
-            child: Center(
-              child: Image.asset(
-                'assets1/navbar_logo.png',
-                height: 48,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  // ئەگەر وێنەکە نەبوو، ئەم بەشە پیشان دەدات (وەک جێگرەوە)
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.delivery_dining_rounded, color: Colors.white, size: 24),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'REGA',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 22,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // سویچی ئۆنلاین/ئۆفلاین (Left in RTL - Index 2)
-          InkWell(
-            onTap: _onlineToggleBusy ? null : _toggleOnlineStatus,
-            borderRadius: BorderRadius.circular(100),
-            child: AnimatedOpacity(
-              opacity: _onlineToggleBusy ? 0.75 : 1,
-              duration: const Duration(milliseconds: 150),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _isOnline ? const Color(0xFF16A34A) : const Color(0xFFEF4444),
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_isOnline) ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          t('online'),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                      ),
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                      ),
-                    ] else ...[
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          t('offline'),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
-    ),
-  ),
-);
+    );
   }
 
   // لاپەڕەی نەخشە و کارتی داواکاری
@@ -1352,8 +1368,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 
         // Refresh live driver/order data from backend
         Positioned(
-          top: 96,
-          left: 16,
+          top: RegaResponsive.isPhone(context) ? 12 : 96,
+          left: RegaResponsive.pagePadding(context),
           child: FloatingActionButton.small(
             backgroundColor: Theme.of(context).colorScheme.surface,
             foregroundColor: Theme.of(context).colorScheme.onSurface,
@@ -1373,13 +1389,15 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         // کارتی سەرەکی داواکاری (Bottom Sheet Card)
         if (_isOrderCardVisible)
           Positioned(
-            left: 16,
-            right: 16,
+            left: RegaResponsive.pagePadding(context),
+            right: RegaResponsive.pagePadding(context),
             bottom: 16,
             child: Align(
               alignment: Alignment.bottomCenter,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 580),
+                constraints: BoxConstraints(
+                  maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 580),
+                ),
                 child: _activeOrder.status == OrderStatus.delivered
                     ? _buildCompletedCard()
                     : ActiveOrderCard(
@@ -1404,8 +1422,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF22C55E),
-                    foregroundColor: Colors.white,
+                    backgroundColor: RC.bg(Color(0xFF22C55E)),
+                    foregroundColor: RC.fg(Colors.white),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     elevation: 4,
@@ -1422,34 +1440,36 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         else
           // دۆخی چاوەڕوانی: هیچ داواکارییەک لە لایەن ئادمینەوە دیاری نەکراوە
           Positioned(
-            left: 16,
-            right: 16,
+            left: RegaResponsive.pagePadding(context),
+            right: RegaResponsive.pagePadding(context),
             bottom: 24,
             child: Align(
               alignment: Alignment.bottomCenter,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
+                constraints: BoxConstraints(
+                  maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 440),
+                ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: RC.bg(Colors.white),
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0, 4)),
+                    border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
+                    boxShadow: [
+                      BoxShadow(color: RC.bg(Color(0x14000000)), blurRadius: 12, offset: Offset(0, 4)),
                     ],
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.two_wheeler_rounded, color: Color(0xFFEA580C), size: 22),
+                      Icon(Icons.two_wheeler_rounded, color: RC.fg(Color(0xFFEA580C)), size: 22),
                       const SizedBox(width: 10),
                       Flexible(
                         child: Text(
-                          _isOnline
+                          tx(_isOnline
                               ? t('waiting_admin_order')
-                              : t('go_online_for_orders'),
-                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF0F172A)),
+                              : t('go_online_for_orders')),
+                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: RC.fg(Color(0xFF0F172A))),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1469,35 +1489,35 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(24),
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, 10))],
+        boxShadow: [BoxShadow(color: RC.bg(Colors.black12), blurRadius: 20, offset: Offset(0, 10))],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: Color(0xFFE8F5E9),
+            decoration: BoxDecoration(
+              color: RC.bg(Color(0xFFE8F5E9)),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.check_circle_outline, color: Color(0xFF00C853), size: 36),
+            child: Icon(Icons.check_circle_outline, color: RC.fg(Color(0xFF00C853)), size: 36),
           ),
           const SizedBox(height: 12),
           Text(t('order_completed'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 4),
           Text(
-            'بڕی ${_formatMoney(_activeOrder.totalEarnings)} د.ع زیادکرا بۆ باڵانسەکەت',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            tx('بڕی ${_formatMoney(_activeOrder.totalEarnings)} د.ع زیادکرا بۆ باڵانسەکەت'),
+            style: TextStyle(color: RC.fg(Colors.grey.shade600), fontSize: 13),
           ),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00E676),
-                foregroundColor: Colors.black,
+                backgroundColor: RC.bg(Color(0xFF00E676)),
+                foregroundColor: RC.fg(Colors.black),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
@@ -1529,11 +1549,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               children: [
                 Text(
                   t('earnings'),
-                  style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+                  style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
                 ),
-                const Text(
-                  'Analytics & Insights',
-                  style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                Text(
+                  tx('Analytics & Insights'),
+                  style: TextStyle(fontSize: 14, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -1543,7 +1563,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: RC.bg(Color(0xFFF1F5F9)),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Row(
@@ -1567,7 +1587,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             // ٥. سەردێڕی مێژووی داهاتی گەیاندنەکان
             Text(
               t('earnings_history'),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
             ),
             const SizedBox(height: 16),
 
@@ -1587,7 +1607,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 child: Center(
                   child: Text(
                     t('no_orders').contains('no_orders') ? 'هیچ داهاتێک نییە' : t('no_orders'),
-                    style: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w700),
+                    style: TextStyle(color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -1627,12 +1647,12 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: const Color(0xFFDCFCE7), width: 1.5),
+        border: Border.all(color: RC.bg(Color(0xFFDCFCE7)), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: RC.bg(Colors.black).withOpacity(0.04),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -1643,40 +1663,65 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                label,
-                style: const TextStyle(color: Color(0xFF64748B), fontSize: 15, fontWeight: FontWeight.w700),
+              Expanded(
+                child: Text(
+                  tx(label),
+                  style: TextStyle(color: RC.fg(Color(0xFF64748B)), fontSize: 15, fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDF4),
+                  color: RC.bg(Color(0xFFF0FDF4)),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Text('IQD', style: TextStyle(color: Color(0xFF16A34A), fontSize: 12, fontWeight: FontWeight.bold)),
+                child: Text(tx('IQD'), style: TextStyle(color: RC.fg(Color(0xFF16A34A)), fontSize: 12, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          Text(
-            total,
-            style: const TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF1E293B),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              tx(total),
+              style: TextStyle(
+                fontSize: RegaResponsive.scale(context, 48),
+                fontWeight: FontWeight.w900,
+                color: RC.fg(Color(0xFF1E293B)),
+              ),
             ),
           ),
           const SizedBox(height: 24),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: RC.bg(Color(0xFFF1F5F9))),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(child: _statItemEarnings(t('total_deliveries'), count)),
-              Container(width: 1, height: 40, color: const Color(0xFFF1F5F9)),
-              Expanded(child: _statItemEarnings(t('avg_delivery'), avg)),
-              Container(width: 1, height: 40, color: const Color(0xFFF1F5F9)),
-              Expanded(child: _statItemEarnings('${t('bonus')} (Bonus)', bonus, isGreen: true)),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final deliveries = Expanded(child: _statItemEarnings(t('total_deliveries'), count));
+              final average = Expanded(child: _statItemEarnings(t('avg_delivery'), avg));
+              final bonusCol = Expanded(child: _statItemEarnings('${t('bonus')} (Bonus)', bonus, isGreen: true));
+              final divider = Container(width: 1, height: 40, color: RC.bg(Color(0xFFF1F5F9)));
+              if (constraints.maxWidth < RegaBreakpoints.phone) {
+                return Column(
+                  children: [
+                    Row(children: [deliveries, divider, average]),
+                    const SizedBox(height: 12),
+                    Row(children: [bonusCol]),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  deliveries,
+                  divider,
+                  average,
+                  divider,
+                  bonusCol,
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -1692,8 +1737,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         Expanded(
           child: _buildSecondaryStatBox(
             icon: Icons.timer_outlined,
-            iconColor: const Color(0xFF3B82F6),
-            iconBg: const Color(0xFFEFF6FF),
+            iconColor: RC.fg(Color(0xFF3B82F6)),
+            iconBg: RC.bg(Color(0xFFEFF6FF)),
             title: t('online_hours'),
             value: hours,
           ),
@@ -1702,11 +1747,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         Expanded(
           child: _buildSecondaryStatBox(
             icon: Icons.emoji_events_outlined,
-            iconColor: const Color(0xFFF59E0B),
-            iconBg: const Color(0xFFFFFBEB),
+            iconColor: RC.fg(Color(0xFFF59E0B)),
+            iconBg: RC.bg(Color(0xFFFFFBEB)),
             title: t('customer_tip'),
             value: tips,
-            valueColor: const Color(0xFF16A34A),
+            valueColor: RC.fg(Color(0xFF16A34A)),
           ),
         ),
       ],
@@ -1719,19 +1764,19 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
+          color: isSelected ? RC.bg(Colors.white) : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           boxShadow: isSelected
-              ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
+              ? [BoxShadow(color: RC.bg(Colors.black).withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
               : null,
         ),
         child: Center(
           child: Text(
-            label,
+            tx(label),
             style: TextStyle(
               fontSize: 13,
               fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-              color: isSelected ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+              color: isSelected ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFF64748B)),
             ),
           ),
         ),
@@ -1750,10 +1795,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 5)),
+          BoxShadow(color: RC.bg(Colors.black).withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 5)),
         ],
       ),
       child: Column(
@@ -1765,11 +1810,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             child: Icon(icon, color: iconColor, size: 24),
           ),
           const SizedBox(height: 12),
-          Text(title, style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
+          Text(tx(title), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Text(
-            value,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: valueColor ?? const Color(0xFF1E293B)),
+            tx(value),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: valueColor ?? RC.bg(Color(0xFF1E293B))),
           ),
         ],
       ),
@@ -1779,14 +1824,14 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   Widget _statItemEarnings(String title, String val, {bool isGreen = false}) {
     return Column(
       children: [
-        Text(title, style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
+        Text(tx(title), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         Text(
-          val,
+          tx(val),
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w900,
-            color: isGreen ? const Color(0xFF16A34A) : const Color(0xFF1E293B),
+            color: isGreen ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFF1E293B)),
           ),
         ),
       ],
@@ -1797,14 +1842,14 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return InkWell(
       onTap: () {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('بینینی وردەکاری داواکاری $id')),
+          SnackBar(content: Text(tx('بینینی وردەکاری داواکاری $id'))),
         );
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+        decoration: BoxDecoration(
+          color: RC.bg(Colors.white),
+          border: Border(bottom: BorderSide(color: RC.bg(Color(0xFFF1F5F9)))),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1814,13 +1859,13 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  id,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+                  tx(id),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  time,
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                  tx(time),
+                  style: TextStyle(fontSize: 13, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -1829,13 +1874,13 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  price,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF16A34A)),
+                  tx(price),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF16A34A))),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  breakdown,
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                  tx(breakdown),
+                  style: TextStyle(fontSize: 13, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -1849,9 +1894,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        Text(tx(title), style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey.shade600))),
         const SizedBox(height: 2),
-        Text(val, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        Text(tx(val), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
       ],
     );
   }
@@ -1902,11 +1947,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: RC.bg(Colors.black).withOpacity(0.03),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -1921,11 +1966,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 width: 110,
                 height: 110,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: RC.bg(Colors.white),
                   borderRadius: BorderRadius.circular(36),
-                  border: Border.all(color: const Color(0xFF22C55E), width: 3),
+                  border: Border.all(color: RC.bg(Color(0xFF22C55E)), width: 3),
                 ),
-                child: const Icon(Icons.person_rounded, size: 64, color: Color(0xFF16A34A)),
+                child: Icon(Icons.person_rounded, size: 64, color: RC.fg(Color(0xFF16A34A))),
               ),
               Positioned(
                 bottom: 0,
@@ -1933,11 +1978,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF16A34A),
+                    color: RC.bg(Color(0xFF16A34A)),
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+                    border: Border.all(color: RC.bg(Colors.white), width: 2),
                   ),
-                  child: const Icon(Icons.check, color: Colors.white, size: 14),
+                  child: Icon(Icons.check, color: RC.fg(Colors.white), size: 14),
                 ),
               ),
             ],
@@ -1946,29 +1991,36 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              (_driverProfile?['user']?['name'] ?? _driverProfile?['name'] ?? '-').toString(),
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+              tx((_driverProfile?['user']?['name'] ?? _driverProfile?['name'] ?? '-').toString()),
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
             ),
           ),
           const SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)),
-                child: Text(
-                  (_driverProfile?['driver_code'] ?? '-').toString(),
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: RC.bg(Color(0xFFF1F5F9)), borderRadius: BorderRadius.circular(8)),
+                  child: Text(
+                    tx((_driverProfile?['driver_code'] ?? '-').toString()),
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFF64748B))),
+                  ),
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 10),
-                child: Text('•', style: TextStyle(color: Color(0xFFCBD5E1))),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text(tx('•'), style: TextStyle(color: RC.fg(Color(0xFFCBD5E1)))),
               ),
-              Text(
-                (_driverProfile?['user']?['phone'] ?? _driverProfile?['phone'] ?? widget.driverPhone).toString(),
-                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+              Flexible(
+                child: Text(
+                  tx((_driverProfile?['user']?['phone'] ?? _driverProfile?['phone'] ?? widget.driverPhone).toString()),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w600),
+                ),
               ),
             ],
           ),
@@ -1980,7 +2032,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 child: _buildHeaderStat(
                   'تەواوکردن',
                   '${_driverProfile?['completion_rate'] ?? 0}%',
-                  valueColor: const Color(0xFF16A34A),
+                  valueColor: RC.fg(Color(0xFF16A34A)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -2009,30 +2061,30 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: RC.bg(Color(0xFFF8FAFC)),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         children: [
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
+            child: Text(tx(label), style: TextStyle(fontSize: 11, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600)),
           ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (isRating) ...[
-                const Icon(Icons.star_rounded, color: Color(0xFFF59E0B), size: 20),
+                Icon(Icons.star_rounded, color: RC.fg(Color(0xFFF59E0B)), size: 20),
                 const SizedBox(width: 4),
               ],
               Flexible(
                 child: Text(
-                  value,
+                  tx(value),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
-                    color: isRating ? const Color(0xFFF59E0B) : (valueColor ?? const Color(0xFF1E293B)),
+                    color: isRating ? RC.bg(Color(0xFFF59E0B)) : (valueColor ?? RC.bg(Color(0xFF1E293B))),
                   ),
                 ),
               ),
@@ -2047,11 +2099,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: RC.bg(Colors.black).withOpacity(0.03),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -2063,8 +2115,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(100)),
-                child: Text(t('verified'), style: const TextStyle(color: Color(0xFF16A34A), fontSize: 12, fontWeight: FontWeight.bold)),
+                decoration: BoxDecoration(color: RC.bg(Color(0xFFDCFCE7)), borderRadius: BorderRadius.circular(100)),
+                child: Text(t('verified'), style: TextStyle(color: RC.fg(Color(0xFF16A34A)), fontSize: 12, fontWeight: FontWeight.bold)),
               ),
               Expanded(
                 child: Row(
@@ -2073,34 +2125,36 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                     Flexible(
                       child: Text(
                         t('motor_info'),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Icon(Icons.two_wheeler_rounded, color: Color(0xFF16A34A), size: 24),
+                    Icon(Icons.two_wheeler_rounded, color: RC.fg(Color(0xFF16A34A)), size: 24),
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 2.0,
-            children: [
-              _buildMotorStatItem(t('motor_type'), (_driverProfile?['motor_type'] ?? '-').toString()),
-              _buildMotorStatItem(t('motor_id'), (_driverProfile?['plate_number'] ?? '-').toString()),
-              _buildMotorStatItem(t('motor_model'), (_driverProfile?['model_year'] ?? '-').toString()),
-              _buildMotorStatItem(t('motor_color'), (_driverProfile?['motor_color'] ?? '-').toString()),
-
-
-
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cols = constraints.maxWidth < 360 ? 1 : 2;
+              return GridView.count(
+                crossAxisCount: cols,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: cols == 1 ? 3.2 : 2.0,
+                children: [
+                  _buildMotorStatItem(t('motor_type'), (_driverProfile?['motor_type'] ?? '-').toString()),
+                  _buildMotorStatItem(t('motor_id'), (_driverProfile?['plate_number'] ?? '-').toString()),
+                  _buildMotorStatItem(t('motor_model'), (_driverProfile?['model_year'] ?? '-').toString()),
+                  _buildMotorStatItem(t('motor_color'), (_driverProfile?['motor_color'] ?? '-').toString()),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -2111,7 +2165,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: RC.bg(Color(0xFFF8FAFC)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -2119,8 +2173,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold),
+            tx(label),
+            style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.bold),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -2129,8 +2183,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
-                value,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+                tx(value),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -2144,21 +2198,21 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
       ),
       child: Column(
         children: [
           Row(
             children: [
               const Spacer(),
-              Text(t('legal_docs'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1E293B))),
+              Text(t('legal_docs'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B)))),
               const SizedBox(width: 12),
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
-                child: const Icon(Icons.assignment_rounded, color: Color(0xFF3B82F6), size: 24),
+                decoration: BoxDecoration(color: RC.bg(Color(0xFFEFF6FF)), shape: BoxShape.circle),
+                child: Icon(Icons.assignment_rounded, color: RC.fg(Color(0xFF3B82F6)), size: 24),
               ),
             ],
           ),
@@ -2173,33 +2227,40 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 
   Widget _buildDocumentItem(String title) {
     return InkWell(
-      onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Viewing $title'))),
+      onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tx('Viewing $title')))),
       borderRadius: BorderRadius.circular(20),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
+          color: RC.bg(Color(0xFFF8FAFC)),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           children: [
-            const Icon(Icons.check_circle_rounded, color: Color(0xFF22C55E), size: 22),
+            Icon(Icons.check_circle_rounded, color: RC.fg(Color(0xFF22C55E)), size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                title,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                tx(title),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF1E293B))),
               ),
             ),
             const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: const Color(0xFFDCFCE7),
-                borderRadius: BorderRadius.circular(100),
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: RC.bg(Color(0xFFDCFCE7)),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  t('verified'),
+                  style: TextStyle(color: RC.fg(Color(0xFF16A34A)), fontSize: 11, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              child: Text(t('verified'), style: const TextStyle(color: Color(0xFF16A34A), fontSize: 11, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -2223,13 +2284,13 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: widget.isDark ? const Color(0xFF1E293B) : const Color(0xFFDCFCE7),
+                  color: widget.isDark ? RC.bg(Color(0xFF1E293B)) : RC.bg(Color(0xFFDCFCE7)),
                   borderRadius: BorderRadius.circular(100),
                 ),
                 child: Text(
-                  widget.isDark ? t('dark_mode') : t('light_mode'),
+                  tx(widget.isDark ? t('dark_mode') : t('light_mode')),
                   style: TextStyle(
-                    color: widget.isDark ? const Color(0xFF00E676) : const Color(0xFF16A34A),
+                    color: widget.isDark ? RC.bg(Color(0xFF00E676)) : RC.bg(Color(0xFF16A34A)),
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),
@@ -2241,12 +2302,12 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: widget.isDark ? const Color(0xFF1E293B) : const Color(0xFFF0FDF4),
+                  color: widget.isDark ? RC.bg(Color(0xFF1E293B)) : RC.bg(Color(0xFFF0FDF4)),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   widget.isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                  color: const Color(0xFF16A34A),
+                  color: RC.fg(Color(0xFF16A34A)),
                   size: 24,
                 ),
               ),
@@ -2256,11 +2317,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: Text(
-              widget.isDark ? t('dark_mode') : t('light_mode'),
+              tx(widget.isDark ? t('dark_mode') : t('light_mode')),
               style: TextStyle(fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
             ),
             value: widget.isDark,
-            activeColor: const Color(0xFF00E676),
+            activeColor: RC.bg(Color(0xFF00E676)),
             onChanged: widget.onThemeChanged,
           ),
         ],
@@ -2276,9 +2337,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
       ),
       child: Column(
         children: [
@@ -2286,19 +2347,19 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(100)),
-                child: Text(currentLangName, style: const TextStyle(color: Color(0xFF16A34A), fontSize: 13, fontWeight: FontWeight.bold)),
+                decoration: BoxDecoration(color: RC.bg(Color(0xFFDCFCE7)), borderRadius: BorderRadius.circular(100)),
+                child: Text(tx(currentLangName), style: TextStyle(color: RC.fg(Color(0xFF16A34A)), fontSize: 13, fontWeight: FontWeight.bold)),
               ),
               const Spacer(),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(t('languages'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1E293B))),
+                  Text(t('languages'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B)))),
                   const SizedBox(width: 12),
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(color: Color(0xFFF0FDF4), shape: BoxShape.circle),
-                    child: const Icon(Icons.language_rounded, color: Color(0xFF16A34A), size: 24),
+                    decoration: BoxDecoration(color: RC.bg(Color(0xFFF0FDF4)), shape: BoxShape.circle),
+                    child: Icon(Icons.language_rounded, color: RC.fg(Color(0xFF16A34A)), size: 24),
                   ),
                 ],
               ),
@@ -2307,7 +2368,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(color: RC.bg(Color(0xFFF1F5F9)), borderRadius: BorderRadius.circular(20)),
             child: Row(
               children: [
                 Expanded(child: _buildLangOption('English', 'en')),
@@ -2329,25 +2390,25 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
+          color: isSelected ? RC.bg(Colors.white) : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))] : null,
+          boxShadow: isSelected ? [BoxShadow(color: RC.bg(Colors.black).withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))] : null,
         ),
         child: Center(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                label,
+                tx(label),
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                  color: isSelected ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+                  color: isSelected ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFF64748B)),
                 ),
               ),
               if (isSelected) ...[
                 const SizedBox(width: 6),
-                const Icon(Icons.circle, color: Color(0xFF16A34A), size: 6),
+                Icon(Icons.circle, color: RC.fg(Color(0xFF16A34A)), size: 6),
               ],
             ],
           ),
@@ -2363,20 +2424,20 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: RC.bg(Colors.white),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
+          border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         ),
         child: Row(
           children: [
-            Icon(widget.currentLocale == 'en' ? Icons.arrow_forward_ios_rounded : Icons.arrow_back_ios_new_rounded, size: 16, color: const Color(0xFF94A3B8)),
+            Icon(widget.currentLocale == 'en' ? Icons.arrow_forward_ios_rounded : Icons.arrow_back_ios_new_rounded, size: 16, color: RC.fg(Color(0xFF94A3B8))),
             const Spacer(),
-            Text(t('support'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
+            Text(t('support'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF1E293B)))),
             const SizedBox(width: 16),
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(color: Color(0xFFF0FDF4), shape: BoxShape.circle),
-              child: const Icon(Icons.help_outline_rounded, color: Color(0xFF16A34A), size: 24),
+              decoration: BoxDecoration(color: RC.bg(Color(0xFFF0FDF4)), shape: BoxShape.circle),
+              child: Icon(Icons.help_outline_rounded, color: RC.fg(Color(0xFF16A34A)), size: 24),
             ),
           ],
         ),
@@ -2394,17 +2455,19 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         child: Align(
           alignment: Alignment.bottomCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 580),
+            constraints: BoxConstraints(
+              maxWidth: RegaResponsive.dialogMaxWidth(ctx, cap: 580),
+            ),
             child: Container(
               height: MediaQuery.of(context).size.height * 0.9,
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: RC.bg(Colors.white),
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(32),
                   topRight: Radius.circular(32),
                 ),
               ),
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(RegaResponsive.pagePadding(ctx).clamp(16.0, 24.0)),
               child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -2415,7 +2478,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                     onTap: () => Navigator.pop(ctx),
                     child: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
+                      decoration: BoxDecoration(color: RC.bg(Colors.grey.shade100), shape: BoxShape.circle),
                       child: const Icon(Icons.close, size: 20),
                     ),
                   ),
@@ -2427,11 +2490,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       children: [
                         FittedBox(
                           fit: BoxFit.scaleDown,
-                          child: Text(t('support_title'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1E293B))),
+                          child: Text(t('support_title'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B)))),
                         ),
                         FittedBox(
                           fit: BoxFit.scaleDown,
-                          child: Text(t('support_subtitle'), style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
+                          child: Text(t('support_subtitle'), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600)),
                         ),
                       ],
                     ),
@@ -2439,8 +2502,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                   const SizedBox(width: 12),
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(color: Color(0xFFF0FDF4), shape: BoxShape.circle),
-                    child: const Icon(Icons.help_outline_rounded, color: Color(0xFF16A34A), size: 24),
+                    decoration: BoxDecoration(color: RC.bg(Color(0xFFF0FDF4)), shape: BoxShape.circle),
+                    child: Icon(Icons.help_outline_rounded, color: RC.fg(Color(0xFF16A34A)), size: 24),
                   ),
                 ],
               ),
@@ -2450,9 +2513,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1F2),
+                  color: RC.bg(Color(0xFFFFF1F2)),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFFECDD3)),
+                  border: Border.all(color: RC.bg(Color(0xFFFECDD3))),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2461,13 +2524,13 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       flex: 2,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFEF4444),
-                          foregroundColor: Colors.white,
+                          backgroundColor: RC.bg(Color(0xFFEF4444)),
+                          foregroundColor: RC.fg(Colors.white),
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
-                        onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Calling Emergency...'))),
+                        onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tx('Calling Emergency...')))),
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(t('emergency_btn'), style: const TextStyle(fontWeight: FontWeight.w900)),
@@ -2488,18 +2551,18 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                                 child: Text(
                                   t('emergency_title'),
                                   textAlign: TextAlign.end,
-                                  style: const TextStyle(color: Color(0xFF991B1B), fontWeight: FontWeight.w900, fontSize: 14),
+                                  style: TextStyle(color: RC.fg(Color(0xFF991B1B)), fontWeight: FontWeight.w900, fontSize: 14),
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              const Icon(Icons.error_outline_rounded, color: Color(0xFF991B1B), size: 16),
+                              Icon(Icons.error_outline_rounded, color: RC.fg(Color(0xFF991B1B)), size: 16),
                             ],
                           ),
                           const SizedBox(height: 4),
                           Text(
                             t('emergency_desc'),
                             textAlign: TextAlign.end,
-                            style: const TextStyle(color: Color(0xFF991B1B), fontSize: 11, fontWeight: FontWeight.w600),
+                            style: TextStyle(color: RC.fg(Color(0xFF991B1B)), fontSize: 11, fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -2513,10 +2576,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: RC.bg(Colors.white),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFF1F5F9)),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+                  border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
+                  boxShadow: [BoxShadow(color: RC.bg(Colors.black).withOpacity(0.02), blurRadius: 10)],
                 ),
                 child: Column(
                   children: [
@@ -2527,14 +2590,14 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                           child: Text(
                             t('hotline_title'),
                             textAlign: TextAlign.end,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Container(
                           padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(color: Color(0xFFF0FDF4), shape: BoxShape.circle),
-                          child: const Icon(Icons.phone_outlined, color: Color(0xFF16A34A), size: 24),
+                          decoration: BoxDecoration(color: RC.bg(Color(0xFFF0FDF4)), shape: BoxShape.circle),
+                          child: Icon(Icons.phone_outlined, color: RC.fg(Color(0xFF16A34A)), size: 24),
                         ),
                       ],
                     ),
@@ -2543,15 +2606,15 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF16A34A),
-                          foregroundColor: Colors.white,
+                          backgroundColor: RC.bg(Color(0xFF16A34A)),
+                          foregroundColor: RC.fg(Colors.white),
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
-                        onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Calling Hotline...'))),
+                        onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tx('Calling Hotline...')))),
                         icon: const Icon(Icons.phone_in_talk_rounded),
-                        label: Text('${t('hotline_btn')} : 0750 000 9372', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                        label: Text(tx('${t('hotline_btn')} : 0750 000 9372'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                       ),
                     ),
                   ],
@@ -2560,7 +2623,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               const SizedBox(height: 24),
 
               // FAQ Section
-              Text(t('faq_title'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF1E293B))),
+              Text(t('faq_title'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B)))),
               const SizedBox(height: 12),
               Expanded(
                 child: ListView(
@@ -2584,15 +2647,15 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: RC.bg(Color(0xFFF8FAFC)),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(question, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1E293B), fontSize: 14)),
+          Text(tx(question), style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B)), fontSize: 14)),
           const SizedBox(height: 8),
-          Text(answer, style: const TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(tx(answer), style: TextStyle(color: RC.fg(Color(0xFF64748B)), fontSize: 12, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -2606,7 +2669,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         width: double.infinity,
         height: 64,
         decoration: BoxDecoration(
-          color: const Color(0xFFEF4444),
+          color: RC.bg(Color(0xFFEF4444)),
           borderRadius: BorderRadius.circular(24),
         ),
         child: Row(
@@ -2614,10 +2677,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           children: [
             Text(
               t('logout'),
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+              style: TextStyle(color: RC.fg(Colors.white), fontSize: 18, fontWeight: FontWeight.w900),
             ),
             const SizedBox(width: 12),
-            const Icon(Icons.logout_rounded, color: Colors.white, size: 22),
+            Icon(Icons.logout_rounded, color: RC.fg(Colors.white), size: 22),
           ],
         ),
       ),
@@ -2632,11 +2695,13 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       builder: (ctx) => Align(
         alignment: Alignment.bottomCenter,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 580),
+          constraints: BoxConstraints(
+            maxWidth: RegaResponsive.dialogMaxWidth(ctx, cap: 580),
+          ),
           child: Container(
             height: MediaQuery.of(context).size.height * 0.7,
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: RC.bg(Colors.white),
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(32),
                 topRight: Radius.circular(32),
@@ -2646,7 +2711,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(RegaResponsive.pagePadding(ctx).clamp(14.0, 20.0)),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -2654,19 +2719,24 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                     onTap: () => Navigator.pop(ctx),
                     child: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
-                      child: const Icon(Icons.close, size: 20, color: Colors.black),
+                      decoration: BoxDecoration(color: RC.bg(Colors.grey.shade100), shape: BoxShape.circle),
+                      child: Icon(Icons.close, size: 20, color: RC.fg(Colors.black)),
                     ),
                   ),
-                  Text(
-                    t('notifications'),
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+                  Flexible(
+                    child: Text(
+                      t('notifications'),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   const SizedBox(width: 36), // Spacer for balance
                 ],
               ),
             ),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
+            Divider(height: 1, color: RC.bg(Color(0xFFF1F5F9))),
             
             // List
             Expanded(
@@ -2675,9 +2745,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.notifications_off_outlined, size: 64, color: Colors.grey.shade200),
+                          Icon(Icons.notifications_off_outlined, size: 64, color: RC.fg(Colors.grey.shade200)),
                           const SizedBox(height: 16),
-                          Text(t('no_notifications'), style: TextStyle(color: Colors.grey.shade400)),
+                          Text(t('no_notifications'), style: TextStyle(color: RC.fg(Colors.grey.shade400))),
                         ],
                       ),
                     )
@@ -2690,20 +2760,20 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: RC.bg(Colors.white),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: const Color(0xFFF1F5F9)),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+                            border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
+                            boxShadow: [BoxShadow(color: RC.bg(Colors.black).withOpacity(0.02), blurRadius: 10)],
                           ),
                           child: Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF0FDF4),
+                                  color: RC.bg(Color(0xFFF0FDF4)),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
-                                child: const Icon(Icons.shopping_basket_outlined, color: Color(0xFF16A34A), size: 24),
+                                child: Icon(Icons.shopping_basket_outlined, color: RC.fg(Color(0xFF16A34A)), size: 24),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
@@ -2712,28 +2782,54 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                                   children: [
                                     Text(
                                       t('new_order_notif').replaceAll('%s', notif['id']!),
-                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF1E293B)),
+                                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: RC.fg(Color(0xFF1E293B))),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      notif['time']!,
-                                      style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                                      tx(notif['time']!),
+                                      style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600),
                                     ),
+                                    if (RegaResponsive.isPhone(ctx)) ...[
+                                      const SizedBox(height: 6),
+                                      Align(
+                                        alignment: AlignmentDirectional.centerStart,
+                                        child: TextButton(
+                                          style: TextButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: const Size(0, 28),
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          onPressed: () {
+                                            Navigator.pop(ctx);
+                                            setState(() {
+                                              _searchQuery = notif['id']!;
+                                              _searchController.text = notif['id']!;
+                                            });
+                                            _goTab(1);
+                                          },
+                                          child: Text(t('view_details'), style: TextStyle(color: RC.fg(Color(0xFF16A34A)), fontWeight: FontWeight.w900, fontSize: 12)),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(ctx);
-                                  setState(() {
-                                    _searchQuery = notif['id']!;
-                                    _searchController.text = notif['id']!;
-                                  });
-                                  _goTab(1); // Go to Orders tab
-                                },
-                                child: Text(t('view_details'), style: const TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w900, fontSize: 12)),
-                              ),
+                              if (!RegaResponsive.isPhone(ctx)) ...[
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(ctx);
+                                      setState(() {
+                                        _searchQuery = notif['id']!;
+                                        _searchController.text = notif['id']!;
+                                      });
+                                      _goTab(1);
+                                    },
+                                    child: Text(t('view_details'), style: TextStyle(color: RC.fg(Color(0xFF16A34A)), fontWeight: FontWeight.w900, fontSize: 12)),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         );
@@ -2758,22 +2854,30 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           children: [
             // ١. سەردێڕی لاپەڕە
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: EdgeInsets.fromLTRB(
+                RegaResponsive.pagePadding(context),
+                16,
+                RegaResponsive.pagePadding(context),
+                8,
+              ),
               child: Text(
                 t('orders'),
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
               ),
             ),
 
             // ٢. بەشی گەڕان (Search Bar)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: EdgeInsets.symmetric(
+                horizontal: RegaResponsive.pagePadding(context),
+                vertical: 8,
+              ),
               child: Container(
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: RC.bg(Colors.white),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
                 ),
                 child: TextField(
                   controller: _searchController,
@@ -2781,8 +2885,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                   onChanged: (val) => setState(() => _searchQuery = val),
                   decoration: InputDecoration(
                     hintText: t('search_hint'),
-                    hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-                    prefixIcon: const Icon(Icons.search, color: Color(0xFF94A3B8), size: 20),
+                    hintStyle: TextStyle(fontSize: 13, color: RC.fg(Color(0xFF94A3B8))),
+                    prefixIcon: Icon(Icons.search, color: RC.fg(Color(0xFF94A3B8)), size: 20),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   ),
@@ -2796,7 +2900,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 reverse: true, // بۆ ئەوەی لە ڕاستەوە دەست پێ بکات
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.symmetric(horizontal: RegaResponsive.pagePadding(context)),
                 child: Row(
                   children: [
                     _buildFilterChip(t('all'), '5', _selectedFilterIndex == 0, onTap: () => setState(() => _selectedFilterIndex = 0)),
@@ -2816,20 +2920,27 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off, size: 64, color: Colors.grey.shade300),
+                        Icon(Icons.search_off, size: 64, color: RC.fg(Colors.grey.shade300)),
                         const SizedBox(height: 16),
-                        Text(t('no_orders'), style: TextStyle(color: Colors.grey.shade500)),
+                        Text(t('no_orders'), style: TextStyle(color: RC.fg(Colors.grey.shade500))),
                       ],
                     ),
                   )
                 : LayoutBuilder(
                     builder: (context, constraints) {
                       final filtered = _getFilteredOrders();
-                      if (constraints.maxWidth >= 680) {
+                      final pad = RegaResponsive.pagePadding(context);
+                      final cols = RegaResponsive.gridCountForWidth(
+                        constraints.maxWidth,
+                        phone: 1,
+                        tablet: 2,
+                        desktop: 2,
+                      );
+                      if (cols >= 2) {
                         return GridView.builder(
-                          padding: const EdgeInsets.all(16),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
+                          padding: EdgeInsets.all(pad),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: cols,
                             crossAxisSpacing: 14,
                             mainAxisSpacing: 14,
                             childAspectRatio: 1.7,
@@ -2851,7 +2962,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                         );
                       }
                       return ListView.builder(
-                        padding: const EdgeInsets.all(16),
+                        padding: EdgeInsets.all(pad),
                         itemCount: filtered.length,
                         itemBuilder: (context, index) {
                           final order = filtered[index];
@@ -2882,34 +2993,34 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : const Color(0xFFF8FAFC),
+          color: isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFFF8FAFC)),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? const Color(0xFFE2E8F0) : Colors.transparent,
+            color: isSelected ? RC.bg(Color(0xFFE2E8F0)) : Colors.transparent,
           ),
           boxShadow: isSelected
-              ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
+              ? [BoxShadow(color: RC.bg(Colors.black).withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
               : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              label,
+              tx(label),
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? const Color(0xFF1E293B) : const Color(0xFF64748B),
+                color: isSelected ? RC.bg(Color(0xFF1E293B)) : RC.bg(Color(0xFF64748B)),
               ),
             ),
             if (count.isNotEmpty) ...[
               const SizedBox(width: 8),
               Text(
-                count,
+                tx(count),
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: isDanger ? const Color(0xFFEF4444) : (isSelected ? const Color(0xFF1E293B) : const Color(0xFF64748B)),
+                  color: isDanger ? RC.bg(Color(0xFFEF4444)) : (isSelected ? RC.bg(Color(0xFF1E293B)) : RC.bg(Color(0xFF64748B))),
                 ),
               ),
             ],
@@ -2933,12 +3044,12 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: RC.bg(Colors.black).withOpacity(0.02),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -2958,7 +3069,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                     borderRadius: BorderRadius.circular(100),
                   ),
                   child: Text(
-                    status,
+                    tx(status),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: statusColor),
@@ -2968,11 +3079,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  id,
+                  tx(id),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF1E293B)),
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: RC.fg(Color(0xFF1E293B))),
                 ),
               ),
             ],
@@ -2989,19 +3100,19 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                   children: [
                     Flexible(
                       child: Text(
-                        customer,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                        tx(customer),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF1E293B))),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(horizontal: 10),
-                      child: Icon(Icons.arrow_forward, size: 16, color: Color(0xFF94A3B8)),
+                      child: Icon(Icons.arrow_forward, size: 16, color: RC.fg(Color(0xFF94A3B8))),
                     ),
                     Flexible(
                       child: Text(
-                        merchant,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+                        tx(merchant),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -3017,12 +3128,12 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                price,
-                style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF16A34A), fontSize: 16),
+                tx(price),
+                style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF16A34A)), fontSize: 16),
               ),
               Text(
-                time,
-                style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                tx(time),
+                style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -3035,16 +3146,16 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: const Border(
+        color: RC.bg(Colors.white),
+        border: Border(
           top: BorderSide(
-            color: Color(0xFFF1F5F9),
+            color: RC.bg(Color(0xFFF1F5F9)),
             width: 1.0,
           ),
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.04),
+            color: RC.bg(Color(0xFF0F172A)).withOpacity(0.04),
             blurRadius: 16,
             offset: const Offset(0, -4),
           ),
@@ -3056,9 +3167,14 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         child: Center(
           heightFactor: 1.0,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 620),
+            constraints: BoxConstraints(
+              maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 620),
+            ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: EdgeInsets.symmetric(
+                horizontal: RegaResponsive.isPhone(context) ? 6 : 10,
+                vertical: 8,
+              ),
               child: Row(
                 children: [
                   _buildBottomNavItem(
@@ -3134,7 +3250,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               children: [
                 Icon(
                   isSelected ? activeIcon : icon,
-                  color: isSelected ? Colors.white : iconColor,
+                  color: isSelected ? RC.fg(Colors.white) : iconColor,
                   size: 22,
                 ),
                 AnimatedSize(
@@ -3144,11 +3260,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       ? Padding(
                           padding: const EdgeInsetsDirectional.only(start: 8),
                           child: Text(
-                            label,
+                            tx(label),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: RC.fg(Colors.white),
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -0.2,
@@ -3205,7 +3321,7 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(24),
         boxShadow: const [
           BoxShadow(
@@ -3235,7 +3351,7 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
                           border: Border.all(color: statusConfig.badgeBorder),
                         ),
                         child: Text(
-                          statusConfig.badgeLabel,
+                          tx(statusConfig.badgeLabel),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -3249,13 +3365,13 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        '${_formatMoney(widget.order.totalEarnings)} د.ع',
+                        tx('${_formatMoney(widget.order.totalEarnings)} د.ع'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
-                          color: Color(0xFF16A34A),
+                          color: RC.fg(Color(0xFF16A34A)),
                         ),
                       ),
                     ),
@@ -3269,12 +3385,12 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
                 child: Container(
                   width: 32,
                   height: 32,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFEE2E2),
+                  decoration: BoxDecoration(
+                    color: RC.bg(Color(0xFFFEE2E2)),
                     shape: BoxShape.circle,
                   ),
-                  child: const Center(
-                    child: Text('✕', style: TextStyle(color: Color(0xFFEF4444), fontSize: 16, fontWeight: FontWeight.bold)),
+                  child: Center(
+                    child: Text(tx('✕'), style: TextStyle(color: RC.fg(Color(0xFFEF4444)), fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),
@@ -3310,31 +3426,31 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            title,
+            tx(title),
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
-              color: _isPickupStage ? const Color(0xFFC2410C) : Colors.grey.shade600,
+              color: _isPickupStage ? RC.bg(Color(0xFFC2410C)) : RC.bg(Colors.grey.shade600),
             ),
           ),
           const SizedBox(height: 2),
           Text(
-            name,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF14532D)),
+            tx(name),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF14532D))),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 2),
           Row(
             children: [
-              Icon(Icons.location_on, size: 12, color: _isPickupStage ? const Color(0xFFEA580C) : Colors.grey.shade500),
+              Icon(Icons.location_on, size: 12, color: _isPickupStage ? RC.fg(Color(0xFFEA580C)) : RC.bg(Colors.grey.shade500)),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  address,
+                  tx(address),
                   style: TextStyle(
                     fontSize: 11,
-                    color: _isPickupStage ? const Color(0xFF9A3412) : Colors.grey.shade600,
+                    color: _isPickupStage ? RC.bg(Color(0xFF9A3412)) : RC.bg(Colors.grey.shade600),
                     fontWeight: FontWeight.w600,
                   ),
                   maxLines: 2,
@@ -3346,8 +3462,8 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
           if (_isPickupStage) ...[
             const SizedBox(height: 4),
             Text(
-              'GPS فرۆشگا: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}',
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFEA580C)),
+              tx('GPS فرۆشگا: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}'),
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFFEA580C))),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -3379,13 +3495,13 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: _isPickupStage ? const Color(0xFFFFF7ED) : const Color(0xFFF8F9FA),
-        border: Border.all(color: _isPickupStage ? const Color(0xFFFED7AA) : Colors.grey.shade300),
+        color: _isPickupStage ? RC.bg(Color(0xFFFFF7ED)) : RC.bg(Color(0xFFF8F9FA)),
+        border: Border.all(color: _isPickupStage ? RC.bg(Color(0xFFFED7AA)) : RC.bg(Colors.grey.shade300)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          if (constraints.maxWidth < 520) {
+          if (constraints.maxWidth < RegaBreakpoints.phone) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -3414,11 +3530,11 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
       child: Container(
         width: 36,
         height: 36,
-        decoration: const BoxDecoration(
-          color: Color(0xFF00E676),
+        decoration: BoxDecoration(
+          color: RC.bg(Color(0xFF00E676)),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, size: 18, color: Colors.black),
+        child: Icon(icon, size: 18, color: RC.fg(Colors.black)),
       ),
     );
   }
@@ -3427,8 +3543,8 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
   Widget _buildItemsAccordion() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: RC.bg(Color(0xFFF8FAFC)),
+        border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -3442,33 +3558,33 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
                 children: [
                   Expanded(
                     child: Text(
-                      trFill('items_total', widget.locale, {
+                      tx(trFill('items_total', widget.locale, {
                         'count': '${widget.order.items.length}',
                         'total': _formatMoney(widget.order.itemsTotal),
-                      }),
+                      })),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF1E293B)),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF1E293B))),
                     ),
                   ),
                   AnimatedRotation(
                     turns: _isItemsExpanded ? 0.5 : 0.0,
                     duration: const Duration(milliseconds: 250),
-                    child: const Icon(Icons.keyboard_arrow_down, size: 20, color: Color(0xFF64748B)),
+                    child: Icon(Icons.keyboard_arrow_down, size: 20, color: RC.fg(Color(0xFF64748B))),
                   ),
                 ],
               ),
             ),
           ),
           if (_isItemsExpanded) ...[
-            Container(height: 1, color: const Color(0xFFE2E8F0)),
+            Container(height: 1, color: RC.bg(Color(0xFFE2E8F0))),
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 180),
               child: ListView.separated(
                 shrinkWrap: true,
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 itemCount: widget.order.items.length,
-                separatorBuilder: (ctx, i) => const Divider(height: 1, color: Color(0xFFF1F5F9), indent: 16, endIndent: 16),
+                separatorBuilder: (ctx, i) => Divider(height: 1, color: RC.bg(Color(0xFFF1F5F9)), indent: 16, endIndent: 16),
                 itemBuilder: (ctx, i) {
                   final item = widget.order.items[i];
                   return Padding(
@@ -3481,26 +3597,26 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
                             children: [
                               Flexible(
                                 child: Text(
-                                  item.name,
-                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                                  tx(item.name),
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: RC.fg(Color(0xFF1E293B))),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                '× ${item.quantity}',
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFEF4444)),
+                                tx('× ${item.quantity}'),
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFFEF4444))),
                               ),
                             ],
                           ),
                         ),
                         Flexible(
                           child: Text(
-                            '${_formatMoney(item.price * item.quantity)} د.ع',
+                            tx('${_formatMoney(item.price * item.quantity)} د.ع'),
                             textAlign: TextAlign.end,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF16A34A)),
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF16A34A))),
                           ),
                         ),
                       ],
@@ -3536,7 +3652,7 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
             const SizedBox(width: 8),
             Flexible(
               child: Text(
-                config.buttonLabel,
+                tx(config.buttonLabel),
                 maxLines: 2,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
@@ -3575,7 +3691,7 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
   }
 
   void _showActionToast(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), duration: const Duration(seconds: 1)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tx(text)), duration: const Duration(seconds: 1)));
   }
 
   _StatusConfig _getStatusConfig(OrderStatus status) {
@@ -3583,78 +3699,78 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
       case OrderStatus.driverAssigned:
         return _StatusConfig(
           badgeLabel: _t('badge_new_order'),
-          badgeBg: const Color(0xFFE8F5E9),
-          badgeBorder: const Color(0xFFBBF7D0),
-          badgeTextColor: const Color(0xFF16A34A),
+          badgeBg: RC.bg(Color(0xFFE8F5E9)),
+          badgeBorder: RC.bg(Color(0xFFBBF7D0)),
+          badgeTextColor: RC.bg(Color(0xFF16A34A)),
           buttonLabel: _t('btn_start_to_merchant'),
-          buttonBg: const Color(0xFF22C55E),
-          buttonTextColor: Colors.white,
+          buttonBg: RC.bg(Color(0xFF22C55E)),
+          buttonTextColor: RC.bg(Colors.white),
           buttonIcon: Icons.arrow_back,
         );
       case OrderStatus.driverArrivingPickup:
         return _StatusConfig(
           badgeLabel: _t('badge_to_merchant'),
-          badgeBg: const Color(0xFFEFF6FF),
-          badgeBorder: const Color(0xFFBFDBFE),
-          badgeTextColor: const Color(0xFF2563EB),
+          badgeBg: RC.bg(Color(0xFFEFF6FF)),
+          badgeBorder: RC.bg(Color(0xFFBFDBFE)),
+          badgeTextColor: RC.bg(Color(0xFF2563EB)),
           buttonLabel: _t('btn_arrived_merchant'),
-          buttonBg: const Color(0xFF2563EB),
-          buttonTextColor: Colors.white,
+          buttonBg: RC.bg(Color(0xFF2563EB)),
+          buttonTextColor: RC.bg(Colors.white),
           buttonIcon: Icons.store,
         );
       case OrderStatus.arrivedPickup:
         return _StatusConfig(
           badgeLabel: _t('badge_at_merchant'),
-          badgeBg: const Color(0xFFFFF7ED),
-          badgeBorder: const Color(0xFFFED7AA),
-          badgeTextColor: const Color(0xFFEA580C),
+          badgeBg: RC.bg(Color(0xFFFFF7ED)),
+          badgeBorder: RC.bg(Color(0xFFFED7AA)),
+          badgeTextColor: RC.bg(Color(0xFFEA580C)),
           buttonLabel: _t('btn_picked_up'),
-          buttonBg: const Color(0xFFEA580C),
-          buttonTextColor: Colors.white,
+          buttonBg: RC.bg(Color(0xFFEA580C)),
+          buttonTextColor: RC.bg(Colors.white),
           buttonIcon: Icons.shopping_bag,
         );
       case OrderStatus.pickedUp:
         return _StatusConfig(
           badgeLabel: _t('badge_picked'),
-          badgeBg: const Color(0xFFF5F3FF),
-          badgeBorder: const Color(0xFFDDD6FE),
-          badgeTextColor: const Color(0xFF7C3AED),
+          badgeBg: RC.bg(Color(0xFFF5F3FF)),
+          badgeBorder: RC.bg(Color(0xFFDDD6FE)),
+          badgeTextColor: RC.bg(Color(0xFF7C3AED)),
           buttonLabel: _t('btn_start_to_customer'),
-          buttonBg: const Color(0xFF7C3AED),
-          buttonTextColor: Colors.white,
+          buttonBg: RC.bg(Color(0xFF7C3AED)),
+          buttonTextColor: RC.bg(Colors.white),
           buttonIcon: Icons.navigation,
         );
       case OrderStatus.onTheWay:
         return _StatusConfig(
           badgeLabel: _t('badge_to_customer'),
-          badgeBg: const Color(0xFFF0F9FF),
-          badgeBorder: const Color(0xFFBAE6FD),
-          badgeTextColor: const Color(0xFF0284C7),
+          badgeBg: RC.bg(Color(0xFFF0F9FF)),
+          badgeBorder: RC.bg(Color(0xFFBAE6FD)),
+          badgeTextColor: RC.bg(Color(0xFF0284C7)),
           buttonLabel: _t('btn_arrived_customer'),
-          buttonBg: const Color(0xFF0284C7),
-          buttonTextColor: Colors.white,
+          buttonBg: RC.bg(Color(0xFF0284C7)),
+          buttonTextColor: RC.bg(Colors.white),
           buttonIcon: Icons.home,
         );
       case OrderStatus.arrivedCustomer:
         return _StatusConfig(
           badgeLabel: _t('badge_at_customer'),
-          badgeBg: const Color(0xFFECFDF5),
-          badgeBorder: const Color(0xFFA7F3D0),
-          badgeTextColor: const Color(0xFF059669),
+          badgeBg: RC.bg(Color(0xFFECFDF5)),
+          badgeBorder: RC.bg(Color(0xFFA7F3D0)),
+          badgeTextColor: RC.bg(Color(0xFF059669)),
           buttonLabel: _t('btn_complete_pin'),
-          buttonBg: const Color(0xFF059669),
-          buttonTextColor: Colors.white,
+          buttonBg: RC.bg(Color(0xFF059669)),
+          buttonTextColor: RC.bg(Colors.white),
           buttonIcon: Icons.check_circle,
         );
       case OrderStatus.delivered:
         return _StatusConfig(
           badgeLabel: _t('badge_delivered'),
-          badgeBg: const Color(0xFFE8F5E9),
-          badgeBorder: const Color(0xFFBBF7D0),
-          badgeTextColor: const Color(0xFF16A34A),
+          badgeBg: RC.bg(Color(0xFFE8F5E9)),
+          badgeBorder: RC.bg(Color(0xFFBBF7D0)),
+          badgeTextColor: RC.bg(Color(0xFF16A34A)),
           buttonLabel: _t('btn_completed'),
-          buttonBg: const Color(0xFF16A34A),
-          buttonTextColor: Colors.white,
+          buttonBg: RC.bg(Color(0xFF16A34A)),
+          buttonTextColor: RC.bg(Colors.white),
           buttonIcon: Icons.check,
         );
     }
@@ -3739,23 +3855,23 @@ class _MapCanvasPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // ١. باکگراوندی ڕووی نەخشە
-    final bgPaint = Paint()..color = const Color(0xFFE5E7EB);
+    final bgPaint = Paint()..color = RC.bg(Color(0xFFE5E7EB));
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
 
     // ٢. ناوچە سەوزەکان (پارکەکان)
-    final parkPaint = Paint()..color = const Color(0xFFDCFCE7);
+    final parkPaint = Paint()..color = RC.bg(Color(0xFFDCFCE7));
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(size.width * 0.08, size.height * 0.1, size.width * 0.35, size.height * 0.22), const Radius.circular(20)), parkPaint);
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(size.width * 0.55, size.height * 0.45, size.width * 0.38, size.height * 0.18), const Radius.circular(24)), parkPaint);
 
     // ٣. ڕێگاکان (Street grid)
     final roadPaint = Paint()
-      ..color = Colors.white
+      ..color = RC.bg(Colors.white)
       ..strokeWidth = 20
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
     final roadBorderPaint = Paint()
-      ..color = const Color(0xFFD1D5DB)
+      ..color = RC.bg(Color(0xFFD1D5DB))
       ..strokeWidth = 24
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
@@ -3781,7 +3897,7 @@ class _MapCanvasPainter extends CustomPainter {
 
     // هێڵی ڕێڕەو (Route Path)
     final routePaint = Paint()
-      ..color = const Color(0xFF00E676)
+      ..color = RC.bg(Color(0xFF00E676))
       ..strokeWidth = 5
       ..style = PaintingStyle.stroke;
 
@@ -3797,8 +3913,8 @@ class _MapCanvasPainter extends CustomPainter {
       canvas: canvas,
       center: vendorOffset,
       icon: Icons.storefront,
-      color: const Color(0xFFEA580C),
-      label: 'دیوان',
+      color: RC.bg(Color(0xFFEA580C)),
+      label: tx('دیوان'),
     );
 
     // ٦. نەخشاندنی نیشانەی کڕیار (ماڵ)
@@ -3806,26 +3922,26 @@ class _MapCanvasPainter extends CustomPainter {
       canvas: canvas,
       center: customerOffset,
       icon: Icons.home,
-      color: const Color(0xFF0284C7),
-      label: 'ئاراس',
+      color: RC.bg(Color(0xFF0284C7)),
+      label: tx('ئاراس'),
     );
 
     // ٧. نەخشاندنی شۆفێر بە لەرەی بازنەیی (Pulse Wave)
     final pulsePaint = Paint()
-      ..color = const Color(0xFF00E676).withOpacity(1.0 - pulseValue)
+      ..color = RC.bg(Color(0xFF00E676)).withOpacity(1.0 - pulseValue)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(driverOffset, 16 + (pulseValue * 22), pulsePaint);
 
-    final driverBgPaint = Paint()..color = const Color(0xFF00E676);
+    final driverBgPaint = Paint()..color = RC.bg(Color(0xFF00E676));
     canvas.drawCircle(driverOffset, 18, driverBgPaint);
 
     final driverBorderPaint = Paint()
-      ..color = Colors.black
+      ..color = RC.bg(Colors.black)
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
     canvas.drawCircle(driverOffset, 18, driverBorderPaint);
 
-    _drawIconOnCanvas(canvas, Icons.two_wheeler, driverOffset, Colors.black, 18);
+    _drawIconOnCanvas(canvas, Icons.two_wheeler, driverOffset, RC.bg(Colors.black), 18);
   }
 
   void _drawMarker({
@@ -3837,20 +3953,20 @@ class _MapCanvasPainter extends CustomPainter {
   }) {
     // باکگراوندی دەرەوە
     canvas.drawCircle(center, 16, Paint()..color = color);
-    canvas.drawCircle(center, 16, Paint()..color = Colors.white..strokeWidth = 2..style = PaintingStyle.stroke);
+    canvas.drawCircle(center, 16, Paint()..color = RC.bg(Colors.white)..strokeWidth = 2..style = PaintingStyle.stroke);
 
     // ئایکۆن
-    _drawIconOnCanvas(canvas, icon, center, Colors.white, 16);
+    _drawIconOnCanvas(canvas, icon, center, RC.bg(Colors.white), 16);
 
     // نیشانەی تێکست
     final textPainter = TextPainter(
       text: TextSpan(
         text: label,
-        style: const TextStyle(
-          color: Colors.black87,
+        style: TextStyle(
+          color: RC.fg(Colors.black87),
           fontSize: 10,
           fontWeight: FontWeight.bold,
-          backgroundColor: Colors.white,
+          backgroundColor: RC.bg(Colors.white),
         ),
       ),
       textDirection: TextDirection.rtl,
@@ -3950,7 +4066,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: RC.bg(Color(0xFFF1F5F9)),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -3963,13 +4079,15 @@ class _AuthScreenState extends State<AuthScreen> {
                 maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 440),
               ),
             child: Container(
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(
+                RegaResponsive.scale(context, 32).clamp(18.0, 32.0),
+              ),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: RC.bg(Colors.white),
                 borderRadius: BorderRadius.circular(40),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: RC.bg(Colors.black).withOpacity(0.05),
                     blurRadius: 30,
                     offset: const Offset(0, 15),
                   ),
@@ -3984,16 +4102,16 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: Image.asset(
                     'assets1/navbar_logo.png',
                     fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.delivery_dining_rounded, size: 80, color: Color(0xFF16A34A)),
+                    errorBuilder: (context, error, stackTrace) => Icon(Icons.delivery_dining_rounded, size: 80, color: RC.fg(Color(0xFF16A34A))),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'REGA',
+                Text(
+                  tx('REGA'),
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF1E293B),
+                    color: RC.fg(Color(0xFF1E293B)),
                     letterSpacing: 2,
                   ),
                 ),
@@ -4001,9 +4119,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 Text(
                   t('login_subtitle'),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
-                    color: Color(0xFF94A3B8),
+                    color: RC.fg(Color(0xFF94A3B8)),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -4015,19 +4133,19 @@ class _AuthScreenState extends State<AuthScreen> {
                   children: [
                     Text(
                       t('phone_label'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF1E293B),
+                        color: RC.fg(Color(0xFF1E293B)),
                       ),
                     ),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: RC.bg(Colors.white),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+                        border: Border.all(color: RC.bg(Color(0xFFE2E8F0)), width: 1.5),
                       ),
                       child: Directionality(
                         textDirection: TextDirection.ltr,
@@ -4038,10 +4156,10 @@ class _AuthScreenState extends State<AuthScreen> {
                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1),
                           keyboardType: TextInputType.phone,
                           inputFormatters: [IraqPhoneFormatter()],
-                          decoration: const InputDecoration(
-                            hintText: IraqPhoneFormatter.hint,
+                          decoration: InputDecoration(
+                            hintText: txn(IraqPhoneFormatter.hint),
                             border: InputBorder.none,
-                            suffixIcon: Icon(Icons.phone_android_rounded, color: Color(0xFF94A3B8)),
+                            suffixIcon: Icon(Icons.phone_android_rounded, color: RC.fg(Color(0xFF94A3B8))),
                           ),
                         ),
                       ),
@@ -4054,28 +4172,28 @@ class _AuthScreenState extends State<AuthScreen> {
                   children: [
                     Text(
                       t('password_label').contains('password_label') ? 'وشەی تێپەڕ' : t('password_label'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF1E293B),
+                        color: RC.fg(Color(0xFF1E293B)),
                       ),
                     ),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: RC.bg(Colors.white),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+                        border: Border.all(color: RC.bg(Color(0xFFE2E8F0)), width: 1.5),
                       ),
                       child: TextField(
                         controller: _authPasswordCtrl,
                         obscureText: true,
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        decoration: const InputDecoration(
-                          hintText: '••••••••',
+                        decoration: InputDecoration(
+                          hintText: tx('••••••••'),
                           border: InputBorder.none,
-                          suffixIcon: Icon(Icons.lock_outline_rounded, color: Color(0xFF94A3B8)),
+                          suffixIcon: Icon(Icons.lock_outline_rounded, color: RC.fg(Color(0xFF94A3B8))),
                         ),
                       ),
                     ),
@@ -4088,8 +4206,8 @@ class _AuthScreenState extends State<AuthScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF16A34A),
-                      foregroundColor: Colors.white,
+                      backgroundColor: RC.bg(Color(0xFF16A34A)),
+                      foregroundColor: RC.fg(Colors.white),
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 18),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -4139,15 +4257,15 @@ class _AuthScreenState extends State<AuthScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.verified_user_rounded, color: Color(0xFF16A34A), size: 18),
+                    Icon(Icons.verified_user_rounded, color: RC.fg(Color(0xFF16A34A)), size: 18),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
                         t('footer_text'),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF94A3B8),
+                          color: RC.fg(Color(0xFF94A3B8)),
                           fontWeight: FontWeight.w600,
                         ),
                       ),

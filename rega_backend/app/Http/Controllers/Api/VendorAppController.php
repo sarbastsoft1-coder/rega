@@ -753,7 +753,7 @@ class VendorAppController extends Controller
             ->where('is_profit_realized', true)
             ->whereDate('created_at', Carbon::today());
 
-        $commissionRate = app(\App\Services\OrderProfitService::class)->globalCommissionPercentage();
+        $commissionRate = app(\App\Services\OrderProfitService::class)->commissionForStore($store);
 
         return response()->json([
             'success' => true,

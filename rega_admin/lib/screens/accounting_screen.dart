@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
+import '../core/localization/app_strings.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 class AccountingScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
@@ -32,6 +35,29 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
   final _shopSearchCtrl = TextEditingController();
   String _orderStatus = 'all';
   int? _selectedShopId;
+  /// null = global default rate; otherwise selected vendor store id
+  int? _settingsStoreId;
+  List<dynamic> _settingsStores = [];
+
+  String get _lang => widget.lang;
+
+  String _t(String key) => AppStrings.tr(key, _lang);
+
+  String _tp(String key, Map<String, String> params) => AppStrings.trParams(key, _lang, params);
+
+  String _localizedStoreName(Map<String, dynamic> m) {
+    final lang = _lang == 'ckb' ? 'ku' : _lang;
+    final ku = m['name_ku']?.toString().trim() ?? '';
+    final ar = m['name_ar']?.toString().trim() ?? '';
+    final en = m['name_en']?.toString().trim() ?? '';
+    if (lang == 'en') {
+      return en.isNotEmpty ? en : (ku.isNotEmpty ? ku : (ar.isNotEmpty ? ar : _t('acc_shop_fallback')));
+    }
+    if (lang == 'ar') {
+      return ar.isNotEmpty ? ar : (ku.isNotEmpty ? ku : (en.isNotEmpty ? en : _t('acc_shop_fallback')));
+    }
+    return ku.isNotEmpty ? ku : (en.isNotEmpty ? en : (ar.isNotEmpty ? ar : _t('acc_shop_fallback')));
+  }
 
   @override
   void initState() {
@@ -56,7 +82,10 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
     });
     try {
       final dash = await widget.api.getAccountingDashboard(period: _period);
-      final shopsRes = await widget.api.getAccountingShops(period: _period, q: _shopSearchCtrl.text.trim().isEmpty ? null : _shopSearchCtrl.text.trim());
+      final shopsRes = await widget.api.getAccountingShops(
+        period: _period,
+        q: _shopSearchCtrl.text.trim().isEmpty ? null : _shopSearchCtrl.text.trim(),
+      );
       final ordersRes = await widget.api.getAccountingOrders(
         status: _orderStatus,
         orderId: _orderSearchCtrl.text.trim().isEmpty ? null : _orderSearchCtrl.text.trim(),
@@ -67,12 +96,22 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
       final txRes = await widget.api.getAccountingTransactions();
 
       if (!mounted) return;
+      final settingsStores = settings['stores'] as List<dynamic>? ?? [];
+      final selectedRate = _rateForSettingsStore(
+        settingsStores,
+        _settingsStoreId,
+        fallback: settings['default_commission_percentage'] ??
+            settings['commission_percentage'] ??
+            dash['commission_percentage'] ??
+            20,
+      );
       setState(() {
         _dash = dash;
         _shops = shopsRes['data'] as List<dynamic>? ?? [];
         _orders = ordersRes['data'] as List<dynamic>? ?? [];
         _settings = settings;
-        _commissionCtrl.text = '${settings['commission_percentage'] ?? dash['commission_percentage'] ?? 20}';
+        _settingsStores = settingsStores;
+        _commissionCtrl.text = '$selectedRate';
         _report = report;
         _transactions = txRes['data'] as List<dynamic>? ?? [];
         _loading = false;
@@ -89,6 +128,13 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     final surfaces = AdminSurfaces.of(context);
+    final periods = <(String, String)>[
+      ('today', _t('acc_period_today')),
+      ('week', _t('acc_period_week')),
+      ('month', _t('acc_period_month')),
+      ('year', _t('acc_period_year')),
+    ];
+
     return Column(
       children: [
         Padding(
@@ -104,7 +150,7 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'ژمێریاری و قازانج',
+                  _t('acc_title'),
                   style: TextStyle(
                     fontSize: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 18 : 22,
                     fontWeight: FontWeight.w900,
@@ -112,7 +158,7 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                   ),
                 ),
                 Text(
-                  'Accounting & Profit Management',
+                  _t('acc_subtitle'),
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
@@ -138,14 +184,9 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    for (final p in const [
-                      ('today', 'ڕۆژانە'),
-                      ('week', 'هەفتانە'),
-                      ('month', 'مانگانە'),
-                      ('year', 'ساڵانە'),
-                    ])
+                    for (final p in periods)
                       ChoiceChip(
-                        label: Text(p.$2),
+                        label: Text(tx(p.$2)),
                         selected: _period == p.$1,
                         onSelected: (_) {
                           setState(() => _period = p.$1);
@@ -158,7 +199,7 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
               IconButton(
                 onPressed: _loading ? null : _loadAll,
                 icon: const Icon(Icons.refresh_rounded),
-                tooltip: 'نوێکردنەوە',
+                tooltip: _t('refresh'),
               ),
             ],
           ),
@@ -176,27 +217,27 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
             unselectedLabelColor: surfaces.textSecondary,
             labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
             unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-            tabs: const [
-              Tab(text: 'داشبۆرد'),
-              Tab(text: 'قازانجی دوکان'),
-              Tab(text: 'ژمێریاری داواکاری'),
-              Tab(text: 'ڕێکخستنی قازانج'),
-              Tab(text: 'ڕاپۆرتەکان'),
-              Tab(text: 'مامەڵەکان'),
+            tabs: [
+              Tab(text: _t('acc_tab_dashboard')),
+              Tab(text: _t('acc_tab_shops')),
+              Tab(text: _t('acc_tab_orders')),
+              Tab(text: _t('acc_tab_settings')),
+              Tab(text: _t('acc_tab_reports')),
+              Tab(text: _t('acc_tab_transactions')),
             ],
           ),
         ),
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator())
               : _error != null
                   ? Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(_error!, style: TextStyle(color: surfaces.textSecondary)),
+                          Text(tx(_error!), style: TextStyle(color: surfaces.textSecondary)),
                           const SizedBox(height: 12),
-                          ElevatedButton(onPressed: _loadAll, child: const Text('دووبارە هەوڵبدە')),
+                          ElevatedButton(onPressed: _loadAll, child: Text(_t('acc_retry'))),
                         ],
                       ),
                     )
@@ -221,54 +262,55 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
     final series = (_dash['series'] as List?) ?? [];
     final byShop = (_dash['profit_by_shop'] as List?) ?? [];
     final topProducts = (_dash['top_products'] as List?) ?? [];
+    final defaultPct = '${_dash['commission_percentage'] ?? 20}';
 
     final kpiCards = <Widget>[
       StatKpiCard(
-        title: 'کۆی داواکاری',
+        title: _t('acc_kpi_total_orders'),
         value: '${stats['total_orders'] ?? 0}',
         icon: Icons.receipt_long_rounded,
         accentColor: RegaColors.blue,
       ),
       StatKpiCard(
-        title: 'تەواوکراو',
+        title: _t('acc_kpi_completed'),
         value: '${stats['completed_orders'] ?? 0}',
         icon: Icons.check_circle_outline,
         accentColor: RegaColors.emerald,
       ),
       StatKpiCard(
-        title: 'هەڵوەشاوە',
+        title: _t('acc_kpi_cancelled'),
         value: '${stats['cancelled_orders'] ?? 0}',
         icon: Icons.cancel_outlined,
         accentColor: RegaColors.crimson,
       ),
       StatKpiCard(
-        title: 'کۆی فرۆش',
-        value: formatIqd(stats['total_sales_revenue'] as num?, lang: widget.lang),
+        title: _t('acc_kpi_total_sales'),
+        value: formatIqd(stats['total_sales_revenue'] as num?, lang: _lang),
         icon: Icons.payments_outlined,
         accentColor: RegaColors.orange,
       ),
       StatKpiCard(
-        title: 'کۆی تێچوو',
-        value: formatIqd(stats['total_product_costs'] as num?, lang: widget.lang),
+        title: _t('acc_kpi_total_costs'),
+        value: formatIqd(stats['total_product_costs'] as num?, lang: _lang),
         icon: Icons.inventory_2_outlined,
         accentColor: RegaColors.purple,
       ),
       StatKpiCard(
-        title: 'قازانجی گشتی',
-        value: formatIqd(stats['total_gross_profit'] as num?, lang: widget.lang),
+        title: _t('acc_kpi_gross_profit'),
+        value: formatIqd(stats['total_gross_profit'] as num?, lang: _lang),
         icon: Icons.trending_up_rounded,
         accentColor: RegaColors.emeraldDark,
       ),
       StatKpiCard(
-        title: 'قازانجی ئەدمین',
-        value: formatIqd(stats['total_admin_profit'] as num?, lang: widget.lang),
+        title: _t('acc_kpi_admin_profit'),
+        value: formatIqd(stats['total_admin_profit'] as num?, lang: _lang),
         icon: Icons.account_balance_rounded,
         accentColor: RegaColors.forestGreen,
-        subtitle: '${_dash['commission_percentage'] ?? 20}%',
+        subtitle: _tp('acc_default_rate', {'pct': defaultPct}),
       ),
       StatKpiCard(
-        title: 'قازانجی فرۆشیار',
-        value: formatIqd(stats['total_seller_profit'] as num?, lang: widget.lang),
+        title: _t('acc_kpi_seller_profit'),
+        value: formatIqd(stats['total_seller_profit'] as num?, lang: _lang),
         icon: Icons.storefront_outlined,
         accentColor: RegaColors.goldDark,
       ),
@@ -303,15 +345,17 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           },
         ),
         const SizedBox(height: 20),
-        Text('قازانج بەپێی دوکان', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+        Text(_t('acc_profit_by_shop'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 8),
         ...byShop.take(10).map((s) {
           final m = Map<String, dynamic>.from(s as Map);
           return ListTile(
-            title: Text(m['name_ku']?.toString() ?? '—'),
-            subtitle: Text('فرۆش: ${formatIqd(m['sales'] as num?, lang: widget.lang)}'),
+            title: Text(tx(_localizedStoreName(m))),
+            subtitle: Text(tx(_tp('acc_sales_label', {
+              'amount': formatIqd(m['sales'] as num?, lang: _lang),
+            }))),
             trailing: Text(
-              formatIqd(m['admin_earnings'] as num?, lang: widget.lang),
+              tx(formatIqd(m['admin_earnings'] as num?, lang: _lang)),
               style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
             ),
             onTap: () async {
@@ -324,20 +368,20 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           );
         }),
         const SizedBox(height: 12),
-        Text('بەرهەمە قازانجدارەکان', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+        Text(_t('acc_top_products'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 8),
         ...topProducts.take(10).map((p) {
           final m = Map<String, dynamic>.from(p as Map);
           return ListTile(
             dense: true,
-            title: Text(m['product_name']?.toString() ?? '—'),
-            subtitle: Text('دانە: ${m['qty_sold'] ?? 0}'),
-            trailing: Text(formatIqd(m['gross_profit'] as num?, lang: widget.lang)),
+            title: Text(tx(m['product_name']?.toString() ?? '—')),
+            subtitle: Text(tx(_tp('acc_qty_label', {'qty': '${m['qty_sold'] ?? 0}'}))),
+            trailing: Text(tx(formatIqd(m['gross_profit'] as num?, lang: _lang))),
           );
         }),
         if (series.isNotEmpty) ...[
           const SizedBox(height: 16),
-          Text('ڕێڕەوی داهات', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+          Text(_t('acc_revenue_trend'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
           SizedBox(
             height: 160,
@@ -377,7 +421,10 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text('${m['day']}'.split('T').first.split('-').last, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                      Text(
+                        tx('${m['day']}'.split('T').first.split('-').last),
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                      ),
                     ],
                   ),
                 );
@@ -397,7 +444,7 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           child: TextField(
             controller: _shopSearchCtrl,
             decoration: InputDecoration(
-              hintText: 'گەڕان بە ناوی دوکان…',
+              hintText: _t('acc_search_shop'),
               prefixIcon: const Icon(Icons.search),
               suffixIcon: IconButton(onPressed: _loadAll, icon: const Icon(Icons.check)),
             ),
@@ -406,7 +453,7 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
         ),
         Expanded(
           child: _shops.isEmpty
-              ? const Center(child: Text('هیچ دوکانێک نەدۆزرایەوە'))
+              ? Center(child: Text(_t('acc_no_shops')))
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                   itemCount: _shops.length,
@@ -414,21 +461,30 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                   itemBuilder: (_, i) {
                     final m = Map<String, dynamic>.from(_shops[i] as Map);
                     return ListTile(
-                      title: Text(m['name_ku']?.toString() ?? '—', style: const TextStyle(fontWeight: FontWeight.w800)),
+                      title: Text(tx(_localizedStoreName(m)), style: const TextStyle(fontWeight: FontWeight.w800)),
                       subtitle: Text(
-                        'داواکاری: ${m['total_orders'] ?? 0} · تەواوکراو: ${m['completed_orders'] ?? 0}\n'
-                        'فرۆش: ${formatIqd(m['total_sales'] as num?, lang: widget.lang)} · قازانج: ${formatIqd(m['gross_profit'] as num?, lang: widget.lang)}',
+                        tx(_tp('acc_shop_list_meta', {
+                          'rate': '${m['commission_rate'] ?? '—'}',
+                          'orders': '${m['total_orders'] ?? 0}',
+                          'completed': '${m['completed_orders'] ?? 0}',
+                          'sales': formatIqd(m['total_sales'] as num?, lang: _lang),
+                          'profit': formatIqd(m['gross_profit'] as num?, lang: _lang),
+                        })),
                       ),
                       isThreeLine: true,
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(formatIqd(m['admin_earnings'] as num?, lang: widget.lang),
-                              style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen)),
-                          const Text('قەرزی ئەدمین', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
-                          Text(formatIqd(m['seller_earnings'] as num?, lang: widget.lang),
-                              style: const TextStyle(fontSize: 12, color: RegaColors.goldDark)),
+                          Text(
+                            tx(formatIqd(m['admin_earnings'] as num?, lang: _lang)),
+                            style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
+                          ),
+                          Text(_t('acc_admin_owed'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                          Text(
+                            tx(formatIqd(m['seller_earnings'] as num?, lang: _lang)),
+                            style: const TextStyle(fontSize: 12, color: RegaColors.goldDark),
+                          ),
                         ],
                       ),
                       onTap: () async {
@@ -467,36 +523,40 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           controller: scroll,
           padding: const EdgeInsets.all(16),
           children: [
-            Text(shop['name_ku']?.toString() ?? 'دوکان', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+            Text(tx(_localizedStoreName(shop)), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
             const SizedBox(height: 4),
-            Text('هەڵبژێردراو — قەرزی ئەدمین بەپێی قازانج', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+            Text(_t('acc_shop_detail_hint'), style: TextStyle(color: RC.fg(Colors.grey.shade600), fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFECFDF5),
+                color: RC.bg(Color(0xFFECFDF5)),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF86EFAC)),
+                border: Border.all(color: RC.bg(Color(0xFF86EFAC))),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('ئەمڕۆ پێویستە بدرێت بە ئەدمین', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                  Text(_t('acc_today_owed_title'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                   const SizedBox(height: 6),
                   Text(
-                    formatIqd(todayOwed, lang: widget.lang),
-                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF166534)),
+                    tx(formatIqd(todayOwed, lang: _lang)),
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534))),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'فرۆشی ئەمڕۆ: ${formatIqd(todaySales, lang: widget.lang)} · قازانج: ${formatIqd(todayGross, lang: widget.lang)} · ڕێژە: $pct%',
+                    tx(_tp('acc_today_sales_meta', {
+                      'sales': formatIqd(todaySales, lang: _lang),
+                      'profit': formatIqd(todayGross, lang: _lang),
+                      'pct': '$pct',
+                    })),
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'نموونە: قازانج ٢٬٠٠٠ × ١٠٪ = ٢٠٠ د.ع بۆ ئەدمین (لەسەر قازانج، نەک فرۆش)',
-                    style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                    _t('acc_example_formula'),
+                    style: TextStyle(fontSize: 11.5, color: RC.fg(Colors.grey.shade700), fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -506,62 +566,72 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
               spacing: 10,
               runSpacing: 10,
               children: [
-                _chip('فرۆش (ماوە)', formatIqd(summary['total_sales'] as num?, lang: widget.lang)),
-                _chip('تێچوو', formatIqd(summary['total_product_costs'] as num?, lang: widget.lang)),
-                _chip('قازانج', formatIqd(summary['gross_profit'] as num?, lang: widget.lang)),
-                _chip('قەرزی ئەدمین $pct%', formatIqd(summary['admin_earnings'] as num?, lang: widget.lang)),
-                _chip('بەشی فرۆشیار', formatIqd(summary['seller_earnings'] as num?, lang: widget.lang)),
-                _chip('گەڕاندنەوە', formatIqd(summary['refunds'] as num?, lang: widget.lang)),
+                _chip(_t('acc_chip_sales_period'), formatIqd(summary['total_sales'] as num?, lang: _lang)),
+                _chip(_t('acc_chip_cost'), formatIqd(summary['total_product_costs'] as num?, lang: _lang)),
+                _chip(_t('acc_chip_profit'), formatIqd(summary['gross_profit'] as num?, lang: _lang)),
+                _chip(
+                  _tp('acc_chip_admin_owed_pct', {'pct': '$pct'}),
+                  formatIqd(summary['admin_earnings'] as num?, lang: _lang),
+                ),
+                _chip(_t('acc_chip_seller_share'), formatIqd(summary['seller_earnings'] as num?, lang: _lang)),
+                _chip(_t('acc_chip_refunds'), formatIqd(summary['refunds'] as num?, lang: _lang)),
               ],
             ),
             const SizedBox(height: 18),
-            const Text('ڕۆژانە — چەند دەبێت بدرێت بە ئەدمین', style: TextStyle(fontWeight: FontWeight.w900)),
+            Text(_t('acc_daily_owed_title'), style: const TextStyle(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
             if (daily.isEmpty)
-              Text('هیچ فرۆشێکی تەواوکراو لەم ماوەیەدا نییە', style: TextStyle(color: Colors.grey.shade600))
+              Text(_t('acc_no_completed_sales'), style: TextStyle(color: RC.fg(Colors.grey.shade600)))
             else
               ...daily.map((d) {
                 final m = Map<String, dynamic>.from(d as Map);
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
                   dense: true,
-                  title: Text('${m['day']}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  title: Text(tx('${m['day']}'), style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: Text(
-                    'فرۆش ${formatIqd(m['sales'] as num?, lang: widget.lang)} · قازانج ${formatIqd(m['gross_profit'] as num?, lang: widget.lang)} · ${m['orders_count'] ?? 0} داواکاری',
+                    tx(_tp('acc_daily_row_meta', {
+                      'sales': formatIqd(m['sales'] as num?, lang: _lang),
+                      'profit': formatIqd(m['gross_profit'] as num?, lang: _lang),
+                      'orders': '${m['orders_count'] ?? 0}',
+                    })),
                   ),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        formatIqd(m['admin_owed'] as num?, lang: widget.lang),
-                        style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF166534)),
+                        tx(formatIqd(m['admin_owed'] as num?, lang: _lang)),
+                        style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534))),
                       ),
-                      const Text('بۆ ئەدمین', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
+                      Text(_t('acc_for_admin'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
                     ],
                   ),
                 );
               }),
             const SizedBox(height: 16),
-            const Text('بەرهەمەکان', style: TextStyle(fontWeight: FontWeight.w900)),
+            Text(_t('acc_products'), style: const TextStyle(fontWeight: FontWeight.w900)),
             ...products.map((p) {
               final m = Map<String, dynamic>.from(p as Map);
               return ListTile(
                 dense: true,
-                title: Text(m['product_name']?.toString() ?? ''),
-                subtitle: Text('بەشی ئەدمین: ${formatIqd(m['admin_share'] as num?, lang: widget.lang)}'),
-                trailing: Text(formatIqd(m['gross_profit'] as num?, lang: widget.lang)),
+                title: Text(tx(m['product_name']?.toString() ?? '')),
+                subtitle: Text(tx(_tp('acc_admin_share', {
+                  'amount': formatIqd(m['admin_share'] as num?, lang: _lang),
+                }))),
+                trailing: Text(tx(formatIqd(m['gross_profit'] as num?, lang: _lang))),
               );
             }),
             const SizedBox(height: 8),
-            const Text('مێژووی داواکاری', style: TextStyle(fontWeight: FontWeight.w900)),
+            Text(_t('acc_order_history'), style: const TextStyle(fontWeight: FontWeight.w900)),
             ...orders.map((o) {
               final m = Map<String, dynamic>.from(o as Map);
+              final status = AppStrings.statusLabel('${m['status'] ?? ''}', _lang);
               return ListTile(
                 dense: true,
-                title: Text(m['order_number']?.toString() ?? '#${m['id']}'),
-                subtitle: Text('${m['status']} · ${m['created_at']}'),
-                trailing: Text(formatIqd(m['admin_profit_amount'] as num?, lang: widget.lang)),
+                title: Text(tx(m['order_number']?.toString() ?? '#${m['id']}')),
+                subtitle: Text(tx('$status · ${m['created_at']}')),
+                trailing: Text(tx(formatIqd(m['admin_profit_amount'] as num?, lang: _lang))),
               );
             }),
           ],
@@ -581,8 +651,8 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: RegaColors.lightMuted)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
+          Text(tx(label), style: const TextStyle(fontSize: 11, color: RegaColors.lightMuted)),
+          Text(tx(value), style: const TextStyle(fontWeight: FontWeight.w900)),
         ],
       ),
     );
@@ -602,45 +672,49 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                 width: 180,
                 child: TextField(
                   controller: _orderSearchCtrl,
-                  decoration: const InputDecoration(hintText: 'Order ID / Number', isDense: true),
+                  decoration: InputDecoration(hintText: _t('acc_order_search_hint'), isDense: true),
                   onSubmitted: (_) => _loadAll(),
                 ),
               ),
               DropdownButton<String>(
                 value: _orderStatus,
-                items: const [
-                  DropdownMenuItem(value: 'all', child: Text('هەموو')),
-                  DropdownMenuItem(value: 'delivered', child: Text('گەیەندراو')),
-                  DropdownMenuItem(value: 'cancelled', child: Text('هەڵوەشاوە')),
-                  DropdownMenuItem(value: 'pending', child: Text('چاوەڕوان')),
+                items: [
+                  DropdownMenuItem(value: 'all', child: Text(_t('acc_status_all'))),
+                  DropdownMenuItem(value: 'delivered', child: Text(tx(AppStrings.statusLabel('delivered', _lang)))),
+                  DropdownMenuItem(value: 'cancelled', child: Text(tx(AppStrings.statusLabel('cancelled', _lang)))),
+                  DropdownMenuItem(value: 'pending', child: Text(tx(AppStrings.statusLabel('pending', _lang)))),
                 ],
                 onChanged: (v) {
                   setState(() => _orderStatus = v ?? 'all');
                   _loadAll();
                 },
               ),
-              ElevatedButton(onPressed: _loadAll, child: const Text('فلتەر')),
+              ElevatedButton(onPressed: _loadAll, child: Text(_t('acc_filter'))),
             ],
           ),
         ),
         Expanded(
           child: _orders.isEmpty
-              ? const Center(child: Text('هیچ داواکارییەک نەدۆزرایەوە'))
+              ? Center(child: Text(_t('acc_no_orders')))
               : ListView.separated(
                   itemCount: _orders.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (_, i) {
                     final m = Map<String, dynamic>.from(_orders[i] as Map);
+                    final status = AppStrings.statusLabel('${m['order_status'] ?? ''}', _lang);
                     return ListTile(
-                      title: Text('${m['order_number']} · ${m['shop_name'] ?? ''}'),
+                      title: Text(tx('${m['order_number']} · ${m['shop_name'] ?? ''}')),
                       subtitle: Text(
-                        '${m['order_status']} · فرۆش ${formatIqd(m['total_sales'] as num?, lang: widget.lang)} · '
-                        'قازانج ${formatIqd(m['gross_profit'] as num?, lang: widget.lang)} · '
-                        'کۆمیسیۆن ${m['admin_commission']}%',
+                        tx(_tp('acc_order_row_meta', {
+                          'status': status,
+                          'sales': formatIqd(m['total_sales'] as num?, lang: _lang),
+                          'profit': formatIqd(m['gross_profit'] as num?, lang: _lang),
+                          'pct': '${m['admin_commission'] ?? ''}',
+                        })),
                       ),
                       isThreeLine: true,
                       trailing: Text(
-                        formatIqd(m['admin_earnings'] as num?, lang: widget.lang),
+                        tx(formatIqd(m['admin_earnings'] as num?, lang: _lang)),
                         style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
                       ),
                       onTap: () async {
@@ -661,6 +735,7 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
   void _showOrderDetail(Map<String, dynamic> detail) {
     final order = Map<String, dynamic>.from(detail['order'] as Map? ?? {});
     final items = (detail['items'] as List?) ?? [];
+    final status = AppStrings.statusLabel('${order['order_status'] ?? ''}', _lang);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -671,32 +746,34 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           controller: scroll,
           padding: const EdgeInsets.all(16),
           children: [
-            Text(order['order_number']?.toString() ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-            Text('${order['shop_name']} · ${order['order_status']}'),
+            Text(tx(order['order_number']?.toString() ?? ''), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            Text(tx('${order['shop_name']} · $status')),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                _chip('فرۆش', formatIqd(order['total_sales'] as num?, lang: widget.lang)),
-                _chip('تێچوو', formatIqd(order['product_costs'] as num?, lang: widget.lang)),
-                _chip('قازانج', formatIqd(order['gross_profit'] as num?, lang: widget.lang)),
-                _chip('ئەدمین', formatIqd(order['admin_earnings'] as num?, lang: widget.lang)),
-                _chip('فرۆشیار', formatIqd(order['seller_earnings'] as num?, lang: widget.lang)),
+                _chip(_t('acc_chip_sales'), formatIqd(order['total_sales'] as num?, lang: _lang)),
+                _chip(_t('acc_chip_cost'), formatIqd(order['product_costs'] as num?, lang: _lang)),
+                _chip(_t('acc_chip_profit'), formatIqd(order['gross_profit'] as num?, lang: _lang)),
+                _chip(_t('acc_chip_admin'), formatIqd(order['admin_earnings'] as num?, lang: _lang)),
+                _chip(_t('acc_chip_seller'), formatIqd(order['seller_earnings'] as num?, lang: _lang)),
               ],
             ),
             const SizedBox(height: 16),
-            const Text('بەرهەمەکان (snapshot)', style: TextStyle(fontWeight: FontWeight.w900)),
+            Text(_t('acc_items_snapshot'), style: const TextStyle(fontWeight: FontWeight.w900)),
             ...items.map((it) {
               final m = Map<String, dynamic>.from(it as Map);
               return ListTile(
-                title: Text('${m['product_name']} × ${m['quantity']}'),
+                title: Text(tx('${m['product_name']} × ${m['quantity']}')),
                 subtitle: Text(
-                  'کڕین ${formatIqd(m['cost_price'] as num?, lang: widget.lang)} · '
-                  'فرۆش ${formatIqd(m['selling_price'] as num?, lang: widget.lang)} · '
-                  'کۆمیسیۆن ${m['commission_percentage']}%',
+                  tx(_tp('acc_item_row_meta', {
+                    'cost': formatIqd(m['cost_price'] as num?, lang: _lang),
+                    'sell': formatIqd(m['selling_price'] as num?, lang: _lang),
+                    'pct': '${m['commission_percentage'] ?? ''}',
+                  })),
                 ),
-                trailing: Text(formatIqd(m['admin_share'] as num?, lang: widget.lang)),
+                trailing: Text(tx(formatIqd(m['admin_share'] as num?, lang: _lang))),
               );
             }),
             const SizedBox(height: 12),
@@ -705,13 +782,13 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                 onPressed: () async {
                   final id = order['id'] as int?;
                   if (id == null) return;
-                  await widget.api.refundAccountingOrder(id, full: true, reason: 'Admin full refund');
+                  await widget.api.refundAccountingOrder(id, full: true, reason: _t('acc_full_refund'));
                   if (ctx.mounted) Navigator.pop(ctx);
                   _loadAll();
                 },
                 icon: const Icon(Icons.undo_rounded),
-                label: const Text('گەڕاندنەوەی تەواو'),
-                style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: Colors.white),
+                label: Text(_t('acc_full_refund')),
+                style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: RC.fg(Colors.white)),
               ),
           ],
         ),
@@ -719,31 +796,90 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
     );
   }
 
+  num _rateForSettingsStore(List<dynamic> stores, int? storeId, {required Object? fallback}) {
+    if (storeId != null) {
+      for (final raw in stores) {
+        final m = Map<String, dynamic>.from(raw as Map);
+        if (m['id'] == storeId) {
+          return (m['commission_rate'] as num?) ?? (fallback as num? ?? 20);
+        }
+      }
+    }
+    return (fallback as num?) ?? 20;
+  }
+
+  void _selectSettingsStore(int? storeId) {
+    final rate = _rateForSettingsStore(
+      _settingsStores,
+      storeId,
+      fallback: _settings['default_commission_percentage'] ?? _settings['commission_percentage'] ?? 20,
+    );
+    setState(() {
+      _settingsStoreId = storeId;
+      _commissionCtrl.text = '$rate';
+    });
+  }
+
   Widget _buildSettings() {
     final history = (_settings['history'] as List?) ?? [];
     final pct = double.tryParse(_commissionCtrl.text.trim()) ?? 20;
-    // Example matching: profit 2000 × 10% = 200 admin
     const exampleProfit = 2000;
     final exampleAdmin = (exampleProfit * pct / 100).round();
     final exampleSeller = exampleProfit - exampleAdmin;
+    final globalPct = '${_settings['default_commission_percentage'] ?? _settings['commission_percentage'] ?? 20}';
+    final selectedStoreName = () {
+      if (_settingsStoreId == null) return null;
+      for (final raw in _settingsStores) {
+        final m = Map<String, dynamic>.from(raw as Map);
+        if (m['id'] == _settingsStoreId) return _localizedStoreName(m);
+      }
+      return null;
+    }();
+    final vendorLabel = selectedStoreName ?? _t('acc_vendor_fallback');
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('ڕێکخستنی قازانج و کۆمیسیۆن', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+        Text(_t('acc_settings_title'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
         const SizedBox(height: 8),
-        const Text(
-          'یەک ڕێژەی جیهانی بۆ هەموو دوکان و بەرهەمەکان. کۆمیسیۆن لەسەر قازانجی سەرەتایی (فرۆش − تێچوو) حیساب دەکرێت، نەک لەسەر نرخی فرۆشتن.',
-          style: TextStyle(color: RegaColors.lightMuted),
+        Text(_t('acc_settings_help'), style: const TextStyle(color: RegaColors.lightMuted)),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<int?>(
+          key: ValueKey('commission-store-${_settingsStoreId ?? 'global'}'),
+          initialValue: _settingsStoreId,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: _t('acc_vendor_store'),
+            helperText: _t('acc_vendor_helper'),
+          ),
+          items: [
+            DropdownMenuItem<int?>(
+              value: null,
+              child: Text(tx(_tp('acc_global_rate_option', {'pct': globalPct}))),
+            ),
+            ..._settingsStores.map((raw) {
+              final m = Map<String, dynamic>.from(raw as Map);
+              final id = m['id'] as int?;
+              final name = _localizedStoreName(m);
+              final rate = m['commission_rate'] ?? 20;
+              return DropdownMenuItem<int?>(
+                value: id,
+                child: Text(tx('$name — $rate%')),
+              );
+            }),
+          ],
+          onChanged: _selectSettingsStore,
         ),
         const SizedBox(height: 16),
         TextField(
           controller: _commissionCtrl,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            labelText: 'ڕێژەی کۆمیسیۆنی ئەدمین (%)',
-            helperText: '٠ تا ١٠٠ — تەنها بۆ داواکارییە نوێیەکان جێبەجێ دەبێت',
+          decoration: InputDecoration(
+            labelText: txn(_settingsStoreId == null
+                ? _t('acc_global_rate_label')
+                : _tp('acc_vendor_rate_label', {'name': vendorLabel})),
+            helperText: _t('acc_rate_helper'),
           ),
         ),
         const SizedBox(height: 12),
@@ -758,23 +894,31 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('نموونەی حیسابکردن (بۆ هەر دوکانێک / ڕۆژ)', style: TextStyle(fontWeight: FontWeight.w900)),
+              Text(
+                tx(_settingsStoreId == null
+                    ? _t('acc_example_global')
+                    : _tp('acc_example_vendor', {'name': vendorLabel})),
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
               const SizedBox(height: 8),
-              Text('قازانجی سەرەتایی: ${formatIqd(exampleProfit, lang: widget.lang)}', style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text('ڕێژەی ئەدمین: ${pct.toStringAsFixed(pct == pct.roundToDouble() ? 0 : 1)}%', style: const TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 6),
               Text(
-                '→ ئەدمین وەردەگرێت: ${formatIqd(exampleAdmin, lang: widget.lang)}',
-                style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF166534), fontSize: 15),
+                tx(_tp('acc_example_gross', {'amount': formatIqd(exampleProfit, lang: _lang)})),
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               Text(
-                '→ فرۆشیار دەمێنێتەوە: ${formatIqd(exampleSeller, lang: widget.lang)}',
-                style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFB45309)),
+                tx(_tp('acc_example_rate', {
+                  'pct': pct.toStringAsFixed(pct == pct.roundToDouble() ? 0 : 1),
+                })),
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 6),
               Text(
-                'بۆ بینینی قەرزی ڕاستەقینەی هەر فرۆشیارێک بڕۆ بۆ تاب «قازانجی دوکان» و دوکان هەڵبژێرە.',
-                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                tx(_tp('acc_example_admin_gets', {'amount': formatIqd(exampleAdmin, lang: _lang)})),
+                style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534)), fontSize: 15),
+              ),
+              Text(
+                tx(_tp('acc_example_seller_keeps', {'amount': formatIqd(exampleSeller, lang: _lang)})),
+                style: TextStyle(fontWeight: FontWeight.w800, color: RC.fg(Color(0xFFB45309))),
               ),
             ],
           ),
@@ -785,47 +929,132 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
             final value = double.tryParse(_commissionCtrl.text.trim());
             if (value == null || value < 0 || value > 100) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('ڕێژە دەبێت لە نێوان ٠ و ١٠٠ بێت'), backgroundColor: RegaColors.crimson),
+                SnackBar(content: Text(_t('acc_rate_invalid')), backgroundColor: RegaColors.crimson),
               );
               return;
             }
-            await widget.api.updateProfitSettings(value, note: 'Updated from admin accounting UI');
+            final note = _settingsStoreId == null ? _t('acc_note_global') : _t('acc_note_vendor');
+            await widget.api.updateProfitSettings(
+              value,
+              storeId: _settingsStoreId,
+              note: note,
+            );
             await _loadAll();
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('ڕێکخستن پاشەکەوت کرا'), backgroundColor: RegaColors.emerald),
+              SnackBar(
+                content: Text(
+                  tx(_settingsStoreId == null
+                      ? _t('acc_saved_global')
+                      : _tp('acc_saved_vendor', {'name': vendorLabel})),
+                ),
+                backgroundColor: RegaColors.emerald,
+              ),
             );
           },
-          child: const Text('پاشەکەوتکردن'),
+          child: Text(_t('save')),
         ),
         const SizedBox(height: 24),
-        const Text('مێژووی گۆڕانکاری', style: TextStyle(fontWeight: FontWeight.w900)),
+        Text(_t('acc_history_title'), style: const TextStyle(fontWeight: FontWeight.w900)),
         ...history.map((h) {
           final m = Map<String, dynamic>.from(h as Map);
           final changer = m['changer'] is Map ? (m['changer'] as Map)['name'] : null;
+          final storeMap = m['store'] is Map ? Map<String, dynamic>.from(m['store'] as Map) : null;
+          final scope = storeMap != null ? _localizedStoreName(storeMap) : _t('acc_global_scope');
+          final note = (m['note']?.toString() ?? '').trim();
+          final noteDisplay = _localizeHistoryNote(note);
           return ListTile(
             dense: true,
-            title: Text('${m['commission_percentage']}%'),
-            subtitle: Text('${m['note'] ?? ''} · ${changer ?? 'سیستەم'} · ${m['created_at'] ?? ''}'),
+            title: Text(tx('${m['commission_percentage']}% — $scope')),
+            subtitle: Text(tx('$noteDisplay · ${changer ?? _t('acc_system')} · ${m['created_at'] ?? ''}')),
           );
         }),
       ],
     );
   }
 
+  /// Map known system notes so history stays in the active UI language.
+  String _localizeHistoryNote(String note) {
+    if (note.isEmpty) return '';
+    final lower = note.toLowerCase();
+    if (lower.contains('global') ||
+        note.contains('ڕێژەی گشتی') ||
+        note.contains('النسبة العامة') ||
+        note.contains('Initial global')) {
+      return _t('acc_note_global');
+    }
+    if (lower.contains('store') ||
+        lower.contains('vendor') ||
+        note.contains('دوکان') ||
+        note.contains('المتجر') ||
+        note.contains('کۆمیسیۆن')) {
+      return _t('acc_note_vendor');
+    }
+    // Avoid mixing languages: hide opaque foreign notes in the UI chrome.
+    final lang = _lang == 'ckb' ? 'ku' : _lang;
+    final hasArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(note);
+    final hasLatin = RegExp(r'[A-Za-z]').hasMatch(note);
+    if (lang == 'en' && hasArabic) return _t('acc_note_global');
+    if (lang != 'en' && hasLatin && !hasArabic) {
+      if (lower.contains('updated') || lower.contains('initial')) {
+        return lower.contains('store') || lower.contains('vendor')
+            ? _t('acc_note_vendor')
+            : _t('acc_note_global');
+      }
+    }
+    return note;
+  }
+
   Widget _buildReports() {
+    final periodLabel = switch (_report['period'] ?? _period) {
+      'today' || 'day' || 'daily' => _t('acc_period_today'),
+      'week' || 'weekly' => _t('acc_period_week'),
+      'month' || 'monthly' => _t('acc_period_month'),
+      'year' || 'yearly' => _t('acc_period_year'),
+      final other => '$other',
+    };
     final reportCards = <Widget>[
-      StatKpiCard(title: 'داهات', value: formatIqd(_report['total_revenue'] as num?, lang: widget.lang), icon: Icons.payments, accentColor: RegaColors.orange),
-      StatKpiCard(title: 'تێچوو', value: formatIqd(_report['total_costs'] as num?, lang: widget.lang), icon: Icons.inventory, accentColor: RegaColors.purple),
-      StatKpiCard(title: 'قازانجی گشتی', value: formatIqd(_report['gross_profit'] as num?, lang: widget.lang), icon: Icons.trending_up, accentColor: RegaColors.emerald),
-      StatKpiCard(title: 'قازانجی ئەدمین', value: formatIqd(_report['admin_earnings'] as num?, lang: widget.lang), icon: Icons.account_balance, accentColor: RegaColors.forestGreen),
-      StatKpiCard(title: 'قازانجی فرۆشیار', value: formatIqd(_report['seller_earnings'] as num?, lang: widget.lang), icon: Icons.store, accentColor: RegaColors.goldDark),
-      StatKpiCard(title: 'داواکاری', value: '${_report['total_orders'] ?? 0}', icon: Icons.receipt, accentColor: RegaColors.blue),
+      StatKpiCard(
+        title: _t('acc_kpi_revenue'),
+        value: formatIqd(_report['total_revenue'] as num?, lang: _lang),
+        icon: Icons.payments,
+        accentColor: RegaColors.orange,
+      ),
+      StatKpiCard(
+        title: _t('acc_chip_cost'),
+        value: formatIqd(_report['total_costs'] as num?, lang: _lang),
+        icon: Icons.inventory,
+        accentColor: RegaColors.purple,
+      ),
+      StatKpiCard(
+        title: _t('acc_kpi_gross_profit'),
+        value: formatIqd(_report['gross_profit'] as num?, lang: _lang),
+        icon: Icons.trending_up,
+        accentColor: RegaColors.emerald,
+      ),
+      StatKpiCard(
+        title: _t('acc_kpi_admin_profit'),
+        value: formatIqd(_report['admin_earnings'] as num?, lang: _lang),
+        icon: Icons.account_balance,
+        accentColor: RegaColors.forestGreen,
+      ),
+      StatKpiCard(
+        title: _t('acc_kpi_seller_profit'),
+        value: formatIqd(_report['seller_earnings'] as num?, lang: _lang),
+        icon: Icons.store,
+        accentColor: RegaColors.goldDark,
+      ),
+      StatKpiCard(
+        title: _t('acc_kpi_orders_short'),
+        value: '${_report['total_orders'] ?? 0}',
+        icon: Icons.receipt,
+        accentColor: RegaColors.blue,
+      ),
     ];
     return ListView(
       padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 12 : 16),
       children: [
-        Text('ڕاپۆرت (${_report['period'] ?? _period})', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+        Text(tx(_tp('acc_report_title', {'period': periodLabel})), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, c) {
@@ -852,16 +1081,22 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           },
         ),
         const SizedBox(height: 16),
-        Text('لە ${_report['from'] ?? '—'} تا ${_report['to'] ?? '—'}', style: const TextStyle(color: RegaColors.lightMuted)),
+        Text(
+          tx(_tp('acc_report_range', {
+            'from': '${_report['from'] ?? '—'}',
+            'to': '${_report['to'] ?? '—'}',
+          })),
+          style: const TextStyle(color: RegaColors.lightMuted),
+        ),
         const SizedBox(height: 8),
-        const Text('CSV لە ڕێگەی /admin/accounting/reports/export هەناردە دەکرێت.', style: TextStyle(fontSize: 12)),
+        Text(_t('acc_csv_export_hint'), style: const TextStyle(fontSize: 12)),
       ],
     );
   }
 
   Widget _buildTransactions() {
     if (_transactions.isEmpty) {
-      return const Center(child: Text('هیچ مامەڵەی گەڕاندنەوەیەک نییە'));
+      return Center(child: Text(_t('acc_no_refund_tx')));
     }
     return ListView.separated(
       padding: const EdgeInsets.all(12),
@@ -870,12 +1105,17 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
       itemBuilder: (_, i) {
         final m = Map<String, dynamic>.from(_transactions[i] as Map);
         final order = m['order'] is Map ? Map<String, dynamic>.from(m['order'] as Map) : <String, dynamic>{};
+        final title = order['order_number']?.toString() ??
+            _tp('acc_order_number_fallback', {'id': '${m['order_id'] ?? ''}'});
         return ListTile(
-          title: Text(order['order_number']?.toString() ?? 'Order #${m['order_id']}'),
+          title: Text(tx(title)),
           subtitle: Text(
-            'فرۆش −${formatIqd(m['refunded_sales'] as num?, lang: widget.lang)} · '
-            'ئەدمین −${formatIqd(m['refunded_admin_share'] as num?, lang: widget.lang)}\n'
-            '${m['reason'] ?? ''} · ${m['created_at'] ?? ''}',
+            tx(_tp('acc_refund_row_meta', {
+              'sales': formatIqd(m['refunded_sales'] as num?, lang: _lang),
+              'admin': formatIqd(m['refunded_admin_share'] as num?, lang: _lang),
+              'reason': '${m['reason'] ?? ''}',
+              'date': '${m['created_at'] ?? ''}',
+            })),
           ),
           isThreeLine: true,
           leading: const Icon(Icons.undo_rounded, color: RegaColors.crimson),

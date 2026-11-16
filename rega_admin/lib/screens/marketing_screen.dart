@@ -5,6 +5,8 @@ import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 
+import '../rega_i18n.dart';
+import '../rega_colors.dart';
 enum MarketingMode { all, notifications }
 
 class MarketingScreen extends StatefulWidget {
@@ -89,7 +91,7 @@ class _MarketingScreenState extends State<MarketingScreen>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
+        content: Text(tx(msg)),
         backgroundColor: error ? RegaColors.crimson : RegaColors.emeraldDark,
       ),
     );
@@ -109,7 +111,7 @@ class _MarketingScreenState extends State<MarketingScreen>
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           insetPadding: AdminBreakpoints.dialogInset(ctx),
-          title: Text(isEdit ? 'دەستکاریکردنی کۆدی داشکاندن' : 'دروستکردنی کۆدی داشکاندنی نوێ (Coupon)'),
+          title: Text(tx(isEdit ? 'دەستکاریکردنی کۆدی داشکاندن' : 'دروستکردنی کۆدی داشکاندنی نوێ (Coupon)')),
           content: SizedBox(
             width: AdminBreakpoints.dialogWidth(ctx, max: 440),
             child: Column(
@@ -117,21 +119,21 @@ class _MarketingScreenState extends State<MarketingScreen>
               children: [
                 TextField(
                   controller: codeCtrl,
-                  decoration: const InputDecoration(labelText: 'کۆد (نمونە: KALAR50) *'),
+                  decoration: InputDecoration(labelText: tx('کۆد (نمونە: KALAR50) *')),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: titleCtrl,
-                  decoration: const InputDecoration(labelText: 'ناونیشانی ئۆفەر (کوردی) *'),
+                  decoration: InputDecoration(labelText: tx('ناونیشانی ئۆفەر (کوردی) *')),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: type,
-                  decoration: const InputDecoration(labelText: 'جۆری داشکاندن'),
-                  items: const [
-                    DropdownMenuItem(value: 'fixed', child: Text('بڕی جێگیر بە دینار (Fixed IQD)')),
-                    DropdownMenuItem(value: 'percentage', child: Text('ڕێژەی سەدی (%)')),
-                    DropdownMenuItem(value: 'free_delivery', child: Text('گەیاندنی بێبەرامبەر (Free Delivery)')),
+                  decoration: InputDecoration(labelText: tx('جۆری داشکاندن')),
+                  items: [
+                    DropdownMenuItem(value: 'fixed', child: Text(tx('بڕی جێگیر بە دینار (Fixed IQD)'))),
+                    DropdownMenuItem(value: 'percentage', child: Text(tx('ڕێژەی سەدی (%)'))),
+                    DropdownMenuItem(value: 'free_delivery', child: Text(tx('گەیاندنی بێبەرامبەر (Free Delivery)'))),
                   ],
                   onChanged: (v) => setDialogState(() => type = v ?? 'fixed'),
                 ),
@@ -142,12 +144,12 @@ class _MarketingScreenState extends State<MarketingScreen>
                     final discountField = TextField(
                       controller: valCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'بڕی داشکاندن'),
+                      decoration: InputDecoration(labelText: tx('بڕی داشکاندن')),
                     );
                     final minOrderField = TextField(
                       controller: minCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'کەمترین بڕی داواکاری (د.ع)'),
+                      decoration: InputDecoration(labelText: tx('کەمترین بڕی داواکاری (د.ع)')),
                     );
                     if (stack) {
                       return Column(
@@ -172,7 +174,7 @@ class _MarketingScreenState extends State<MarketingScreen>
                   SwitchListTile(
                     value: isActive,
                     onChanged: (v) => setDialogState(() => isActive = v),
-                    title: const Text('چالاکە'),
+                    title: Text(tx('چالاکە')),
                   ),
                 ],
               ],
@@ -229,26 +231,26 @@ class _MarketingScreenState extends State<MarketingScreen>
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           insetPadding: AdminBreakpoints.dialogInset(ctx),
-          title: Text(isEdit ? 'دەستکاریکردنی بانەری ڕێکلام' : 'زیادکردنی بانەری نوێ بۆ ئەپی کڕیار'),
+          title: Text(tx(isEdit ? 'دەستکاریکردنی بانەری ڕێکلام' : 'زیادکردنی بانەری نوێ بۆ ئەپی کڕیار')),
           content: SizedBox(
             width: AdminBreakpoints.dialogWidth(ctx, max: 440),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'سەردێڕی بانەر *')),
+                  TextField(controller: titleCtrl, decoration: InputDecoration(labelText: tx('سەردێڕی بانەر *'))),
                   const SizedBox(height: 12),
-                  TextField(controller: subCtrl, decoration: const InputDecoration(labelText: 'ژێرنووس')),
+                  TextField(controller: subCtrl, decoration: InputDecoration(labelText: tx('ژێرنووس'))),
                   const SizedBox(height: 12),
-                  TextField(controller: badgeCtrl, decoration: const InputDecoration(labelText: 'تاگی سەر بانەر')),
+                  TextField(controller: badgeCtrl, decoration: InputDecoration(labelText: tx('تاگی سەر بانەر'))),
                   const SizedBox(height: 12),
-                  TextField(controller: imgCtrl, decoration: const InputDecoration(labelText: 'بەستەری وێنە (Image URL) *')),
+                  TextField(controller: imgCtrl, decoration: InputDecoration(labelText: tx('بەستەری وێنە (Image URL) *'))),
                   if (isEdit) ...[
                     const SizedBox(height: 10),
                     SwitchListTile(
                       value: isActive,
                       onChanged: (v) => setDialogState(() => isActive = v),
-                      title: const Text('چالاکە'),
+                      title: Text(tx('چالاکە')),
                     ),
                   ],
                 ],
@@ -328,7 +330,7 @@ class _MarketingScreenState extends State<MarketingScreen>
 
           return AlertDialog(
             insetPadding: AdminBreakpoints.dialogInset(ctx),
-            title: const Text('ناردنی ئاگاداری بۆ کڕیاران'),
+            title: Text(tx('ناردنی ئاگاداری بۆ کڕیاران')),
             content: SizedBox(
               width: AdminBreakpoints.dialogWidth(ctx, max: 520),
               child: SingleChildScrollView(
@@ -336,28 +338,28 @@ class _MarketingScreenState extends State<MarketingScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      'ئەم نامەیە جیاوازە لە زەنگی ناوخۆیی ئەدمین — ڕاستەوخۆ دەچێتە سندوقی ئاگاداری ئەپی کڕیار (داشکاندن / پرۆمۆشن / نامەی تایبەت).',
-                      style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.35),
+                    Text(
+                      tx('ئەم نامەیە جیاوازە لە زەنگی ناوخۆیی ئەدمین — ڕاستەوخۆ دەچێتە سندوقی ئاگاداری ئەپی کڕیار (داشکاندن / پرۆمۆشن / نامەی تایبەت).'),
+                      style: TextStyle(fontSize: 12, color: RC.fg(Colors.black54), height: 1.35),
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
                       initialValue: audience,
-                      decoration: const InputDecoration(labelText: 'ئامانجی وەرگر'),
-                      items: const [
-                        DropdownMenuItem(value: 'customers', child: Text('هەموو کڕیاران')),
-                        DropdownMenuItem(value: 'selected', child: Text('کڕیاری هەڵبژێردراو')),
+                      decoration: InputDecoration(labelText: tx('ئامانجی وەرگر')),
+                      items: [
+                        DropdownMenuItem(value: 'customers', child: Text(tx('هەموو کڕیاران'))),
+                        DropdownMenuItem(value: 'selected', child: Text(tx('کڕیاری هەڵبژێردراو'))),
                       ],
                       onChanged: (v) => setDialogState(() => audience = v ?? 'customers'),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: notifType,
-                      decoration: const InputDecoration(labelText: 'جۆری ئاگاداری'),
-                      items: const [
-                        DropdownMenuItem(value: 'discount', child: Text('داشکاندن / پرۆمۆشن')),
-                        DropdownMenuItem(value: 'general', child: Text('گشتی')),
-                        DropdownMenuItem(value: 'other', child: Text('ئەویتر / تایبەت')),
+                      decoration: InputDecoration(labelText: tx('جۆری ئاگاداری')),
+                      items: [
+                        DropdownMenuItem(value: 'discount', child: Text(tx('داشکاندن / پرۆمۆشن'))),
+                        DropdownMenuItem(value: 'general', child: Text(tx('گشتی'))),
+                        DropdownMenuItem(value: 'other', child: Text(tx('ئەویتر / تایبەت'))),
                       ],
                       onChanged: (v) => setDialogState(() => notifType = v ?? 'discount'),
                     ),
@@ -365,30 +367,30 @@ class _MarketingScreenState extends State<MarketingScreen>
                       const SizedBox(height: 12),
                       TextField(
                         controller: searchCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'گەڕان بە ناو یان مۆبایل',
+                        decoration: InputDecoration(
+                          labelText: tx('گەڕان بە ناو یان مۆبایل'),
                           prefixIcon: Icon(Icons.search_rounded, size: 18),
                         ),
                         onChanged: (_) => setDialogState(() {}),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        loadingCustomers
+                        tx(loadingCustomers
                             ? 'بارکردنی کڕیاران...'
-                            : '${selectedIds.length} کڕیار هەڵبژێردرا · ${filtered.length} نیشان دراو',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black54),
+                            : '${selectedIds.length} کڕیار هەڵبژێردرا · ${filtered.length} نیشان دراو'),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Colors.black54)),
                       ),
                       const SizedBox(height: 6),
                       Container(
                         height: 180,
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.black12),
+                          border: Border.all(color: RC.bg(Colors.black12)),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: loadingCustomers
-                            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                            ? Center(child: CircularProgressIndicator(strokeWidth: 2))
                             : filtered.isEmpty
-                                ? const Center(child: Text('هیچ کڕیارێک نەدۆزرایەوە'))
+                                ? Center(child: Text(tx('هیچ کڕیارێک نەدۆزرایەوە')))
                                 : ListView.builder(
                                     itemCount: filtered.length,
                                     itemBuilder: (_, i) {
@@ -400,10 +402,10 @@ class _MarketingScreenState extends State<MarketingScreen>
                                         dense: true,
                                         value: checked,
                                         title: Text(
-                                          c['name']?.toString() ?? '—',
+                                          tx(c['name']?.toString() ?? '—'),
                                           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                                         ),
-                                        subtitle: Text(c['phone']?.toString() ?? ''),
+                                        subtitle: Text(tx(c['phone']?.toString() ?? '')),
                                         onChanged: (v) {
                                           setDialogState(() {
                                             if (v == true) {
@@ -421,26 +423,26 @@ class _MarketingScreenState extends State<MarketingScreen>
                     const SizedBox(height: 12),
                     TextField(
                       controller: titleCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'سەردێڕ *',
-                        hintText: 'نموونە: داشکاندنی %30 ئەمڕۆ',
+                      decoration: InputDecoration(
+                        labelText: tx('سەردێڕ *'),
+                        hintText: tx('نموونە: داشکاندنی %30 ئەمڕۆ'),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: bodyCtrl,
                       maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'ناوەڕۆک / نامە *',
-                        hintText: 'هەر نامەیەک کە دەتەوێت بۆ کڕیار بنێریت...',
+                      decoration: InputDecoration(
+                        labelText: tx('ناوەڕۆک / نامە *'),
+                        hintText: tx('هەر نامەیەک کە دەتەوێت بۆ کڕیار بنێریت...'),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: badgeCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'باجی داشکاندن (ئارەزوومەندانە)',
-                        hintText: 'نموونە: %30 OFF یان 5,000 د.ع',
+                      decoration: InputDecoration(
+                        labelText: tx('باجی داشکاندن (ئارەزوومەندانە)'),
+                        hintText: tx('نموونە: %30 OFF یان 5,000 د.ع'),
                       ),
                     ),
                   ],
@@ -483,7 +485,7 @@ class _MarketingScreenState extends State<MarketingScreen>
                         }
                       },
                 icon: const Icon(Icons.send_rounded, size: 16),
-                label: const Text('ناردن بۆ کڕیاران'),
+                label: Text(tx('ناردن بۆ کڕیاران')),
               ),
             ],
           );
@@ -517,8 +519,8 @@ class _MarketingScreenState extends State<MarketingScreen>
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: RegaColors.gold.withValues(alpha: 0.35)),
           ),
-          child: const Text(
-            'ناردنی ئاگاداری (Outbound) — داشکاندن، پرۆمۆشن یان نامەی تایبەت بۆ کڕیاران. جیاوازە لە زەنگی چاوەڕوانی ناوخۆیی ئەدمین.',
+          child: Text(
+            tx('ناردنی ئاگاداری (Outbound) — داشکاندن، پرۆمۆشن یان نامەی تایبەت بۆ کڕیاران. جیاوازە لە زەنگی چاوەڕوانی ناوخۆیی ئەدمین.'),
             style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.35),
           ),
         ),
@@ -528,17 +530,17 @@ class _MarketingScreenState extends State<MarketingScreen>
           child: ElevatedButton.icon(
             onPressed: _showBroadcastDialog,
             icon: const Icon(Icons.campaign_rounded, size: 18),
-            label: const Text('ناردنی ئاگاداری نوێ'),
+            label: Text(tx('ناردنی ئاگاداری نوێ')),
           ),
         ),
         const SizedBox(height: 14),
         if (customerNotifs.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 40),
             child: Center(
               child: Text(
-                'هیچ ئاگادارییەک نەنێردراوە — یەکەم ئاگاداری بنێرە',
-                style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black54),
+                tx('هیچ ئاگادارییەک نەنێردراوە — یەکەم ئاگاداری بنێرە'),
+                style: TextStyle(fontWeight: FontWeight.w700, color: RC.fg(Colors.black54)),
               ),
             ),
           )
@@ -557,18 +559,18 @@ class _MarketingScreenState extends State<MarketingScreen>
               padding: const EdgeInsets.only(bottom: 10),
               child: Card(
                 child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Color(0xFFFEF3C7),
+                  leading: CircleAvatar(
+                    backgroundColor: RC.bg(Color(0xFFFEF3C7)),
                     child: Icon(Icons.campaign_rounded, color: RegaColors.goldDark),
                   ),
                   title: Text(
-                    n['title_ku']?.toString() ?? '',
+                    tx(n['title_ku']?.toString() ?? ''),
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                   subtitle: Text(
-                    '${n['tag'] ?? 'ئاگاداری'}  •  $audienceLabel\n'
+                    tx('${n['tag'] ?? 'ئاگاداری'}  •  $audienceLabel\n'
                     '${n['body_ku'] ?? ''}'
-                    '${n['discount_badge'] != null ? '  •  ${n['discount_badge']}' : ''}',
+                    '${n['discount_badge'] != null ? '  •  ${n['discount_badge']}' : ''}'),
                   ),
                   isThreeLine: true,
                   trailing: id == null
@@ -607,14 +609,14 @@ class _MarketingScreenState extends State<MarketingScreen>
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             tabs: [
-              Tab(text: '🎟️ کۆدەکانی داشکاندن (${_coupons.length})'),
-              Tab(text: '🖼️ بانەرەکان (${_banners.length})'),
-              Tab(text: '🔔 ئاگادارکردنەوەکان (${_notifications.length})'),
+              Tab(text: tx('🎟️ کۆدەکانی داشکاندن (${_coupons.length})')),
+              Tab(text: tx('🖼️ بانەرەکان (${_banners.length})')),
+              Tab(text: tx('🔔 ئاگادارکردنەوەکان (${_notifications.length})')),
             ],
           ),
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator())
               : _error != null
                   ? ErrorRetryView(message: _error!, onRetry: _load)
                   : _notificationsOnly
@@ -631,7 +633,7 @@ class _MarketingScreenState extends State<MarketingScreen>
                               child: ElevatedButton.icon(
                                 onPressed: () => _showCouponDialog(),
                                 icon: const Icon(Icons.local_offer_rounded, size: 18),
-                                label: const Text('دروستکردنی کۆدی نوێ'),
+                                label: Text(tx('دروستکردنی کۆدی نوێ')),
                               ),
                             ),
                             const SizedBox(height: 14),
@@ -644,7 +646,7 @@ class _MarketingScreenState extends State<MarketingScreen>
                                 children: [
                                   IconButton(
                                     icon: const Icon(Icons.edit_rounded, color: RegaColors.blue, size: 20),
-                                    tooltip: 'دەستکاریکردن',
+                                    tooltip: tx('دەستکاریکردن'),
                                     onPressed: () => _showCouponDialog(existing: c),
                                   ),
                                   Switch(
@@ -681,17 +683,17 @@ class _MarketingScreenState extends State<MarketingScreen>
                                                       borderRadius: BorderRadius.circular(10),
                                                     ),
                                                     child: Text(
-                                                      c['code']?.toString() ?? '',
-                                                      style: const TextStyle(
+                                                      tx(c['code']?.toString() ?? ''),
+                                                      style: TextStyle(
                                                         fontWeight: FontWeight.w900,
-                                                        color: Color(0xFF0F172A),
+                                                        color: RC.fg(Color(0xFF0F172A)),
                                                       ),
                                                     ),
                                                   ),
                                                   const SizedBox(width: 10),
                                                   Expanded(
                                                     child: Text(
-                                                      c['title_ku']?.toString() ?? '',
+                                                      tx(c['title_ku']?.toString() ?? ''),
                                                       maxLines: 2,
                                                       overflow: TextOverflow.ellipsis,
                                                       style: const TextStyle(fontWeight: FontWeight.w800),
@@ -701,8 +703,8 @@ class _MarketingScreenState extends State<MarketingScreen>
                                               ),
                                               const SizedBox(height: 8),
                                               Text(
-                                                'بەکارهاتووە: ${c['used_count'] ?? 0} جار  •  کەمترین داواکاری: ${formatIqd(c['min_order_amount'] as num?, lang: widget.lang)}',
-                                                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                                tx('بەکارهاتووە: ${c['used_count'] ?? 0} جار  •  کەمترین داواکاری: ${formatIqd(c['min_order_amount'] as num?, lang: widget.lang)}'),
+                                                style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade700)),
                                               ),
                                               Align(alignment: AlignmentDirectional.centerEnd, child: actions),
                                             ],
@@ -716,19 +718,19 @@ class _MarketingScreenState extends State<MarketingScreen>
                                               borderRadius: BorderRadius.circular(10),
                                             ),
                                             child: Text(
-                                              c['code']?.toString() ?? '',
-                                              style: const TextStyle(
+                                              tx(c['code']?.toString() ?? ''),
+                                              style: TextStyle(
                                                 fontWeight: FontWeight.w900,
-                                                color: Color(0xFF0F172A),
+                                                color: RC.fg(Color(0xFF0F172A)),
                                               ),
                                             ),
                                           ),
                                           title: Text(
-                                            c['title_ku']?.toString() ?? '',
+                                            tx(c['title_ku']?.toString() ?? ''),
                                             style: const TextStyle(fontWeight: FontWeight.w800),
                                           ),
                                           subtitle: Text(
-                                            'بەکارهاتووە: ${c['used_count'] ?? 0} جار  •  کەمترین داواکاری: ${formatIqd(c['min_order_amount'] as num?, lang: widget.lang)}',
+                                            tx('بەکارهاتووە: ${c['used_count'] ?? 0} جار  •  کەمترین داواکاری: ${formatIqd(c['min_order_amount'] as num?, lang: widget.lang)}'),
                                           ),
                                           trailing: actions,
                                         ),
@@ -747,7 +749,7 @@ class _MarketingScreenState extends State<MarketingScreen>
                               child: ElevatedButton.icon(
                                 onPressed: () => _showBannerDialog(),
                                 icon: const Icon(Icons.add_photo_alternate_rounded, size: 18),
-                                label: const Text('زیادکردنی بانەر'),
+                                label: Text(tx('زیادکردنی بانەر')),
                               ),
                             ),
                             const SizedBox(height: 14),
@@ -771,16 +773,16 @@ class _MarketingScreenState extends State<MarketingScreen>
                                       ),
                                     ),
                                     title: Text(
-                                      b['title_ku']?.toString() ?? '',
+                                      tx(b['title_ku']?.toString() ?? ''),
                                       style: const TextStyle(fontWeight: FontWeight.w800),
                                     ),
-                                    subtitle: Text(b['subtitle_ku']?.toString() ?? ''),
+                                    subtitle: Text(tx(b['subtitle_ku']?.toString() ?? '')),
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         IconButton(
                                           icon: const Icon(Icons.edit_rounded, color: RegaColors.blue, size: 20),
-                                          tooltip: 'دەستکاریکردن',
+                                          tooltip: tx('دەستکاریکردن'),
                                           onPressed: () => _showBannerDialog(existing: b),
                                         ),
                                         Switch(
