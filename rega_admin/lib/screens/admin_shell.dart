@@ -327,7 +327,7 @@ class _AdminShellState extends State<AdminShell> {
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Text(
-                                    tx(item.label),
+                                    item.label,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(

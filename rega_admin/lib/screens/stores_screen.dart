@@ -2,8 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/localization/app_strings.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../core/api/api_client.dart';
 import '../core/iraq_phone_formatter.dart';
+import '../core/services/media_pick_service.dart';
+import '../state/admin_app_notifier.dart';
 import '../widgets/admin_top_header.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
@@ -166,6 +169,29 @@ class _StoresScreenState extends State<StoresScreen> {
     return ['all', ...names];
   }
 
+  static bool _flagOn(dynamic v) => v == true || v == 1 || v == '1';
+  static bool _flagOff(dynamic v) => v == false || v == 0 || v == '0';
+
+  /// Same tiles as customer home: active + featured_home (fallback = all active).
+  List<Map<String, dynamic>> _parseHomeCategories(List<dynamic> raw) {
+    final active = raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((c) => !_flagOff(c['is_active']))
+        .toList();
+    final featured = active.where((c) => _flagOn(c['is_featured_home'])).toList();
+    final source = featured.isNotEmpty ? featured : active;
+    source.sort((a, b) =>
+        ((a['sort_order'] as num?)?.toInt() ?? 0)
+            .compareTo((b['sort_order'] as num?)?.toInt() ?? 0));
+    return source;
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchHomeCategories() async {
+    final raw = await widget.api.getCategories();
+    return _parseHomeCategories(raw);
+  }
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
@@ -184,14 +210,7 @@ class _StoresScreenState extends State<StoresScreen> {
       ]);
       if (!mounted) return;
       final res = results[0] as List<dynamic>;
-      final cats = (results[1] as List<dynamic>)
-          .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .where((c) => c['is_active'] != false)
-          .toList()
-        ..sort((a, b) =>
-            ((a['sort_order'] as num?)?.toInt() ?? 0)
-                .compareTo((b['sort_order'] as num?)?.toInt() ?? 0));
+      final cats = _parseHomeCategories(results[1] as List<dynamic>);
 
       final mapped = res.map((m) {
         final map = m as Map<String, dynamic>;
@@ -274,7 +293,18 @@ class _StoresScreenState extends State<StoresScreen> {
     }).toList();
   }
 
-  void _showAddVendorDialog({VendorItem? existing}) {
+  Future<void> _showAddVendorDialog({VendorItem? existing}) async {
+    // Always re-fetch home parts so newly added customer-home tiles appear here.
+    List<Map<String, dynamic>> dialogCategories = List<Map<String, dynamic>>.from(_homeCategories);
+    try {
+      final fresh = await _fetchHomeCategories();
+      if (!mounted) return;
+      dialogCategories = fresh;
+      setState(() => _homeCategories = fresh);
+    } catch (_) {
+      // Keep last known list if refresh fails.
+    }
+
     final isEdit = existing != null;
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
     final subtitleCtrl = TextEditingController(text: existing?.subtitle ?? '');
@@ -289,12 +319,40 @@ class _StoresScreenState extends State<StoresScreen> {
     String status = existing?.status ?? 'active';
     String imageUrl = existing?.imageUrl ?? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&q=80';
     bool isSaving = false;
+    bool uploadingCover = false;
     // Dynamic home category (مارکێت / کافێ / …) — users see this vendor under that tile.
     int? selectedCategoryId = existing?.categoryId != null && existing!.categoryId > 0
         ? existing.categoryId
-        : (_homeCategories.isNotEmpty
-            ? (_homeCategories.first['id'] as num?)?.toInt()
+        : (dialogCategories.isNotEmpty
+            ? (dialogCategories.first['id'] as num?)?.toInt()
             : null);
+    // If editing a store whose category is missing from the home list, keep a chip for it.
+    final initialCatId = selectedCategoryId;
+    if (initialCatId != null &&
+        initialCatId > 0 &&
+        dialogCategories.every((c) => (c['id'] as num?)?.toInt() != initialCatId)) {
+      dialogCategories = [
+        ...dialogCategories,
+        {
+          'id': initialCatId,
+          'name_ku': existing?.cuisine ?? _t('cuisine_fallback'),
+          'image_url': existing?.imageUrl,
+          'is_active': true,
+          'is_featured_home': true,
+        },
+      ];
+    }
+    if (existing == null && initialCatId != null && initialCatId > 0) {
+      for (final cat in dialogCategories) {
+        if ((cat['id'] as num?)?.toInt() == initialCatId) {
+          final cover = cat['image_url']?.toString().trim();
+          if (cover != null && cover.isNotEmpty) {
+            imageUrl = cover;
+          }
+          break;
+        }
+      }
+    }
     const feePresets = [1000, 1500, 2000, 2500, 3000];
     final locationPresets = <Map<String, dynamic>>[
       {'nameKey': 'loc_kalar_bazaar', 'lat': 34.6836, 'lng': 45.3189},
@@ -304,27 +362,32 @@ class _StoresScreenState extends State<StoresScreen> {
     ];
 
     // Same names/images as customer home tiles. Selecting a chip sets cover + category_id.
-    final imagePresets = _homeCategories.isNotEmpty
-        ? _homeCategories.map((cat) {
-            final name = _categoryLabel(cat);
-            final img = cat['image_url']?.toString()?.trim();
-            final id = (cat['id'] as num?)?.toInt();
-            return {
-              'name': name,
-              'url': (img != null && img.isNotEmpty)
-                  ? img
-                  : 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&q=80',
-              'category_id': id,
-            };
-          }).where((p) => (p['name'] as String).isNotEmpty).toList()
-        : <Map<String, dynamic>>[
-            {'name': _t('cat_restaurant'), 'url': 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&q=80', 'category_id': null},
-            {'name': _t('cat_supermarket'), 'url': 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=160&q=80', 'category_id': null},
-            {'name': _t('cat_fast_food'), 'url': 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=160&q=80', 'category_id': null},
-            {'name': _t('cat_produce'), 'url': 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=160&q=80', 'category_id': null},
-            {'name': _t('cat_cafe'), 'url': 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=160&q=80', 'category_id': null},
-            {'name': _t('cat_dairy_sweets'), 'url': 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=160&q=80', 'category_id': null},
-          ];
+    List<Map<String, dynamic>> buildImagePresets(List<Map<String, dynamic>> cats) {
+      if (cats.isEmpty) {
+        return <Map<String, dynamic>>[
+          {'name': _t('cat_restaurant'), 'url': 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&q=80', 'category_id': null},
+          {'name': _t('cat_supermarket'), 'url': 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=160&q=80', 'category_id': null},
+          {'name': _t('cat_fast_food'), 'url': 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=160&q=80', 'category_id': null},
+          {'name': _t('cat_produce'), 'url': 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=160&q=80', 'category_id': null},
+          {'name': _t('cat_cafe'), 'url': 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=160&q=80', 'category_id': null},
+          {'name': _t('cat_dairy_sweets'), 'url': 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=160&q=80', 'category_id': null},
+        ];
+      }
+      return cats.map((cat) {
+        final name = _categoryLabel(cat);
+        final img = cat['image_url']?.toString().trim();
+        final id = (cat['id'] as num?)?.toInt();
+        return {
+          'name': name,
+          'url': (img != null && img.isNotEmpty)
+              ? img
+              : 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=160&q=80',
+          'category_id': id,
+        };
+      }).where((p) => (p['name'] as String).isNotEmpty).toList();
+    }
+
+    final imagePresets = buildImagePresets(dialogCategories);
 
     showDialog(
       context: context,
@@ -340,7 +403,8 @@ class _StoresScreenState extends State<StoresScreen> {
           final padH = isCompact ? 14.0 : (stackFields ? 16.0 : 22.0);
           final padV = isCompact ? 14.0 : 18.0;
           final maxDialogH = (screenH - mq.viewInsets.bottom - 32).clamp(320.0, screenH * 0.92);
-          final lang = widget.lang;
+          // Live language from Provider — never freeze Kurdish if user switched to EN.
+          final lang = ctx.watch<AdminAppNotifier>().lang;
           final latLabel = AppStrings.tr('lat_label', lang);
           final lngLabel = AppStrings.tr('lng_label', lang);
           final activeLabel = AppStrings.tr('vendor_status_active', lang);
@@ -408,7 +472,7 @@ class _StoresScreenState extends State<StoresScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                tx(feeTitle),
+                feeTitle,
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
               ),
               const SizedBox(height: 6),
@@ -418,6 +482,7 @@ class _StoresScreenState extends State<StoresScreen> {
                 hint: '1500',
                 icon: Icons.two_wheeler_rounded,
                 numeric: true,
+                lang: lang,
               ),
               const SizedBox(height: 6),
               Wrap(
@@ -427,7 +492,7 @@ class _StoresScreenState extends State<StoresScreen> {
                   final selected = feeCtrl.text.trim() == fee.toString();
                   return FilterChip(
                     selected: selected,
-                    label: Text(tx('$fee')),
+                    label: Text('$fee'),
                     selectedColor: RC.bg(Color(0xFFFFEDD5)),
                     visualDensity: VisualDensity.compact,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -442,7 +507,7 @@ class _StoresScreenState extends State<StoresScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                tx(ratingTitle),
+                ratingTitle,
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
               ),
               const SizedBox(height: 6),
@@ -452,6 +517,7 @@ class _StoresScreenState extends State<StoresScreen> {
                 hint: '9.6',
                 icon: Icons.star_rounded,
                 numeric: true,
+                lang: lang,
               ),
               const SizedBox(height: 6),
               Text(
@@ -488,7 +554,7 @@ class _StoresScreenState extends State<StoresScreen> {
             ),
             icon: Icon(isEdit ? Icons.save_rounded : Icons.add_business_rounded, size: 18),
             label: Text(
-              tx(isEdit ? AppStrings.tr('save', lang) : AppStrings.tr('add_vendor', lang)),
+              isEdit ? AppStrings.tr('save', lang) : AppStrings.tr('add_vendor', lang),
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
             ),
             onPressed: isSaving ? null : () async {
@@ -661,9 +727,10 @@ class _StoresScreenState extends State<StoresScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  tx(isEdit
-                                      ? AppStrings.tr('edit_vendor', lang)
-                                      : AppStrings.tr('add_vendor_new', lang)),
+                                  AppStrings.tr(
+                                    isEdit ? 'edit_vendor' : 'add_vendor_new',
+                                    lang,
+                                  ),
                                   style: TextStyle(
                                     fontWeight: FontWeight.w900,
                                     fontSize: isCompact ? 15.5 : 17.5,
@@ -673,9 +740,10 @@ class _StoresScreenState extends State<StoresScreen> {
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
-                                  tx(isEdit
-                                      ? AppStrings.tr('edit_vendor_hint', lang)
-                                      : AppStrings.tr('add_vendor_hint', lang)),
+                                  AppStrings.tr(
+                                    isEdit ? 'edit_vendor_hint' : 'add_vendor_hint',
+                                    lang,
+                                  ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -845,6 +913,49 @@ class _StoresScreenState extends State<StoresScreen> {
                                     ),
                                   ],
                                 ),
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: OutlinedButton.icon(
+                                  onPressed: (isSaving || uploadingCover)
+                                      ? null
+                                      : () async {
+                                          final picked = await MediaPickService.pickImageForUpload();
+                                          if (picked == null) return;
+                                          setDialogState(() => uploadingCover = true);
+                                          try {
+                                            final up = await widget.api.uploadMedia(picked.bytes, picked.name);
+                                            final url = up['url']?.toString();
+                                            if (url != null && url.isNotEmpty) {
+                                              setDialogState(() => imageUrl = url);
+                                            } else {
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(content: Text(tx(AppStrings.tr('item_image_upload_failed', lang))), backgroundColor: RegaColors.crimson),
+                                                );
+                                              }
+                                            }
+                                          } catch (e) {
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text(tx(e.toString())), backgroundColor: RegaColors.crimson),
+                                              );
+                                            }
+                                          } finally {
+                                            setDialogState(() => uploadingCover = false);
+                                          }
+                                        },
+                                  icon: uploadingCover
+                                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                      : const Icon(Icons.upload_rounded, size: 18),
+                                  label: Text(
+                                    tx(uploadingCover
+                                        ? AppStrings.tr('item_image_uploading', lang)
+                                        : AppStrings.tr('item_image_pick', lang)),
+                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                                  ),
+                                ),
+                              ),
 
                               const SizedBox(height: 14),
 
@@ -859,7 +970,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey.shade600), fontWeight: FontWeight.w600),
                               ),
                               const SizedBox(height: 8),
-                              if (_homeCategories.isEmpty)
+                              if (dialogCategories.isEmpty)
                                 Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.all(12),
@@ -877,7 +988,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
-                                  children: _homeCategories.map((cat) {
+                                  children: dialogCategories.map((cat) {
                                     final id = (cat['id'] as num?)?.toInt();
                                     final name = _categoryLabel(cat);
                                     final selected = id != null && selectedCategoryId == id;
@@ -901,7 +1012,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                           ? null
                                           : (_) => setDialogState(() {
                                                 selectedCategoryId = id;
-                                                final cover = cat['image_url']?.toString()?.trim();
+                                                final cover = cat['image_url']?.toString().trim();
                                                 if (cover != null && cover.isNotEmpty) {
                                                   imageUrl = cover;
                                                 }
@@ -916,6 +1027,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 label: AppStrings.tr('vendor_name_label', lang),
                                 hint: AppStrings.tr('vendor_name_hint', lang),
                                 icon: Icons.storefront_outlined,
+                                lang: lang,
                               ),
                               const SizedBox(height: 12),
                               _buildDialogInput(
@@ -923,6 +1035,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 label: AppStrings.tr('vendor_short_desc', lang),
                                 hint: AppStrings.tr('vendor_short_desc_hint', lang),
                                 icon: Icons.subtitles_outlined,
+                                lang: lang,
                               ),
                               const SizedBox(height: 12),
                               _buildDialogInput(
@@ -931,6 +1044,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 hint: '0750 000 0000',
                                 icon: Icons.phone_outlined,
                                 isPhone: true,
+                                lang: lang,
                               ),
                               const SizedBox(height: 12),
                               _buildDialogInput(
@@ -941,6 +1055,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 hint: isEdit ? '••••••••' : AppStrings.tr('password_min_hint', lang),
                                 icon: Icons.lock_outline_rounded,
                                 obscureText: true,
+                                lang: lang,
                               ),
                               const SizedBox(height: 12),
 
@@ -954,6 +1069,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 label: '',
                                 hint: AppStrings.tr('vendor_address_hint', lang),
                                 icon: Icons.place_rounded,
+                                lang: lang,
                               ),
                               const SizedBox(height: 8),
                               Wrap(
@@ -965,7 +1081,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                       lngCtrl.text.trim() == (p['lng'] as double).toStringAsFixed(6);
                                   return FilterChip(
                                     selected: selected,
-                                    label: Text(tx(locName), style: const TextStyle(fontSize: 11.5)),
+                                    label: Text(locName, style: const TextStyle(fontSize: 11.5)),
                                     selectedColor: RC.bg(Color(0xFFFFEDD5)),
                                     visualDensity: VisualDensity.compact,
                                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -985,6 +1101,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                   hint: '34.683600',
                                   icon: Icons.my_location_rounded,
                                   numeric: true,
+                                  lang: lang,
                                 ),
                                 const SizedBox(height: 10),
                                 _buildDialogInput(
@@ -993,6 +1110,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                   hint: '45.318900',
                                   icon: Icons.explore_rounded,
                                   numeric: true,
+                                  lang: lang,
                                 ),
                               ] else
                                 Row(
@@ -1004,6 +1122,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                         hint: '34.683600',
                                         icon: Icons.my_location_rounded,
                                         numeric: true,
+                                        lang: lang,
                                       ),
                                     ),
                                     const SizedBox(width: 12),
@@ -1014,6 +1133,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                         hint: '45.318900',
                                         icon: Icons.explore_rounded,
                                         numeric: true,
+                                        lang: lang,
                                       ),
                                     ),
                                   ],
@@ -1105,14 +1225,17 @@ class _StoresScreenState extends State<StoresScreen> {
     bool isPhone = false,
     bool numeric = false,
     bool obscureText = false,
+    String? lang,
   }) {
-    final forceLtr = isPhone || numeric || widget.lang == 'en';
+    final uiLang = lang ?? widget.lang;
+    final forceLtr = isPhone || numeric || uiLang == 'en';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (label.isNotEmpty) ...[
           Text(
-            tx(label),
+            // Labels are already translated via AppStrings.tr — do not re-tx into Kurdish.
+            label,
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
           ),
           const SizedBox(height: 6),
@@ -1132,7 +1255,7 @@ class _StoresScreenState extends State<StoresScreen> {
                 ? [IraqPhoneFormatter()]
                 : (numeric ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]'))] : null),
             decoration: InputDecoration(
-              hintText: txn(isPhone ? '0750 000 0000' : hint),
+              hintText: isPhone ? '0750 000 0000' : hint,
               hintStyle: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8))),
               prefixIcon: Icon(icon, size: 20, color: RC.fg(Color(0xFF94A3B8))),
               filled: true,

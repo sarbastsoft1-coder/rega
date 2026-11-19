@@ -87,16 +87,10 @@ class ApiClient {
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    // Prefer live LAN/host detection for iPhone/mobile, unless user saved a custom API URL.
-    final saved = prefs.getString(_prefBaseUrlKey);
-    final auto = _defaultBaseUrl;
-    if (saved == null ||
-        saved.contains('127.0.0.1') ||
-        saved.contains('localhost')) {
-      _baseUrl = auto;
-    } else {
-      _baseUrl = saved;
-    }
+    // Always auto-detect (same-origin on VPS web, localhost:8001 in local/dev).
+    // Stale saved URLs (e.g. :8001 from the old settings dialog) caused false "offline".
+    _baseUrl = _defaultBaseUrl;
+    await prefs.remove(_prefBaseUrlKey);
     _token = prefs.getString(_prefTokenKey);
   }
 

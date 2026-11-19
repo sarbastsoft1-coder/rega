@@ -295,10 +295,19 @@ class _MainScreenState extends State<MainScreen> {
   String _currentLanguage = 'کوردی';
   bool _isLanguageExpanded = false;
 
+  bool get _profileLtr => _currentLanguage == 'English';
+
+  IconData get _settingsChevronIcon =>
+      _isLanguageExpanded ? Icons.expand_more_rounded : (_profileLtr ? Icons.chevron_right_rounded : Icons.chevron_left_rounded);
+
   // Profile Controllers
   late TextEditingController _nameCtrl;
   late TextEditingController _phoneCtrl;
   late TextEditingController _passwordCtrl;
+  late TextEditingController _otpCtrl;
+  late TextEditingController _confirmPasswordCtrl;
+  bool _isAccountRenewal = false;
+  int _accountRenewalStep = 0;
 
   // Security & Integrity State
   bool _isLocationAuthorized = kIsWeb;
@@ -316,6 +325,8 @@ class _MainScreenState extends State<MainScreen> {
     _nameCtrl = TextEditingController();
     _phoneCtrl = TextEditingController();
     _passwordCtrl = TextEditingController();
+    _otpCtrl = TextEditingController();
+    _confirmPasswordCtrl = TextEditingController();
     _loadProfile();
     _loadSavedLanguage();
     _syncMarketplaceFromBackend();
@@ -813,6 +824,8 @@ class _MainScreenState extends State<MainScreen> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _passwordCtrl.dispose();
+    _otpCtrl.dispose();
+    _confirmPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -912,7 +925,14 @@ class _MainScreenState extends State<MainScreen> {
 
         final rawBanners = boot['banners'] as List<dynamic>? ?? [];
         if (rawBanners.isNotEmpty) {
-          _dynamicBanners = rawBanners.cast<Map<String, dynamic>>();
+          _dynamicBanners = rawBanners.map((raw) {
+            final m = Map<String, dynamic>.from(raw as Map);
+            final img = m['image_url']?.toString();
+            if (img != null && img.isNotEmpty) {
+              m['image_url'] = RegaApiHost.resolveMediaUrl(img);
+            }
+            return m;
+          }).toList();
         }
 
         final rawStores = boot['stores'] as List<dynamic>? ?? [];
@@ -1684,67 +1704,8 @@ class _MainScreenState extends State<MainScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              tx('تکایە پێش ناردنی داواکارییەکە، زانیارییەکانت بە وردی پشتڕاست بکەرەوە:'),
-              style: TextStyle(fontSize: 12.5, color: RC.fg(Colors.black87)),
-            ),
-            const SizedBox(height: 14),
-
-            // Order Code Box
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: RC.bg(Color(0xFFFFFBEB)),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: RC.bg(Color(0xFFFDE68A))),
-              ),
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      tx('ژمارەی داواکاری:'),
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: RC.fg(Colors.black)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: SelectableText(
-                      tx(orderCode),
-                      textAlign: TextAlign.end,
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: RC.fg(Color(0xFFB45309)), letterSpacing: 1.2),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Detail Rows
-            _buildConfirmDetailRow('شوێنی GPS:', _deliveryDisplayLabel),
-            _buildConfirmDetailRow('کۆی گشتی پارە:', '${_formatNum(grandTotal)} د.ع'),
-
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: RC.bg(Color(0xFFFEF2F2)),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: RC.bg(Color(0xFFFCA5A5))),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline_rounded, size: 18, color: RC.fg(Color(0xFFDC2626))),
-                  SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      tx('ئایا دڵنیایت لە بەڕێکردنی کۆتایی ئەم داواکارییە؟'),
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFF991B1B))),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildConfirmDetailRow('شوێن:', _deliveryDisplayLabel),
+            _buildConfirmDetailRow('کۆی گشتی حساب:', '${_formatNum(grandTotal)} د.ع'),
           ],
         ),
         actionsPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 8),
@@ -1907,13 +1868,13 @@ class _MainScreenState extends State<MainScreen> {
           _orders.insert(0, syncedOrder);
         }
       });
-      _showOrderSuccessModal(realOrderNum, syncedOrder.totalAmount);
+      _showOrderSuccessModal();
     } else {
-      _showOrderSuccessModal(fallbackCode, grandTotal);
+      _showOrderSuccessModal();
     }
   }
 
-  void _showOrderSuccessModal(String orderCode, int grandTotal) {
+  void _showOrderSuccessModal() {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1937,31 +1898,6 @@ class _MainScreenState extends State<MainScreen> {
               _t('داواکارییەکەت بە سەرکەوتوویی نێردرا!'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: RC.fg(Colors.black)),
-            ),
-            const SizedBox(height: 10),
-            // Order number highlight
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: RC.bg(Color(0xFFFEF3C7)),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: RC.bg(Color(0xFFFCD34D)), width: 1.5),
-              ),
-              child: Column(
-                children: [
-                  Text(_t('ژمارەی داواکاری'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFF92400E)))),
-                  const SizedBox(height: 6),
-                  SelectableText(
-                    tx(orderCode),
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: RC.fg(Color(0xFFB45309)),
-                      letterSpacing: 2,
-                    ),
-                  ),
-                ],
-              ),
             ),
             const SizedBox(height: 14),
 
@@ -2079,49 +2015,23 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // GPS LOCATION RE-CONFIRMATION CARD (NO ICONS, NO EMOJIS)
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: RC.bg(Color(0xFFF0FDF4)),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: RC.bg(Color(0xFFBBF7D0))),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tx('شوێنی گەیاندنی دیاریکراو (GPS):'),
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: RC.fg(Color(0xFF15803D))),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            tx(_selectedNeighborhoodOrNull != null
-                                ? '$_deliveryDisplayLabel (${_deliveryFeeOrZero} د.ع تێچووی گەیاندن)'
-                                : '$_deliveryDisplayLabel (${_t('تێچووی گەیاندن')}: —)'),
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: RC.fg(Colors.black87)),
-                          ),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: RC.fg(Color(0xFF15803D)),
-                                side: BorderSide(color: RC.bg(Color(0xFF86EFAC))),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                              ),
-                              onPressed: () async {
-                                _showLocationPicker();
-                                setSheetState(() {});
-                              },
-                              child: Text(
-                                tx('پشکنین و دیاریکردنی شوێنی GPS'),
-                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                        ],
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: RC.fg(Color(0xFF15803D)),
+                          side: BorderSide(color: RC.bg(Color(0xFF86EFAC))),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () async {
+                          _showLocationPicker();
+                          setSheetState(() {});
+                        },
+                        child: Text(
+                          tx('دیاری کردنی شوێن'),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
 
@@ -2203,12 +2113,6 @@ class _MainScreenState extends State<MainScreen> {
       return _t('شوێنی گەیاندن هەڵبژێرە');
     }
 
-    String draftFeeText() {
-      final fee = draftNeighborhood?.deliveryFee;
-      if (fee == null) return '—';
-      return '$fee ${_t('د.ع')}';
-    }
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -2279,11 +2183,11 @@ class _MainScreenState extends State<MainScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    _t('شوێنی گەیاندن لە عێراق'),
+                                    _t('دیاری کردنی شوێن'),
                                     style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w900,
-                                      color: RC.fg(Colors.black),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: RC.fg(Colors.black87),
                                     ),
                                   ),
                                 ),
@@ -2330,7 +2234,7 @@ class _MainScreenState extends State<MainScreen> {
                               onChanged: (_) => setModalState(() {}),
                               decoration: InputDecoration(
                                 hintText: _t('ناوی شوێن (پارک، ناوەند، ...)'),
-                                prefixIcon: Icon(Icons.park_outlined, color: RC.fg(Color(0xFFB45309))),
+                                prefixIcon: Icon(Icons.location_on_rounded, color: RC.fg(Color(0xFFB45309))),
                                 filled: true,
                                 fillColor: RC.bg(Color(0xFFFFFBEB)),
                                 border: OutlineInputBorder(
@@ -2342,38 +2246,6 @@ class _MainScreenState extends State<MainScreen> {
                                   borderSide: BorderSide(color: RC.bg(Color(0xFFFDE68A))),
                                 ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: RC.bg(Color(0xFFFFFBEB)),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: RC.bg(Color(0xFFFDE68A))),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    tx('${_t('شوێنی دیاریکراو')}: ${geocoding && noteCtrl.text.trim().isEmpty ? '...' : draftLabel()}'),
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    tx('GPS: ${draftPin.latitude.toStringAsFixed(5)}, ${draftPin.longitude.toStringAsFixed(5)}'),
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: RC.fg(Color(0xFFB45309)),
-                                    ),
-                                  ),
-                                  Text(
-                                    tx('${_t('تێچووی گەیاندن')}: ${draftFeeText()}'),
-                                    style: TextStyle(fontSize: 11.5, color: RC.fg(Colors.grey.shade700)),
-                                  ),
-                                ],
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -2415,7 +2287,7 @@ class _MainScreenState extends State<MainScreen> {
                                 },
                                 icon: const Icon(Icons.check_circle_rounded, size: 20),
                                 label: Text(
-                                  _t('پشتڕاستکردنەوەی شوێنی گەیاندن'),
+                                  _t('پشتڕاستکردنەوەی شوێنەکەت'),
                                   style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900),
                                 ),
                               ),
@@ -2537,7 +2409,7 @@ class _MainScreenState extends State<MainScreen> {
                                 Icon(Icons.search, color: RC.fg(Color(0xFFFAC800)), size: 26),
                                 SizedBox(width: 8),
                                 Text(
-                                  tx('گەڕانی گشتگیر'),
+                                  tx('گەڕان'),
                                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: RC.fg(Colors.black)),
                                 ),
                               ],
@@ -3255,10 +3127,8 @@ class _MainScreenState extends State<MainScreen> {
     context.watch<NavigationNotifier>();
 
     if (session.isRestoring) {
-      return Scaffold(
-        backgroundColor: RC.bg(Color(0xFFF8FAFC)),
-        body: Center(child: CircularProgressIndicator(color: RC.bg(Color(0xFFFAC800)))),
-      );
+      // No splash: blank shell while session restores.
+      return Scaffold(backgroundColor: RC.bg(const Color(0xFFF8FAFC)), body: const SizedBox.shrink());
     }
 
     // First launch / logged out: only login/register (no browsing).
@@ -3269,14 +3139,9 @@ class _MainScreenState extends State<MainScreen> {
       );
     }
 
-    // 🔒 ئەگەر هێشتا خەریکی پشکنینی ئاسایش بێت، نیشانەیەکی چاوەڕێکردن پیشان بدە
+    // 🔒 No splash spinner while security check runs.
     if (_isCheckingSecurity) {
-      return Scaffold(
-        backgroundColor: RC.bg(Colors.white),
-        body: Center(
-          child: CircularProgressIndicator(color: RC.bg(Color(0xFFFAC800))),
-        ),
-      );
+      return Scaffold(backgroundColor: RC.bg(Colors.white), body: const SizedBox.shrink());
     }
 
     // 🔒 ئەگەر ئامێرەکە هاککرابوو یان ئیمۆلیتۆر بوو، ڕێگری لێ بکە
@@ -3284,14 +3149,9 @@ class _MainScreenState extends State<MainScreen> {
       return _buildSecurityBlockedScreen();
     }
 
-    // 📍 ئەگەر هێشتا خەریکی پشکنینی لۆکەیشن بێت، نیشانەیەکی چاوەڕێکردن پیشان بدە
+    // 📍 No splash spinner while location permission is checked.
     if (_isCheckingLocation) {
-      return Scaffold(
-        backgroundColor: RC.bg(Colors.white),
-        body: Center(
-          child: CircularProgressIndicator(color: RC.bg(Color(0xFFFAC800))),
-        ),
-      );
+      return Scaffold(backgroundColor: RC.bg(Colors.white), body: const SizedBox.shrink());
     }
 
     // 📍 ئەگەر ڕێگەپێدانی لۆکەیشن نەدرابوو، شاشەی ئاگادارکردنەوە پیشان بدە و مەهێڵە ئەپەکە بەکاربێنێت
@@ -3690,95 +3550,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // 📍 LOCATION / GPS SELECTOR BAR (POSITIONED OUTSIDE & BELOW THE NAVBAR)
-  Widget _buildLocationBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1080),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: RC.bg(Colors.white),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: RC.bg(Colors.grey.shade200)),
-              boxShadow: [
-                BoxShadow(
-                  color: RC.bg(Colors.black).withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Yellow GPS button — detects real user location
-                Material(
-                  color: RC.bg(Color(0xFFFAC800)),
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: _isGpsLocating ? null : () => _detectUserLocation(silent: false),
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: _isGpsLocating
-                          ? SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.black)),
-                            )
-                          : Icon(Icons.my_location, size: 16, color: RC.fg(Colors.black)),
-                    ),
-                  ),
-                ),
-
-                Expanded(
-                  child: InkWell(
-                    onTap: _showLocationPicker,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      child: Text(
-                        tx('${_t('گەیاندن بۆ')}: $_deliveryDisplayLabel'),
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: RC.fg(Colors.black87)),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Change button — opens location picker
-                InkWell(
-                  onTap: _showLocationPicker,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: RC.bg(Colors.grey.shade100),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: RC.bg(Colors.grey.shade300)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(tx('گۆڕین'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: RC.fg(Colors.black87))),
-                        SizedBox(width: 2),
-                        Icon(Icons.keyboard_arrow_down, size: 14, color: RC.fg(Colors.black)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   // ============================================================================
   // 🏠 TAB 1: HOME VIEW (EXACT MATCH FOR SCREENSHOT CATEGORIES GRID)
   // ============================================================================
@@ -3811,7 +3582,6 @@ class _MainScreenState extends State<MainScreen> {
       return ListView(
         padding: const EdgeInsets.only(bottom: 20),
         children: [
-          _buildLocationBar(),
           // Header Bar for Category View with White Circle Back Arrow & Category Title (هەمان دیزاینی ئایکۆنی گەڕانەوەی وێنەی دووەم بە بازنەی سپی و تیری سوور)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -3914,153 +3684,34 @@ class _MainScreenState extends State<MainScreen> {
     return ListView(
       padding: const EdgeInsets.only(bottom: 20),
       children: [
-        _buildLocationBar(),
-        const SizedBox(height: 12),
-        // Dynamic Promo Banner Slider
-        Builder(
-          builder: (context) {
-            if (_dynamicBanners.isEmpty) return const SizedBox.shrink();
-            final topBanner = _dynamicBanners.first;
-            final bannerImg = (topBanner['image_url'] != null && topBanner['image_url'].toString().isNotEmpty)
-                ? topBanner['image_url'].toString()
-                : '';
-            if (bannerImg.isEmpty) return const SizedBox.shrink();
-            final bannerBadge = (topBanner['badge_text'] ?? '').toString();
-            final bannerTitle = (topBanner['title_ku'] ?? topBanner['title'] ?? '').toString();
-            final bannerSub = (topBanner['subtitle_ku'] ?? topBanner['subtitle'] ?? '').toString();
-            final bannerHeight = MediaQuery.of(context).size.width >= 640 ? 230.0 : 170.0;
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-                child: Stack(
-                  children: [
-                    Image.network(
-                      bannerImg,
-                      height: bannerHeight,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(height: bannerHeight, color: RC.bg(Color(0xFF1E293B))),
-                    ),
-                    Container(
-                      height: bannerHeight,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [RC.bg(Colors.black).withOpacity(0.7), Colors.transparent],
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                        ),
-                      ),
-                    ),
-                    if (bannerBadge.isNotEmpty)
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: RC.bg(Color(0xFFFAC800)),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.local_offer, size: 12, color: RC.fg(Colors.black)),
-                              const SizedBox(width: 4),
-                              Text(tx(bannerBadge), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: RC.fg(Colors.black))),
-                            ],
-                          ),
-                        ),
-                      ),
-                    Positioned(
-                      bottom: 12,
-                      right: 16,
-                      left: 16,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tx(bannerTitle),
-                            style: TextStyle(color: RC.fg(Colors.white), fontSize: 17, fontWeight: FontWeight.w900),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            tx(bannerSub),
-                            style: TextStyle(color: RC.fg(Colors.white70), fontSize: 11),
-                          ),
-                          const SizedBox(height: 8),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: RC.bg(Color(0xFF422006)),
-                              foregroundColor: RC.fg(Color(0xFFFAC800)),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            onPressed: () {
-                              if (topBanner['target_type'] == 'store' && topBanner['store_id'] != null) {
-                                  StoreItem? matchStore;
-                                  for (final st in allStores) {
-                                    if (st.id == 'db_store_${topBanner['store_id']}' ||
-                                        st.id == topBanner['store_id'].toString()) {
-                                      matchStore = st;
-                                      break;
-                                    }
-                                  }
-                                  if (matchStore != null) {
-                                    setState(() => _selectedStore = matchStore);
-                                  }
-                                  return;
-                                } else if (topBanner['target_type'] == 'category' && topBanner['category'] != null) {
-                                  final cat = topBanner['category'];
-                                  final cName = cat is Map ? cat['name_ku'] : null;
-                                  if (cName != null) {
-                                    setState(() => _selectedCategory = cName.toString());
-                                    return;
-                                  }
-                                }
-                            },
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(tx('داواکردنی ئێستا'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                SizedBox(width: 4),
-                                Icon(Icons.arrow_forward, textDirection: TextDirection.ltr, size: 12),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-
-        if (_dynamicBanners.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              _dynamicBanners.length.clamp(1, 5),
-              (i) => Container(
-                width: i == 0 ? 16 : 6,
-                height: 6,
-                margin: const EdgeInsets.symmetric(horizontal: 2),
-                decoration: BoxDecoration(
-                  color: i == 0 ? RC.bg(Colors.orange) : RC.bg(Colors.amber.shade200),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
+        // Dynamic promo / reklaming banners (admin-uploaded images)
+        if (_dynamicBanners.isEmpty)
+          const SizedBox(height: 8)
+        else
+          _HomePromoBannerCarousel(
+            banners: _dynamicBanners,
+            onBannerTap: (banner) {
+              if (banner['target_type'] == 'store' && banner['store_id'] != null) {
+                StoreItem? matchStore;
+                for (final st in allStores) {
+                  if (st.id == 'db_store_${banner['store_id']}' ||
+                      st.id == banner['store_id'].toString()) {
+                    matchStore = st;
+                    break;
+                  }
+                }
+                if (matchStore != null) {
+                  setState(() => _selectedStore = matchStore);
+                }
+              } else if (banner['target_type'] == 'category' && banner['category'] != null) {
+                final cat = banner['category'];
+                final cName = cat is Map ? cat['name_ku'] : null;
+                if (cName != null) {
+                  setState(() => _selectedCategory = cName.toString());
+                }
+              }
+            },
           ),
-          const SizedBox(height: 16),
-        ] else
-          const SizedBox(height: 8),
 
         // Categories from backend only
         if (categoriesList.isEmpty)
@@ -5694,7 +5345,7 @@ class _MainScreenState extends State<MainScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      _t('کۆی گشتی پارە'),
+                      _t('کۆی گشتی حساب'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -6067,12 +5718,11 @@ class _MainScreenState extends State<MainScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(tx(order.id), style: TextStyle(fontWeight: FontWeight.bold, color: RC.fg(Color(0xFFB45309)), fontSize: 12)),
-                      Text(_t('پسوولەی داواکاری REGA'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    ],
+                  Expanded(
+                    child: Text(
+                      _t('پسوولەی داواکاری REGA'),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
                   ),
                   Container(
                     decoration: BoxDecoration(
@@ -6151,7 +5801,7 @@ class _MainScreenState extends State<MainScreen> {
               _buildReceiptTotalRow(_t('تێچووی گەیاندن:'), '1,500 ${_t('د.ع')}', false),
               
               const SizedBox(height: 16),
-              _buildReceiptTotalRow(_t('کۆی گشتی پارە:'), '${_formatNum(order.totalAmount)} ${_t('د.ع')}', false, isGrand: true),
+              _buildReceiptTotalRow(_t('کۆی گشتی حساب:'), '${_formatNum(order.totalAmount)} ${_t('د.ع')}', false, isGrand: true),
               
               const SizedBox(height: 24),
               
@@ -6683,22 +6333,15 @@ class _MainScreenState extends State<MainScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Row(
-                    children: [
-                      Text(
-                        tx(order.id),
-                        style: TextStyle(fontWeight: FontWeight.bold, color: RC.fg(Color(0xFFB45309)), fontSize: 14),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          tx(dateStr),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: RC.fg(Colors.grey.shade500), fontSize: 13),
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    tx(dateStr),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: RC.fg(Colors.grey.shade700),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -6829,7 +6472,7 @@ class _MainScreenState extends State<MainScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_t('کۆی گشتی پارە'), style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey.shade500))),
+                      Text(_t('کۆی گشتی حساب'), style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey.shade500))),
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerRight,
@@ -7316,6 +6959,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildRegisteredProfileView() {
+    final ltr = _profileLtr;
     return Column(
       children: [
         // 1. TOP ILLUSTRATION (Jumping Person)
@@ -7351,88 +6995,10 @@ class _MainScreenState extends State<MainScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Left: View Account Button
-              GestureDetector(
-                onTap: () {
-                  if (_userProfile != null) {
-                    _showAccountDetailsModal(_userProfile!);
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: RC.bg(Colors.amber.shade50),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: RC.bg(Colors.amber.shade100)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFFB45309))),
-                      const SizedBox(width: 6),
-                      Text(_t('بینینی هەژمار'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 12, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFFB45309)))),
-                    ],
-                  ),
-                ),
-              ),
-              
-              // Right: Avatar and Info
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            tx(_userProfile?.name ?? ''), 
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 16, fontWeight: FontWeight.w900, color: RC.fg(Colors.black))
-                          ),
-                          Text(
-                            tx(_userProfile?.phone ?? ''), 
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11, color: RC.fg(Color(0xFFB45309)), fontWeight: FontWeight.bold)
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                  Stack(
-                    alignment: Alignment.bottomRight,
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: RC.bg(Colors.amber.shade50),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: RC.bg(Colors.amber.shade200)),
-                        ),
-                        child: Icon(Icons.person_rounded, size: 30, color: RC.fg(Color(0xFFB45309))),
-                      ),
-                      Positioned(
-                        right: -4,
-                        bottom: -4,
-                        child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: RC.bg(Color(0xFFF59E0B)), 
-                            shape: BoxShape.circle,
-                            border: Border.all(color: RC.bg(Colors.white), width: 2),
-                          ),
-                          child: Icon(Icons.check, size: 10, color: RC.fg(Colors.white)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              ),
+              if (ltr) _buildViewAccountChip(),
+              Expanded(child: _buildProfileUserInfoRow(ltr)),
+              if (!ltr) _buildViewAccountChip(),
             ],
-
           ),
         ),
 
@@ -7451,36 +7017,7 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: () => setState(() => _isLanguageExpanded = !_isLanguageExpanded),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Icon(
-                        _isLanguageExpanded ? Icons.expand_more_rounded : Icons.chevron_left_rounded, 
-                        color: RC.fg(Colors.grey),
-                        size: 20,
-                      ),
-                      Row(
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(_t('زمانەکان'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14, fontWeight: FontWeight.bold)),
-                              Text(tx(_currentLanguage), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11, color: RC.fg(Colors.grey))),
-                            ],
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: RC.bg(Colors.amber.shade50),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(Icons.translate_rounded, color: RC.fg(Color(0xFFB45309)), size: 20),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  child: _buildSettingsLanguageHeader(),
                 ),
               ),
               
@@ -7496,24 +7033,7 @@ class _MainScreenState extends State<MainScreen> {
                       const SizedBox(height: 10),
                       _buildLanguageOption('English', isSelected: _currentLanguage == 'English'),
                       const SizedBox(height: 14),
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          tx(context.watch<LocaleNotifier>().isDark
-                              ? _t('دۆخی تاریک')
-                              : _t('دۆخی ڕووناک')),
-                          style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 13, fontWeight: FontWeight.bold),
-                        ),
-                        secondary: Icon(
-                          context.watch<LocaleNotifier>().isDark
-                              ? Icons.dark_mode_rounded
-                              : Icons.light_mode_rounded,
-                          color: RC.fg(Color(0xFFB45309)),
-                        ),
-                        value: context.watch<LocaleNotifier>().isDark,
-                        activeColor: RC.bg(Color(0xFFFAC800)),
-                        onChanged: (v) => context.read<LocaleNotifier>().setDark(v),
-                      ),
+                      _buildSettingsDarkModeSwitch(),
                     ],
                   ),
                 ),
@@ -7545,6 +7065,14 @@ class _MainScreenState extends State<MainScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.location_on_rounded, color: RC.fg(Color(0xFFB45309)), size: 20),
+                      const SizedBox(width: 6),
+                      Text(_t('ناونیشانی تۆ'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                   InkWell(
                     onTap: _showLocationPicker,
                     borderRadius: BorderRadius.circular(10),
@@ -7556,6 +7084,7 @@ class _MainScreenState extends State<MainScreen> {
                         border: Border.all(color: RC.bg(Colors.amber.shade200), width: 0.8),
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.near_me_rounded, size: 14, color: RC.fg(Color(0xFFB45309))),
                           const SizedBox(width: 4),
@@ -7566,13 +7095,6 @@ class _MainScreenState extends State<MainScreen> {
                         ],
                       ),
                     ),
-                  ),
-                  Row(
-                    children: [
-                      Text(_t('ناونیشانی تۆ'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14, fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 6),
-                      Icon(Icons.location_on_rounded, color: RC.fg(Color(0xFFB45309)), size: 20),
-                    ],
                   ),
                 ],
               ),
@@ -7601,72 +7123,28 @@ class _MainScreenState extends State<MainScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: ltr ? CrossAxisAlignment.start : CrossAxisAlignment.end,
                           children: [
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    tx(_deliveryDisplayLabel),
-                                    style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14.5, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                  decoration: BoxDecoration(
-                                    color: (_pinnedCustomerLat != null)
-                                        ? RC.bg(Color(0xFF10B981)).withOpacity(0.12)
-                                        : RC.bg(Colors.grey).withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    tx((_pinnedCustomerLat != null) ? _t('GPS چالاکە') : _t('GPS نییە')),
-                                    style: TextStyle(fontFamily: 'NotoKufiArabic', 
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: (_pinnedCustomerLat != null)
-                                          ? RC.bg(Color(0xFF059669))
-                                          : RC.bg(Colors.grey.shade700),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 3),
                             Text(
-                              tx(_selectedNeighborhood != null
-                                  ? '${_selectedNeighborhood!.name} • ${_t('گەیاندن')}: ${_formatNum(_selectedNeighborhood!.deliveryFee)} ${_t('د.ع')}'
-                                  : '${_t('گەیاندن')}: —'),
-                              style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11.5, color: RC.fg(Colors.grey.shade700)),
-                            ),
-                            if (_pinnedCustomerLat != null && _pinnedCustomerLng != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: Text(
-                                  tx('📍 GPS: (${_pinnedCustomerLat!.toStringAsFixed(5)}, ${_pinnedCustomerLng!.toStringAsFixed(5)})'),
-                                  style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 10, color: RC.fg(Color(0xFFB45309)), fontWeight: FontWeight.w700),
-                                ),
+                              tx(_deliveryDisplayLabel),
+                              textAlign: ltr ? TextAlign.left : TextAlign.right,
+                              style: TextStyle(
+                                fontFamily: 'NotoKufiArabic',
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w900,
+                                color: RC.fg(Color(0xFF1E293B)),
                               ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ],
                         ),
                       ),
-                      Icon(Icons.arrow_forward_ios_rounded, size: 14, color: RC.fg(Color(0xFFB45309))),
+                      Icon(
+                        ltr ? Icons.arrow_forward_ios_rounded : Icons.arrow_back_ios_new_rounded,
+                        size: 14,
+                        color: RC.fg(Color(0xFFB45309)),
+                      ),
                     ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              GestureDetector(
-                onTap: _showLocationPicker,
-                child: Text(
-                  _t('کردنەوەی نەخشە بۆ دیاریکردنی شوێنی گەیاندن'),
-                  style: TextStyle(fontFamily: 'NotoKufiArabic', 
-                    fontSize: 12,
-                    color: RC.fg(Color(0xFFB45309)),
-                    fontWeight: FontWeight.bold,
-                    decoration: TextDecoration.underline,
                   ),
                 ),
               ),
@@ -7716,6 +7194,121 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  Widget _buildViewAccountChip() {
+    return GestureDetector(
+      onTap: () {
+        if (_userProfile != null) {
+          _showAccountDetailsModal(_userProfile!);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: RC.bg(Colors.amber.shade50),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: RC.bg(Colors.amber.shade100)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFFB45309))),
+            const SizedBox(width: 6),
+            Text(
+              _t('بینینی هەژمار'),
+              style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 12, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFFB45309))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileUserInfoRow(bool ltr) {
+    return Row(
+      mainAxisAlignment: ltr ? MainAxisAlignment.start : MainAxisAlignment.end,
+      children: [
+        Flexible(
+          child: Column(
+            crossAxisAlignment: ltr ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+            children: [
+              Text(
+                tx(_userProfile?.name ?? ''),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: ltr ? TextAlign.left : TextAlign.right,
+                style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 16, fontWeight: FontWeight.w900, color: RC.fg(Colors.black)),
+              ),
+              Text(
+                tx(_userProfile?.phone ?? ''),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: ltr ? TextAlign.left : TextAlign.right,
+                style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11, color: RC.fg(Color(0xFFB45309)), fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Stack(
+          alignment: ltr ? Alignment.bottomLeft : Alignment.bottomRight,
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: RC.bg(Colors.amber.shade50),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: RC.bg(Colors.amber.shade200)),
+              ),
+              child: Icon(Icons.person_rounded, size: 30, color: RC.fg(Color(0xFFB45309))),
+            ),
+            Positioned(
+              right: ltr ? null : -4,
+              left: ltr ? -4 : null,
+              bottom: -4,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: RC.bg(Color(0xFFF59E0B)),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: RC.bg(Colors.white), width: 2),
+                ),
+                child: Icon(Icons.check, size: 10, color: RC.fg(Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSettingsLanguageHeader() {
+    final ltr = _profileLtr;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: RC.bg(Colors.amber.shade50),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(Icons.translate_rounded, color: RC.fg(Color(0xFFB45309)), size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: ltr ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+            children: [
+              Text(_t('زمانەکان'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14, fontWeight: FontWeight.bold)),
+              Text(tx(_currentLanguage), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11, color: RC.fg(Colors.grey))),
+            ],
+          ),
+        ),
+        Icon(_settingsChevronIcon, color: RC.fg(Colors.grey), size: 20),
+      ],
+    );
+  }
+
   Widget _buildLanguageOption(String lang, {required bool isSelected}) {
     return GestureDetector(
       onTap: () async {
@@ -7750,6 +7343,15 @@ class _MainScreenState extends State<MainScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            Text(
+              tx(lang),
+              textAlign: _profileLtr ? TextAlign.left : TextAlign.right,
+              style: TextStyle(fontFamily: 'NotoKufiArabic', 
+                fontSize: 16,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? RC.bg(Color(0xFFB45309)) : RC.bg(Colors.black87),
+              ),
+            ),
             if (isSelected)
               Container(
                 padding: const EdgeInsets.all(4),
@@ -7758,14 +7360,6 @@ class _MainScreenState extends State<MainScreen> {
               )
             else
               const SizedBox(width: 20),
-            Text(
-              tx(lang),
-              style: TextStyle(fontFamily: 'NotoKufiArabic', 
-                fontSize: 16,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? RC.bg(Color(0xFFB45309)) : RC.bg(Colors.black87),
-              ),
-            ),
           ],
         ),
       ),
@@ -7791,7 +7385,7 @@ class _MainScreenState extends State<MainScreen> {
     'زانیارییە کەسییەکان': {'کوردی': 'زانیارییە کەسییەکان', 'العربية': 'المعلومات الشخصية', 'English': 'Personal Info'},
     'ناوی تەواو': {'کوردی': 'ناوی تەواو', 'العربية': 'الاسم الكامل', 'English': 'Full Name'},
     'ژمارەی تەلەفۆن': {'کوردی': 'ژمارەی تەلەفۆن', 'العربية': 'رقم الهاتف', 'English': 'Phone Number'},
-    'وشەی تێپەڕ': {'کوردی': 'وشەی تێپەڕ', 'العربية': 'كلمة المرور', 'English': 'Password'},
+    'وشەی نهێنی': {'کوردی': 'وشەی نهێنی', 'العربية': 'كلمة المرور', 'English': 'Password'},
     'بەردەوامبە': {'کوردی': 'بەردەوامبە', 'العربية': 'استمرار', 'English': 'Continue'},
     '✅ بە سەرکەوتوویی چووە ژوورەوە': {'کوردی': '✅ بە سەرکەوتوویی چووە ژوورەوە', 'العربية': '✅ تم تسجيل الدخول بنجاح', 'English': '✅ Logged in successfully'},
     '✅ هەژمارەکەت بە سەرکەوتوویی تۆمار کرا': {'کوردی': '✅ هەژمارەکەت بە سەرکەوتوویی تۆمار کرا', 'العربية': '✅ تم تسجيل الحساب بنجاح', 'English': '✅ Account registered successfully'},
@@ -7805,8 +7399,8 @@ class _MainScreenState extends State<MainScreen> {
       'العربية': 'فشل إنشاء الحساب',
       'English': 'Registration was unsuccessful',
     },
-    'وشەی تێپەڕ پێویستە (لانیکەم ٦ پیت)': {
-      'کوردی': 'وشەی تێپەڕ پێویستە (لانیکەم ٦ پیت)',
+    'وشەی نهێنی پێویستە (لانیکەم ٦ پیت)': {
+      'کوردی': 'وشەی نهێنی پێویستە (لانیکەم ٦ پیت)',
       'العربية': 'كلمة المرور مطلوبة (٦ أحرف على الأقل)',
       'English': 'Password required (at least 6 characters)',
     },
@@ -7839,10 +7433,15 @@ class _MainScreenState extends State<MainScreen> {
     'مەرج و ڕێساکانی بەکارهێنان': {'کوردی': 'مەرج و ڕێساکانی بەکارهێنان', 'العربية': 'الشروط والأحكام', 'English': 'Terms & Conditions'},
     'سیاسەتی پاراستنی نهێنی': {'کوردی': 'سیاسەتی پاراستنی نهێنی', 'العربية': 'سياسة الخصوصية', 'English': 'Privacy Policy'},
     'دۆزینەوەی لۆکەیشن': {'کوردی': 'دۆزینەوەی لۆکەیشن', 'العربية': 'تحديد الموقع', 'English': 'Find Location'},
+    'دیاری کردنی شوێن': {
+      'کوردی': 'دیاری کردنی شوێن',
+      'العربية': 'تحديد الموقع',
+      'English': 'Set location',
+    },
     'شوێنی گەیاندن لە عێراق': {
-      'کوردی': 'شوێنی گەیاندن لە عێراق',
-      'العربية': 'موقع التوصيل في العراق',
-      'English': 'Delivery place in Iraq',
+      'کوردی': 'دیاری کردنی شوێن',
+      'العربية': 'تحديد الموقع',
+      'English': 'Set location',
     },
     'شوێنی ئێستات یان پارک/شوێنێک هەڵبژێرە بۆ دواتر': {
       'کوردی': 'شوێنی ئێستات یان پارک/شوێنێک هەڵبژێرە بۆ دواتر — تەنانەت ئەگەر ئێستا لەوێ نەبیت',
@@ -7860,10 +7459,15 @@ class _MainScreenState extends State<MainScreen> {
       'العربية': 'تم حفظ موقع التوصيل',
       'English': 'Delivery place saved',
     },
+    'پشتڕاستکردنەوەی شوێنەکەت': {
+      'کوردی': 'پشتڕاستکردنەوەی شوێنەکەت',
+      'العربية': 'تأكيد موقعك',
+      'English': 'Confirm your place',
+    },
     'پشتڕاستکردنەوەی شوێنی گەیاندن': {
-      'کوردی': 'پشتڕاستکردنەوەی شوێنی گەیاندن',
-      'العربية': 'تأكيد موقع التوصيل',
-      'English': 'Confirm delivery place',
+      'کوردی': 'پشتڕاستکردنەوەی شوێنەکەت',
+      'العربية': 'تأكيد موقعك',
+      'English': 'Confirm your place',
     },
     'کردنەوەی نەخشە بۆ دیاریکردنی شوێنی گەیاندن': {
       'کوردی': 'کردنەوەی نەخشە بۆ دیاریکردنی شوێنی گەیاندن',
@@ -7979,7 +7583,9 @@ class _MainScreenState extends State<MainScreen> {
     'کورتیی داواکاری': {'کوردی': 'کورتیی داواکاری', 'العربية': 'ملخص الطلب', 'English': 'Order Summary'},
     'کۆی گشتی کاڵاکان': {'کوردی': 'کۆی گشتی کاڵاکان', 'العربية': 'مجموع المنتجات', 'English': 'Items Subtotal'},
     'تێچووی گەیاندن ': {'کوردی': 'تێچووی گەیاندن ', 'العربية': 'تكلفة التوصيل ', 'English': 'Delivery Fee '},
-    'کۆی گشتی پارە': {'کوردی': 'کۆی گشتی پارە', 'العربية': 'المجموع الكلي', 'English': 'Grand Total'},
+    'کۆی گشتی پارە': {'کوردی': 'کۆی گشتی حساب', 'العربية': 'المجموع الكلي', 'English': 'Grand Total'},
+    'کۆی گشتی حساب': {'کوردی': 'کۆی گشتی حساب', 'العربية': 'المجموع الكلي', 'English': 'Grand Total'},
+    'کۆی گشتی حساب:': {'کوردی': 'کۆی گشتی حساب:', 'العربية': 'المجموع الكلي:', 'English': 'Grand Total:'},
     'داواکاریەکانم': {'کوردی': 'داواکاریەکانم', 'العربية': 'طلباتي', 'English': 'My Orders'},
     'هەموو': {'کوردی': 'هەموو', 'العربية': 'الكل', 'English': 'All'},
     'بەردەوام': {'کوردی': 'بەردەوام', 'العربية': 'قيد التنفيذ', 'English': 'Ongoing'},
@@ -8048,7 +7654,33 @@ class _MainScreenState extends State<MainScreen> {
     return _t(key);
   }
 
+  Widget _buildSettingsDarkModeSwitch() {
+    final ltr = _profileLtr;
+    final isDark = context.watch<LocaleNotifier>().isDark;
+    return SwitchListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        tx(isDark ? _t('دۆخی تاریک') : _t('دۆخی ڕووناک')),
+        textAlign: ltr ? TextAlign.left : TextAlign.right,
+        style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 13, fontWeight: FontWeight.bold),
+      ),
+      secondary: Icon(
+        isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+        color: RC.fg(Color(0xFFB45309)),
+      ),
+      value: isDark,
+      activeColor: RC.bg(Color(0xFFFAC800)),
+      onChanged: (v) => context.read<LocaleNotifier>().setDark(v),
+    );
+  }
+
   Widget _buildMenuItem(String title, IconData icon, {bool isLogout = false}) {
+    final ltr = _profileLtr;
+    final chevron = ltr ? Icons.chevron_right_rounded : Icons.chevron_left_rounded;
+    final textColor = isLogout ? RC.bg(Colors.red) : RC.bg(Colors.black87);
+    final iconFg = isLogout ? RC.fg(Colors.red) : RC.bg(Color(0xFFB45309));
+    final iconBg = isLogout ? RC.bg(Colors.red.shade50) : RC.bg(Colors.amber.shade50);
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       visualDensity: VisualDensity.compact,
@@ -8066,28 +7698,27 @@ class _MainScreenState extends State<MainScreen> {
           _showPrivacyModal();
         }
       },
-      leading: Icon(Icons.chevron_left_rounded, color: isLogout ? RC.fg(Colors.red.shade200) : RC.bg(Colors.grey)),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            tx(title), 
-            style: TextStyle(fontFamily: 'NotoKufiArabic', 
-              fontSize: 14, 
-              fontWeight: FontWeight.bold, 
-              color: isLogout ? RC.bg(Colors.red) : RC.bg(Colors.black87)
-            )
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: isLogout ? RC.bg(Colors.red.shade50) : RC.bg(Colors.amber.shade50),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: isLogout ? RC.fg(Colors.red) : RC.bg(Color(0xFFB45309)), size: 20),
-          ),
-        ],
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: iconBg,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: iconFg, size: 20),
+      ),
+      title: Text(
+        tx(title),
+        textAlign: ltr ? TextAlign.left : TextAlign.right,
+        style: TextStyle(
+          fontFamily: 'NotoKufiArabic',
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: textColor,
+        ),
+      ),
+      trailing: Icon(
+        chevron,
+        color: isLogout ? RC.fg(Colors.red.shade200) : RC.bg(Colors.grey),
       ),
     );
   }
@@ -8108,6 +7739,7 @@ class _MainScreenState extends State<MainScreen> {
         child: Column(
         children: [
           // 1. TOP TOGGLE (Login / Register)
+          if (!_isAccountRenewal)
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
@@ -8168,7 +7800,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
 
-          const SizedBox(height: 16),
+          if (!_isAccountRenewal) const SizedBox(height: 16),
 
           // 2. MAIN REGISTRATION CARD
           Container(
@@ -8184,39 +7816,83 @@ class _MainScreenState extends State<MainScreen> {
             child: Column(
               crossAxisAlignment: isEn ? CrossAxisAlignment.start : CrossAxisAlignment.end,
               children: [
-                // Header: Avatar, Title, Back
+                // Header: Title, Back
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Back Button (Adjust position for EN)
                     if (isEn) ...[
-                      // Avatar with Plus
-                      _buildProfileAvatar(),
-                      // Title & Subtitle
                       _buildProfileTitleHeader(isEn),
-                      // Back Button
                       _buildProfileBackButton(),
                     ] else ...[
-                      // Back Button
                       _buildProfileBackButton(),
-                      // Title & Subtitle
                       _buildProfileTitleHeader(isEn),
-                      // Avatar with Plus
-                      _buildProfileAvatar(),
                     ],
                   ],
                 ),
 
                 const SizedBox(height: 20),
 
-                // Form Fields
-                if (!_isLoginMode) ...[
-                  _buildCustomField('ناوی تەواو', _nameCtrl, Icons.person_outline),
-                  const SizedBox(height: 12),
+                if (_isAccountRenewal) ...[
+                  Text(
+                    _t(_accountRenewalStep == 0
+                        ? 'ژمارەی تەلەفۆنەکەت بنووسە و کۆدی پشتڕاستکردنەوە وەربگرە'
+                        : 'کۆد و وشەی نهێنی نوێ بنووسە'),
+                    textAlign: _profileLtr ? TextAlign.left : TextAlign.right,
+                    style: TextStyle(
+                      fontFamily: 'NotoKufiArabic',
+                      fontSize: 12.5,
+                      color: RC.fg(Colors.black54),
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                 ],
-                _buildCustomField('ژمارەی تەلەفۆن', _phoneCtrl, Icons.phone_android_outlined, keyboardType: TextInputType.phone),
-                const SizedBox(height: 12),
-                _buildCustomField('وشەی تێپەڕ', _passwordCtrl, Icons.lock_outline, isPassword: true),
+
+                // Form Fields
+                if (_isAccountRenewal) ...[
+                  if (_accountRenewalStep == 0)
+                    _buildCustomField('ژمارەی تەلەفۆن', _phoneCtrl, Icons.phone_android_outlined, keyboardType: TextInputType.phone)
+                  else ...[
+                    _buildCustomField('کۆدی پشتڕاستکردنەوە', _otpCtrl, Icons.pin_outlined, keyboardType: TextInputType.number),
+                    const SizedBox(height: 12),
+                    _buildCustomField('وشەی نهێنی', _passwordCtrl, Icons.lock_outline, isPassword: true),
+                    const SizedBox(height: 12),
+                    _buildCustomField('دووبارەکردنەوەی وشەی نهێنی', _confirmPasswordCtrl, Icons.lock_reset_rounded, isPassword: true),
+                    const SizedBox(height: 8),
+                    Text(
+                      _t('کۆدەکە بۆ ١٠ خولەک کار دەکات.'),
+                      textAlign: _profileLtr ? TextAlign.left : TextAlign.right,
+                      style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11.5, color: RC.fg(Colors.black45)),
+                    ),
+                  ],
+                ] else ...[
+                  if (!_isLoginMode) ...[
+                    _buildCustomField('ناوی تەواو', _nameCtrl, Icons.person_outline),
+                    const SizedBox(height: 12),
+                  ],
+                  _buildCustomField('ژمارەی تەلەفۆن', _phoneCtrl, Icons.phone_android_outlined, keyboardType: TextInputType.phone),
+                  const SizedBox(height: 12),
+                  _buildCustomField('وشەی نهێنی', _passwordCtrl, Icons.lock_outline, isPassword: true),
+                  if (_isLoginMode) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: _profileLtr ? Alignment.centerLeft : Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _startAccountRenewal,
+                        style: TextButton.styleFrom(
+                          foregroundColor: RC.bg(Color(0xFFB45309)),
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          _t('وشەی نهێنیم لەبیر چوو؟'),
+                          style: TextStyle(fontFamily: 'NotoKufiArabic', fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
 
                 const SizedBox(height: 24),
 
@@ -8231,7 +7907,9 @@ class _MainScreenState extends State<MainScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       elevation: 0,
                     ),
-                    onPressed: () async {
+                    onPressed: _isAccountRenewal
+                        ? (_accountRenewalStep == 0 ? _requestPasswordResetOtp : _confirmPasswordReset)
+                        : () async {
                       UserProfile profile;
                       if (_isLoginMode) {
                         profile = UserProfile(
@@ -8290,7 +7968,7 @@ class _MainScreenState extends State<MainScreen> {
                         final err = e.toString();
                         final String msgKey;
                         if (err.contains('password_required')) {
-                          msgKey = 'وشەی تێپەڕ پێویستە (لانیکەم ٦ پیت)';
+                          msgKey = 'وشەی نهێنی پێویستە (لانیکەم ٦ پیت)';
                         } else if (err.contains('phone_required')) {
                           msgKey = 'ژمارەی تەلەفۆن پێویستە';
                         } else if (err.contains('phone_invalid')) {
@@ -8310,11 +7988,23 @@ class _MainScreenState extends State<MainScreen> {
                       }
                     },
                     child: Text(
-                      _t(_isLoginMode ? 'چوونە ژوورەوە' : 'بەردەوامبە'),
+                      _t(_isAccountRenewal
+                          ? (_accountRenewalStep == 0 ? 'ناردنی کۆدی پشتڕاستکردنەوە' : 'نوێکردنەوەی وشەی نهێنی')
+                          : (_isLoginMode ? 'چوونە ژوورەوە' : 'بەردەوامبە')),
                       style: TextStyle(fontFamily: 'NotoKufiArabic', fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                   ),
                 ),
+                if (_isAccountRenewal) ...[
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: _exitAccountRenewal,
+                    child: Text(
+                      _t('گەڕانەوە بۆ چوونە ژوورەوە'),
+                      style: TextStyle(fontFamily: 'NotoKufiArabic', fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -8336,36 +8026,7 @@ class _MainScreenState extends State<MainScreen> {
                   onTap: () => setState(() => _isLanguageExpanded = !_isLanguageExpanded),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Icon(
-                          _isLanguageExpanded ? Icons.expand_more_rounded : Icons.chevron_left_rounded, 
-                          color: RC.fg(Colors.grey),
-                          size: 20,
-                        ),
-                        Row(
-                          children: [
-                            Column(
-                              crossAxisAlignment: _currentLanguage == 'English' ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-                              children: [
-                                Text(_t('زمانەکان'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14, fontWeight: FontWeight.bold)),
-                                Text(tx(_currentLanguage), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11, color: RC.fg(Colors.grey))),
-                              ],
-                            ),
-                            const SizedBox(width: 12),
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: RC.bg(Colors.amber.shade50),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(Icons.translate_rounded, color: RC.fg(Color(0xFFB45309)), size: 20),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                    child: _buildSettingsLanguageHeader(),
                   ),
                 ),
                 
@@ -8381,24 +8042,7 @@ class _MainScreenState extends State<MainScreen> {
                         const SizedBox(height: 10),
                         _buildLanguageOption('English', isSelected: _currentLanguage == 'English'),
                         const SizedBox(height: 14),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            tx(context.watch<LocaleNotifier>().isDark
-                                ? _t('دۆخی تاریک')
-                                : _t('دۆخی ڕووناک')),
-                            style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 13, fontWeight: FontWeight.bold),
-                          ),
-                          secondary: Icon(
-                            context.watch<LocaleNotifier>().isDark
-                                ? Icons.dark_mode_rounded
-                                : Icons.light_mode_rounded,
-                            color: RC.fg(Color(0xFFB45309)),
-                          ),
-                          value: context.watch<LocaleNotifier>().isDark,
-                          activeColor: RC.bg(Color(0xFFFAC800)),
-                          onChanged: (v) => context.read<LocaleNotifier>().setDark(v),
-                        ),
+                        _buildSettingsDarkModeSwitch(),
                       ],
                     ),
                   ),
@@ -8425,9 +8069,100 @@ class _MainScreenState extends State<MainScreen> {
       child: IconButton(
         padding: EdgeInsets.zero,
         icon: Icon(isEn ? Icons.chevron_left : Icons.chevron_right, color: RC.fg(Color(0xFFB45309)), size: 20),
-        onPressed: () {},
+        onPressed: _isAccountRenewal ? _exitAccountRenewal : () {},
       ),
     );
+  }
+
+  void _startAccountRenewal() {
+    setState(() {
+      _isAccountRenewal = true;
+      _accountRenewalStep = 0;
+      _isLoginMode = true;
+      _otpCtrl.clear();
+      _confirmPasswordCtrl.clear();
+      _passwordCtrl.clear();
+    });
+  }
+
+  void _exitAccountRenewal() {
+    setState(() {
+      _isAccountRenewal = false;
+      _accountRenewalStep = 0;
+      _otpCtrl.clear();
+      _confirmPasswordCtrl.clear();
+    });
+  }
+
+  Future<void> _requestPasswordResetOtp() async {
+    try {
+      final data = await CustomerApiService.instance.requestPasswordResetOtp(_phoneCtrl.text);
+      if (!mounted) return;
+      setState(() => _accountRenewalStep = 1);
+      var msg = data['message']?.toString() ?? '';
+      if (msg.isEmpty) msg = _t('ناردنی کۆدی پشتڕاستکردنەوە');
+      final debugOtp = data['debug_otp']?.toString();
+      if (debugOtp != null && debugOtp.isNotEmpty) {
+        msg = '$msg ($debugOtp)';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } on PasswordResetException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_t(e.message))));
+    } catch (e) {
+      if (!mounted) return;
+      final err = e.toString();
+      final String msgKey;
+      if (err.contains('phone_invalid')) {
+        msgKey = 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0750 000 0000';
+      } else {
+        msgKey = 'دووبارە هەوڵبدەرەوە';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_t(msgKey))));
+    }
+  }
+
+  Future<void> _confirmPasswordReset() async {
+    final otp = _otpCtrl.text.trim();
+    final pass = _passwordCtrl.text;
+    final confirm = _confirmPasswordCtrl.text;
+    if (otp.replaceAll(RegExp(r'\s+'), '').length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('کۆدی پشتڕاستکردنەوە دەبێت ٦ ژمارە بێت'))),
+      );
+      return;
+    }
+    if (pass.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('وشەی نهێنی پێویستە (لانیکەم ٦ پیت)'))),
+      );
+      return;
+    }
+    if (pass != confirm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('وشەی نهێنییەکان یەکسان نین'))),
+      );
+      return;
+    }
+    try {
+      await CustomerApiService.instance.resetPasswordWithOtp(
+        phone: _phoneCtrl.text,
+        otp: otp,
+        newPassword: pass,
+      );
+      if (!mounted) return;
+      _passwordCtrl.text = pass;
+      _exitAccountRenewal();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('✅ وشەی نهێنی نوێکرایەوە — ئێستا بچۆ ژوورەوە'))),
+      );
+    } on PasswordResetException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_t(e.message))));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_t('دووبارە هەوڵبدەرەوە'))));
+    }
   }
 
   Widget _buildProfileTitleHeader(bool isEn) {
@@ -8436,42 +8171,14 @@ class _MainScreenState extends State<MainScreen> {
         crossAxisAlignment: isEn ? CrossAxisAlignment.start : CrossAxisAlignment.end,
         children: [
           Text(
-            _t(_isLoginMode ? 'چوونە ژوورەوە' : 'خۆتۆمارکردن'),
+            _t(_isAccountRenewal
+                ? 'نوێکردنەوەی هەژمار'
+                : (_isLoginMode ? 'چوونە ژوورەوە' : 'خۆتۆمارکردن')),
             style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 18, fontWeight: FontWeight.w900),
-            textAlign: isEn ? TextAlign.left : TextAlign.right,
-          ),
-          Text(
-            _t('زانیارییە کەسییەکان'),
-            style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 10, color: RC.fg(Colors.grey)),
             textAlign: isEn ? TextAlign.left : TextAlign.right,
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildProfileAvatar() {
-    return Stack(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: RC.bg(Colors.amber.shade50),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: RC.bg(Colors.amber.shade100)),
-          ),
-          child: Icon(Icons.person_outline, size: 24, color: RC.fg(Color(0xFFB45309))),
-        ),
-        Positioned(
-          right: 0,
-          top: 0,
-          child: Container(
-            padding: const EdgeInsets.all(1),
-            decoration: BoxDecoration(color: RC.bg(Color(0xFF10B981)), shape: BoxShape.circle),
-            child: Icon(Icons.add, size: 10, color: RC.fg(Colors.white)),
-          ),
-        ),
-      ],
     );
   }
 
@@ -8804,5 +8511,139 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
   }
 }
 
+/// Home reklaming carousel — images come from admin Marketing → Banners upload.
+class _HomePromoBannerCarousel extends StatefulWidget {
+  final List<Map<String, dynamic>> banners;
+  final void Function(Map<String, dynamic> banner) onBannerTap;
 
+  const _HomePromoBannerCarousel({
+    required this.banners,
+    required this.onBannerTap,
+  });
+
+  @override
+  State<_HomePromoBannerCarousel> createState() => _HomePromoBannerCarouselState();
+}
+
+class _HomePromoBannerCarouselState extends State<_HomePromoBannerCarousel> {
+  late final PageController _pageCtrl;
+  Timer? _autoTimer;
+  int _index = 0;
+  int _pageCount = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController();
+    // Start after first frame so PageView has clients (web-safe).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startAutoRotate());
+  }
+
+  void _startAutoRotate() {
+    _autoTimer?.cancel();
+    _autoTimer = Timer.periodic(const Duration(seconds: 5), (_) => _goNext());
+  }
+
+  void _goNext() {
+    if (!mounted) return;
+    if (_pageCount <= 1) return;
+    if (!_pageCtrl.hasClients) return;
+    final next = (_index + 1) % _pageCount;
+    try {
+      _pageCtrl.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    } catch (_) {
+      try {
+        _pageCtrl.jumpToPage(next);
+      } catch (_) {}
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoTimer?.cancel();
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final banners = widget.banners
+        .where((b) => (b['image_url']?.toString() ?? '').trim().isNotEmpty)
+        .toList();
+    if (banners.isEmpty) return const SizedBox(height: 8);
+
+    final bannerHeight = MediaQuery.of(context).size.width >= 640 ? 230.0 : 170.0;
+    // Up to 5 reklaming images — image only, auto-advance every 5s.
+    final count = banners.length.clamp(1, 5);
+    _pageCount = count;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+            child: SizedBox(
+              height: bannerHeight,
+              // Force LTR so "next" page always slides toward the right visually.
+              child: Directionality(
+                textDirection: TextDirection.ltr,
+                child: PageView.builder(
+                  controller: _pageCtrl,
+                  itemCount: count,
+                  allowImplicitScrolling: true,
+                  onPageChanged: (i) {
+                    if (mounted) setState(() => _index = i);
+                  },
+                  itemBuilder: (context, i) {
+                    final banner = banners[i];
+                    final bannerImg =
+                        RegaApiHost.resolveMediaUrl(banner['image_url']?.toString());
+                    return GestureDetector(
+                      onTap: () => widget.onBannerTap(banner),
+                      child: Image.network(
+                        bannerImg,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: bannerHeight,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, __, ___) =>
+                            Container(color: RC.bg(const Color(0xFF1E293B))),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(count, (i) {
+            final active = i == _index;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: active ? 16 : 6,
+              height: 6,
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                color: active ? RC.bg(Colors.orange) : RC.bg(Colors.amber.shade200),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+}
 

@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+  'rega_sms' => [
+      'webhook_url' => env('REGA_SMS_WEBHOOK_URL'),
+      'otp_template' => env('REGA_SMS_OTP_TEMPLATE', 'کۆدی نوێکردنەوەی هەژمار REGA: {otp}'),
+  ],
+
 ];

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Models\CustomerAddress;
 use App\Models\User;
+use App\Services\CustomerPasswordResetService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -221,6 +222,47 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'چوویتە دەرەوە لە هەژمار.',
         ]);
+    }
+
+    public function requestPasswordResetOtp(Request $request, CustomerPasswordResetService $reset): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:30'],
+        ]);
+
+        $result = $reset->requestOtp($validated['phone']);
+        $data = [
+            'expires_in' => $result['expires_in'] ?? null,
+        ];
+        if (isset($result['debug_otp'])) {
+            $data['debug_otp'] = $result['debug_otp'];
+        }
+
+        return response()->json([
+            'success' => (bool) ($result['ok'] ?? false),
+            'message' => $result['message'] ?? '',
+            'data' => $data,
+        ], (int) ($result['status'] ?? 500));
+    }
+
+    public function resetPasswordWithOtp(Request $request, CustomerPasswordResetService $reset): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:30'],
+            'otp' => ['required', 'string', 'max:12'],
+            'new_password' => ['required', 'string', 'min:6'],
+        ]);
+
+        $result = $reset->resetWithOtp(
+            $validated['phone'],
+            $validated['otp'],
+            $validated['new_password'],
+        );
+
+        return response()->json([
+            'success' => (bool) ($result['ok'] ?? false),
+            'message' => $result['message'] ?? '',
+        ], (int) ($result['status'] ?? 500));
     }
 
     private function loadUserRelations(User $user): User

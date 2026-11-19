@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
+import '../core/services/media_pick_service.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
@@ -219,74 +220,198 @@ class _MarketingScreenState extends State<MarketingScreen>
     final isEdit = existing != null;
     final titleCtrl = TextEditingController(text: existing?['title_ku']?.toString() ?? '');
     final subCtrl = TextEditingController(text: existing?['subtitle_ku']?.toString() ?? '');
-    final badgeCtrl = TextEditingController(text: existing?['badge_text']?.toString() ?? 'تایبەت');
-    final imgCtrl = TextEditingController(
-      text: existing?['image_url']?.toString() ??
-          'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1000&q=80',
-    );
+    final badgeCtrl = TextEditingController(text: existing?['badge_text']?.toString() ?? '');
+    final imgCtrl = TextEditingController(text: existing?['image_url']?.toString() ?? '');
     bool isActive = existing?['is_active'] ?? true;
+    bool uploadingImage = false;
+    bool showUrlField = (existing?['image_url']?.toString() ?? '').trim().isNotEmpty;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          insetPadding: AdminBreakpoints.dialogInset(ctx),
-          title: Text(tx(isEdit ? 'دەستکاریکردنی بانەری ڕێکلام' : 'زیادکردنی بانەری نوێ بۆ ئەپی کڕیار')),
-          content: SizedBox(
-            width: AdminBreakpoints.dialogWidth(ctx, max: 440),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(controller: titleCtrl, decoration: InputDecoration(labelText: tx('سەردێڕی بانەر *'))),
-                  const SizedBox(height: 12),
-                  TextField(controller: subCtrl, decoration: InputDecoration(labelText: tx('ژێرنووس'))),
-                  const SizedBox(height: 12),
-                  TextField(controller: badgeCtrl, decoration: InputDecoration(labelText: tx('تاگی سەر بانەر'))),
-                  const SizedBox(height: 12),
-                  TextField(controller: imgCtrl, decoration: InputDecoration(labelText: tx('بەستەری وێنە (Image URL) *'))),
-                  if (isEdit) ...[
-                    const SizedBox(height: 10),
-                    SwitchListTile(
-                      value: isActive,
-                      onChanged: (v) => setDialogState(() => isActive = v),
-                      title: Text(tx('چالاکە')),
+        builder: (ctx, setDialogState) {
+          final previewUrl = widget.api.resolveMediaUrl(imgCtrl.text.trim());
+          return AlertDialog(
+            insetPadding: AdminBreakpoints.dialogInset(ctx),
+            title: Text(tx(isEdit ? 'دەستکاریکردنی بانەری ڕێکلام' : 'زیادکردنی بانەری نوێ بۆ ئەپی کڕیار')),
+            content: SizedBox(
+              width: AdminBreakpoints.dialogWidth(ctx, max: 480),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      tx('ئەم وێنەیە لە سەرەکی ئەپی کڕیار وەک ڕیکلام (بانەر) دەردەکەوێت — وێنە بار بکە.'),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: RC.fg(Colors.grey.shade700),
+                        height: 1.35,
+                      ),
                     ),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 7,
+                        child: previewUrl.isEmpty
+                            ? Container(
+                                color: RC.bg(const Color(0xFFF1F5F9)),
+                                alignment: Alignment.center,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.image_outlined, size: 36, color: RC.fg(Colors.grey)),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      tx('پیشاندانی وێنەی ڕیکلام'),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        color: RC.fg(Colors.grey.shade600),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : Image.network(
+                                previewUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => Container(
+                                  color: RC.bg(const Color(0xFFF1F5F9)),
+                                  alignment: Alignment.center,
+                                  child: Icon(Icons.broken_image_outlined, color: RC.fg(Colors.grey)),
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: uploadingImage
+                          ? null
+                          : () async {
+                              final picked = await MediaPickService.pickImageForUpload();
+                              if (picked == null) return;
+                              setDialogState(() => uploadingImage = true);
+                              try {
+                                final up = await widget.api.uploadMedia(picked.bytes, picked.name);
+                                final url = up['url']?.toString();
+                                if (url != null && url.isNotEmpty) {
+                                  setDialogState(() {
+                                    imgCtrl.text = url;
+                                    showUrlField = true;
+                                  });
+                                  _showSnack(tx('وێنە بە سەرکەوتوویی بارکرا'));
+                                } else {
+                                  _showSnack(AppStrings.tr('item_image_upload_failed', widget.lang), error: true);
+                                }
+                              } catch (e) {
+                                _showSnack(e.toString(), error: true);
+                              } finally {
+                                setDialogState(() => uploadingImage = false);
+                              }
+                            },
+                      icon: uploadingImage
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.cloud_upload_rounded, size: 20),
+                      label: Text(
+                        tx(uploadingImage
+                            ? AppStrings.tr('item_image_uploading', widget.lang)
+                            : 'هەڵبژاردن و بارکردنی وێنەی ڕیکلام'),
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => setDialogState(() => showUrlField = !showUrlField),
+                      child: Text(
+                        tx(showUrlField ? 'شاردنەوەی بەستەری وێنە' : 'یان بەستەری وێنە دابنێ (URL)'),
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                      ),
+                    ),
+                    if (showUrlField) ...[
+                      const SizedBox(height: 4),
+                      TextField(
+                        controller: imgCtrl,
+                        onChanged: (_) => setDialogState(() {}),
+                        decoration: InputDecoration(
+                          labelText: tx('بەستەری وێنە (Image URL)'),
+                          hintText: tx('دوای بارکردن خۆکار پڕدەبێتەوە'),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: titleCtrl,
+                      decoration: InputDecoration(
+                        labelText: tx('سەردێڕ (ئارەزوومەندانە)'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: subCtrl,
+                      decoration: InputDecoration(labelText: tx('ژێرنووس (ئارەزوومەندانە)')),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: badgeCtrl,
+                      decoration: InputDecoration(labelText: tx('تاگی سەر بانەر (ئارەزوومەندانە)')),
+                    ),
+                    if (isEdit) ...[
+                      const SizedBox(height: 10),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: isActive,
+                        onChanged: (v) => setDialogState(() => isActive = v),
+                        title: Text(tx('چالاکە — لە سەرەکی ئەپ پیشان بدرێت')),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
-            ElevatedButton(
-              onPressed: () async {
-                if (titleCtrl.text.trim().isEmpty || imgCtrl.text.trim().isEmpty) return;
-                Navigator.pop(ctx);
-                try {
-                  final payload = {
-                    'title_ku': titleCtrl.text.trim(),
-                    'subtitle_ku': subCtrl.text.trim(),
-                    'badge_text': badgeCtrl.text.trim(),
-                    'image_url': imgCtrl.text.trim(),
-                    'is_active': isActive,
-                  };
-                  if (isEdit) {
-                    await widget.api.updateBanner(existing['id'] as int, payload);
-                    _showSnack('بانەری ڕێکلام نوێکرایەوە ✅');
-                  } else {
-                    await widget.api.createBanner(payload);
-                    _showSnack('بانەری نوێ زیادکرا ✅');
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(AppStrings.tr('cancel', widget.lang)),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (imgCtrl.text.trim().isEmpty) {
+                    _showSnack(tx('تکایە وێنەی ڕیکلام بار بکە'), error: true);
+                    return;
                   }
-                  _load();
-                } catch (e) {
-                  _showSnack(e.toString(), error: true);
-                }
-              },
-              child: Text(AppStrings.tr('save', widget.lang)),
-            ),
-          ],
-        ),
+                  Navigator.pop(ctx);
+                  try {
+                    final payload = {
+                      'title_ku': titleCtrl.text.trim(),
+                      'subtitle_ku': subCtrl.text.trim(),
+                      'badge_text': badgeCtrl.text.trim().isEmpty ? null : badgeCtrl.text.trim(),
+                      'image_url': imgCtrl.text.trim(),
+                      'target_type': 'none',
+                      'is_active': isActive,
+                    };
+                    if (isEdit) {
+                      await widget.api.updateBanner(existing['id'] as int, payload);
+                      _showSnack('بانەری ڕێکلام نوێکرایەوە ✅');
+                    } else {
+                      await widget.api.createBanner(payload);
+                      _showSnack('بانەری نوێ زیادکرا ✅');
+                    }
+                    _load();
+                  } catch (e) {
+                    _showSnack(e.toString(), error: true);
+                  }
+                },
+                child: Text(AppStrings.tr('save', widget.lang)),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -740,22 +865,47 @@ class _MarketingScreenState extends State<MarketingScreen>
                           ],
                         ),
 
-                        // Banners
+                        // Banners / home reklaming
                         ListView(
                           padding: EdgeInsets.all(AdminBreakpoints.pagePadH(context)),
                           children: [
+                            Card(
+                              color: RC.bg(const Color(0xFFFFFBEB)),
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.campaign_rounded, color: RC.fg(const Color(0xFFB45309))),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        tx('وێنەی ڕیکلام بۆ سەرەکی ئەپی کڕیار بار بکە — دوای پاشەکەوتکردن لە بانەری سەرەوە دەردەکەوێت.'),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                          color: RC.fg(const Color(0xFF78350F)),
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                             Align(
                               alignment: AlignmentDirectional.centerEnd,
                               child: ElevatedButton.icon(
                                 onPressed: () => _showBannerDialog(),
                                 icon: const Icon(Icons.add_photo_alternate_rounded, size: 18),
-                                label: Text(tx('زیادکردنی بانەر')),
+                                label: Text(tx('زیادکردنی وێنەی ڕیکلام')),
                               ),
                             ),
                             const SizedBox(height: 14),
                             ..._banners.map((raw) {
                               final b = raw as Map<String, dynamic>;
                               final active = b['is_active'] == true;
+                              final thumb = widget.api.resolveMediaUrl(b['image_url']?.toString());
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: Card(
@@ -766,7 +916,7 @@ class _MarketingScreenState extends State<MarketingScreen>
                                         width: 72,
                                         height: 48,
                                         child: Image.network(
-                                          b['image_url']?.toString() ?? '',
+                                          thumb,
                                           fit: BoxFit.cover,
                                           errorBuilder: (_, _, _) => const Icon(Icons.image_rounded),
                                         ),

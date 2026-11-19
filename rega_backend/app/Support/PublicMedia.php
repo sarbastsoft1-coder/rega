@@ -12,7 +12,9 @@ final class PublicMedia
     {
         $path = ltrim(str_replace('\\', '/', $path), '/');
 
-        return url('/api/v1/media/'.$path);
+        // Path-absolute (no host): Flutter web apps rewrite via same-origin
+        // nginx /api proxy. Avoids baking APP_URL=localhost into stored URLs.
+        return '/api/v1/media/'.$path;
     }
 
     public static function relativePathFromUrl(?string $fileUrl): ?string

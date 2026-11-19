@@ -1,7 +1,8 @@
 FROM php:8.2-cli-alpine
 
-# Install system dependencies & PostgreSQL libraries
+# Install system + build dependencies (phpize deps needed for docker-php-ext-install)
 RUN apk add --no-cache \
+    $PHPIZE_DEPS \
     postgresql-dev \
     libzip-dev \
     libpng-dev \
@@ -15,7 +16,7 @@ RUN apk add --no-cache \
     unzip \
     netcat-openbsd
 
-# Install required PHP extensions
+# Install required PHP extensions (mbstring/opcache already in base image)
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
         pdo_pgsql \
@@ -23,9 +24,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         zip \
         gd \
         bcmath \
-        intl \
-        mbstring \
-        opcache
+        intl
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

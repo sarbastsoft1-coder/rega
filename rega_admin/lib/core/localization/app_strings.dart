@@ -722,9 +722,9 @@ class AppStrings {
       'en': 'PostgreSQL Online',
     },
     'login_server_offline': {
-      'ku': 'سێرڤەر ئۆفلاینە (ڕێکخستن)',
-      'ar': 'الخادم غير متصل (إعدادات)',
-      'en': 'Server Offline (Settings)',
+      'ku': 'سێرڤەر ئۆفلاینە',
+      'ar': 'الخادم غير متصل',
+      'en': 'Server Offline',
     },
     'login_server_checking': {
       'ku': 'پشکنین...',
@@ -980,19 +980,19 @@ class AppStrings {
     'kpi_active_vendors': {'ku': 'فرۆشیاری چالاک', 'ar': 'المتاجر النشطة', 'en': 'Active Vendors'},
     'cuisine_type': {'ku': 'جۆری خواردن', 'ar': 'نوع المأكولات', 'en': 'Cuisine type'},
     'vendor_cover_image': {
-      'ku': 'وێنەی ڕووکەشی فرۆشگا (بەشی سەرەکی ئەپ)',
-      'ar': 'صورة غلاف المتجر (القسم الرئيسي للتطبيق)',
-      'en': 'Store cover image (app home section)',
+      'ku': 'وێنەی پڕۆفایلی فرۆشیار (هەمان بەشەکانی سەرەکی کڕیار)',
+      'ar': 'صورة ملف المتجر (نفس أقسام الصفحة الرئيسية للعميل)',
+      'en': 'Vendor profile image (same as customer home sections)',
     },
     'vendor_type_app': {
-      'ku': 'جۆری فرۆشیار (بەشی ئەپ) *',
-      'ar': 'نوع المتجر (قسم التطبيق) *',
-      'en': 'Vendor type (app section) *',
+      'ku': 'بەشی سەرەکی ئەپی کڕیار *',
+      'ar': 'قسم الصفحة الرئيسية للعميل *',
+      'en': 'Customer home section *',
     },
     'vendor_type_hint': {
-      'ku': 'هەمان ناوەکانی سەرەکی کڕیار: سوپەرمارکێت، خواردنگە، فست فوود… تەنها لەم بەشەدا دەردەکەوێت',
-      'ar': 'نفس أسماء الصفحة الرئيسية للعميل: سوبرماركت، مطعم، وجبات سريعة… يظهر فقط تحت هذا القسم',
-      'en': 'Same as customer home tiles: supermarket, restaurant, fast food… appears only under that section',
+      'ku': 'هەموو بەشەکانی سەرەکی کڕیار لێرە دەردەکەون — هەر بەشێک زیاد بکەیت لە کاتالۆگ، لێرەش دەردەکەوێت',
+      'ar': 'كل أقسام الصفحة الرئيسية للعميل تظهر هنا — أي قسم تضيفه في الكتالوج يظهر هنا أيضاً',
+      'en': 'All customer home sections appear here — any section you add in catalog shows up here too',
     },
     'no_categories_vendor': {
       'ku': 'هیچ بەشێک نەدۆزرایەوە. سەرەتا لە کاتالۆگ / جۆرەکان بەشێک زیاد بکە.',
@@ -1395,7 +1395,8 @@ class AppStrings {
     },
   };
 
-  static String _norm(String lang) => lang == 'ckb' ? 'ku' : lang;
+  /// Same rules as [RegaI18n.normalize] so "EN" / "english" never fall back to Kurdish.
+  static String _norm(String lang) => RegaI18n.normalize(lang);
 
   static String tr(String key, String lang) {
     final normalized = _norm(lang);

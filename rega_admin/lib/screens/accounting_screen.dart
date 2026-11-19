@@ -186,7 +186,7 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                   children: [
                     for (final p in periods)
                       ChoiceChip(
-                        label: Text(tx(p.$2)),
+                        label: Text(p.$2),
                         selected: _period == p.$1,
                         onSelected: (_) {
                           setState(() => _period = p.$1);
@@ -350,12 +350,12 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
         ...byShop.take(10).map((s) {
           final m = Map<String, dynamic>.from(s as Map);
           return ListTile(
-            title: Text(tx(_localizedStoreName(m))),
-            subtitle: Text(tx(_tp('acc_sales_label', {
+            title: Text(_localizedStoreName(m)),
+            subtitle: Text(_tp('acc_sales_label', {
               'amount': formatIqd(m['sales'] as num?, lang: _lang),
-            }))),
+            })),
             trailing: Text(
-              tx(formatIqd(m['admin_earnings'] as num?, lang: _lang)),
+              formatIqd(m['admin_earnings'] as num?, lang: _lang),
               style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
             ),
             onTap: () async {
@@ -375,8 +375,8 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           return ListTile(
             dense: true,
             title: Text(tx(m['product_name']?.toString() ?? '—')),
-            subtitle: Text(tx(_tp('acc_qty_label', {'qty': '${m['qty_sold'] ?? 0}'}))),
-            trailing: Text(tx(formatIqd(m['gross_profit'] as num?, lang: _lang))),
+            subtitle: Text(_tp('acc_qty_label', {'qty': '${m['qty_sold'] ?? 0}'})),
+            trailing: Text(formatIqd(m['gross_profit'] as num?, lang: _lang)),
           );
         }),
         if (series.isNotEmpty) ...[
@@ -461,15 +461,15 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                   itemBuilder: (_, i) {
                     final m = Map<String, dynamic>.from(_shops[i] as Map);
                     return ListTile(
-                      title: Text(tx(_localizedStoreName(m)), style: const TextStyle(fontWeight: FontWeight.w800)),
+                      title: Text(_localizedStoreName(m), style: const TextStyle(fontWeight: FontWeight.w800)),
                       subtitle: Text(
-                        tx(_tp('acc_shop_list_meta', {
+                        _tp('acc_shop_list_meta', {
                           'rate': '${m['commission_rate'] ?? '—'}',
                           'orders': '${m['total_orders'] ?? 0}',
                           'completed': '${m['completed_orders'] ?? 0}',
                           'sales': formatIqd(m['total_sales'] as num?, lang: _lang),
                           'profit': formatIqd(m['gross_profit'] as num?, lang: _lang),
-                        })),
+                        }),
                       ),
                       isThreeLine: true,
                       trailing: Column(
@@ -477,12 +477,12 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            tx(formatIqd(m['admin_earnings'] as num?, lang: _lang)),
+                            formatIqd(m['admin_earnings'] as num?, lang: _lang),
                             style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
                           ),
                           Text(_t('acc_admin_owed'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
                           Text(
-                            tx(formatIqd(m['seller_earnings'] as num?, lang: _lang)),
+                            formatIqd(m['seller_earnings'] as num?, lang: _lang),
                             style: const TextStyle(fontSize: 12, color: RegaColors.goldDark),
                           ),
                         ],
@@ -523,7 +523,7 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           controller: scroll,
           padding: const EdgeInsets.all(16),
           children: [
-            Text(tx(_localizedStoreName(shop)), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+            Text(_localizedStoreName(shop), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
             const SizedBox(height: 4),
             Text(_t('acc_shop_detail_hint'), style: TextStyle(color: RC.fg(Colors.grey.shade600), fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
@@ -541,16 +541,16 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                   Text(_t('acc_today_owed_title'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                   const SizedBox(height: 6),
                   Text(
-                    tx(formatIqd(todayOwed, lang: _lang)),
+                    formatIqd(todayOwed, lang: _lang),
                     style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534))),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    tx(_tp('acc_today_sales_meta', {
+                    _tp('acc_today_sales_meta', {
                       'sales': formatIqd(todaySales, lang: _lang),
                       'profit': formatIqd(todayGross, lang: _lang),
                       'pct': '$pct',
-                    })),
+                    }),
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 6),
@@ -588,20 +588,20 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
                   dense: true,
-                  title: Text(tx('${m['day']}'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  title: Text('${m['day']}', style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: Text(
-                    tx(_tp('acc_daily_row_meta', {
+                    _tp('acc_daily_row_meta', {
                       'sales': formatIqd(m['sales'] as num?, lang: _lang),
                       'profit': formatIqd(m['gross_profit'] as num?, lang: _lang),
                       'orders': '${m['orders_count'] ?? 0}',
-                    })),
+                    }),
                   ),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        tx(formatIqd(m['admin_owed'] as num?, lang: _lang)),
+                        formatIqd(m['admin_owed'] as num?, lang: _lang),
                         style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534))),
                       ),
                       Text(_t('acc_for_admin'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
@@ -616,10 +616,10 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
               return ListTile(
                 dense: true,
                 title: Text(tx(m['product_name']?.toString() ?? '')),
-                subtitle: Text(tx(_tp('acc_admin_share', {
+                subtitle: Text(_tp('acc_admin_share', {
                   'amount': formatIqd(m['admin_share'] as num?, lang: _lang),
-                }))),
-                trailing: Text(tx(formatIqd(m['gross_profit'] as num?, lang: _lang))),
+                })),
+                trailing: Text(formatIqd(m['gross_profit'] as num?, lang: _lang)),
               );
             }),
             const SizedBox(height: 8),
@@ -629,9 +629,9 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
               final status = AppStrings.statusLabel('${m['status'] ?? ''}', _lang);
               return ListTile(
                 dense: true,
-                title: Text(tx(m['order_number']?.toString() ?? '#${m['id']}')),
-                subtitle: Text(tx('$status · ${m['created_at']}')),
-                trailing: Text(tx(formatIqd(m['admin_profit_amount'] as num?, lang: _lang))),
+                title: Text(m['order_number']?.toString() ?? '#${m['id']}'),
+                subtitle: Text('$status · ${m['created_at']}'),
+                trailing: Text(formatIqd(m['admin_profit_amount'] as num?, lang: _lang)),
               );
             }),
           ],
@@ -651,8 +651,8 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(tx(label), style: const TextStyle(fontSize: 11, color: RegaColors.lightMuted)),
-          Text(tx(value), style: const TextStyle(fontWeight: FontWeight.w900)),
+          Text(label, style: const TextStyle(fontSize: 11, color: RegaColors.lightMuted)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
         ],
       ),
     );
@@ -680,9 +680,9 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                 value: _orderStatus,
                 items: [
                   DropdownMenuItem(value: 'all', child: Text(_t('acc_status_all'))),
-                  DropdownMenuItem(value: 'delivered', child: Text(tx(AppStrings.statusLabel('delivered', _lang)))),
-                  DropdownMenuItem(value: 'cancelled', child: Text(tx(AppStrings.statusLabel('cancelled', _lang)))),
-                  DropdownMenuItem(value: 'pending', child: Text(tx(AppStrings.statusLabel('pending', _lang)))),
+                  DropdownMenuItem(value: 'delivered', child: Text(AppStrings.statusLabel('delivered', _lang))),
+                  DropdownMenuItem(value: 'cancelled', child: Text(AppStrings.statusLabel('cancelled', _lang))),
+                  DropdownMenuItem(value: 'pending', child: Text(AppStrings.statusLabel('pending', _lang))),
                 ],
                 onChanged: (v) {
                   setState(() => _orderStatus = v ?? 'all');
@@ -705,16 +705,16 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                     return ListTile(
                       title: Text(tx('${m['order_number']} · ${m['shop_name'] ?? ''}')),
                       subtitle: Text(
-                        tx(_tp('acc_order_row_meta', {
+                        _tp('acc_order_row_meta', {
                           'status': status,
                           'sales': formatIqd(m['total_sales'] as num?, lang: _lang),
                           'profit': formatIqd(m['gross_profit'] as num?, lang: _lang),
                           'pct': '${m['admin_commission'] ?? ''}',
-                        })),
+                        }),
                       ),
                       isThreeLine: true,
                       trailing: Text(
-                        tx(formatIqd(m['admin_earnings'] as num?, lang: _lang)),
+                        formatIqd(m['admin_earnings'] as num?, lang: _lang),
                         style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
                       ),
                       onTap: () async {
@@ -746,8 +746,8 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           controller: scroll,
           padding: const EdgeInsets.all(16),
           children: [
-            Text(tx(order['order_number']?.toString() ?? ''), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-            Text(tx('${order['shop_name']} · $status')),
+            Text(order['order_number']?.toString() ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            Text('${tx(order['shop_name']?.toString() ?? '')} · $status'),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -767,13 +767,13 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
               return ListTile(
                 title: Text(tx('${m['product_name']} × ${m['quantity']}')),
                 subtitle: Text(
-                  tx(_tp('acc_item_row_meta', {
+                  _tp('acc_item_row_meta', {
                     'cost': formatIqd(m['cost_price'] as num?, lang: _lang),
                     'sell': formatIqd(m['selling_price'] as num?, lang: _lang),
                     'pct': '${m['commission_percentage'] ?? ''}',
-                  })),
+                  }),
                 ),
-                trailing: Text(tx(formatIqd(m['admin_share'] as num?, lang: _lang))),
+                trailing: Text(formatIqd(m['admin_share'] as num?, lang: _lang)),
               );
             }),
             const SizedBox(height: 12),
@@ -855,7 +855,7 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           items: [
             DropdownMenuItem<int?>(
               value: null,
-              child: Text(tx(_tp('acc_global_rate_option', {'pct': globalPct}))),
+              child: Text(_tp('acc_global_rate_option', {'pct': globalPct})),
             ),
             ..._settingsStores.map((raw) {
               final m = Map<String, dynamic>.from(raw as Map);
@@ -864,7 +864,7 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
               final rate = m['commission_rate'] ?? 20;
               return DropdownMenuItem<int?>(
                 value: id,
-                child: Text(tx('$name — $rate%')),
+                child: Text('$name — $rate%'),
               );
             }),
           ],
@@ -876,9 +876,9 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
-            labelText: txn(_settingsStoreId == null
+            labelText: _settingsStoreId == null
                 ? _t('acc_global_rate_label')
-                : _tp('acc_vendor_rate_label', {'name': vendorLabel})),
+                : _tp('acc_vendor_rate_label', {'name': vendorLabel}),
             helperText: _t('acc_rate_helper'),
           ),
         ),
@@ -895,29 +895,29 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                tx(_settingsStoreId == null
+                _settingsStoreId == null
                     ? _t('acc_example_global')
-                    : _tp('acc_example_vendor', {'name': vendorLabel})),
+                    : _tp('acc_example_vendor', {'name': vendorLabel}),
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 8),
               Text(
-                tx(_tp('acc_example_gross', {'amount': formatIqd(exampleProfit, lang: _lang)})),
+                _tp('acc_example_gross', {'amount': formatIqd(exampleProfit, lang: _lang)}),
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               Text(
-                tx(_tp('acc_example_rate', {
+                _tp('acc_example_rate', {
                   'pct': pct.toStringAsFixed(pct == pct.roundToDouble() ? 0 : 1),
-                })),
+                }),
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 6),
               Text(
-                tx(_tp('acc_example_admin_gets', {'amount': formatIqd(exampleAdmin, lang: _lang)})),
+                _tp('acc_example_admin_gets', {'amount': formatIqd(exampleAdmin, lang: _lang)}),
                 style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534)), fontSize: 15),
               ),
               Text(
-                tx(_tp('acc_example_seller_keeps', {'amount': formatIqd(exampleSeller, lang: _lang)})),
+                _tp('acc_example_seller_keeps', {'amount': formatIqd(exampleSeller, lang: _lang)}),
                 style: TextStyle(fontWeight: FontWeight.w800, color: RC.fg(Color(0xFFB45309))),
               ),
             ],
@@ -944,9 +944,9 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  tx(_settingsStoreId == null
+                  _settingsStoreId == null
                       ? _t('acc_saved_global')
-                      : _tp('acc_saved_vendor', {'name': vendorLabel})),
+                      : _tp('acc_saved_vendor', {'name': vendorLabel}),
                 ),
                 backgroundColor: RegaColors.emerald,
               ),
@@ -965,8 +965,8 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
           final noteDisplay = _localizeHistoryNote(note);
           return ListTile(
             dense: true,
-            title: Text(tx('${m['commission_percentage']}% — $scope')),
-            subtitle: Text(tx('$noteDisplay · ${changer ?? _t('acc_system')} · ${m['created_at'] ?? ''}')),
+            title: Text('${m['commission_percentage']}% — $scope'),
+            subtitle: Text('$noteDisplay · ${changer ?? _t('acc_system')} · ${m['created_at'] ?? ''}'),
           );
         }),
       ],
@@ -1054,7 +1054,7 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
     return ListView(
       padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 12 : 16),
       children: [
-        Text(tx(_tp('acc_report_title', {'period': periodLabel})), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+        Text(_tp('acc_report_title', {'period': periodLabel}), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, c) {
@@ -1082,10 +1082,10 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
         ),
         const SizedBox(height: 16),
         Text(
-          tx(_tp('acc_report_range', {
+          _tp('acc_report_range', {
             'from': '${_report['from'] ?? '—'}',
             'to': '${_report['to'] ?? '—'}',
-          })),
+          }),
           style: const TextStyle(color: RegaColors.lightMuted),
         ),
         const SizedBox(height: 8),
@@ -1108,14 +1108,14 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
         final title = order['order_number']?.toString() ??
             _tp('acc_order_number_fallback', {'id': '${m['order_id'] ?? ''}'});
         return ListTile(
-          title: Text(tx(title)),
+          title: Text(title),
           subtitle: Text(
-            tx(_tp('acc_refund_row_meta', {
+            _tp('acc_refund_row_meta', {
               'sales': formatIqd(m['refunded_sales'] as num?, lang: _lang),
               'admin': formatIqd(m['refunded_admin_share'] as num?, lang: _lang),
               'reason': '${m['reason'] ?? ''}',
               'date': '${m['created_at'] ?? ''}',
-            })),
+            }),
           ),
           isThreeLine: true,
           leading: const Icon(Icons.undo_rounded, color: RegaColors.crimson),

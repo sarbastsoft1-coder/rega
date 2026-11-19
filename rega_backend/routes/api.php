@@ -73,6 +73,8 @@ Route::prefix('v1')->group(function () {
     Route::prefix('auth')->group(function () {
         Route::post('/login', [AuthController::class, 'login']);
         Route::post('/register', [AuthController::class, 'register']);
+        Route::post('/password-reset/request-otp', [AuthController::class, 'requestPasswordResetOtp']);
+        Route::post('/password-reset/confirm', [AuthController::class, 'resetPasswordWithOtp']);
 
         Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/me', [AuthController::class, 'me']);

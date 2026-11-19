@@ -78,58 +78,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showServerConfigDialog() {
-    final urlCtrl = TextEditingController(text: widget.api.baseUrl);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(AppStrings.tr('api_url_label', widget.lang)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: urlCtrl,
-              textDirection: TextDirection.ltr,
-              decoration: InputDecoration(
-                labelText: AppStrings.tr('api_url_label', widget.lang),
-                hintText: tx('http://127.0.0.1:8001/api/v1'),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              children: [
-                ActionChip(
-                  label: Text(AppStrings.tr('api_port_default', widget.lang)),
-                  onPressed: () => urlCtrl.text = 'http://127.0.0.1:8001/api/v1',
-                ),
-                ActionChip(
-                  label: Text(AppStrings.tr('api_port_8000', widget.lang)),
-                  onPressed: () => urlCtrl.text = 'http://127.0.0.1:8000/api/v1',
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(AppStrings.tr('cancel', widget.lang)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await widget.api.setBaseUrl(urlCtrl.text);
-              if (ctx.mounted) Navigator.pop(ctx);
-              _pingServer();
-            },
-            child: Text(AppStrings.tr('save', widget.lang)),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width >= 900;
@@ -279,46 +227,42 @@ class _LoginScreenState extends State<LoginScreen> {
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            InkWell(
-                              onTap: _showServerConfigDialog,
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: (_serverHealthy == true
-                                          ? RegaColors.emerald
-                                          : (_serverHealthy == false ? RegaColors.crimson : RC.bg(Colors.amber)))
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.circle,
-                                      size: 9,
-                                      color: _serverHealthy == true
-                                          ? RegaColors.emerald
-                                          : (_serverHealthy == false ? RegaColors.crimson : RC.bg(Colors.amber)),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        tx(_serverHealthy == true
-                                            ? AppStrings.tr('login_server_online', widget.lang)
-                                            : (_serverHealthy == false
-                                                ? AppStrings.tr('login_server_offline', widget.lang)
-                                                : AppStrings.tr('login_server_checking', widget.lang))),
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800,
-                                          color: RC.fg(Color(0xFF0F172A)),
-                                        ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: (_serverHealthy == true
+                                        ? RegaColors.emerald
+                                        : (_serverHealthy == false ? RegaColors.crimson : RC.bg(Colors.amber)))
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.circle,
+                                    size: 9,
+                                    color: _serverHealthy == true
+                                        ? RegaColors.emerald
+                                        : (_serverHealthy == false ? RegaColors.crimson : RC.bg(Colors.amber)),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      tx(_serverHealthy == true
+                                          ? AppStrings.tr('login_server_online', widget.lang)
+                                          : (_serverHealthy == false
+                                              ? AppStrings.tr('login_server_offline', widget.lang)
+                                              : AppStrings.tr('login_server_checking', widget.lang))),
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: RC.fg(Color(0xFF0F172A)),
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             ),
                             Row(

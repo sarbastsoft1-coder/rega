@@ -1,10 +1,9 @@
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
-import '../core/services/image_compress_service.dart';
+import '../core/services/media_pick_service.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
@@ -123,13 +122,8 @@ class _ProductsScreenState extends State<ProductsScreen>
     }
   }
 
-  Future<({String name, Uint8List bytes})?> _pickAndCompressProductImage() async {
-    final files = await FilePicker.pickFiles(type: FileType.image);
-    if (files.isEmpty) return null;
-    final f = files.first;
-    final raw = await f.readAsBytes();
-    if (raw.isEmpty) return null;
-    return ImageCompressService.compressForUpload(name: f.name, bytes: raw);
+  Future<({String name, Uint8List bytes})?> _pickAndCompressProductImage() {
+    return MediaPickService.pickImageForUpload();
   }
 
   Widget _productImagePlaceholder() {
@@ -229,14 +223,15 @@ class _ProductsScreenState extends State<ProductsScreen>
               });
             } catch (e) {
               if (!ctx.mounted) return;
+              final friendly = AppStrings.tr('item_image_upload_failed', widget.lang);
               setDialogState(() {
                 pickingImage = false;
                 uploadingImage = false;
                 imageUploadOk = false;
-                imageUploadError = e.toString();
+                imageUploadError = friendly;
               });
               _showSnack(
-                '${AppStrings.tr('item_image_upload_failed', widget.lang)}: $e',
+                friendly,
                 error: true,
               );
             }

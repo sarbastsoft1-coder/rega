@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../state/driver_nav_notifier.dart';
 import '../state/driver_session_notifier.dart';
-import 'splash_screen.dart';
 
 typedef DriverShellBuilder = Widget Function(BuildContext context, int tabIndex);
 typedef DriverAuthBuilder = Widget Function(BuildContext context);
@@ -14,16 +13,14 @@ GoRouter createDriverRouter({
   required Listenable refreshListenable,
 }) {
   return GoRouter(
-    initialLocation: '/splash',
+    initialLocation: '/login',
     refreshListenable: refreshListenable,
     redirect: (context, state) {
       final session = context.read<DriverSessionNotifier>();
       final path = state.uri.path;
-      final onSplash = path == '/splash';
       final onAuth = path == '/login';
       final forceLogout = state.uri.queryParameters['logout'] == 'true';
 
-      if (onSplash) return null;
       if (session.isRestoring) return null;
 
       if (forceLogout && session.isLoggedIn) {
@@ -51,11 +48,6 @@ GoRouter createDriverRouter({
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/splash',
-        name: 'splash',
-        builder: (context, state) => const DriverSplashScreen(),
-      ),
       GoRoute(
         path: '/login',
         name: 'login',

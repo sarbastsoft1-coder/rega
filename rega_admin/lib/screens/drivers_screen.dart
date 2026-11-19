@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -9,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 import '../core/api/api_client.dart';
 import '../core/iraq_phone_formatter.dart';
 import '../core/localization/app_strings.dart';
+import '../core/services/media_pick_service.dart';
 import '../core/services/open_url_io.dart' if (dart.library.html) '../core/services/open_url_web.dart';
 import '../map/mapbox_tiles.dart';
 import '../widgets/admin_top_header.dart';
@@ -468,18 +468,13 @@ class _DriversScreenState extends State<DriversScreen> {
   }
 
   Future<_PendingDocFile?> _pickDriverDocFile() async {
-    final files = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf'],
-    );
-    if (files.isEmpty) return null;
-    final f = files.first;
-    final bytes = await f.readAsBytes();
-    if (bytes.isEmpty) {
+    final picked = await MediaPickService.pickImageOrPdf();
+    if (picked == null) return null;
+    if (picked.bytes.isEmpty) {
       _showSnack('نەتوانرا فایل بخوێنرێتەوە. تکایە وێنە یان PDF هەڵبژێرە.', error: true);
       return null;
     }
-    final name = f.name.toLowerCase();
+    final name = picked.name.toLowerCase();
     final ok = name.endsWith('.pdf') ||
         name.endsWith('.jpg') ||
         name.endsWith('.jpeg') ||
@@ -490,7 +485,7 @@ class _DriversScreenState extends State<DriversScreen> {
       _showSnack('تەنها وێنە (JPG/PNG/WEBP) یان PDF ڕێگەپێدراوە', error: true);
       return null;
     }
-    return _PendingDocFile(f.name, bytes);
+    return _PendingDocFile(picked.name, picked.bytes);
   }
 
   Future<void> _showAddCourierDialog({CourierItem? existing}) async {
@@ -498,6 +493,7 @@ class _DriversScreenState extends State<DriversScreen> {
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
     final phoneCtrl = TextEditingController(text: IraqPhoneFormatter.format(existing?.phone ?? ''));
     final homePhoneCtrl = TextEditingController(text: IraqPhoneFormatter.format(existing?.homePhone ?? ''));
+    final passwordCtrl = TextEditingController();
     final infoCardCtrl = TextEditingController(text: existing?.infoCardNumber ?? '');
     final cityCtrl = TextEditingController(text: existing?.city ?? 'هەولێر');
     final motorTypeCtrl = TextEditingController(text: existing?.motorType ?? '');
@@ -511,6 +507,7 @@ class _DriversScreenState extends State<DriversScreen> {
     bool isVehicleVerified = existing?.isVehicleVerified ?? true;
     bool isAccountActive = existing?.isAccountActive ?? true;
     String language = existing?.language ?? 'ku';
+    bool obscurePassword = true;
 
     var existingDocs = List<DriverDocItem>.from(existing?.documents ?? const <DriverDocItem>[]);
     if (isEdit) {
@@ -691,6 +688,27 @@ class _DriversScreenState extends State<DriversScreen> {
                         DropdownMenuItem(value: 'O-', child: Text(tx('O-'))),
                       ],
                       onChanged: (v) => setDialogState(() => bloodType = v ?? 'O+'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordCtrl,
+                    obscureText: obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: tx(isEdit
+                          ? AppStrings.tr('password_new_optional', widget.lang)
+                          : '${AppStrings.tr('password_label', widget.lang)} *'),
+                      hintText: txn(isEdit ? 'بەجێی بهێڵە ئەگەر نەگۆڕیت' : 'کەمترین ٦ پیت'),
+                      prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                      suffixIcon: IconButton(
+                        onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
+                        icon: Icon(
+                          obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                          size: 20,
+                        ),
+                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -972,8 +990,17 @@ class _DriversScreenState extends State<DriversScreen> {
                   : () async {
                       final name = nameCtrl.text.trim();
                       final phone = phoneCtrl.text.trim();
+                      final password = passwordCtrl.text.trim();
                       if (name.isEmpty || phone.isEmpty) {
                         _showSnack('تکایە ناو و ژمارەی مۆبایل بنووسە', error: true);
+                        return;
+                      }
+                      if (!isEdit && password.length < 6) {
+                        _showSnack('تکایە وشەی نهێنی بنووسە (کەمترین ٦ پیت)', error: true);
+                        return;
+                      }
+                      if (isEdit && password.isNotEmpty && password.length < 6) {
+                        _showSnack('وشەی نهێنی دەبێت لانیکەم ٦ پیت بێت', error: true);
                         return;
                       }
                       setDialogState(() => saving = true);
@@ -1019,6 +1046,7 @@ class _DriversScreenState extends State<DriversScreen> {
                           'national_id_status': nationalStatus,
                           'license_status': licenseStatus,
                           'registration_status': registrationStatus,
+                          if (password.isNotEmpty) 'password': password,
                         };
 
                         if (isEdit) {

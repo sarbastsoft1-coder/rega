@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../state/vendor_nav_notifier.dart';
 import '../state/vendor_session_notifier.dart';
-import 'splash_screen.dart';
 
 typedef VendorShellBuilder = Widget Function(BuildContext context, int tabIndex);
 typedef VendorLoginBuilder = Widget Function(BuildContext context);
@@ -14,15 +13,13 @@ GoRouter createVendorRouter({
   required Listenable refreshListenable,
 }) {
   return GoRouter(
-    initialLocation: '/splash',
+    initialLocation: '/login',
     refreshListenable: refreshListenable,
     redirect: (context, state) {
       final session = context.read<VendorSessionNotifier>();
       final path = state.uri.path;
-      final onSplash = path == '/splash';
       final loggingIn = path == '/login';
 
-      if (onSplash) return null;
       if (session.isRestoring) return null;
 
       if (!session.isLoggedIn && !loggingIn) {
@@ -48,11 +45,6 @@ GoRouter createVendorRouter({
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/splash',
-        name: 'splash',
-        builder: (context, state) => const VendorSplashScreen(),
-      ),
       GoRoute(
         path: '/login',
         name: 'login',

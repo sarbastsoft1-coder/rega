@@ -5,6 +5,16 @@ import 'blocked_account.dart';
 import 'rega_mobile.dart';
 
 import 'rega_i18n.dart';
+
+class PasswordResetException implements Exception {
+  PasswordResetException(this.message, {this.statusCode});
+  final String message;
+  final int? statusCode;
+
+  @override
+  String toString() => message;
+}
+
 class CustomerApiService {
   CustomerApiService._();
   static final CustomerApiService instance = CustomerApiService._();
@@ -156,6 +166,96 @@ class CustomerApiService {
     }
 
     throw Exception('register_failed');
+  }
+
+  /// Step 1 — request 6-digit OTP for customer password reset (phone must exist).
+  Future<Map<String, dynamic>> requestPasswordResetOtp(String phone) async {
+    final cleanPhone = phone.trim().replaceAll(RegExp(r'\s+'), '');
+    if (!RegExp(r'^07\d{9}$').hasMatch(cleanPhone)) {
+      throw Exception('phone_invalid');
+    }
+
+    final res = await http
+        .post(
+          Uri.parse('$baseUrl/auth/password-reset/request-otp'),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'phone': cleanPhone}),
+        )
+        .timeout(const Duration(seconds: 12));
+
+    Map<String, dynamic> body = {};
+    try {
+      body = regaJsonDecode(res.body) as Map<String, dynamic>;
+    } catch (_) {}
+
+    if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true) {
+      final data = body['data'] is Map<String, dynamic>
+          ? Map<String, dynamic>.from(body['data'] as Map)
+          : <String, dynamic>{};
+      final msg = body['message']?.toString();
+      if (msg != null && msg.isNotEmpty) {
+        data['message'] = msg;
+      }
+      return data;
+    }
+
+    final msg = body['message']?.toString();
+    if (msg != null && msg.isNotEmpty) {
+      throw PasswordResetException(msg, statusCode: res.statusCode);
+    }
+    throw Exception('password_reset_request_failed');
+  }
+
+  /// Step 2 — verify OTP and set a new password.
+  Future<String> resetPasswordWithOtp({
+    required String phone,
+    required String otp,
+    required String newPassword,
+  }) async {
+    final cleanPhone = phone.trim().replaceAll(RegExp(r'\s+'), '');
+    final cleanOtp = otp.trim().replaceAll(RegExp(r'\s+'), '');
+    if (!RegExp(r'^07\d{9}$').hasMatch(cleanPhone)) {
+      throw Exception('phone_invalid');
+    }
+    if (cleanOtp.length != 6) {
+      throw Exception('otp_invalid');
+    }
+    if (newPassword.trim().length < 6) {
+      throw Exception('password_required');
+    }
+
+    final res = await http
+        .post(
+          Uri.parse('$baseUrl/auth/password-reset/confirm'),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'phone': cleanPhone,
+            'otp': cleanOtp,
+            'new_password': newPassword.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+
+    Map<String, dynamic> body = {};
+    try {
+      body = regaJsonDecode(res.body) as Map<String, dynamic>;
+    } catch (_) {}
+
+    if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true) {
+      return body['message']?.toString() ?? '';
+    }
+
+    final msg = body['message']?.toString();
+    if (msg != null && msg.isNotEmpty) {
+      throw PasswordResetException(msg, statusCode: res.statusCode);
+    }
+    throw Exception('password_reset_confirm_failed');
   }
 
   Future<Map<String, dynamic>?> fetchMe() async {

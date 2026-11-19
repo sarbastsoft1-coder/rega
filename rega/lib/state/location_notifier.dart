@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../map/mapbox_geocoding.dart';
 import '../models/customer_models.dart';
 
 /// Delivery pin + display name. Never defaults to a hardcoded neighborhood.
@@ -42,6 +44,11 @@ class LocationNotifier extends ChangeNotifier {
     if (resolved != null && resolved.isNotEmpty) return resolved;
     final zone = _neighborhood?.name.trim();
     if (zone != null && zone.isNotEmpty) return zone;
+    if (hasPin) {
+      return MapboxGeocoding.coordinatesLabel(
+        LatLng(_pinnedLat!, _pinnedLng!),
+      );
+    }
     return null;
   }
 

@@ -16,8 +16,9 @@ class RegaApiHost {
     if (kIsWeb) {
       final host = Uri.base.host;
       if (host.isNotEmpty && host != 'localhost' && host != '127.0.0.1') {
-        final scheme = Uri.base.scheme == 'https' ? 'https' : 'http';
-        return '$scheme://$host:$apiPort';
+        // Production web: same-origin /api via nginx reverse proxy (no :8001, no CORS).
+        final origin = Uri.base.origin;
+        if (origin.isNotEmpty) return origin.replaceAll(RegExp(r'/+$'), '');
       }
     }
     return 'http://127.0.0.1:$apiPort';

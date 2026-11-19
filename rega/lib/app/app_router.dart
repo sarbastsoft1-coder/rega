@@ -7,7 +7,6 @@ import '../models/customer_models.dart';
 import '../state/navigation_notifier.dart';
 import '../state/orders_notifier.dart';
 import '../state/session_notifier.dart';
-import 'splash_screen.dart';
 
 import '../rega_i18n.dart';
 typedef CustomerShellBuilder = Widget Function(
@@ -28,17 +27,14 @@ GoRouter createCustomerRouter({
 }) {
   return GoRouter(
     navigatorKey: customerRootNavigatorKey,
-    initialLocation: '/splash',
+    initialLocation: '/login',
     refreshListenable: refreshListenable,
     debugLogDiagnostics: false,
     redirect: (context, state) {
       final session = context.read<SessionNotifier>();
       final path = state.uri.path;
-      final onSplash = path == '/splash';
       final onLogin = path == '/login';
 
-      // Splash owns the first navigation after session restore.
-      if (onSplash) return null;
       if (session.isRestoring) return null;
 
       if (!session.isLoggedIn && !onLogin) return '/login';
@@ -59,11 +55,6 @@ GoRouter createCustomerRouter({
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/splash',
-        name: 'splash',
-        builder: (context, state) => const CustomerSplashScreen(),
-      ),
       GoRoute(
         path: '/login',
         name: 'login',

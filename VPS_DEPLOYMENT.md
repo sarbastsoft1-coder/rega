@@ -125,6 +125,34 @@ sudo certbot --nginx -d rega.iq -d api.rega.iq -d admin.rega.iq -d vendor.rega.i
 
 ---
 
+## SMS / OTP (نوێکردنەوەی وشەی نهێنی کڕیار)
+
+کۆدی پشتڕاستکردنەوە بە `RegaSmsDispatcher` دەنێردرێت — **هیچ Twilio یان دەروازەی عێراقی لەناو کۆدەکەدا نییە**؛ تەنها POSTی JSON بۆ webhookێکی دەرەکی:
+
+```json
+{ "phone": "07703331122", "message": "...", "type": "password_reset_otp" }
+```
+
+1. لە `/var/www/rega` فایلی `.env` دروست بکە (یان زیادی بکە):
+
+```bash
+REGA_SMS_WEBHOOK_URL=https://YOUR-SMS-BRIDGE/send
+# REGA_SMS_OTP_TEMPLATE="کۆدی نوێکردنەوەی هەژمار REGA: {otp}"
+```
+
+2. دووبارە بیلدکردنی backend:
+
+```bash
+cd /var/www/rega
+docker compose up -d --build backend
+```
+
+3. پشکنین — لە لۆگدا `rega.sms.sent` دەبینیت؛ بەبێ webhook تەنها `rega.sms.skipped` لە `storage/logs/laravel.log`.
+
+**ئاگاداری:** `APP_DEBUG=false` لە prod بەجێبهێڵە — `debug_otp` تەنها کاتێک لە API دەگەڕێتەوە کە `APP_DEBUG=true` بێت.
+
+---
+
 ## زانیاریی چوونەژوورەوەی بنەڕەتی (Seeded Credentials)
 
 هەموو ئەژمارەکان بە وشەی نهێنی: **`password123`** ئامادە کراون:

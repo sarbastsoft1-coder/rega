@@ -1,10 +1,9 @@
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
-import '../core/services/image_compress_service.dart';
+import '../core/services/media_pick_service.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
@@ -182,16 +181,12 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
   }
 
   Future<({String name, Uint8List bytes})?> _pickCategoryImage() async {
-    // Same pick path as products_screen: read bytes on demand (file_picker 13+),
-    // then compress via ImageCompressService before upload.
-    final files = await FilePicker.pickFiles(type: FileType.image);
-    if (files.isEmpty) return null;
-    final f = files.first;
-    final bytes = await f.readAsBytes();
-    if (bytes.isEmpty) {
+    final picked = await MediaPickService.pickImageForUpload();
+    if (picked == null) return null;
+    if (picked.bytes.isEmpty) {
       throw Exception('نەتوانرا وێنە بخوێنرێتەوە. تکایە دووبارە هەوڵ بدەوە.');
     }
-    return ImageCompressService.compressForUpload(name: f.name, bytes: bytes);
+    return picked;
   }
 
   Future<void> _moveCategory(int index, int delta) async {

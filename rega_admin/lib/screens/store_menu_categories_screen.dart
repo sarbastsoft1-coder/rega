@@ -1,10 +1,9 @@
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
-import '../core/services/image_compress_service.dart';
+import '../core/services/media_pick_service.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
@@ -65,10 +64,24 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
         widget.api.getCategories(),
       ]);
       if (!mounted) return;
+      // Same home parts as customer app / Add Vendor (active + featured_home).
+      final rawCats = results[2] as List<dynamic>;
+      final active = rawCats
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((c) => c['is_active'] != false && c['is_active'] != 0)
+          .toList();
+      final featured = active
+          .where((c) => c['is_featured_home'] == true || c['is_featured_home'] == 1)
+          .toList();
+      final homeCats = (featured.isNotEmpty ? featured : active)
+        ..sort((a, b) =>
+            ((a['sort_order'] as num?)?.toInt() ?? 0)
+                .compareTo((b['sort_order'] as num?)?.toInt() ?? 0));
       setState(() {
         _rows = results[0];
         _stores = results[1];
-        _homeCategories = results[2];
+        _homeCategories = homeCats;
       });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -87,13 +100,8 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
     );
   }
 
-  Future<({String name, Uint8List bytes})?> _pickCompressedImage() async {
-    final files = await FilePicker.pickFiles(type: FileType.image);
-    if (files.isEmpty) return null;
-    final f = files.first;
-    final raw = await f.readAsBytes();
-    if (raw.isEmpty) return null;
-    return ImageCompressService.compressForUpload(name: f.name, bytes: raw);
+  Future<({String name, Uint8List bytes})?> _pickCompressedImage() {
+    return MediaPickService.pickImageForUpload();
   }
 
   List<dynamic> _storesForHomeCategory(int? homeCategoryId) {

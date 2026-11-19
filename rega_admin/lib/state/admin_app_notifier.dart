@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart'; // ApiClient + ApiException
+import '../rega_i18n.dart';
 
 class AdminAppNotifier extends ChangeNotifier {
   final ApiClient api;
@@ -14,7 +15,10 @@ class AdminAppNotifier extends ChangeNotifier {
     this.isDark = false,
     this.checkingSession = true,
     this.currentUser,
-  });
+  }) {
+    // Keep tx() in sync from the first frame (saved lang may be en/ar).
+    RegaI18n.setLang(lang);
+  }
 
   bool get isLoggedIn => currentUser != null;
   ThemeMode get themeMode => isDark ? ThemeMode.dark : ThemeMode.light;
@@ -50,9 +54,15 @@ class AdminAppNotifier extends ChangeNotifier {
   }
 
   void setLang(String value) {
-    if (lang == value) return;
-    lang = value;
-    ApiClient.saveLang(value);
+    final next = RegaI18n.normalize(value);
+    if (lang == next) {
+      // Still push into RegaI18n in case it drifted from AppStrings lang.
+      RegaI18n.setLang(next);
+      return;
+    }
+    lang = next;
+    RegaI18n.setLang(next);
+    ApiClient.saveLang(next);
     notifyListeners();
   }
 

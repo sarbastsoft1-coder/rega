@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'app/app_router.dart';
 import 'core/api/api_client.dart';
 import 'core/localization/app_strings.dart';
+import 'core/services/ensure_file_picker_stub.dart'
+    if (dart.library.js_interop) 'core/services/ensure_file_picker_web.dart';
 import 'core/theme/app_theme.dart';
 import 'state/admin_app_notifier.dart';
 import 'state/admin_domain_notifiers.dart';
@@ -12,6 +14,7 @@ import 'rega_i18n.dart';
 import 'rega_colors.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  ensureFilePickerReady();
   final api = ApiClient();
   await api.init();
   final savedLang = await ApiClient.getSavedLang();

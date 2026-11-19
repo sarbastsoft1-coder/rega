@@ -6,6 +6,7 @@ use App\Models\DriverProfile;
 use App\Models\Order;
 use App\Models\Store;
 use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\DemoDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -16,7 +17,9 @@ class RegaEcosystemApiTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Infrastructure + optional fake marketplace data for API coverage.
         $this->seed(DatabaseSeeder::class);
+        $this->seed(DemoDataSeeder::class);
     }
 
     private function asBearer(string $token): self
@@ -528,5 +531,40 @@ class RegaEcosystemApiTest extends TestCase
             ->assertJsonPath('success', true);
 
         $this->assertNotNull($dispatchRes->json('data.driver.id'));
+    }
+
+    public function test_customer_password_reset_otp_flow(): void
+    {
+        $phone = '07703331122';
+
+        if (! config('app.debug')) {
+            $this->markTestSkipped('APP_DEBUG required for OTP in tests without SMS webhook.');
+        }
+
+        $request = $this->postJson('/api/v1/auth/password-reset/request-otp', [
+            'phone' => $phone,
+        ])->assertOk()
+            ->assertJsonPath('success', true);
+
+        $otp = $request->json('data.debug_otp');
+        $this->assertNotEmpty($otp);
+
+        $this->postJson('/api/v1/auth/password-reset/confirm', [
+            'phone' => $phone,
+            'otp' => $otp,
+            'new_password' => 'newpass456',
+        ])->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->postJson('/api/v1/auth/login', [
+            'identifier' => $phone,
+            'password' => 'newpass456',
+        ])->assertOk();
+
+        // Old password should fail
+        $this->postJson('/api/v1/auth/login', [
+            'identifier' => $phone,
+            'password' => 'password123',
+        ])->assertUnauthorized();
     }
 }

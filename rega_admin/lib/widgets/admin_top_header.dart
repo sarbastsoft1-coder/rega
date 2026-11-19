@@ -136,7 +136,7 @@ class AdminLocaleToggle extends StatelessWidget {
             Icon(Icons.language_rounded, size: 16, color: surfaces.textSecondary),
             const SizedBox(width: 6),
             Text(
-              tx(lang.toUpperCase()),
+              lang == 'en' ? 'EN' : (lang == 'ar' ? 'AR' : 'KU'),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w900,

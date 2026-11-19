@@ -25,14 +25,57 @@ class RegaApiHost {
     if (kIsWeb) {
       final host = Uri.base.host;
       if (host.isNotEmpty && host != 'localhost' && host != '127.0.0.1') {
-        final scheme = Uri.base.scheme == 'https' ? 'https' : 'http';
-        return '$scheme://$host:$apiPort';
+        // Production web: same-origin /api via nginx reverse proxy.
+        final origin = Uri.base.origin;
+        if (origin.isNotEmpty) return origin.replaceAll(RegExp(r'/+$'), '');
       }
     }
     return 'http://127.0.0.1:$apiPort';
   }
 
   static String get apiV1 => '$origin/api/v1';
+
+  /// Normalize Laravel media / storage URLs to the active API host.
+  /// Rewrites `/storage/...` → `/api/v1/media/...` for Flutter web CanvasKit CORS.
+  static String resolveMediaUrl(String? url) {
+    if (url == null) return '';
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return '';
+    if (trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return trimmed;
+
+    final parsed = Uri.tryParse(trimmed);
+    if (parsed == null) return trimmed;
+
+    var path = parsed.hasScheme ? parsed.path : trimmed;
+    if (path.startsWith('/storage/')) {
+      path = '/api/v1/media/${path.substring('/storage/'.length)}';
+    } else if (path.startsWith('storage/')) {
+      path = '/api/v1/media/${path.substring('storage/'.length)}';
+    }
+
+    if (parsed.hasScheme && (parsed.scheme == 'http' || parsed.scheme == 'https')) {
+      final host = parsed.host;
+      final active = Uri.parse(origin);
+      final isLocalBackend = host == '127.0.0.1' ||
+          host == 'localhost' ||
+          host == 'backend' ||
+          parsed.port == apiPort ||
+          host == active.host;
+      if (!isLocalBackend && !path.startsWith('/api/v1/media/') && !path.startsWith('/storage/')) {
+        // External CDN (Unsplash, etc.) — keep as-is.
+        return trimmed;
+      }
+      return active
+          .replace(
+            path: path.startsWith('/') ? path : '/$path',
+            query: parsed.hasQuery ? parsed.query : null,
+          )
+          .toString();
+    }
+
+    if (path.startsWith('/')) return '$origin$path';
+    return '$origin/$path';
+  }
 }
 
 class RegaBreakpoints {

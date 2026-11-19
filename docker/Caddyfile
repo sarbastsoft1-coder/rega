@@ -1,0 +1,38 @@
+# REGA HTTPS gateway — browsers only allow GPS/geolocation on HTTPS.
+# Hostnames use sslip.io so no purchased domain is required.
+# IP: 45.94.67.86
+
+{
+	# Valid public-suffix email required by Let's Encrypt / ZeroSSL
+	email rega.vps@gmail.com
+}
+
+# Customer marketplace
+app.45.94.67.86.sslip.io, 45.94.67.86.sslip.io {
+	encode gzip
+	reverse_proxy web:8082
+}
+
+# Admin
+admin.45.94.67.86.sslip.io {
+	encode gzip
+	reverse_proxy web:8080
+}
+
+# Vendor (Froshyar)
+vendor.45.94.67.86.sslip.io {
+	encode gzip
+	reverse_proxy web:8081
+}
+
+# Delivery captain
+delivery.45.94.67.86.sslip.io {
+	encode gzip
+	reverse_proxy web:8083
+}
+
+# API (optional direct HTTPS)
+api.45.94.67.86.sslip.io {
+	encode gzip
+	reverse_proxy backend:8001
+}

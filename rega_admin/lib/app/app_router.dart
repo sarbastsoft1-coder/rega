@@ -59,9 +59,8 @@ GoRouter createAdminRouter({required Listenable refreshListenable}) {
             context.read<AdminNavNotifier>().setTabIndex(idx);
           });
           if (app.checkingSession) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
+            // No splash: blank while session restores.
+            return const Scaffold(body: SizedBox.shrink());
           }
           if (app.currentUser == null) {
             return const SizedBox.shrink();

@@ -117,7 +117,8 @@ class MarketingController extends Controller
     public function bannersStore(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'title_ku' => ['required', 'string', 'max:150'],
+            // Image-only carousel: title/subtitle optional (customer app shows no text).
+            'title_ku' => ['nullable', 'string', 'max:150'],
             'title_ar' => ['nullable', 'string', 'max:150'],
             'title_en' => ['nullable', 'string', 'max:150'],
             'subtitle_ku' => ['nullable', 'string', 'max:255'],
@@ -132,6 +133,7 @@ class MarketingController extends Controller
 
         $banner = Banner::create([
             ...$validated,
+            'title_ku' => $validated['title_ku'] ?? '',
             'target_type' => $validated['target_type'] ?? 'none',
             'is_active' => $validated['is_active'] ?? true,
             'sort_order' => $validated['sort_order'] ?? (Banner::count() + 1),
