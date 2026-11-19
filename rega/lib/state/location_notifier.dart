@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../map/mapbox_geocoding.dart';
@@ -37,18 +36,18 @@ class LocationNotifier extends ChangeNotifier {
       (_resolvedPlaceName != null && _resolvedPlaceName!.isNotEmpty);
 
   /// Home bar / chips: note → resolved geocode/zone name → null (caller shows hint).
+  /// Never shows raw GPS coordinates.
   String? get displayPlaceLabel {
     final note = _placeNote?.trim();
     if (note != null && note.isNotEmpty) return note;
     final resolved = _resolvedPlaceName?.trim();
-    if (resolved != null && resolved.isNotEmpty) return resolved;
+    if (resolved != null &&
+        resolved.isNotEmpty &&
+        !MapboxGeocoding.looksLikeCoordinates(resolved)) {
+      return resolved;
+    }
     final zone = _neighborhood?.name.trim();
     if (zone != null && zone.isNotEmpty) return zone;
-    if (hasPin) {
-      return MapboxGeocoding.coordinatesLabel(
-        LatLng(_pinnedLat!, _pinnedLng!),
-      );
-    }
     return null;
   }
 

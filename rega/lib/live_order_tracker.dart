@@ -11,6 +11,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'map/mapbox_directions.dart';
+import 'map/mapbox_geocoding.dart';
 import 'map/mapbox_tiles.dart';
 import 'rega_mobile.dart';
 
@@ -114,6 +115,8 @@ class KalarInteractivePickerMap extends StatefulWidget {
   final LatLng initialPoint;
   /// Live pin label — place note / reverse-geocode / backend zone (never a frozen default).
   final String pinLabel;
+  /// True while reverse-geocode is in flight — shows a small spinner in the bubble.
+  final bool pinLoading;
   final ValueChanged<LatLng> onLocationChanged;
   final bool allowIraqWide;
   /// When true (e.g. first open with no saved pin), jump to live GPS immediately.
@@ -123,6 +126,7 @@ class KalarInteractivePickerMap extends StatefulWidget {
     super.key,
     required this.initialPoint,
     required this.pinLabel,
+    this.pinLoading = false,
     required this.onLocationChanged,
     this.allowIraqWide = true,
     this.autoLocateOnStart = false,
@@ -135,24 +139,16 @@ class KalarInteractivePickerMap extends StatefulWidget {
 class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
   final MapController _controller = MapController();
   late LatLng _pinned;
-  /// Same cycle as driver + live tracker: 0 streets, 1 satellite, 2 outdoors.
-  int _mapStyleIndex = 1;
+  /// 0 = Mapbox Light (streets), 1 = Mapbox Satellite Streets.
+  int _mapStyleIndex = 0;
   bool _ready = false;
   bool _locating = false;
   bool _didAutoLocate = false;
   /// When true, map pans under a fixed center pin (جوڵاندن).
   bool _panPickMode = true;
 
-  MapboxStyle get _mapboxStyle {
-    switch (_mapStyleIndex) {
-      case 1:
-        return MapboxStyle.satellite;
-      case 2:
-        return MapboxStyle.outdoors;
-      default:
-        return MapboxStyle.streets;
-    }
-  }
+  MapboxStyle get _mapboxStyle =>
+      _mapStyleIndex == 1 ? MapboxStyle.satellite : MapboxStyle.streets;
 
   @override
   void initState() {
@@ -170,13 +166,23 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
   @override
   void didUpdateWidget(covariant KalarInteractivePickerMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Do not camera-jump on every parent rebuild during pan-pick — that fights
+    // the drag and freezes the label. Only sync an external pin change in tap mode.
     if (oldWidget.initialPoint != widget.initialPoint) {
-      _pinned = widget.initialPoint;
-      if (_ready) {
-        _controller.move(_pinned, 15.8);
+      final sameAsPinned =
+          (widget.initialPoint.latitude - _pinned.latitude).abs() < 1e-7 &&
+          (widget.initialPoint.longitude - _pinned.longitude).abs() < 1e-7;
+      if (!sameAsPinned) {
+        _pinned = widget.initialPoint;
+        if (_ready && !_panPickMode) {
+          try {
+            _controller.move(_pinned, _controller.camera.zoom);
+          } catch (_) {}
+        }
       }
     }
-    if (oldWidget.pinLabel != widget.pinLabel) {
+    if (oldWidget.pinLabel != widget.pinLabel ||
+        oldWidget.pinLoading != widget.pinLoading) {
       setState(() {});
     }
   }
@@ -187,14 +193,39 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
     super.dispose();
   }
 
-  void _setPin(LatLng pt, {double? zoom}) {
+  DateTime? _lastPanEmit;
+
+  /// [moveCamera] false when the pin came from the map center (pan mode),
+  /// so we do not fight the user's gesture with another camera move.
+  void _setPin(LatLng pt, {double? zoom, bool moveCamera = true}) {
     setState(() => _pinned = pt);
     widget.onLocationChanged(pt);
-    if (_ready) {
+    if (moveCamera && _ready) {
       try {
         _controller.move(pt, zoom ?? _controller.camera.zoom);
       } catch (_) {}
     }
+  }
+
+  void _emitCenterPin(LatLng center, {required bool fromGesture}) {
+    if (widget.allowIraqWide &&
+        !KalarGeoCatalog.isInsideIraq(center.latitude, center.longitude)) {
+      return;
+    }
+    if (center.latitude == _pinned.latitude &&
+        center.longitude == _pinned.longitude) {
+      return;
+    }
+    // Live updates while dragging (throttled); always emit when gesture ends.
+    if (fromGesture) {
+      final now = DateTime.now();
+      if (_lastPanEmit != null &&
+          now.difference(_lastPanEmit!) < const Duration(milliseconds: 120)) {
+        return;
+      }
+      _lastPanEmit = now;
+    }
+    _setPin(center, moveCamera: false);
   }
 
   void _toast(String msg, {Color? bg}) {
@@ -280,53 +311,91 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
   /// Center delivery pin: classic location teardrop + live label bubble.
   /// Drawn with CustomPaint (not Material Icons) so web icon-fonts cannot
   /// fall back to a home glyph after tree-shaking.
-  Widget _buildRedPin({double size = 34}) {
+  Widget _buildMapPin({double size = 38}) {
     final pinW = size * 1.15;
     final pinH = size * 1.45;
+    final label = widget.pinLabel.trim();
+    final showBubble = widget.pinLoading ||
+        (label.isNotEmpty && !MapboxGeocoding.looksLikeCoordinates(label));
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          constraints: const BoxConstraints(maxWidth: 132),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: RC.bg(Colors.white),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: RC.bg(const Color(0xFFDC2626)), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: RC.bg(Colors.black26),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Text(
-            tx(widget.pinLabel),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: RC.fg(const Color(0xFF0F172A)),
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
+        if (showBubble) ...[
+          Container(
+            constraints: const BoxConstraints(maxWidth: 220),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: RC.bg(Colors.white),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.16),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.pinLoading) ...[
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.8,
+                      color: RC.fg(const Color(0xFFEAB308)),
+                    ),
+                  ),
+                  if (label.isNotEmpty) const SizedBox(width: 6),
+                ],
+                if (label.isNotEmpty)
+                  Flexible(
+                    child: Text(
+                      tx(label),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: RC.fg(const Color(0xFF0F172A)),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.1,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-        ),
-        const SizedBox(height: 2),
+          Container(
+            width: 2,
+            height: 6,
+            color: RC.bg(const Color(0xFFFAC800)),
+          ),
+        ],
         SizedBox(
           width: pinW,
           height: pinH,
           child: CustomPaint(
             painter: _LocationPinPainter(
-              fill: RC.bg(const Color(0xFFDC2626)),
+              fill: RC.bg(const Color(0xFFE11D48)),
               stroke: RC.bg(Colors.white),
-              hole: RC.bg(Colors.white),
+              hole: RC.bg(const Color(0xFFFAC800)),
             ),
           ),
         ),
       ],
     );
+  }
+
+  void _zoomBy(double delta, double minZ) {
+    if (!_ready) return;
+    try {
+      _controller.move(
+        _controller.camera.center,
+        (_controller.camera.zoom + delta).clamp(minZ, 18.5),
+      );
+    } catch (_) {}
   }
 
   @override
@@ -343,8 +412,8 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
             minZoom: minZ,
             maxZoom: 18.5,
             backgroundColor: satelliteLike
-                ? RC.bg(Color(0xFF0F172A))
-                : RC.bg(Color(0xFFF1F5F9)),
+                ? const Color(0xFF0B1220)
+                : const Color(0xFFE8EEF5),
             onMapReady: () {
               _ready = true;
               if (_panPickMode) {
@@ -354,16 +423,9 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
               }
             },
             onPositionChanged: (position, hasGesture) {
-              if (_panPickMode && !hasGesture) {
-                final center = position.center;
-                if (widget.allowIraqWide &&
-                    !KalarGeoCatalog.isInsideIraq(center.latitude, center.longitude)) {
-                  return;
-                }
-                if (center.latitude != _pinned.latitude || center.longitude != _pinned.longitude) {
-                  _setPin(center);
-                }
-              }
+              if (!_panPickMode) return;
+              // Live while dragging + final snap when finger lifts.
+              _emitCenterPin(position.center, fromGesture: hasGesture);
             },
             onTap: _panPickMode
                 ? null
@@ -373,7 +435,7 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
                         SnackBar(
                           content: Text(tx('تکایە شوێنێک لە ناو عێراق هەڵبژێرە')),
-                          backgroundColor: RC.bg(Color(0xFFDC2626)),
+                          backgroundColor: RC.bg(const Color(0xFFDC2626)),
                           duration: const Duration(seconds: 2),
                         ),
                       );
@@ -393,10 +455,10 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                 markers: [
                   Marker(
                     point: _pinned,
-                    width: 140,
-                    height: 88,
+                    width: 230,
+                    height: 110,
                     alignment: Alignment.topCenter,
-                    child: _buildRedPin(),
+                    child: _buildMapPin(),
                   ),
                 ],
               ),
@@ -405,10 +467,31 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
         if (_panPickMode)
           IgnorePointer(
             child: Align(
-              alignment: const Alignment(0, -0.08),
-              child: _buildRedPin(size: 36),
+              alignment: const Alignment(0, -0.06),
+              child: _buildMapPin(size: 40),
             ),
           ),
+        // Soft top fade so controls sit cleanly over Mapbox tiles
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 90,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: satelliteLike ? 0.28 : 0.10),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
         Positioned(
           top: 0,
           left: 0,
@@ -419,18 +502,17 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
               child: Row(
                 children: [
-                  _TrackerMapBtn(
-                    icon: _mapStyleIndex == 1
-                        ? Icons.satellite_alt_rounded
-                        : Icons.layers_rounded,
-                    active: _mapStyleIndex != 0,
-                    onTap: () => setState(() => _mapStyleIndex = (_mapStyleIndex + 1) % 3),
+                  _MapStyleSegment(
+                    satellite: _mapStyleIndex == 1,
+                    onMap: () => setState(() => _mapStyleIndex = 0),
+                    onSatellite: () => setState(() => _mapStyleIndex = 1),
                   ),
                   const Spacer(),
-                  _PickerMapPill(
+                  _MapGlassChip(
                     label: tx('جوڵاندن'),
                     icon: Icons.open_with_rounded,
                     active: _panPickMode,
+                    activeColor: const Color(0xFF16A34A),
                     onTap: () {
                       setState(() => _panPickMode = !_panPickMode);
                       if (_panPickMode && _ready) {
@@ -441,15 +523,49 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                     },
                   ),
                   const SizedBox(width: 8),
-                  _PickerMapPill(
+                  _MapGlassChip(
                     label: tx('شوێنەکەم'),
-                    icon: _locating ? Icons.hourglass_top_rounded : Icons.my_location_rounded,
-                    active: _locating,
+                    icon: _locating
+                        ? Icons.hourglass_top_rounded
+                        : Icons.my_location_rounded,
+                    active: true,
+                    activeColor: const Color(0xFFFAC800),
+                    foregroundOnActive: Colors.black,
                     onTap: _locating ? () {} : () => _goToCurrentGps(),
                   ),
                 ],
               ),
             ),
+          ),
+        ),
+        Positioned(
+          left: 10,
+          bottom: 10,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '© Mapbox © OpenStreetMap',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: RC.fg(const Color(0xFF64748B)),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          right: 12,
+          bottom: 18,
+          child: Column(
+            children: [
+              _MapRoundBtn(icon: Icons.add_rounded, onTap: () => _zoomBy(1, minZ)),
+              const SizedBox(height: 8),
+              _MapRoundBtn(icon: Icons.remove_rounded, onTap: () => _zoomBy(-1, minZ)),
+            ],
           ),
         ),
       ],
@@ -1845,50 +1961,170 @@ class _TrackerMapBtn extends StatelessWidget {
   }
 }
 
-class _PickerMapPill extends StatelessWidget {
+/// Mapbox-style Map | Satellite segmented control.
+class _MapStyleSegment extends StatelessWidget {
+  final bool satellite;
+  final VoidCallback onMap;
+  final VoidCallback onSatellite;
+
+  const _MapStyleSegment({
+    required this.satellite,
+    required this.onMap,
+    required this.onSatellite,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _segChip(
+            label: tx('نەخشە'),
+            icon: Icons.map_rounded,
+            selected: !satellite,
+            onTap: onMap,
+          ),
+          _segChip(
+            label: tx('سەتەلایت'),
+            icon: Icons.satellite_alt_rounded,
+            selected: satellite,
+            onTap: onSatellite,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segChip({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? const Color(0xFFFAC800) : Colors.transparent,
+      borderRadius: BorderRadius.circular(11),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(11),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: selected ? Colors.black : const Color(0xFF475569)),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? Colors.black : const Color(0xFF334155),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapGlassChip extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool active;
+  final Color activeColor;
+  final Color foregroundOnActive;
   final VoidCallback onTap;
 
-  const _PickerMapPill({
+  const _MapGlassChip({
     required this.label,
     required this.icon,
-    this.active = false,
+    required this.active,
+    required this.activeColor,
+    this.foregroundOnActive = Colors.white,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bg = active ? activeColor : Colors.white.withValues(alpha: 0.94);
+    final fg = active ? foregroundOnActive : const Color(0xFF0F172A);
     return Material(
-      color: active ? RC.bg(Color(0xFF0F172A)) : RC.bg(Colors.white),
-      borderRadius: BorderRadius.circular(22),
-      elevation: 4,
-      shadowColor: RC.bg(Colors.black26),
+      color: bg,
+      borderRadius: BorderRadius.circular(14),
+      elevation: 0,
+      shadowColor: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.14),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: 17,
-                color: active ? RC.fg(Color(0xFFFAC800)) : RC.bg(Color(0xFF0F172A)),
-              ),
+              Icon(icon, size: 17, color: fg),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  color: active ? RC.fg(Color(0xFFFAC800)) : RC.bg(Color(0xFF0F172A)),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: fg,
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapRoundBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _MapRoundBtn({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.96),
+      shape: const CircleBorder(),
+      elevation: 3,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, size: 22, color: const Color(0xFF0F172A)),
         ),
       ),
     );

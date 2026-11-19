@@ -1,17 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_map/flutter_map.dart';
 
-/// Mapbox raster styles for flutter_map.
+/// Mapbox raster styles for flutter_map (Static Tiles API).
 ///
-/// Set token with `--dart-define=MAPBOX_TOKEN=pk....` or edit [accessToken]
-/// defaultValue below (needed for `flutter build web` via serve_all.py).
+/// Pass token at build time:
+/// `--dart-define=MAPBOX_TOKEN=pk....`
 ///
-/// IMPORTANT: Studio style `mirnatv33/cmwax4kdy002501sc2w31byoj` is a
-/// **Mapbox Standard** style (`imports: mapbox://styles/mapbox/standard`,
-/// zero classic layers). The classic raster tile API
-/// `/styles/v1/{user}/{id}/tiles/...` returns empty transparent PNGs for it,
-/// which shows up as a solid grey map in flutter_map. Use stock raster styles
-/// below until a classic (non-Standard) Studio style is published.
+/// Without a token, falls back to Carto / Esri so maps still load.
 enum MapboxStyle { streets, dark, outdoors, satellite }
 
 class MapboxTiles {
@@ -20,21 +15,39 @@ class MapboxTiles {
     defaultValue: '',
   );
 
-  /// Documented Studio style — NOT usable with flutter_map raster tiles.
+  /// Documented Studio Standard style — not usable with flutter_map rasters.
   static const String customStandardStylePath =
       'mirnatv33/cmwax4kdy002501sc2w31byoj';
 
-  static String url(MapboxStyle style) {
-    if (accessToken.isEmpty) {
-      return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-    }
-    final id = switch (style) {
-      MapboxStyle.streets => 'streets-v12',
-      MapboxStyle.dark => 'dark-v11',
-      MapboxStyle.outdoors => 'outdoors-v12',
-      MapboxStyle.satellite => 'satellite-streets-v12',
+  static bool get hasToken => accessToken.isNotEmpty;
+
+  static const String _cartoVoyager =
+      'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
+  static const String _cartoDark =
+      'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
+  static const String _esriSatellite =
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
+  static String _stylePath(MapboxStyle style) {
+    return switch (style) {
+      MapboxStyle.streets => 'mapbox/streets-v12',
+      MapboxStyle.dark => 'mapbox/outdoors-v12',
+      MapboxStyle.outdoors => 'mapbox/outdoors-v12',
+      MapboxStyle.satellite => 'mapbox/satellite-streets-v12',
     };
-    return 'https://api.mapbox.com/styles/v1/mapbox/$id/tiles/256/{z}/{x}/{y}@2x'
+  }
+
+  static String url(MapboxStyle style) {
+    if (!hasToken) {
+      return switch (style) {
+        MapboxStyle.satellite => _esriSatellite,
+        MapboxStyle.dark => _cartoDark,
+        MapboxStyle.outdoors => _cartoVoyager,
+        MapboxStyle.streets => _cartoVoyager,
+      };
+    }
+    final path = _stylePath(style);
+    return 'https://api.mapbox.com/styles/v1/$path/tiles/512/{z}/{x}/{y}@2x'
         '?access_token=$accessToken';
   }
 
@@ -42,16 +55,19 @@ class MapboxTiles {
     required MapboxStyle style,
     required String userAgentPackageName,
     Key? key,
-    MapboxStyle fallbackStyle = MapboxStyle.streets,
+    MapboxStyle fallbackStyle = MapboxStyle.outdoors,
     TileProvider? tileProvider,
   }) {
+    final useMapboxSizing = hasToken;
     return TileLayer(
-      key: key ?? ValueKey(style),
+      key: key ?? ValueKey('${style}_$hasToken'),
       urlTemplate: url(style),
       fallbackUrl: url(fallbackStyle),
       userAgentPackageName: userAgentPackageName,
+      tileDimension: useMapboxSizing ? 512 : 256,
+      zoomOffset: useMapboxSizing ? -1 : 0,
       maxZoom: 22,
-      // Same provider on web/mobile so every REGA map loads identical Mapbox tiles.
+      maxNativeZoom: 22,
       tileProvider: tileProvider ?? NetworkTileProvider(),
     );
   }

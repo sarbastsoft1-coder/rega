@@ -28,3 +28,5 @@ rega_backend/storage/*.key
  
 .claude/
 *.tar.gz
+
+.tmp_tiles/
