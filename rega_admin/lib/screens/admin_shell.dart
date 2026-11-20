@@ -181,8 +181,13 @@ class _AdminShellState extends State<AdminShell> {
       case 3:
         return DriversScreen(key: key, api: widget.api, lang: widget.lang);
       case 4:
-        // Customer hub: VIP/customers + home category cards CRUD + zones + promos
-        return CustomerPartScreen(key: key, api: widget.api, lang: widget.lang);
+        // Customer hub: VIP/customers + direct requests + zones + promos
+        return CustomerPartScreen(
+          key: key,
+          api: widget.api,
+          lang: widget.lang,
+          onDataChanged: _refreshBadges,
+        );
       case 5:
         return StoresScreen(key: key, api: widget.api, lang: widget.lang);
       case 6:

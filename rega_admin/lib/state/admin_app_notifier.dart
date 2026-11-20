@@ -99,6 +99,9 @@ class AdminNavNotifier extends ChangeNotifier {
     '/support',
   ];
 
+  /// Sub-tab inside Customer hub (e.g. داواکاری ڕاستەوخۆ). Consumed once by [CustomerPartScreen].
+  int? pendingCustomersSubTab;
+
   int _tabIndex = 0;
   int get tabIndex => _tabIndex;
 
@@ -116,6 +119,23 @@ class AdminNavNotifier extends ChangeNotifier {
     final next = index.clamp(0, tabPaths.length - 1);
     if (_tabIndex == next) return;
     _tabIndex = next;
+    notifyListeners();
+  }
+
+  int? takeCustomersSubTab() {
+    final v = pendingCustomersSubTab;
+    pendingCustomersSubTab = null;
+    return v;
+  }
+
+  void goToCustomers({int? subTab}) {
+    if (subTab != null) pendingCustomersSubTab = subTab;
+    final next = indexForPath('/customers');
+    if (_tabIndex != next) {
+      _tabIndex = next;
+    }
+    // Always notify so CustomerPartScreen can open the pending sub-tab
+    // even when the main tab is already /customers.
     notifyListeners();
   }
 }

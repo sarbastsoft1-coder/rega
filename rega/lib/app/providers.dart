@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
+import '../onboarding/onboarding_notifier.dart';
 import '../state/cart_notifier.dart';
 import '../state/locale_notifier.dart';
 import '../state/location_notifier.dart';
@@ -11,6 +12,7 @@ MultiProvider buildCustomerProviders({required Widget child}) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (_) => LocaleNotifier()..loadSaved()),
+      ChangeNotifierProvider(create: (_) => OnboardingNotifier()..load()),
       ChangeNotifierProvider(create: (_) {
         final session = SessionNotifier();
         session.restoreSession();

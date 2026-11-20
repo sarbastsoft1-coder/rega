@@ -30,3 +30,4 @@ rega_backend/storage/*.key
 *.tar.gz
 
 .tmp_tiles/
+*.apk

@@ -7,6 +7,7 @@ use App\Models\AppNotification;
 use App\Models\Banner;
 use App\Models\Coupon;
 use App\Models\User;
+use App\Services\FcmPushService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -292,6 +293,7 @@ class MarketingController extends Controller
             }
 
             $first = $created[0]->load(['user:id,name,phone', 'store:id,name_ku,name_en']);
+            app(FcmPushService::class)->sendForNotification($first, $selectedIds);
 
             return response()->json([
                 'success' => true,
@@ -357,6 +359,10 @@ class MarketingController extends Controller
                 ->with(['user:id,name,phone', 'store:id,name_ku,name_en'])
                 ->first();
 
+            if ($sample) {
+                app(FcmPushService::class)->sendForNotification($sample, $customerIds);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'ئاگادارکردنەوە بۆ هەموو کڕیاران نێردرا.',
@@ -372,6 +378,23 @@ class MarketingController extends Controller
             'user_id' => $validated['user_id'] ?? null,
             'target_audience' => $audience,
         ]);
+
+        $pushIds = collect();
+        if (! empty($validated['user_id'])) {
+            $pushIds = collect([(int) $validated['user_id']]);
+        } elseif (in_array($audience, ['all', 'customers'], true)) {
+            $pushIds = User::query()
+                ->where('role', 'customer')
+                ->where('is_active', true)
+                ->pluck('id');
+        } elseif ($audience === 'vendors') {
+            $pushIds = User::query()->where('role', 'vendor')->where('is_active', true)->pluck('id');
+        } elseif ($audience === 'drivers') {
+            $pushIds = User::query()->where('role', 'driver')->where('is_active', true)->pluck('id');
+        }
+        if ($pushIds->isNotEmpty()) {
+            app(FcmPushService::class)->sendForNotification($notification, $pushIds);
+        }
 
         return response()->json([
             'success' => true,

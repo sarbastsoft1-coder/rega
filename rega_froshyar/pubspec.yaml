@@ -41,6 +41,7 @@ flutter:
   # Assets configuration
   assets:
     - assets/
+    - assets/sounds/mixkit-happy-bells-notification-937.wav
   fonts:
     - family: NotoKufiArabic
       fonts:

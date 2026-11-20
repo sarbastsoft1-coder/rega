@@ -6,7 +6,8 @@ import 'package:flutter_map/flutter_map.dart';
 /// Pass token at build time:
 /// `--dart-define=MAPBOX_TOKEN=pk....`
 ///
-/// Without a token, falls back to Carto / Esri so maps still load.
+/// Without a token, falls back to OSM (streets) / Esri (satellite) so maps still load.
+/// Carto was removed — their free basemaps now require an API key watermark.
 enum MapboxStyle { streets, dark, outdoors, satellite }
 
 class MapboxTiles {
@@ -21,10 +22,10 @@ class MapboxTiles {
 
   static bool get hasToken => accessToken.isNotEmpty;
 
-  static const String _cartoVoyager =
-      'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
-  static const String _cartoDark =
-      'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
+  /// Free OSM raster tiles (no API key). Keep a proper User-Agent via TileLayer.
+  static const String _osmStreets =
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  /// Unchanged satellite fallback — do not edit.
   static const String _esriSatellite =
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
@@ -40,10 +41,11 @@ class MapboxTiles {
   static String url(MapboxStyle style) {
     if (!hasToken) {
       return switch (style) {
+        // Satellite stays on Esri — never touch this path.
         MapboxStyle.satellite => _esriSatellite,
-        MapboxStyle.dark => _cartoDark,
-        MapboxStyle.outdoors => _cartoVoyager,
-        MapboxStyle.streets => _cartoVoyager,
+        MapboxStyle.dark => _osmStreets,
+        MapboxStyle.outdoors => _osmStreets,
+        MapboxStyle.streets => _osmStreets,
       };
     }
     final path = _stylePath(style);

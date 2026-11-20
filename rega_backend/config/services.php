@@ -40,4 +40,9 @@ return [
       'otp_template' => env('REGA_SMS_OTP_TEMPLATE', 'کۆدی نوێکردنەوەی هەژمار REGA: {otp}'),
   ],
 
+  'fcm' => [
+      'credentials' => env('FIREBASE_CREDENTIALS', storage_path('app/firebase-credentials.json')),
+      'project_id' => env('FCM_PROJECT_ID', ''),
+  ],
+
 ];

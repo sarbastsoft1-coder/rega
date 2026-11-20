@@ -17,10 +17,13 @@ use App\Models\OrderStatusLog;
 use App\Models\PlatformSetting;
 use App\Models\Product;
 use App\Models\Store;
+use App\Models\SupportTicket;
 use App\Models\User;
+use App\Support\PublicMedia;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class PublicAndCustomerController extends Controller
 {
@@ -956,6 +959,81 @@ class PublicAndCustomerController extends Controller
             'message' => 'ئاگادارییەکان وەک خوێندراوە نیشانکران.',
             'updated' => $updated,
         ]);
+    }
+
+    /** Customer uploads an image for داواکاری ڕاستەوخۆ. */
+    public function uploadDirectRequestMedia(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,gif'],
+        ]);
+
+        $path = $request->file('file')->store('uploads/direct-requests', 'public');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'وێنە بە سەرکەوتوویی بارکرا.',
+            'data' => [
+                'path' => $path,
+                'url' => PublicMedia::url($path),
+            ],
+        ], 201);
+    }
+
+    /** Customer submits داواکاری ڕاستەوخۆ (stored as a support ticket). */
+    public function submitDirectRequest(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $validated = $request->validate([
+            'subject' => ['required', 'string', 'max:200'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+            'address' => ['required', 'string', 'max:500'],
+            'phone' => ['required', 'string', 'max:20'],
+            'image_url' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $phone = preg_replace('/\s+/', '', $validated['phone']) ?? '';
+        $imageUrl = null;
+        if (! empty($validated['image_url'])) {
+            $relative = PublicMedia::relativePathFromUrl($validated['image_url']);
+            $imageUrl = $relative
+                ? PublicMedia::url($relative)
+                : (string) $validated['image_url'];
+        }
+
+        $lines = [
+            'ناونیشان: '.$validated['address'],
+            'مۆبایل: '.$phone,
+        ];
+        if (! empty($validated['notes'])) {
+            $lines[] = 'تێبینی: '.$validated['notes'];
+        }
+        if ($imageUrl) {
+            $lines[] = 'وێنە: '.$imageUrl;
+        }
+
+        $ticket = SupportTicket::create([
+            'ticket_number' => 'DR-'.strtoupper(Str::random(6)),
+            'user_id' => $user->id,
+            'subject' => $validated['subject'],
+            'description' => implode("\n", $lines),
+            'category' => 'direct_request',
+            'priority' => 'high',
+            'status' => 'open',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'داواکارییەکەت بە سەرکەوتوویی نێردرا.',
+            'data' => [
+                'id' => $ticket->id,
+                'ticket_number' => $ticket->ticket_number,
+            ],
+        ], 201);
     }
 }
 

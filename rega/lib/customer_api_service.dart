@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'blocked_account.dart';
@@ -469,6 +470,97 @@ class CustomerApiService {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Persist FCM device token so admin/order pushes reach this phone.
+  Future<bool> updateFcmToken(String token) async {
+    await initToken();
+    if (!hasToken || token.trim().isEmpty) return false;
+    try {
+      final res = await http
+          .put(
+            Uri.parse('$baseUrl/auth/profile'),
+            headers: _headers(),
+            body: jsonEncode({'fcm_token': token.trim()}),
+          )
+          .timeout(const Duration(seconds: 8));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Upload image for داواکاری ڕاستەوخۆ.
+  Future<Map<String, dynamic>?> uploadDirectRequestImage({
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    await initToken();
+    if (!hasToken) throw Exception('login_required');
+    final uri = Uri.parse('$baseUrl/customer/direct-requests/upload');
+    final req = http.MultipartRequest('POST', uri);
+    req.headers['Accept'] = 'application/json';
+    req.headers['Authorization'] = 'Bearer $_token';
+    req.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        Uint8List.fromList(bytes),
+        filename: filename.isEmpty ? 'photo.jpg' : filename,
+      ),
+    );
+    final streamed = await req.send().timeout(const Duration(seconds: 45));
+    final res = await http.Response.fromStream(streamed);
+    final body = regaJsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true) {
+      final data = body['data'];
+      Map<String, dynamic>? map;
+      if (data is Map<String, dynamic>) {
+        map = data;
+      } else if (data is Map) {
+        map = Map<String, dynamic>.from(data);
+      }
+      if (map != null) {
+        final rawUrl = map['url']?.toString();
+        final resolved = RegaApiHost.resolveMediaUrl(rawUrl);
+        if (resolved.isNotEmpty) map['url'] = resolved;
+        return map;
+      }
+      return null;
+    }
+    throw Exception(body['message']?.toString() ?? 'upload_failed');
+  }
+
+  /// Submit داواکاری ڕاستەوخۆ form.
+  Future<Map<String, dynamic>> submitDirectRequest({
+    required String subject,
+    required String notes,
+    required String address,
+    required String phone,
+    String? imageUrl,
+  }) async {
+    await initToken();
+    if (!hasToken) throw Exception('login_required');
+    final res = await http
+        .post(
+          Uri.parse('$baseUrl/customer/direct-requests'),
+          headers: _headers(),
+          body: jsonEncode({
+            'subject': subject,
+            'notes': notes,
+            'address': address,
+            'phone': phone,
+            if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final body = regaJsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true) {
+      final data = body['data'];
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return Map<String, dynamic>.from(data);
+      return {};
+    }
+    throw Exception(body['message']?.toString() ?? 'direct_request_failed');
   }
 }
 

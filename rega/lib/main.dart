@@ -30,13 +30,21 @@ import 'state/location_notifier.dart';
 import 'state/navigation_notifier.dart';
 import 'state/orders_notifier.dart';
 import 'state/session_notifier.dart';
+import 'services/push_notifications.dart';
+import 'services/customer_notification_sound.dart';
 
+import 'direct_request_screen.dart';
+import 'onboarding/onboarding_notifier.dart';
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
 export 'models/customer_models.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Native only — lock-screen push + 3s in-app banner.
+  if (!kIsWeb) {
+    await PushNotifications.instance.init();
+  }
   runApp(buildCustomerProviders(child: const RegaApp()));
 }
 
@@ -56,12 +64,17 @@ class RegaApp extends StatefulWidget {
 
 class _RegaAppState extends State<RegaApp> {
   GoRouter? _router;
+  Listenable? _routerRefresh;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _router ??= createCustomerRouter(
-      refreshListenable: context.read<SessionNotifier>(),
+    if (_router != null) return;
+    final session = context.read<SessionNotifier>();
+    final onboarding = context.read<OnboardingNotifier>();
+    _routerRefresh = Listenable.merge([session, onboarding]);
+    _router = createCustomerRouter(
+      refreshListenable: _routerRefresh!,
       loginBuilder: (context) {
         final locale = context.watch<LocaleNotifier>();
         return MainScreen(
@@ -126,7 +139,7 @@ class _RegaAppState extends State<RegaApp> {
       ),
       themeMode: locale.themeMode,
       builder: (context, child) {
-        return RegaResponsive.appBuilder(
+        final wrapped = RegaResponsive.appBuilder(
           context,
           DefaultTextStyle.merge(
             style: const TextStyle(fontFamily: 'NotoKufiArabic'),
@@ -134,6 +147,7 @@ class _RegaAppState extends State<RegaApp> {
           ),
           direction: locale.textDirection,
         );
+        return PushBannerHost(child: wrapped);
       },
     );
   }
@@ -331,13 +345,92 @@ class _MainScreenState extends State<MainScreen> {
     _loadSavedLanguage();
     _syncMarketplaceFromBackend();
     _startAppInitialization();
+    PushNotifications.instance.onNotificationOpened = _onPushOpened;
+    PushNotifications.instance.onForegroundMessage = (_) {
+      unawaited(_syncNotificationsFromBackend());
+    };
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _nameCtrl.text = _userProfile?.name ?? '';
       _phoneCtrl.text = _userProfile?.phone ?? '';
       _applyOpenStoreFromRoute();
-      _maybeShowFirstLoginLocationDialog();
+      unawaited(_runFirstLoginPermissionFlow());
+      unawaited(PushNotifications.instance.syncTokenToBackend());
     });
+  }
+
+  /// After first login/sign-up: notification prompt first, then location.
+  Future<void> _runFirstLoginPermissionFlow() async {
+    await _maybeShowFirstLoginNotificationDialog();
+    if (!mounted) return;
+    await _maybeShowFirstLoginLocationDialog();
+  }
+
+  Future<void> _onPushOpened(PushBannerPayload payload) async {
+    if (!mounted) return;
+    await _syncNotificationsFromBackend();
+    if (!mounted) return;
+    final data = payload.data;
+    final type = data['type']?.toString() ?? 'general';
+    final tag = data['tag']?.toString() ?? '';
+    final orderRef = data['order_ref']?.toString() ??
+        data['order_number']?.toString() ??
+        _extractOrderRefFromText('${payload.title} ${payload.body}');
+    final storeId = data['store_id'] != null ? 'db_store_${data['store_id']}' : null;
+    final catName = data['category_name']?.toString();
+
+    final isOrderNotif = type == 'order' || tag.contains('گەیاندن') || orderRef != null;
+    if (isOrderNotif && orderRef != null) {
+      await _syncCustomerOrdersFromBackend();
+      if (!mounted) return;
+      OrderItem? order;
+      try {
+        order = _orders.firstWhere((o) => o.id.toUpperCase() == orderRef.toUpperCase());
+      } catch (_) {
+        order = null;
+      }
+      if (order != null) {
+        final target = order;
+        _goTab(3);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_isLiveTrackStatus(target.status)) {
+            _showLiveTrackingModal(target);
+          } else {
+            _showReceiptModal(target);
+          }
+        });
+        return;
+      }
+    }
+
+    if (storeId != null && allStores.isNotEmpty) {
+      StoreItem? store;
+      try {
+        store = allStores.firstWhere((s) => s.id == storeId);
+      } catch (_) {
+        store = null;
+      }
+      if (store != null) {
+        setState(() {
+          _selectedStore = store;
+          _selectedSubCategory = null;
+        });
+        _goTab(0);
+        return;
+      }
+    }
+
+    if (catName != null && catName.trim().isNotEmpty) {
+      setState(() => _selectedCategory = catName);
+      _goTab(0);
+      return;
+    }
+
+    // Fallback: open the in-app notifications sheet.
+    if (mounted) {
+      unawaited(_openNotificationsModal());
+    }
   }
 
   @override
@@ -403,25 +496,11 @@ class _MainScreenState extends State<MainScreen> {
     await _checkSecurity();
     if (!_isDeviceSafe) return; // ئەگەر ئامێرەکە پارێزراو نەبوو، لێرە دەوەستێت
 
-    // 3. داواکردنی ڕێگەپێدانی نۆتیکەیشن (Notification)
-    // ئێستا چاوەڕێ دەکات تا ئەمە تەواو دەبێت ئینجا دەچێتە سەر لۆکەیشن
-    await _requestNotificationPermission();
+    // 3. Notification permission is deferred to first login / sign-up
+    //    (native OS dialog — see _maybeShowFirstLoginNotificationDialog).
 
     // 4. داواکردنی ڕێگەپێدانی شوێن (Location)
     await _requestLocationPermission();
-  }
-
-  // 🔔 فەنکشن بۆ داواکردنی ڕێگەپێدانی نۆتیکەیشن
-  Future<void> _requestNotificationPermission() async {
-    if (kIsWeb) return;
-    final status = await Permission.notification.request();
-    if (status.isGranted) {
-      // ڕێگەی پێدراوە
-    } else if (status.isDenied) {
-      // ڕێگەی پێنەدراوە
-    } else if (status.isPermanentlyDenied) {
-      // بە تەواوی ڕێگەی پێنەدراوە، پێویستە لە سێتینگ دەستکاری بکرێت
-    }
   }
 
   // 📍 فەنکشن بۆ داواکردنی ڕێگەپێدانی GPS لە مۆبایل (بە مەرجی ناچاری)
@@ -912,8 +991,8 @@ class _MainScreenState extends State<MainScreen> {
             final nameKu = m['name_ku']?.toString() ?? '';
             final nameAr = m['name_ar']?.toString() ?? '';
             final nameEn = m['name_en']?.toString() ?? '';
-            final imgUrl = m['image_url']?.toString()?.trim();
-            final secUrl = m['secondary_image_url']?.toString()?.trim();
+            final imgUrl = RegaApiHost.resolveMediaUrl(m['image_url']?.toString());
+            final secUrl = RegaApiHost.resolveMediaUrl(m['secondary_image_url']?.toString());
             return {
               'id': m['id'],
               // Display title resolved at render time via _homeCatTitle (locale-aware).
@@ -922,8 +1001,9 @@ class _MainScreenState extends State<MainScreen> {
               'name_ar': nameAr,
               'name_en': nameEn,
               // Empty/missing image is OK — grid uses a local placeholder.
-              'image': (imgUrl != null && imgUrl.isNotEmpty) ? imgUrl : '',
-              'secondaryImage': (secUrl != null && secUrl.isNotEmpty) ? secUrl : '',
+              // Always rewrite /storage and :8001 hosts to same-origin /api/v1/media.
+              'image': imgUrl,
+              'secondaryImage': secUrl,
               'icon': _getCategoryIcon(nameKu),
               // Stable match key for store.category (always Kurdish/source key).
               'catName': nameKu,
@@ -974,7 +1054,12 @@ class _MainScreenState extends State<MainScreen> {
             reviewCount: (sm['review_count'] as num?)?.toInt() ?? 0,
             deliveryTime: sm['delivery_time']?.toString() ?? '20-30 خولەک',
             deliveryFee: (sm['base_delivery_fee'] as num?)?.toInt() ?? 1500,
-            imageUrl: sm['cover_url']?.toString() ?? 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600',
+            imageUrl: () {
+              final cover = RegaApiHost.resolveMediaUrl(sm['cover_url']?.toString());
+              return cover.isNotEmpty
+                  ? cover
+                  : 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600';
+            }(),
             address: sm['address_ku']?.toString() ?? 'کەلار',
             isOpen: sm['is_online'] == true,
             phone: sm['phone']?.toString() ?? '',
@@ -1024,7 +1109,10 @@ class _MainScreenState extends State<MainScreen> {
               name: pName,
               price: (discPrice != null && discPrice > 0 && discPrice < basePrice) ? discPrice : basePrice,
               description: pm['description_ku']?.toString() ?? '',
-              imageUrl: pm['image_url']?.toString() ?? mappedStore.imageUrl,
+              imageUrl: () {
+                final img = RegaApiHost.resolveMediaUrl(pm['image_url']?.toString());
+                return img.isNotEmpty ? img : mappedStore.imageUrl;
+              }(),
               category: catName,
               subCategory: pm['store_category']?['name_ku']?.toString(),
             );
@@ -1116,8 +1204,12 @@ class _MainScreenState extends State<MainScreen> {
           reviewCount: (sm['review_count'] as num?)?.toInt() ?? 0,
           deliveryTime: sm['delivery_time']?.toString() ?? '20-30 خولەک',
           deliveryFee: (sm['base_delivery_fee'] as num?)?.toInt() ?? 1500,
-          imageUrl: sm['cover_url']?.toString() ??
-              'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600',
+          imageUrl: () {
+            final cover = RegaApiHost.resolveMediaUrl(sm['cover_url']?.toString());
+            return cover.isNotEmpty
+                ? cover
+                : 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600';
+          }(),
           address: sm['address_ku']?.toString() ?? 'کەلار',
           isOpen: sm['is_online'] == true,
           phone: sm['phone']?.toString() ?? '',
@@ -1167,26 +1259,121 @@ class _MainScreenState extends State<MainScreen> {
     return 'پێش ${diff.inDays} ڕۆژ';
   }
 
+  String? _extractOrderRefFromText(String text) {
+    final match = RegExp(r'RA-\d+', caseSensitive: false).firstMatch(text);
+    return match?.group(0)?.toUpperCase();
+  }
+
   Map<String, dynamic> _mapApiNotification(Map<String, dynamic> m) {
     final tag = m['tag']?.toString() ?? 'ئاگاداری';
     final type = m['type']?.toString() ?? 'general';
     final store = m['store'] as Map<String, dynamic>?;
     final storeId = store?['id'] ?? m['store_id'];
     final badge = m['discount_badge']?.toString();
+    final titleKu = m['title_ku']?.toString() ?? '';
+    final titleEn = m['title_en']?.toString() ?? '';
+    final bodyKu = m['body_ku']?.toString() ?? '';
+    final orderRef = _extractOrderRefFromText('$titleKu $titleEn $bodyKu');
     return {
       'id': '${m['id']}',
-      'title': m['title_ku']?.toString() ?? '',
-      'desc': m['body_ku']?.toString() ?? '',
+      'title': titleKu,
+      'desc': bodyKu,
       'time': _formatNotifTime(m['created_at']),
       'tag': tag,
       'type': type,
       'storeId': storeId != null ? 'db_store_$storeId' : null,
       'categoryName': m['category_name']?.toString(),
+      'orderRef': orderRef,
       'icon': _notifIconFor(tag, type),
       'color': _notifColorFor(tag, type),
       'discountBadge': (badge != null && badge.isNotEmpty) ? badge : tag,
       'isRead': m['is_read'] == true,
     };
+  }
+
+  Future<void> _handleNotificationTap(Map<String, dynamic> notif, BuildContext modalCtx) async {
+    final type = notif['type']?.toString() ?? '';
+    final tag = notif['tag']?.toString() ?? '';
+    final storeId = notif['storeId'] as String?;
+    final catName = notif['categoryName'] as String?;
+    final orderRef = (notif['orderRef'] as String?) ??
+        _extractOrderRefFromText('${notif['title'] ?? ''} ${notif['desc'] ?? ''}');
+
+    // 1) Order / delivery notifications → open that order
+    final isOrderNotif = type == 'order' || tag.contains('گەیاندن') || orderRef != null;
+    if (isOrderNotif && orderRef != null) {
+      await _syncCustomerOrdersFromBackend();
+      if (!mounted || !modalCtx.mounted) return;
+      OrderItem? order;
+      try {
+        order = _orders.firstWhere((o) => o.id.toUpperCase() == orderRef.toUpperCase());
+      } catch (_) {
+        order = null;
+      }
+      if (order != null) {
+        final target = order;
+        Navigator.pop(modalCtx);
+        _goTab(3);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_isLiveTrackStatus(target.status)) {
+            _showLiveTrackingModal(target);
+          } else {
+            _showReceiptModal(target);
+          }
+        });
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tx('داواکارییەکە نەدۆزرایەوە'))),
+      );
+      return;
+    }
+
+    if (!modalCtx.mounted) return;
+
+    // 2) Linked store
+    StoreItem? store;
+    if (storeId != null && allStores.isNotEmpty) {
+      try {
+        store = allStores.firstWhere((s) => s.id == storeId);
+      } catch (_) {
+        store = null;
+      }
+    }
+    if (store != null) {
+      Navigator.pop(modalCtx);
+      setState(() {
+        _selectedStore = store;
+        _selectedSubCategory = null;
+      });
+      _goTab(0);
+      return;
+    }
+
+    // 3) Linked category
+    if (catName != null && catName.trim().isNotEmpty) {
+      Navigator.pop(modalCtx);
+      setState(() {
+        _selectedCategory = catName;
+        _selectedStore = null;
+      });
+      _goTab(0);
+      return;
+    }
+
+    // 4) Discount / offer with no store → discounts tab
+    if (tag.contains('داشکاندن') || tag.contains('ئۆفەر') || tag.contains('کۆد') || type == 'promo') {
+      Navigator.pop(modalCtx);
+      _goTab(1);
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tx('هیچ لینکێک بۆ ئەم ئاگادارییە نییە'))),
+      );
+    }
   }
 
   Future<void> _syncNotificationsFromBackend() async {
@@ -1197,8 +1384,15 @@ class _MainScreenState extends State<MainScreen> {
           .map((e) => _mapApiNotification(Map<String, dynamic>.from(e)))
           .toList();
       if (!mounted) return;
+      final prevUnread = _unreadNotificationCount;
+      final nextUnread = mapped.where((n) => n['isRead'] != true).length;
       _dynamicNotifications = mapped;
-      _unreadNotificationCount = mapped.where((n) => n['isRead'] != true).length;
+      _unreadNotificationCount = nextUnread;
+      // New inbox items while app is open → play customer chime.
+      if (nextUnread > prevUnread) {
+        unawaited(CustomerNotificationSound.instance.play());
+      }
+      if (mounted) setState(() {});
     } catch (_) {}
   }
 
@@ -1376,7 +1570,8 @@ class _MainScreenState extends State<MainScreen> {
     }
     // Persist profile + logged_in via SessionNotifier (source of truth).
     await context.read<SessionNotifier>().signIn(profile);
-    await _markLocationPromptPendingIfNeeded();
+    await _markFirstLoginPermissionPromptsPending();
+    await PushNotifications.instance.syncTokenToBackend();
     await _syncNotificationsFromBackend();
     _syncCustomerOrdersFromBackend();
     if (mounted) setState(() {});
@@ -1384,6 +1579,21 @@ class _MainScreenState extends State<MainScreen> {
 
   static const _kLocPromptDone = 'rega_location_prompt_done';
   static const _kLocPromptPending = 'rega_location_prompt_pending';
+  static const _kNotifPromptDone = 'rega_notif_prompt_done';
+  static const _kNotifPromptPending = 'rega_notif_prompt_pending';
+
+  /// First successful login/register on this device → show notif + location once.
+  Future<void> _markFirstLoginPermissionPromptsPending() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_kNotifPromptDone) != true) {
+        await prefs.setBool(_kNotifPromptPending, true);
+      }
+      if (prefs.getBool(_kLocPromptDone) != true) {
+        await prefs.setBool(_kLocPromptPending, true);
+      }
+    } catch (_) {}
+  }
 
   /// First successful login/register on this device → show location allow dialog once.
   Future<void> _markLocationPromptPendingIfNeeded() async {
@@ -1392,6 +1602,102 @@ class _MainScreenState extends State<MainScreen> {
       if (prefs.getBool(_kLocPromptDone) == true) return;
       await prefs.setBool(_kLocPromptPending, true);
     } catch (_) {}
+  }
+
+  Future<void> _maybeShowFirstLoginNotificationDialog() async {
+    if (!mounted || widget.forceAuthOnly || kIsWeb) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_kNotifPromptPending) != true) return;
+      await prefs.setBool(_kNotifPromptPending, false);
+      await prefs.setBool(_kNotifPromptDone, true);
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+    await _showAllowNotificationsDialog();
+  }
+
+  /// Pre-prompt (localized) → then native OS notification dialog (سماح / عدم السماح).
+  Future<void> _showAllowNotificationsDialog() async {
+    if (!mounted) return;
+    final allow = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Material(
+              color: RC.bg(Colors.white),
+              borderRadius: BorderRadius.circular(28),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.notifications_active_rounded,
+                      size: 48,
+                      color: RC.fg(const Color(0xFF007AFF)),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      tx('ئایا دەتەوێت ڕێگە بدەیت بە ئەپی REGA کە ئاگاداریت بۆ بنێرێت؟'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        height: 1.45,
+                        color: RC.fg(Colors.black87),
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    const Divider(height: 1),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 52),
+                        foregroundColor: RC.fg(const Color(0xFF007AFF)),
+                      ),
+                      child: Text(
+                        tx('ڕێگەبدە'),
+                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 52),
+                        foregroundColor: RC.fg(const Color(0xFF007AFF)),
+                      ),
+                      child: Text(
+                        tx('ڕێگە مەدە'),
+                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (allow == true) {
+      // Triggers the native iOS/Android system dialog (سماح / عدم السماح).
+      if (!kIsWeb) {
+        try {
+          await Permission.notification.request();
+        } catch (_) {}
+      }
+      await PushNotifications.instance.requestPermissionAndSync();
+    }
   }
 
   Future<void> _maybeShowFirstLoginLocationDialog() async {
@@ -2106,21 +2412,17 @@ class _MainScreenState extends State<MainScreen> {
           final subtotal = _cart.fold<int>(0, (sum, i) => sum + (i.product.price * i.quantity));
           final grandTotal = subtotal + _deliveryFeeOrZero;
 
-          return Align(
-            alignment: Alignment.bottomCenter,
+          // Content-sized sheet — avoid full-screen white blank above the form.
+          return Padding(
+            padding: EdgeInsets.only(
+              left: RegaResponsive.pagePadding(context),
+              right: RegaResponsive.pagePadding(context),
+              top: 12,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            ),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: RegaResponsive.dialogMaxWidth(context)),
-              child: SafeArea(
-                top: false,
-                bottom: true,
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    top: 24,
-                    left: RegaResponsive.pagePadding(context),
-                    right: RegaResponsive.pagePadding(context),
-                    bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-                  ),
-                  child: SingleChildScrollView(
+              child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2129,22 +2431,52 @@ class _MainScreenState extends State<MainScreen> {
                       child: Container(
                         width: 40,
                         height: 5,
-                        decoration: BoxDecoration(color: RC.bg(Colors.grey.shade300), borderRadius: BorderRadius.circular(10)),
+                        decoration: BoxDecoration(
+                          color: RC.bg(Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     Text(
                       _t('تەواوکردن و ناردنی داواکاری'),
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 16),
-
+                    if (_deliveryDisplayLabel.trim().isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: RC.bg(const Color(0xFFF0FDF4)),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: RC.bg(const Color(0xFFBBF7D0))),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.location_on_rounded, size: 18, color: RC.fg(const Color(0xFF15803D))),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                tx(_deliveryDisplayLabel),
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: RC.fg(Colors.black87),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: RC.fg(Color(0xFF15803D)),
-                          side: BorderSide(color: RC.bg(Color(0xFF86EFAC))),
+                          foregroundColor: RC.fg(const Color(0xFF15803D)),
+                          side: BorderSide(color: RC.bg(const Color(0xFF86EFAC))),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
@@ -2154,12 +2486,11 @@ class _MainScreenState extends State<MainScreen> {
                         },
                         child: Text(
                           tx('دیاری کردنی شوێن'),
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
-
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -2170,19 +2501,30 @@ class _MainScreenState extends State<MainScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(child: Text(_t('کۆی گشتی داواکاری:'), style: const TextStyle(fontWeight: FontWeight.bold))),
+                          Expanded(
+                            child: Text(
+                              _t('کۆی گشتی داواکاری:'),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
                           const SizedBox(width: 8),
-                          Text(tx('${_formatNum(grandTotal)} د.ع'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: RC.fg(Color(0xFFB45309)))),
+                          Text(
+                            tx('${_formatNum(grandTotal)} د.ع'),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: RC.fg(const Color(0xFFB45309)),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: RC.bg(Color(0xFFFAC800)),
+                          backgroundColor: RC.bg(const Color(0xFFFAC800)),
                           foregroundColor: RC.fg(Colors.black),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -2196,26 +2538,26 @@ class _MainScreenState extends State<MainScreen> {
                             cartItems: List.from(_cart),
                           );
                         },
-                        child: Text(_t('پشتڕاستکردنەوە و ناردنی داواکاری'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                        child: Text(
+                          _t('پشتڕاستکردنەوە و ناردنی داواکاری'),
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                        ),
                       ),
                     ),
-                    // Safe spacing to guarantee button never sits under phone navigation buttons
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
             ),
-          ),
-        ),
-      );
-    },
-  ),
-);
+          );
+        },
+      ),
+    );
   }
 
   /// Pick delivery place: current GPS anywhere in Iraq, OR tap a future place
   /// (e.g. a park) so the driver goes there even if the user is not there yet.
-  void _showLocationPicker() {
+  Future<void> _showLocationPicker() async {
     final hasSavedPin = _pinnedCustomerLat != null && _pinnedCustomerLng != null;
     LatLng draftPin = hasSavedPin
         ? LatLng(_pinnedCustomerLat!, _pinnedCustomerLng!)
@@ -2243,7 +2585,7 @@ class _MainScreenState extends State<MainScreen> {
       return '';
     }
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -2934,7 +3276,10 @@ class _MainScreenState extends State<MainScreen> {
             final filteredNotifs = notificationsList.where((n) {
               final tag = n['tag']?.toString() ?? '';
               if (filterTag == 'داشکاندن') {
-                return tag.contains('داشکاندن') || tag.contains('کۆد') || tag.contains('ئۆفەر');
+                return tag.contains('داشکاندن') ||
+                    tag.contains('کۆد') ||
+                    tag.contains('ئۆفەر') ||
+                    tag.contains('پرۆمۆشن');
               }
               if (filterTag == 'خواردنگە') return n['type'] == 'store' || n['type'] == 'category';
               return true;
@@ -3042,17 +3387,6 @@ class _MainScreenState extends State<MainScreen> {
                         final notif = filteredNotifs[index];
                         final IconData icon = notif['icon'] as IconData;
                         final Color iconColor = notif['color'] as Color;
-                        final String? storeId = notif['storeId'] as String?;
-                        final String? catName = notif['categoryName'] as String?;
-
-                        StoreItem? store;
-                        if (storeId != null && allStores.isNotEmpty) {
-                          try {
-                            store = allStores.firstWhere((s) => s.id == storeId);
-                          } catch (_) {
-                            store = null;
-                          }
-                        }
 
                         // بۆکسی لیستی پانی بۆ هەر ئاگادارییەک بە شێوازی پانی تەواو لەسەر یەک
                         return Container(
@@ -3073,20 +3407,7 @@ class _MainScreenState extends State<MainScreen> {
                             color: Colors.transparent,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(16),
-                              onTap: () {
-                                if (store != null) {
-                                  Navigator.pop(context);
-                                  setState(() => _selectedStore = store);
-                                  _goTab(0);
-                                } else if (catName != null) {
-                                  Navigator.pop(context);
-                                  setState(() {
-                                    _selectedCategory = catName;
-                                    _selectedStore = null;
-                                  });
-                                  _goTab(0);
-                                }
-                              },
+                              onTap: () => _handleNotificationTap(notif, context),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                 child: Row(
@@ -3623,6 +3944,104 @@ class _MainScreenState extends State<MainScreen> {
   // ============================================================================
   // 💛 HEADER COMPONENT (EXACT SCREENSHOT DESIGN)
   // ============================================================================
+  /// Row under yellow header: yellow GPS target (left) + داواکاری ڕاستەوخۆ pill (right).
+  Widget _buildHomeDirectRequestBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+      child: Row(
+        textDirection: TextDirection.ltr,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Yellow circular location / GPS target (white ring like screenshot)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _showLocationPicker,
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: RC.bg(Colors.white),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: RC.bg(Colors.black).withOpacity(0.10),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(3),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: RC.bg(const Color(0xFFFAC800)),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.gps_fixed_rounded,
+                    size: 20,
+                    color: RC.fg(Colors.black),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // داواکاری ڕاستەوخۆ pill
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _openDirectRequestScreen,
+              borderRadius: BorderRadius.circular(22),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+                decoration: BoxDecoration(
+                  color: RC.bg(Colors.white),
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: RC.bg(Colors.black).withOpacity(0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  tx('داواکاری ڕاستەوخۆ'),
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: RC.fg(const Color(0xFF1E293B)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openDirectRequestScreen() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DirectRequestScreen(
+          initialPhone: _userProfile?.phone ?? '',
+          initialAddress: _deliveryDisplayLabel == _t('شوێنی گەیاندن هەڵبژێرە')
+              ? ''
+              : _deliveryDisplayLabel,
+          onPickAddress: () async {
+            await _showLocationPicker();
+            final label = _deliveryDisplayLabel;
+            if (label == _t('شوێنی گەیاندن هەڵبژێرە')) return null;
+            return label;
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeader() {
     final double topPadding = MediaQuery.of(context).padding.top;
     const double toolbarHeight = 80.0; // تەواوی بەرزی ناڤباڕەکە (toolbarHeight: 80)
@@ -3828,8 +4247,8 @@ class _MainScreenState extends State<MainScreen> {
     return ListView(
       padding: const EdgeInsets.only(bottom: 20),
       children: [
-        // Gap under yellow header before reklaming banner
-        const SizedBox(height: 16),
+        // Location + داواکاری ڕاستەوخۆ — directly under yellow header
+        _buildHomeDirectRequestBar(),
         // Dynamic promo / reklaming banners (admin-uploaded images)
         if (_dynamicBanners.isEmpty)
           const SizedBox.shrink()
@@ -3955,6 +4374,13 @@ class _MainScreenState extends State<MainScreen> {
 }
 
   Widget _buildVerticalGridStoreCard(StoreItem store) {
+    final rawBadge = store.discountBadge?.trim() ?? '';
+    final hasDiscount = rawBadge.isNotEmpty;
+    final pctMatch = RegExp(r'(\d+)\s*%|%\s*(\d+)').firstMatch(rawBadge);
+    final pctText = pctMatch != null
+        ? '%${pctMatch.group(1) ?? pctMatch.group(2)}'
+        : rawBadge.replaceFirst(RegExp(r'^OFF\s*', caseSensitive: false), '').trim();
+
     return InkWell(
       onTap: () {
         setState(() {
@@ -3962,9 +4388,9 @@ class _MainScreenState extends State<MainScreen> {
           _selectedSubCategory = null;
         });
       },
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -3972,85 +4398,54 @@ class _MainScreenState extends State<MainScreen> {
             Image.network(
               store.imageUrl,
               fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                color: RC.bg(Colors.grey.shade200),
+                alignment: Alignment.center,
+                child: Icon(Icons.storefront_rounded, color: RC.fg(Colors.grey), size: 36),
+              ),
             ),
-            // Gradient Overlay
-            Positioned.fill(
-              child: Container(
+            // Soft bottom fade so yellow bar stays readable
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 72,
+              child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [RC.bg(Colors.black).withOpacity(0.35), Colors.transparent],
+                    colors: [
+                      RC.bg(Colors.black).withOpacity(0.45),
+                      Colors.transparent,
+                    ],
                     begin: Alignment.bottomCenter,
-                    end: Alignment.center,
+                    end: Alignment.topCenter,
                   ),
                 ),
               ),
             ),
-            // Top Status Badge — کراوە / داخراوە لە دۆخی ئەپی فرۆشیار
+            // Top-right status pill (کراوە / داخراوە)
             Positioned(
               top: 10,
               right: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: store.isOpen ? RC.bg(Color(0xFF10B981)) : RC.bg(Color(0xFF64748B)),
-                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-                  boxShadow: [
-                    BoxShadow(color: RC.bg(Colors.black).withOpacity(0.1), blurRadius: 4),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircleAvatar(
-                      radius: 3.5,
-                      backgroundColor: store.isOpen ? RC.bg(Colors.white) : RC.bg(Color(0xFFCBD5E1)),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      _t(store.isOpen ? 'کراوە' : 'داخراوە'),
-                      style: TextStyle(
-                        color: RC.fg(Colors.white),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: _buildStoreOpenBadge(store.isOpen),
             ),
-            // باجی داشکاندن — تەنها کاتێک فرۆشیار داشکاندنی دانابێت
-            if (store.discountBadge != null && store.discountBadge!.trim().isNotEmpty)
+            // Top-left diagonal discount ribbon (داشکاندن %)
+            if (hasDiscount)
               Positioned(
-                top: 10,
-                left: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: RC.bg(Color(0xFFE11D48)),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(color: RC.bg(Colors.black).withOpacity(0.25), blurRadius: 4),
-                    ],
-                  ),
-                  child: Text(
-                    tx(store.discountBadge!.trim()),
-                    style: TextStyle(
-                      color: RC.fg(Colors.white),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
+                top: 0,
+                left: 0,
+                child: _buildDiscountCornerRibbon(pctText, size: 86),
               ),
-            // Bottom Store Name Tag (Yellow Tag - Flush with edges)
+            // Bottom-right yellow name tag (same style as category cards)
             Positioned(
               bottom: 0,
               right: 0,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                constraints: const BoxConstraints(maxWidth: 160),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: RC.bg(Color(0xFFFAC800)),
-                  borderRadius: BorderRadius.only(
+                  color: RC.bg(const Color(0xFFFAC800)),
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(16),
                   ),
                 ),
@@ -4058,8 +4453,9 @@ class _MainScreenState extends State<MainScreen> {
                   tx(store.name),
                   style: TextStyle(
                     color: RC.fg(Colors.black),
-                    fontSize: 10.5,
+                    fontSize: 11,
                     fontWeight: FontWeight.w900,
+                    height: 1.15,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -4464,112 +4860,10 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: store.isOpen ? RC.bg(Color(0xFF10B981)) : RC.bg(Color(0xFF64748B)),
-                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircleAvatar(
-                        radius: 3.5,
-                        backgroundColor: store.isOpen ? RC.bg(Colors.white) : RC.bg(Color(0xFFCBD5E1)),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        tx(store.isOpen ? 'کراوە' : 'داخراوە'),
-                        style: TextStyle(color: RC.fg(Colors.white), fontSize: 10, fontWeight: FontWeight.w900),
-                      ),
-                    ],
-                  ),
-                ),
+                _buildStoreOpenBadge(store.isOpen),
               ],
             ),
           ),
-
-          // 2b. Menu category chip bar (ڕووکاری فرۆشگا) — sec image used when present
-          if (subCategories.where((c) => c['isDiscount'] != true).isNotEmpty)
-            Container(
-              width: double.infinity,
-              color: RC.bg(Colors.white),
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: EdgeInsets.only(right: 4, bottom: 8),
-                    child: Text(
-                      tx('ڕووکارى فرۆشگا'),
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: RC.fg(Color(0xFF0F172A))),
-                    ),
-                  ),
-                  SizedBox(
-                    height: 40,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      reverse: true,
-                      itemCount: subCategories.where((c) => c['isDiscount'] != true).length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (context, idx) {
-                        final chips = subCategories.where((c) => c['isDiscount'] != true).toList();
-                        final cat = chips[idx];
-                        final title = cat['title'] as String;
-                        final label = (cat['displayTitle'] as String?) ?? title;
-                        final selected = _selectedSubCategory == title;
-                        final sec = (cat['secondaryImage'] as String?)?.trim() ?? '';
-                        final chipIcon = sec.isNotEmpty
-                            ? sec
-                            : ((cat['image'] as String?)?.trim() ?? '');
-                        return InkWell(
-                          onTap: () => setState(() => _selectedSubCategory = title),
-                          borderRadius: BorderRadius.circular(22),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: selected ? RC.bg(Color(0xFFFFF7ED)) : RC.bg(Color(0xFFF8FAFC)),
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(
-                                color: selected ? RC.bg(Color(0xFFF97316)) : RC.bg(Color(0xFFE2E8F0)),
-                                width: selected ? 1.6 : 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (chipIcon.isNotEmpty) ...[
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Image.network(
-                                      chipIcon,
-                                      width: 22,
-                                      height: 22,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
-                                Text(
-                                  tx(label),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: selected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFF334155)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
           // 3. Body Content
           Expanded(
@@ -4644,22 +4938,23 @@ class _MainScreenState extends State<MainScreen> {
                                           ),
                                         ),
                                       ),
-                                      // Top Left Badge ("2 بەرهەم" / "2 ئۆفەر")
-                                      Positioned(
-                                        top: 8,
-                                        left: 8,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: isDiscount ? RC.bg(Color(0xFFE11D48)) : RC.bg(Colors.black).withOpacity(0.55),
-                                            borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-                                          ),
-                                          child: Text(
-                                            tx(cat['badge'] as String),
-                                            style: TextStyle(color: RC.fg(Colors.white), fontSize: 10, fontWeight: FontWeight.bold),
+                                      // Top-left badge only for discounts (ئۆفەری تایبەت) — hide "N بەرهەم"
+                                      if (isDiscount)
+                                        Positioned(
+                                          top: 8,
+                                          left: 8,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: RC.bg(Color(0xFFE11D48)),
+                                              borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+                                            ),
+                                            child: Text(
+                                              tx(cat['badge'] as String),
+                                              style: TextStyle(color: RC.fg(Colors.white), fontSize: 10, fontWeight: FontWeight.bold),
+                                            ),
                                           ),
                                         ),
-                                      ),
                                       // Bottom Right Tag ("کەباب و برژاوەکان <")
                                       Positioned(
                                         bottom: 0,
@@ -4832,23 +5127,9 @@ class _MainScreenState extends State<MainScreen> {
                                                   ),
                                                   if (isDiscountItem)
                                                     Positioned(
-                                                      top: 8,
-                                                      right: 8,
-                                                      child: Container(
-                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                                        decoration: BoxDecoration(
-                                                          color: RC.bg(Color(0xFFE11D48)),
-                                                          borderRadius: BorderRadius.circular(12),
-                                                        ),
-                                                        child: Text(
-                                                          tx('%17'),
-                                                          style: TextStyle(
-                                                            color: RC.fg(Colors.white),
-                                                            fontSize: 10,
-                                                            fontWeight: FontWeight.bold,
-                                                          ),
-                                                        ),
-                                                      ),
+                                                      top: 0,
+                                                      left: 0,
+                                                      child: _buildDiscountCornerRibbon('%17', size: 72),
                                                     ),
                                                 ],
                                               ),
@@ -4966,17 +5247,12 @@ class _MainScreenState extends State<MainScreen> {
                 Icon(Icons.local_offer_rounded, color: RC.fg(Color(0xFFE11D48)), size: 22),
                 const SizedBox(width: 8),
                 Text(
-                  tx('${_t('شوێنەکانی خاوەن داشکاندن')} (${discountStores.length})'),
+                  tx('${_t('ئۆفەرەکان')} (${discountStores.length})'),
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: RC.fg(Colors.black)),
                 ),
               ],
             ),
           ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          _t('تەنها ئەو دوکان و چێشتخانانەی داشکاندن یان ئۆفەری تایبەتیان ڕاگەیاندووە'),
-          style: TextStyle(fontSize: 11.5, color: RC.fg(Colors.grey.shade600)),
         ),
         const SizedBox(height: 12),
         GridView.builder(
@@ -5211,178 +5487,178 @@ class _MainScreenState extends State<MainScreen> {
             final entry = _cart[idx];
             final itemTotal = entry.product.price * entry.quantity;
 
+            Widget yellowQtyBtn({required IconData icon, required VoidCallback onTap}) {
+              return InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: RC.bg(const Color(0xFFFAC800)),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 16, color: RC.fg(Colors.black)),
+                ),
+              );
+            }
+
+            Widget moneyLine({
+              required int amount,
+              required Color amountColor,
+              required double amountSize,
+            }) {
+              return Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: _formatNum(amount),
+                      style: TextStyle(
+                        color: amountColor,
+                        fontSize: amountSize,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' ${_t('دینار')}',
+                      style: TextStyle(
+                        color: RC.fg(Colors.grey.shade500),
+                        fontSize: amountSize * 0.72,
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              );
+            }
+
             return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
               decoration: BoxDecoration(
                 color: RC.bg(Colors.white),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: RC.bg(Colors.grey.shade200)),
+                borderRadius: BorderRadius.circular(18),
                 boxShadow: [
                   BoxShadow(
-                    color: RC.bg(Colors.black).withOpacity(0.03),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: RC.bg(Colors.black).withOpacity(0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Product Image (Right side in RTL)
+                  // Right (RTL start): product image
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                     child: Image.network(
                       entry.product.imageUrl,
-                      width: 56,
-                      height: 56,
+                      width: 72,
+                      height: 72,
                       fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 72,
+                        height: 72,
+                        color: RC.bg(Colors.grey.shade200),
+                        child: Icon(Icons.fastfood, color: RC.fg(Colors.grey)),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
 
-                  // Title + Math Price Subtitle (Middle - ناوی بەرهەم بە یەک دێڕ بە تەواوی بەبێ فەوتان)
+                  // Middle: title + unit price + qty
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        SizedBox(
-                          width: double.infinity,
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: AlignmentDirectional.centerStart,
-                            child: Text(
-                              tx(entry.product.name),
-                              maxLines: 1,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13.5,
-                                color: RC.fg(Colors.black),
-                              ),
-                            ),
+                        Text(
+                          tx(entry.product.name),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                            color: RC.fg(const Color(0xFF0F172A)),
+                            height: 1.25,
                           ),
                         ),
                         const SizedBox(height: 4),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: AlignmentDirectional.centerStart,
-                            child: Text(
-                              tx('${_formatNum(entry.product.price)} ${_t('د.ع')} × ${entry.quantity} = ${_formatNum(itemTotal)} ${_t('د.ع')}'),
-                              maxLines: 1,
-                              style: TextStyle(
-                                color: RC.fg(Color(0xFFD97706)),
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                        moneyLine(
+                          amount: entry.product.price,
+                          amountColor: RC.fg(const Color(0xFFE11D48)),
+                          amountSize: 13,
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: RC.bg(Colors.white),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: RC.bg(Colors.grey.shade300)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              yellowQtyBtn(
+                                icon: Icons.add,
+                                onTap: () => setState(() => entry.quantity++),
                               ),
-                            ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                child: Text(
+                                  tx('${entry.quantity}'),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 14,
+                                    color: RC.fg(Colors.black),
+                                  ),
+                                ),
+                              ),
+                              yellowQtyBtn(
+                                icon: Icons.remove,
+                                onTap: () {
+                                  setState(() {
+                                    if (entry.quantity > 1) {
+                                      entry.quantity--;
+                                    } else {
+                                      _cart.removeAt(idx);
+                                    }
+                                  });
+                                },
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
 
-                  // Actions: Quantity Control Box (+ 1 -) & Active Trash/Delete Button (ئایکۆنی سڕینەوە لە ئەودیو)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  // Left (RTL end): delete + line total
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Quantity Control Box (+ 1 -)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: RC.bg(Color(0xFFF3F4F6)),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: RC.bg(Colors.grey.shade300)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // + Button
-                            InkWell(
-                              onTap: () => setState(() => entry.quantity++),
-                              borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                width: 24,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  color: RC.bg(Colors.white),
-                                  borderRadius: BorderRadius.circular(8),
-                                  boxShadow: [
-                                    BoxShadow(color: RC.bg(Colors.black12), blurRadius: 2),
-                                  ],
-                                ),
-                                child: Icon(Icons.add, size: 14, color: RC.fg(Colors.black)),
-                              ),
-                            ),
-
-                            // Quantity Number
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 5),
-                              child: Text(
-                                tx('${entry.quantity}'),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: RC.fg(Colors.black),
-                                ),
-                              ),
-                            ),
-
-                            // - Button
-                            InkWell(
-                              onTap: () {
-                                setState(() {
-                                  if (entry.quantity > 1) {
-                                    entry.quantity--;
-                                  } else {
-                                    _cart.removeAt(idx);
-                                  }
-                                });
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                width: 24,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  color: RC.bg(Colors.white),
-                                  borderRadius: BorderRadius.circular(8),
-                                  boxShadow: [
-                                    BoxShadow(color: RC.bg(Colors.black12), blurRadius: 2),
-                                  ],
-                                ),
-                                child: Icon(Icons.remove, size: 14, color: RC.fg(Colors.black)),
-                              ),
-                            ),
-                          ],
+                      InkWell(
+                        onTap: () => setState(() => _cart.removeAt(idx)),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
+                          child: Icon(
+                            Icons.delete_outline_rounded,
+                            size: 22,
+                            color: RC.fg(const Color(0xFFE11D48)),
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 5),
-
-                      // Active Trash Bin Button (ئایکۆنی تەنەکە خۆڵ لە ئەودیوی زیادکردن و کەمکردن)
-                      InkWell(
-                        onTap: () {
-                          setState(() {
-                            _cart.removeAt(idx);
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(9),
-                        child: Container(
-                          width: 29,
-                          height: 29,
-                          decoration: BoxDecoration(
-                            color: RC.bg(Color(0xFFFFF1F2)),
-                            borderRadius: BorderRadius.circular(9),
-                            border: Border.all(color: RC.bg(Color(0xFFFECDD3))),
-                          ),
-                          child: Center(
-                            child: Icon(
-                              Icons.delete_outline_rounded,
-                              size: 17,
-                              color: RC.fg(Color(0xFFE11D48)),
-                            ),
-                          ),
-                        ),
+                      const SizedBox(height: 28),
+                      moneyLine(
+                        amount: itemTotal,
+                        amountColor: RC.fg(const Color(0xFF0F172A)),
+                        amountSize: 15,
                       ),
                     ],
                   ),
@@ -6844,7 +7120,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      _t('تیمی پشتگیری لە کاتژمێر ٠٩:٠٠ بەیانی تا ٠١:٠٠ شەو لە خزمەتتان دایە.'),
+                      _t('تیمی پشتگیری ٢٤ کاتژمێر لە خزمەتاندایە'),
                       style: TextStyle(fontSize: 13, color: RC.fg(Colors.grey.shade600), height: 1.5),
                       textAlign: TextAlign.center,
                     ),
@@ -7509,6 +7785,26 @@ class _MainScreenState extends State<MainScreen> {
     'سەرەکی': {'کوردی': 'سەرەکی', 'العربية': 'الرئيسية', 'English': 'Home'},
     'کۆگاکان': {'کوردی': 'کۆگاکان', 'العربية': 'المتاجر', 'English': 'Stores'},
     'داواکاری': {'کوردی': 'داواکاری', 'العربية': 'الطلبات', 'English': 'Orders'},
+    'داواکاری ڕاستەوخۆ': {
+      'کوردی': 'داواکاری ڕاستەوخۆ',
+      'العربية': 'طلب مباشر',
+      'English': 'Direct Request',
+    },
+    'ئایا دەتەوێت ڕێگە بدەیت بە ئەپی REGA کە ئاگاداریت بۆ بنێرێت؟': {
+      'کوردی': 'ئایا دەتەوێت ڕێگە بدەیت بە ئەپی REGA کە ئاگاداریت بۆ بنێرێت؟',
+      'العربية': 'هل تريد السماح لتطبيق REGA بإرسال إشعارات إليك؟',
+      'English': 'Allow REGA to send you notifications?',
+    },
+    'ڕێگە بدە': {'کوردی': 'ڕێگە بدە', 'العربية': 'سماح', 'English': 'Allow'},
+    'ڕێگە مەدە': {'کوردی': 'ڕێگە مەدە', 'العربية': 'عدم السماح', 'English': 'Don\'t Allow'},
+    'ناوی بابەت': {'کوردی': 'ناوی بابەت', 'العربية': 'اسم الموضوع', 'English': 'Subject name'},
+    'تێبینی بابەت': {'کوردی': 'تێبینی بابەت', 'العربية': 'ملاحظات الموضوع', 'English': 'Subject notes'},
+    'ناونیشانی داواکاری': {'کوردی': 'ناونیشانی داواکاری', 'العربية': 'عنوان الطلب', 'English': 'Request address'},
+    'ژمارەی مۆبایل': {'کوردی': 'ژمارەی مۆبایل', 'العربية': 'رقم الموبايل', 'English': 'Mobile number'},
+    'وێنەی بابەت': {'کوردی': 'وێنەی بابەت', 'العربية': 'صورة الموضوع', 'English': 'Subject image'},
+    'کامێرا': {'کوردی': 'کامێرا', 'العربية': 'كاميرا', 'English': 'Camera'},
+    'گەلەری': {'کوردی': 'گەلەری', 'العربية': 'المعرض', 'English': 'Gallery'},
+    'ناردنی داواکاری': {'کوردی': 'ناردنی داواکاری', 'العربية': 'إرسال الطلب', 'English': 'Send request'},
     'کارت': {'کوردی': 'کارت', 'العربية': 'السلة', 'English': 'Cart'},
     'سەبەتە': {'کوردی': 'سەبەتە', 'العربية': 'السلة', 'English': 'Cart'},
     'داشکاندن': {'کوردی': 'داشکاندن', 'العربية': 'التخفيضات', 'English': 'Discounts'},
@@ -7547,10 +7843,10 @@ class _MainScreenState extends State<MainScreen> {
       'العربية': 'رقم الهاتف مطلوب',
       'English': 'Phone number is required',
     },
-    'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0750 000 0000': {
-      'کوردی': 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0750 000 0000',
-      'العربية': 'رقم الجوال غير صالح — الصيغة العراقية: 0750 000 0000',
-      'English': 'Invalid mobile — Iraqi format: 0750 000 0000',
+    'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0770 000 0000': {
+      'کوردی': 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0770 000 0000',
+      'العربية': 'رقم الجوال غير صالح — الصيغة العراقية: 0770 000 0000',
+      'English': 'Invalid mobile — Iraqi format: 0770 000 0000',
     },
     'ناوی تەواو پێویستە': {
       'کوردی': 'ناوی تەواو پێویستە',
@@ -7688,10 +7984,20 @@ class _MainScreenState extends State<MainScreen> {
       'العربية': 'الدعم المباشر لـ REGA في كلار',
       'English': 'REGA Direct Support in Kalar'
     },
-    'تیمی پشتگیری لە کاتژمێر ٠٩:٠٠ بەیانی تا ٠١:٠٠ شەو لە خزمەتتان دایە.': {
-      'کوردی': 'تیمی پشتگیری لە کاتژمێر ٠٩:٠٠ بەیانی تا ٠١:٠٠ شەو لە خزمەتتان دایە.',
-      'العربية': 'فريق الدعم متاح من ٩:٠٠ صباحاً حتى ١:٠٠ بعد منتصف الليل.',
-      'English': 'Support team is available from 09:00 AM to 01:00 AM.'
+    'تیمی پشتگیری ٢٤ کاتژمێر لە خزمەتاندایە': {
+      'کوردی': 'تیمی پشتگیری ٢٤ کاتژمێر لە خزمەتاندایە',
+      'العربية': 'فريق الدعم في خدمتكم على مدار ٢٤ ساعة',
+      'English': 'The support team is at your service 24 hours'
+    },
+    'داواکارییەکە نەدۆزرایەوە': {
+      'کوردی': 'داواکارییەکە نەدۆزرایەوە',
+      'العربية': 'لم يتم العثور على الطلب',
+      'English': 'Order not found'
+    },
+    'هیچ لینکێک بۆ ئەم ئاگادارییە نییە': {
+      'کوردی': 'هیچ لینکێک بۆ ئەم ئاگادارییە نییە',
+      'العربية': 'لا يوجد رابط لهذا الإشعار',
+      'English': 'No link for this notification'
     },
     'پەیوەندی لە ڕێگەی واتسئاپ': {
       'کوردی': 'پەیوەندی لە ڕێگەی واتسئاپ',
@@ -7716,7 +8022,8 @@ class _MainScreenState extends State<MainScreen> {
     'هیچ دوکانێک لە بەشی': {'کوردی': 'هیچ دوکانێک لە بەشی', 'العربية': 'لا توجد متاجر في قسم', 'English': 'No stores in'},
     'نەدۆزرایەوە': {'کوردی': 'نەدۆزرایەوە', 'العربية': 'لم يتم العثور عليها', 'English': 'found'},
     'گەڕانەوە بۆ سەرجەم بەشەکان': {'کوردی': 'گەڕانەوە بۆ سەرجەم بەشەکان', 'العربية': 'العودة لجميع الأقسام', 'English': 'Back to all categories'},
-    'شوێنەکانی خاوەن داشکاندن': {'کوردی': 'شوێنەکانی خاوەن داشکاندن', 'العربية': 'الأماکن ذات التخفیضات', 'English': 'Discount Stores'},
+    'شوێنەکانی خاوەن داشکاندن': {'کوردی': 'ئۆفەرەکان', 'العربية': 'العروض', 'English': 'Offers'},
+    'ئۆفەرەکان': {'کوردی': 'ئۆفەرەکان', 'العربية': 'العروض', 'English': 'Offers'},
     'تەنها ئەو دوکان و چێشتخانانەی داشکاندن یان ئۆفەری تایبەتیان ڕاگەیاندووە': {'کوردی': 'تەنها ئەو دوکان و چێشتخانانەی داشکاندن یان ئۆفەری تایبەتیان ڕاگەیاندووە', 'العربية': 'فقط المتاجر والمطاعم التي أعلنت عن تخفیضات أو عروض خاصة', 'English': 'Only stores and restaurants with active discounts or special offers'},
     'سەبەتەکەت بەتاڵە!': {'کوردی': 'سەبەتەکەت بەتاڵە!', 'العربية': 'سلتك فارغة!', 'English': 'Your cart is empty!'},
     'هیچ کاڵایەکت هەڵنەبژاردووە بۆ کڕین': {'کوردی': 'هیچ کاڵایەکت هەڵنەبژاردووە بۆ کڕین', 'العربية': 'لم تختر أي منتجات للشراء', 'English': 'You haven\'t selected any items to buy'},
@@ -8081,10 +8388,10 @@ class _MainScreenState extends State<MainScreen> {
                         );
                         if (widget.forceAuthOnly) {
                           context.go('/home');
-                          // Home MainScreen will show the first-login location dialog.
+                          // Home MainScreen will show notif + location first-login dialogs.
                         } else {
                           WidgetsBinding.instance.addPostFrameCallback((_) {
-                            _maybeShowFirstLoginLocationDialog();
+                            unawaited(_runFirstLoginPermissionFlow());
                           });
                         }
                       } on AccountBlockedException catch (e) {
@@ -8120,7 +8427,7 @@ class _MainScreenState extends State<MainScreen> {
                         } else if (err.contains('phone_required')) {
                           msgKey = 'ژمارەی تەلەفۆن پێویستە';
                         } else if (err.contains('phone_invalid')) {
-                          msgKey = 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0750 000 0000';
+                          msgKey = 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0770 000 0000';
                         } else if (err.contains('name_required')) {
                           msgKey = 'ناوی تەواو پێویستە';
                         } else if (err.contains('phone_taken')) {
@@ -8262,7 +8569,7 @@ class _MainScreenState extends State<MainScreen> {
       final err = e.toString();
       final String msgKey;
       if (err.contains('phone_invalid')) {
-        msgKey = 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0750 000 0000';
+        msgKey = 'ژمارەی مۆبایل نادروستە — فۆرماتی عێراقی: 0770 000 0000';
       } else {
         msgKey = 'دووبارە هەوڵبدەرەوە';
       }
@@ -8311,6 +8618,117 @@ class _MainScreenState extends State<MainScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_t('دووبارە هەوڵبدەرەوە'))));
     }
+  }
+
+  /// Red corner ribbon: داشکاندن + % — matches design reference.
+  Widget _buildDiscountCornerRibbon(String pctText, {double size = 86}) {
+    final labelSize = size >= 80 ? 10.0 : 8.5;
+    final pctSize = size >= 80 ? 13.0 : 11.0;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: ClipPath(
+        clipper: const _DiscountCornerRibbonClipper(),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                RC.bg(const Color(0xFFF43F5E)),
+                RC.bg(const Color(0xFFE11D48)),
+              ],
+            ),
+          ),
+          child: Align(
+            alignment: const Alignment(-0.42, -0.42),
+            child: Transform.rotate(
+              angle: -0.785398, // -45°
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    tx('داشکاندن'),
+                    style: TextStyle(
+                      color: RC.fg(Colors.white),
+                      fontSize: labelSize,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    tx(pctText),
+                    style: TextStyle(
+                      color: RC.fg(Colors.white),
+                      fontSize: pctSize,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Standard open/closed pill used on store cards and store header.
+  Widget _buildStoreOpenBadge(bool isOpen) {
+    final bg = isOpen ? const Color(0xFF059669) : const Color(0xFF64748B);
+    final dot = isOpen ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: RC.bg(bg),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: RC.bg(Colors.white.withValues(alpha: 0.22)),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: RC.bg(dot),
+              shape: BoxShape.circle,
+              boxShadow: isOpen
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF34D399).withValues(alpha: 0.85),
+                        blurRadius: 4,
+                      ),
+                    ]
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            _t(isOpen ? 'کراوە' : 'داخراوە'),
+            style: TextStyle(
+              color: RC.fg(Colors.white),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              height: 1.1,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildProfileTitleHeader(bool isEn) {
@@ -8411,6 +8829,22 @@ class _GPSTrackingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 🔴 Diagonal corner ribbon for store-grid discount badge (داشکاندن %)
+class _DiscountCornerRibbonClipper extends CustomClipper<Path> {
+  const _DiscountCornerRibbonClipper();
+
+  @override
+  Path getClip(Size size) {
+    return Path()
+      ..lineTo(size.width, 0)
+      ..lineTo(0, size.height)
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
 /// 💛 هێڵکاری کەوانەیی بۆ سەر وێنەی دوکان و مارکێتەکان (Curved Tab with App Yellow #FAC800)

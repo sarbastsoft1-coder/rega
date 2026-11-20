@@ -370,7 +370,7 @@ class VendorAppController extends Controller
             ->update(['status' => 'preparing']);
 
         if ($order->customer_id) {
-            AppNotification::create([
+            AppNotification::createAndPush([
                 'user_id' => $order->customer_id,
                 'target_audience' => 'specific_user',
                 'title_ku' => "فرۆشگا داواکاری {$order->order_number} ی قبوڵکرد",
@@ -378,6 +378,7 @@ class VendorAppController extends Controller
                 'body_ku' => 'داواکارییەکەت لە ئامادەکردندایە. کاتێک نێردرا بۆ گەیاندن دەتوانیت شوێنی ماتۆرسوار ببینیت لەسەر نەخشە.',
                 'tag' => 'گەیاندن',
                 'type' => 'order',
+                'store_id' => $order->store_id,
             ]);
         }
 
@@ -446,7 +447,7 @@ class VendorAppController extends Controller
         $order = $order->fresh(['items', 'driver.driverProfile']);
 
         if ($order->customer_id) {
-            AppNotification::create([
+            AppNotification::createAndPush([
                 'user_id' => $order->customer_id,
                 'target_audience' => 'specific_user',
                 'title_ku' => "داواکاری {$order->order_number} ئامادەیە",
@@ -454,6 +455,7 @@ class VendorAppController extends Controller
                 'body_ku' => 'فرۆشگا داواکارییەکەی ئامادەکرد. چاوەڕوانی دیاریکردنی شۆفێر بکە.',
                 'tag' => 'گەیاندن',
                 'type' => 'order',
+                'store_id' => $order->store_id,
             ]);
         }
 

@@ -8,6 +8,7 @@ import '../widgets/common_widgets.dart';
 
 import '../rega_i18n.dart';
 import '../rega_colors.dart';
+import '../widgets/send_customer_notification_dialog.dart';
 enum MarketingMode { all, notifications }
 
 class MarketingScreen extends StatefulWidget {
@@ -417,206 +418,15 @@ class _MarketingScreenState extends State<MarketingScreen>
   }
 
   Future<void> _showBroadcastDialog() async {
-    final titleCtrl = TextEditingController();
-    final bodyCtrl = TextEditingController();
-    final badgeCtrl = TextEditingController();
-    final searchCtrl = TextEditingController();
-    String audience = 'customers'; // customers | selected
-    String notifType = 'discount'; // discount | general | other
-    bool saving = false;
-    bool loadingCustomers = true;
-    List<Map<String, dynamic>> customers = [];
-    final Set<int> selectedIds = {};
-
-    try {
-      final raw = await widget.api.getCustomers(isActive: true);
-      customers = raw
-          .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
-    } catch (_) {
-      customers = [];
-    }
-    loadingCustomers = false;
-
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          final q = searchCtrl.text.trim().toLowerCase();
-          final filtered = customers.where((c) {
-            if (q.isEmpty) return true;
-            final name = c['name']?.toString().toLowerCase() ?? '';
-            final phone = c['phone']?.toString().toLowerCase() ?? '';
-            return name.contains(q) || phone.contains(q);
-          }).toList();
-
-          return AlertDialog(
-            insetPadding: AdminBreakpoints.dialogInset(ctx),
-            title: Text(tx('ناردنی ئاگاداری بۆ کڕیاران')),
-            content: SizedBox(
-              width: AdminBreakpoints.dialogWidth(ctx, max: 520),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      tx('ئەم نامەیە جیاوازە لە زەنگی ناوخۆیی ئەدمین — ڕاستەوخۆ دەچێتە سندوقی ئاگاداری ئەپی کڕیار (داشکاندن / پرۆمۆشن / نامەی تایبەت).'),
-                      style: TextStyle(fontSize: 12, color: RC.fg(Colors.black54), height: 1.35),
-                    ),
-                    const SizedBox(height: 14),
-                    DropdownButtonFormField<String>(
-                      initialValue: audience,
-                      decoration: InputDecoration(labelText: tx('ئامانجی وەرگر')),
-                      items: [
-                        DropdownMenuItem(value: 'customers', child: Text(tx('هەموو کڕیاران'))),
-                        DropdownMenuItem(value: 'selected', child: Text(tx('کڕیاری هەڵبژێردراو'))),
-                      ],
-                      onChanged: (v) => setDialogState(() => audience = v ?? 'customers'),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: notifType,
-                      decoration: InputDecoration(labelText: tx('جۆری ئاگاداری')),
-                      items: [
-                        DropdownMenuItem(value: 'discount', child: Text(tx('داشکاندن / پرۆمۆشن'))),
-                        DropdownMenuItem(value: 'general', child: Text(tx('گشتی'))),
-                        DropdownMenuItem(value: 'other', child: Text(tx('ئەویتر / تایبەت'))),
-                      ],
-                      onChanged: (v) => setDialogState(() => notifType = v ?? 'discount'),
-                    ),
-                    if (audience == 'selected') ...[
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: searchCtrl,
-                        decoration: InputDecoration(
-                          labelText: tx('گەڕان بە ناو یان مۆبایل'),
-                          prefixIcon: Icon(Icons.search_rounded, size: 18),
-                        ),
-                        onChanged: (_) => setDialogState(() {}),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        tx(loadingCustomers
-                            ? 'بارکردنی کڕیاران...'
-                            : '${selectedIds.length} کڕیار هەڵبژێردرا · ${filtered.length} نیشان دراو'),
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Colors.black54)),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        height: 180,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: RC.bg(Colors.black12)),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: loadingCustomers
-                            ? Center(child: CircularProgressIndicator(strokeWidth: 2))
-                            : filtered.isEmpty
-                                ? Center(child: Text(tx('هیچ کڕیارێک نەدۆزرایەوە')))
-                                : ListView.builder(
-                                    itemCount: filtered.length,
-                                    itemBuilder: (_, i) {
-                                      final c = filtered[i];
-                                      final id = (c['id'] as num?)?.toInt();
-                                      if (id == null) return const SizedBox.shrink();
-                                      final checked = selectedIds.contains(id);
-                                      return CheckboxListTile(
-                                        dense: true,
-                                        value: checked,
-                                        title: Text(
-                                          tx(c['name']?.toString() ?? '—'),
-                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                                        ),
-                                        subtitle: Text(tx(c['phone']?.toString() ?? '')),
-                                        onChanged: (v) {
-                                          setDialogState(() {
-                                            if (v == true) {
-                                              selectedIds.add(id);
-                                            } else {
-                                              selectedIds.remove(id);
-                                            }
-                                          });
-                                        },
-                                      );
-                                    },
-                                  ),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: titleCtrl,
-                      decoration: InputDecoration(
-                        labelText: tx('سەردێڕ *'),
-                        hintText: tx('نموونە: داشکاندنی %30 ئەمڕۆ'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: bodyCtrl,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        labelText: tx('ناوەڕۆک / نامە *'),
-                        hintText: tx('هەر نامەیەک کە دەتەوێت بۆ کڕیار بنێریت...'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: badgeCtrl,
-                      decoration: InputDecoration(
-                        labelText: tx('باجی داشکاندن (ئارەزوومەندانە)'),
-                        hintText: tx('نموونە: %30 OFF یان 5,000 د.ع'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: saving ? null : () => Navigator.pop(ctx),
-                child: Text(AppStrings.tr('cancel', widget.lang)),
-              ),
-              ElevatedButton.icon(
-                onPressed: saving
-                    ? null
-                    : () async {
-                        if (titleCtrl.text.trim().isEmpty || bodyCtrl.text.trim().isEmpty) {
-                          _showSnack('سەردێڕ و ناوەڕۆک پێویستن', error: true);
-                          return;
-                        }
-                        if (audience == 'selected' && selectedIds.isEmpty) {
-                          _showSnack('تکایە لانیکەم یەک کڕیار هەڵبژێرە', error: true);
-                          return;
-                        }
-                        setDialogState(() => saving = true);
-                        try {
-                          await widget.api.sendNotification({
-                            'target_audience': audience,
-                            'title_ku': titleCtrl.text.trim(),
-                            'body_ku': bodyCtrl.text.trim(),
-                            'type': notifType,
-                            if (audience == 'selected') 'user_ids': selectedIds.toList(),
-                            if (badgeCtrl.text.trim().isNotEmpty) 'discount_badge': badgeCtrl.text.trim(),
-                          });
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          _showSnack('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت');
-                          _load();
-                        } catch (e) {
-                          setDialogState(() => saving = false);
-                          _showSnack(e.toString(), error: true);
-                        }
-                      },
-                icon: const Icon(Icons.send_rounded, size: 16),
-                label: Text(tx('ناردن بۆ کڕیاران')),
-              ),
-            ],
-          );
-        },
-      ),
+    final ok = await showSendCustomerNotificationDialog(
+      context,
+      api: widget.api,
+      lang: widget.lang,
     );
+    if (ok) {
+      _showSnack('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت');
+      _load();
+    }
   }
 
   Widget _buildNotificationsPanel() {

@@ -35,27 +35,28 @@ class OrderSoundService {
   static final AudioPlayer _audioPlayer = AudioPlayer();
 
   /// لێدانی زەنگی موزیک و ئاگادارکردنەوەی گەورە (طنین و موسیقای زەنگ)
+  static const String _newOrderSoundAsset =
+      'assets/sounds/mixkit-happy-bells-notification-937.wav';
+
   static Future<void> playNewOrderAlert({bool soundEnabled = true}) async {
     if (!soundEnabled) return;
     try {
-      // Play actual music / ringtone sound via AudioPlayer
       await _audioPlayer.stop();
-      await _audioPlayer.setSource(UrlSource('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
+      await _audioPlayer.setReleaseMode(ReleaseMode.stop);
       await _audioPlayer.setVolume(1.0);
-      await _audioPlayer.resume();
+      await _audioPlayer.play(AssetSource(_newOrderSoundAsset));
     } catch (e) {
       debugPrint('Error playing AudioPlayer sound: $e');
     }
 
     try {
-      // Haptic and system alerts
-      for (int i = 0; i < 4; i++) {
-        await SystemSound.play(SystemSoundType.alert);
+      // Haptic pulse with the bells (no extra system beep — WAV is the alert).
+      for (int i = 0; i < 2; i++) {
         await HapticFeedback.heavyImpact();
-        await Future.delayed(const Duration(milliseconds: 350));
+        await Future.delayed(const Duration(milliseconds: 280));
       }
     } catch (e) {
-      debugPrint('Error playing system alert: $e');
+      debugPrint('Error playing haptic alert: $e');
     }
   }
 

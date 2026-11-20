@@ -38,6 +38,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-password123}
       REGA_SMS_WEBHOOK_URL: ${REGA_SMS_WEBHOOK_URL:-}
       REGA_SMS_OTP_TEMPLATE: ${REGA_SMS_OTP_TEMPLATE:-}
+      FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS:-/var/www/html/storage/app/firebase-credentials.json}
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
     volumes:
       - ./rega_backend/storage:/var/www/html/storage
     ports:

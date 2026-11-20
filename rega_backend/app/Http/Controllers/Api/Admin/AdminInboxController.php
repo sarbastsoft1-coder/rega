@@ -194,9 +194,40 @@ class AdminInboxController extends Controller
             );
         }
 
-        // 4) Open / in-progress support tickets
+        // 4) Customer داواکاری ڕاستەوخۆ (direct requests)
+        $directRequests = SupportTicket::query()
+            ->where('category', 'direct_request')
+            ->whereIn('status', ['open', 'in_progress'])
+            ->orderByDesc('updated_at')
+            ->get(['id', 'ticket_number', 'subject', 'created_at', 'updated_at']);
+        if ($directRequests->isNotEmpty()) {
+            $ids = $directRequests->pluck('id')->sort()->values()->all();
+            $latest = $directRequests->first();
+            $count = $directRequests->count();
+            $items[] = $this->makeItem(
+                id: 'direct_requests',
+                type: 'direct_requests',
+                titleKu: 'داواکاری ڕاستەوخۆ',
+                bodyKu: $count === 1
+                    ? '1 داواکاری ڕاستەوخۆ چاوەڕوانی قبوڵکردنە'
+                    : "{$count} داواکاری ڕاستەوخۆ چاوەڕوانی قبوڵکردنن",
+                count: $count,
+                fingerprint: $this->fingerprint($ids, $latest?->updated_at),
+                createdAt: $latest?->updated_at ?? $latest?->created_at,
+                route: '/customers',
+                tabIndex: 4,
+                icon: 'direct_request',
+                color: '#D97706',
+                reads: $reads,
+            );
+        }
+
+        // 5) Other open / in-progress support tickets (non direct_request)
         $openTickets = SupportTicket::query()
             ->whereIn('status', ['open', 'in_progress'])
+            ->where(function ($q) {
+                $q->whereNull('category')->orWhere('category', '!=', 'direct_request');
+            })
             ->orderByDesc('updated_at')
             ->get(['id', 'ticket_number', 'subject', 'created_at', 'updated_at']);
         if ($openTickets->isNotEmpty()) {
@@ -214,7 +245,7 @@ class AdminInboxController extends Controller
                 fingerprint: $this->fingerprint($ids, $latest?->updated_at),
                 createdAt: $latest?->updated_at ?? $latest?->created_at,
                 route: '/support',
-                tabIndex: 7,
+                tabIndex: 9,
                 icon: 'support',
                 color: '#2563EB',
                 reads: $reads,

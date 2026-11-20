@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\FcmPushService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -40,6 +41,26 @@ class AppNotification extends Model
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);
+    }
+
+    /**
+     * Persist inbox row and fan-out FCM to the target user (customer lock-screen push).
+     */
+    public static function createAndPush(array $attributes): self
+    {
+        $notification = static::create($attributes);
+        if ($notification->user_id) {
+            try {
+                app(FcmPushService::class)->sendForNotification(
+                    $notification,
+                    [$notification->user_id],
+                );
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        return $notification;
     }
 }
 

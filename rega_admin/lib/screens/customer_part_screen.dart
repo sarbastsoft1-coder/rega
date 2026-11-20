@@ -1,14 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../core/api/api_client.dart';
 import '../core/iraq_phone_formatter.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
+import '../state/admin_app_notifier.dart';
 import '../widgets/common_widgets.dart';
 import 'catalog_zones_screen.dart';
 import 'customers_screen.dart';
+import 'direct_requests_screen.dart';
 import 'live_radar_dialog.dart';
 import 'marketing_screen.dart';
+import '../widgets/send_customer_notification_dialog.dart';
 
 import '../rega_i18n.dart';
 import '../rega_colors.dart';
@@ -16,6 +20,9 @@ class CustomerPartScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
   final VoidCallback? onDataChanged;
+
+  /// Index of داواکاری ڕاستەوخۆ tab inside this hub.
+  static const int directRequestsTabIndex = 2;
 
   const CustomerPartScreen({
     super.key,
@@ -31,6 +38,7 @@ class CustomerPartScreen extends StatefulWidget {
 class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   Timer? _autoRefreshTimer;
+  AdminNavNotifier? _nav;
 
   bool _loading = true;
   String? _error;
@@ -45,13 +53,36 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 7, vsync: this);
+    _tabController = TabController(length: 8, vsync: this);
     _load();
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) => _load(silent: true));
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nav = context.read<AdminNavNotifier>();
+    if (!identical(_nav, nav)) {
+      _nav?.removeListener(_openPendingSubTab);
+      _nav = nav;
+      _nav!.addListener(_openPendingSubTab);
+    }
+    _openPendingSubTab();
+  }
+
+  void _openPendingSubTab() {
+    final sub = _nav?.takeCustomersSubTab();
+    if (sub == null) return;
+    final target = sub.clamp(0, 7);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _tabController.index == target) return;
+      _tabController.animateTo(target);
+    });
+  }
+
+  @override
   void dispose() {
+    _nav?.removeListener(_openPendingSubTab);
     _autoRefreshTimer?.cancel();
     _tabController.dispose();
     super.dispose();
@@ -156,6 +187,24 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
             ),
           ),
           actions: [
+            TextButton(
+              onPressed: () async {
+                final id = (detail['id'] as num?)?.toInt();
+                if (id == null) return;
+                Navigator.pop(ctx);
+                final ok = await showSendCustomerNotificationDialog(
+                  context,
+                  api: widget.api,
+                  lang: widget.lang,
+                  preselectedIds: {id},
+                  preselectedLabel: '${detail['name'] ?? ''} ${detail['phone'] ?? ''}'.trim(),
+                );
+                if (ok) {
+                  _showSnack('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت');
+                }
+              },
+              child: Text(tx('ناردنی ئاگاداری')),
+            ),
             TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('داخستن'))),
           ],
         ),
@@ -479,6 +528,10 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                     icon: const Icon(Icons.receipt_long_rounded, size: 18),
                     text: tx('داواکاری کڕیاران (${_kpis['total_customer_orders'] ?? 0})'),
                   ),
+                  Tab(
+                    icon: const Icon(Icons.handshake_rounded, size: 18),
+                    text: tx('داواکاری ڕاستەوخۆ'),
+                  ),
                   Tab(icon: Icon(Icons.groups_rounded, size: 18), text: tx('بەڕێوەبردنی کڕیاران')),
                   Tab(icon: Icon(Icons.grid_view_rounded, size: 18), text: tx('بەشەکانی سەرەکی ئەپ')),
                   Tab(icon: Icon(Icons.notifications_active_rounded, size: 18), text: tx('ئاگاداری بۆ کڕیار')),
@@ -500,6 +553,11 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                       children: [
                         _buildVipOverviewTab(isDark),
                         _buildCustomerOrdersTab(),
+                        DirectRequestsScreen(
+                          api: widget.api,
+                          lang: widget.lang,
+                          onChanged: widget.onDataChanged,
+                        ),
                         CustomersScreen(api: widget.api, lang: widget.lang),
                         CatalogZonesScreen(
                           api: widget.api,
@@ -604,7 +662,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                         backgroundColor: RegaColors.gold,
                         foregroundColor: RC.fg(Color(0xFF0F172A)),
                       ),
-                      onPressed: () => _tabController.animateTo(2),
+                      onPressed: () => _tabController.animateTo(3),
                       icon: const Icon(Icons.person_add_rounded, size: 17),
                       label: Text(tx('زیادکردنی کڕیار')),
                     ),
@@ -640,7 +698,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                           style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () => _tabController.animateTo(2),
+                          onPressed: () => _tabController.animateTo(3),
                           icon: const Icon(Icons.edit_rounded, size: 16),
                           label: Text(tx('دەستکاری')),
                         ),

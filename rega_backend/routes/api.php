@@ -96,6 +96,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/favorites/{store}', [PublicAndCustomerController::class, 'toggleFavorite']);
         Route::get('/notifications', [PublicAndCustomerController::class, 'notifications']);
         Route::post('/notifications/mark-read', [PublicAndCustomerController::class, 'markNotificationsRead']);
+        Route::post('/direct-requests', [PublicAndCustomerController::class, 'submitDirectRequest']);
+        Route::post('/direct-requests/upload', [PublicAndCustomerController::class, 'uploadDirectRequestMedia']);
     });
 
     // --- Vendor / Seller App (`rega_froshyar`) ---

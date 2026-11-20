@@ -238,10 +238,60 @@ class FinanceAndSupportController extends Controller
             $query->where('category', $request->string('category'));
         }
 
+        $tickets = $query->latest()->get()->map(function (SupportTicket $ticket) {
+            $row = $ticket->toArray();
+            if ($ticket->category === 'direct_request') {
+                $parsed = $this->parseDirectRequestDescription((string) $ticket->description);
+                $row['direct_request'] = $parsed;
+                $row['address'] = $parsed['address'];
+                $row['request_phone'] = $parsed['phone'];
+                $row['notes'] = $parsed['notes'];
+                $row['image_url'] = $parsed['image_url'];
+            }
+
+            return $row;
+        });
+
         return response()->json([
             'success' => true,
-            'data' => $query->latest()->get(),
+            'data' => $tickets,
         ]);
+    }
+
+    /**
+     * @return array{address: ?string, phone: ?string, notes: ?string, image_url: ?string}
+     */
+    private function parseDirectRequestDescription(string $description): array
+    {
+        $address = null;
+        $phone = null;
+        $notes = null;
+        $imageUrl = null;
+
+        foreach (preg_split("/\r\n|\n|\r/", $description) ?: [] as $line) {
+            $line = trim((string) $line);
+            if ($line === '') {
+                continue;
+            }
+            if (preg_match('/^ناونیشان\s*:\s*(.+)$/u', $line, $m)) {
+                $address = trim($m[1]);
+            } elseif (preg_match('/^(?:مۆبایل|موبایل)\s*:\s*(.+)$/u', $line, $m)) {
+                $phone = trim($m[1]);
+            } elseif (preg_match('/^تێبینی\s*:\s*(.+)$/u', $line, $m)) {
+                $notes = trim($m[1]);
+            } elseif (preg_match('/^وێنە\s*:\s*(.+)$/u', $line, $m)) {
+                $raw = trim($m[1]);
+                $relative = \App\Support\PublicMedia::relativePathFromUrl($raw);
+                $imageUrl = $relative ? \App\Support\PublicMedia::url($relative) : $raw;
+            }
+        }
+
+        return [
+            'address' => $address,
+            'phone' => $phone,
+            'notes' => $notes,
+            'image_url' => $imageUrl,
+        ];
     }
 
     public function ticketsStore(Request $request): JsonResponse
@@ -289,10 +339,20 @@ class FinanceAndSupportController extends Controller
             'resolved_at' => in_array($validated['status'], ['resolved', 'closed'], true) ? now() : $ticket->resolved_at,
         ]);
 
+        $fresh = $ticket->fresh(['user:id,name,phone,role', 'order:id,order_number,status', 'resolver:id,name']);
+        $message = 'سکاڵا / تیکت بە سەرکەوتوویی نوێکرایەوە.';
+        if ($fresh && $fresh->category === 'direct_request') {
+            $message = match ($validated['status']) {
+                'in_progress' => 'داواکاری قبوڵکرا.',
+                'resolved', 'closed' => 'داواکاری تەواوکرا.',
+                default => $message,
+            };
+        }
+
         return response()->json([
             'success' => true,
-            'message' => 'سکاڵا / تیکت بە سەرکەوتوویی نوێکرایەوە.',
-            'data' => $ticket->fresh(['user:id,name,phone,role', 'order:id,order_number,status', 'resolver:id,name']),
+            'message' => $message,
+            'data' => $fresh,
         ]);
     }
 

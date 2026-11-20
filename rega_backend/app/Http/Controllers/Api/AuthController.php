@@ -22,6 +22,7 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
             'role_filter' => ['nullable', 'string'],
             'device_name' => ['nullable', 'string'],
+            'fcm_token' => ['nullable', 'string', 'max:2048'],
         ]);
 
         $loginValue = trim((string) ($validated['identifier'] ?? $validated['phone'] ?? $validated['email'] ?? ''));
@@ -78,7 +79,11 @@ class AuthController extends Controller
             }
         }
 
-        $user->update(['last_login_at' => now()]);
+        $loginUpdate = ['last_login_at' => now()];
+        if (! empty($validated['fcm_token'])) {
+            $loginUpdate['fcm_token'] = $validated['fcm_token'];
+        }
+        $user->update($loginUpdate);
 
         $token = $user->createToken($validated['device_name'] ?? 'rega-client')->plainTextToken;
 
@@ -177,7 +182,7 @@ class AuthController extends Controller
             'email' => ['nullable', 'email', 'max:150', 'unique:users,email,' . $user->id],
             'language' => ['sometimes', 'string', 'in:ku,ar,en'],
             'avatar_url' => ['nullable', 'string', 'max:500'],
-            'fcm_token' => ['nullable', 'string', 'max:500'],
+            'fcm_token' => ['nullable', 'string', 'max:2048'],
         ]);
 
         $user->update($validated);

@@ -871,8 +871,14 @@ class ApiClient {
     });
   }
 
-  Future<List<dynamic>> getTickets({String status = 'all'}) async {
-    final res = await _send('GET', '/admin/tickets', query: {'status': status});
+  Future<List<dynamic>> getTickets({
+    String status = 'all',
+    String? category,
+  }) async {
+    final res = await _send('GET', '/admin/tickets', query: {
+      'status': status,
+      if (category != null && category.isNotEmpty) 'category': category,
+    });
     return res['data'] as List<dynamic>? ?? [];
   }
 

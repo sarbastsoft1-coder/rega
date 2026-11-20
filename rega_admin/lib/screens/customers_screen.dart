@@ -10,6 +10,7 @@ import '../core/theme/app_theme.dart';
 
 import '../rega_i18n.dart';
 import '../rega_colors.dart';
+import '../widgets/send_customer_notification_dialog.dart';
 /// Representation of a customer item matching the exact design in the screenshot
 class CustomerItem {
   final int id;
@@ -626,6 +627,27 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ),
         ),
         actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final ok = await showSendCustomerNotificationDialog(
+                context,
+                api: widget.api,
+                lang: lang,
+                preselectedIds: {c.id},
+                preselectedLabel: '${c.name} ${c.phone}'.trim(),
+              );
+              if (ok && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(tx('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت')),
+                    backgroundColor: RegaColors.emeraldDark,
+                  ),
+                );
+              }
+            },
+            child: Text(tx('ناردنی ئاگاداری')),
+          ),
           OutlinedButton(
             onPressed: () {
               Navigator.pop(ctx);

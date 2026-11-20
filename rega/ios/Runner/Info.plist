@@ -26,6 +26,12 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>REGA needs the camera so you can attach a photo to your direct request.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>REGA needs photo library access so you can attach an image to your direct request.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>REGA may save photos related to your direct request.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>REGA needs your location to set the correct delivery address in Kalar.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -34,6 +40,11 @@
 	<string>REGA needs your location to keep delivery tracking accurate.</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>REGA sends notifications about your order status and driver arrival.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

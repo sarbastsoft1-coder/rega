@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
+import '../screens/customer_part_screen.dart';
 import '../state/admin_app_notifier.dart';
 import '../state/admin_domain_notifiers.dart';
 
@@ -962,6 +963,8 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
         return Icons.two_wheeler_rounded;
       case 'support':
         return Icons.support_agent_rounded;
+      case 'direct_request':
+        return Icons.handshake_rounded;
       case 'receipt':
       default:
         return Icons.receipt_long_rounded;
@@ -999,6 +1002,14 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
           return;
         }
         break;
+      case 'direct_requests':
+        context.read<AdminNavNotifier>().goToCustomers(
+          subTab: CustomerPartScreen.directRequestsTabIndex,
+        );
+        if (route != null && route.isNotEmpty) {
+          context.go(route);
+        }
+        return;
       case 'open_tickets':
         if (widget.onGoToSettings != null) {
           widget.onGoToSettings!();

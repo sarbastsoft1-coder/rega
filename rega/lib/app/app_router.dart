@@ -4,6 +4,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../live_order_tracker.dart';
 import '../models/customer_models.dart';
+import '../onboarding/onboarding_notifier.dart';
+import '../onboarding/splash_onboarding.dart';
 import '../state/navigation_notifier.dart';
 import '../state/orders_notifier.dart';
 import '../state/session_notifier.dart';
@@ -27,17 +29,25 @@ GoRouter createCustomerRouter({
 }) {
   return GoRouter(
     navigatorKey: customerRootNavigatorKey,
-    initialLocation: '/login',
+    initialLocation: '/onboarding',
     refreshListenable: refreshListenable,
     debugLogDiagnostics: false,
     redirect: (context, state) {
       final session = context.read<SessionNotifier>();
+      final onboarding = context.read<OnboardingNotifier>();
       final path = state.uri.path;
       final onLogin = path == '/login';
+      final onOnboarding = path == '/onboarding';
 
-      if (session.isRestoring) return null;
+      if (!onboarding.ready || session.isRestoring) return null;
 
-      if (!session.isLoggedIn && !onLogin) return '/login';
+      // First launch: splash → language → location before login/home.
+      if (!onboarding.done && !onOnboarding) return '/onboarding';
+      if (onboarding.done && onOnboarding) {
+        return session.isLoggedIn ? '/home' : '/login';
+      }
+
+      if (!session.isLoggedIn && !onLogin && !onOnboarding) return '/login';
       if (session.isLoggedIn && onLogin) {
         final tab = int.tryParse(state.uri.queryParameters['tab'] ?? '');
         return NavigationNotifier.pathForIndex(tab ?? 0);
@@ -55,6 +65,11 @@ GoRouter createCustomerRouter({
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/onboarding',
+        name: 'onboarding',
+        builder: (context, state) => const SplashOnboardingFlow(),
+      ),
       GoRoute(
         path: '/login',
         name: 'login',
