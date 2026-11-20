@@ -715,23 +715,40 @@ class PublicAndCustomerController extends Controller
             ])
             ->latest();
 
+        $directQuery = SupportTicket::query()
+            ->where('category', 'direct_request')
+            ->latest();
+
         if ($authUser) {
             $query->where('customer_id', $authUser->id);
+            $directQuery->where('user_id', $authUser->id);
         } elseif ($phone !== '') {
             $query->where('customer_phone', 'ILIKE', "%{$phone}%");
+            $directQuery->where('description', 'ILIKE', "%{$phone}%");
         } else {
             $query->limit(15);
+            $directQuery->limit(10);
         }
+
+        $orders = $query->limit(30)->get();
+        $tickets = $directQuery->limit(20)->get()->map(fn ($t) => $this->formatSupportTicketAsOrder($t));
+
+        $merged = collect($orders->toArray())
+            ->concat($tickets)
+            ->sortByDesc(fn ($item) => $item['created_at'] ?? '')
+            ->values()
+            ->take(30);
 
         return response()->json([
             'success' => true,
-            'data' => $query->limit(30)->get(),
+            'data' => $merged,
         ]);
     }
 
     public function customerOrders(Request $request): JsonResponse
     {
-        $orders = $request->user()
+        $user = $request->user();
+        $orders = $user
             ->customerOrders()
             ->with([
                 'items',
@@ -742,10 +759,156 @@ class PublicAndCustomerController extends Controller
             ->latest()
             ->get();
 
+        $tickets = SupportTicket::query()
+            ->where('user_id', $user->id)
+            ->where('category', 'direct_request')
+            ->latest()
+            ->limit(20)
+            ->get()
+            ->map(fn ($t) => $this->formatSupportTicketAsOrder($t));
+
+        $merged = collect($orders->toArray())
+            ->concat($tickets)
+            ->sortByDesc(fn ($item) => $item['created_at'] ?? '')
+            ->values()
+            ->take(30);
+
         return response()->json([
             'success' => true,
-            'data' => $orders,
+            'data' => $merged,
         ]);
+    }
+
+    public function publicDeleteCustomerOrder(Request $request, string $id): JsonResponse
+    {
+        return $this->performDeleteOrder($request, $id);
+    }
+
+    public function deleteCustomerOrder(Request $request, string $id): JsonResponse
+    {
+        return $this->performDeleteOrder($request, $id);
+    }
+
+    protected function performDeleteOrder(Request $request, string $id): JsonResponse
+    {
+        $user = $request->user('sanctum') ?? $request->user();
+
+        // 1. Check if it's a Direct Request Support Ticket (starts with DR- or is ticket number)
+        $ticket = null;
+        if (str_starts_with(strtoupper($id), 'DR-')) {
+            $ticket = SupportTicket::where('ticket_number', strtoupper($id))->first();
+        } elseif (is_numeric($id)) {
+            $ticket = SupportTicket::where('id', (int) $id)->where('category', 'direct_request')->first();
+        }
+
+        if ($ticket) {
+            if ($user && $ticket->user_id && $ticket->user_id !== $user->id && ! $user->isAdmin()) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            }
+            $ticket->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'داواکاری ڕاستەوخۆ بە سەرکەوتوویی سڕایەوە.',
+            ]);
+        }
+
+        // 2. Otherwise look up in Order table
+        $orderQuery = Order::query();
+        if (is_numeric($id)) {
+            $orderQuery->where(function ($q) use ($id) {
+                $q->where('id', (int) $id)->orWhere('order_number', $id);
+            });
+        } else {
+            $orderQuery->where('order_number', $id);
+        }
+
+        $order = $orderQuery->first();
+        if (! $order) {
+            return response()->json(['success' => false, 'message' => 'داواکاری نەدۆزرایەوە.'], 404);
+        }
+
+        if ($user && $order->customer_id && $order->customer_id !== $user->id && ! $user->isAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        DB::transaction(function () use ($order) {
+            $order->items()->delete();
+            $order->statusLogs()->delete();
+            LiveTelemetrySession::where('order_id', $order->id)->delete();
+            $order->delete();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'داواکاری بە سەرکەوتوویی سڕایەوە.',
+        ]);
+    }
+
+    protected function formatSupportTicketAsOrder(SupportTicket $t): array
+    {
+        $desc = (string) $t->description;
+        $address = '';
+        $notes = '';
+        $phone = '';
+        $image = null;
+        foreach (explode("\n", $desc) as $line) {
+            $line = trim($line);
+            if (str_starts_with($line, 'ناونیشان: ')) {
+                $address = trim(substr($line, strlen('ناونیشان: ')));
+            } elseif (str_starts_with($line, 'مۆبایل: ')) {
+                $phone = trim(substr($line, strlen('مۆبایل: ')));
+            } elseif (str_starts_with($line, 'تێبینی: ')) {
+                $notes = trim(substr($line, strlen('تێبینی: ')));
+            } elseif (str_starts_with($line, 'وێنە: ')) {
+                $image = trim(substr($line, strlen('وێنە: ')));
+            }
+        }
+
+        $statusMap = [
+            'open' => 'pending',
+            'in_progress' => 'preparing',
+            'resolved' => 'delivered',
+            'closed' => 'delivered',
+        ];
+        $status = $statusMap[$t->status] ?? $t->status;
+
+        return [
+            'id' => $t->id,
+            'order_number' => $t->ticket_number,
+            'is_direct_request' => true,
+            'ticket_id' => $t->id,
+            'direct_subject' => $t->subject,
+            'direct_notes' => $notes ?: $t->subject,
+            'direct_image' => $image,
+            'customer_phone' => $phone,
+            'delivery_address' => $address ?: 'کەلار',
+            'total_amount' => 0,
+            'status' => $status,
+            'created_at' => $t->created_at?->toISOString() ?? now()->toISOString(),
+            'store' => [
+                'id' => null,
+                'name_ku' => '⚡ داواکاری ڕاستەوخۆ',
+                'name_en' => 'Direct Request',
+                'phone' => $phone,
+                'cover_url' => $image ?: null,
+                'lat' => 34.6836,
+                'lng' => 45.3189,
+            ],
+            'driver' => null,
+            'items' => [
+                [
+                    'id' => $t->id,
+                    'product_id' => 0,
+                    'product_name' => $t->subject,
+                    'quantity' => 1,
+                    'unit_price' => 0,
+                    'total_price' => 0,
+                    'special_notes' => $notes,
+                    'product_image' => $image ?: null,
+                ],
+            ],
+        ];
     }
 
     public function trackOrder(Request $request, Order $order): JsonResponse

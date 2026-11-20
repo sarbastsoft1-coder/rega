@@ -58,6 +58,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/coupons/validate', [PublicAndCustomerController::class, 'validateCoupon']);
         Route::post('/orders', [PublicAndCustomerController::class, 'publicPlaceOrder']);
         Route::get('/customer-orders', [PublicAndCustomerController::class, 'publicCustomerOrders']);
+        Route::delete('/customer-orders/{id}', [PublicAndCustomerController::class, 'publicDeleteCustomerOrder']);
     });
 
     // --- Real-Time 1-Second Live GPS Telemetry & Route Sync (`rega`, `rega_delivery`, `rega_admin`) ---
@@ -89,6 +90,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/coupons/validate', [PublicAndCustomerController::class, 'validateCoupon']);
         Route::post('/orders', [PublicAndCustomerController::class, 'placeOrder']);
         Route::get('/orders', [PublicAndCustomerController::class, 'customerOrders']);
+        Route::delete('/orders/{id}', [PublicAndCustomerController::class, 'deleteCustomerOrder']);
         Route::get('/orders/{order}/tracking', [PublicAndCustomerController::class, 'trackOrder']);
         Route::get('/addresses', [PublicAndCustomerController::class, 'addresses']);
         Route::post('/addresses', [PublicAndCustomerController::class, 'storeAddress']);

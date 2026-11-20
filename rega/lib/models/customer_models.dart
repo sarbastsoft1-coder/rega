@@ -145,6 +145,10 @@ class OrderItem {
   final String driverName;
   final String driverPhone;
   final String address;
+  final bool isDirectRequest;
+  final String? directRequestNotes;
+  final String? directRequestImage;
+  final int? dbId;
 
   OrderItem({
     required this.id,
@@ -161,6 +165,10 @@ class OrderItem {
     this.storeLng = 45.3189,
     this.customerLat = 34.6912,
     this.customerLng = 45.3264,
+    this.isDirectRequest = false,
+    this.directRequestNotes,
+    this.directRequestImage,
+    this.dbId,
   });
 }
 

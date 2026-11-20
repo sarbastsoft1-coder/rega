@@ -1431,6 +1431,8 @@ class _MainScreenState extends State<MainScreen> {
       final synced = <OrderItem>[];
       for (final raw in list) {
         final m = raw as Map<String, dynamic>;
+        final isDirect = m['is_direct_request'] == true ||
+            (m['order_number'] != null && m['order_number'].toString().startsWith('DR-'));
         final rawItems = m['items'] as List<dynamic>? ?? [];
         final cartEntries = rawItems.map((ri) {
           final im = ri as Map<String, dynamic>;
@@ -1439,20 +1441,25 @@ class _MainScreenState extends State<MainScreen> {
               id: '${im['product_id'] ?? im['id'] ?? '1'}',
               storeId: 'db_store_${m['store_id'] ?? 1}',
               name: im['product_name']?.toString() ?? 'بەرهەم',
-              price: ((im['unit_price'] ?? 2500) as num).toInt(),
+              price: ((im['unit_price'] ?? 0) as num).toInt(),
               description: '',
-              imageUrl: im['product_image']?.toString() ?? 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600',
-              category: 'خواردنگە',
+              imageUrl: im['product_image']?.toString() ?? '',
+              category: isDirect ? 'داواکاری ڕاستەوخۆ' : 'خواردنگە',
             ),
             quantity: ((im['quantity'] ?? 1) as num).toInt(),
             specialNotes: im['special_notes']?.toString() ?? '',
           );
         }).toList();
 
+        final rawStore = m['store'] as Map<String, dynamic>?;
+        final storeName = isDirect
+            ? '⚡ داواکاری ڕاستەوخۆ'
+            : (rawStore?['name_ku']?.toString() ?? 'فرۆشگا');
+
         synced.add(
           OrderItem(
             id: m['order_number']?.toString() ?? 'RA-${m['id']}',
-            storeName: m['store']?['name_ku']?.toString() ?? 'فرۆشگا',
+            storeName: storeName,
             totalAmount: ((m['total_amount'] ?? 0) as num).toInt(),
             status: m['status']?.toString() ?? 'pending',
             date: DateTime.tryParse(m['created_at']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
@@ -1461,10 +1468,14 @@ class _MainScreenState extends State<MainScreen> {
             driverPhone: m['driver']?['phone']?.toString() ?? '',
             address: m['delivery_address']?.toString() ?? 'کەلار',
             deliveryPin: m['delivery_pin']?.toString() ?? '4821',
-            storeLat: ((m['store']?['lat'] ?? 34.6836) as num).toDouble(),
-            storeLng: ((m['store']?['lng'] ?? 45.3189) as num).toDouble(),
+            storeLat: ((rawStore?['lat'] ?? 34.6836) as num).toDouble(),
+            storeLng: ((rawStore?['lng'] ?? 45.3189) as num).toDouble(),
             customerLat: ((m['delivery_lat'] ?? 34.6912) as num).toDouble(),
             customerLng: ((m['delivery_lng'] ?? 45.3264) as num).toDouble(),
+            isDirectRequest: isDirect,
+            directRequestNotes: m['direct_notes']?.toString() ?? m['direct_subject']?.toString(),
+            directRequestImage: m['direct_image']?.toString(),
+            dbId: (m['id'] as num?)?.toInt(),
           ),
         );
       }
@@ -4024,7 +4035,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _openDirectRequestScreen() async {
-    await Navigator.of(context).push(
+    final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => DirectRequestScreen(
           initialPhone: _userProfile?.phone ?? '',
@@ -4040,6 +4051,10 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     );
+    if (result == true && mounted) {
+      await _syncCustomerOrdersFromBackend();
+      _goTab(3);
+    }
   }
 
   Widget _buildHeader() {
@@ -5956,115 +5971,140 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildOrdersTab() {
     final stats = _orderStats();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Title
-        Padding(
-          padding: EdgeInsets.only(
-            top: 24,
-            left: RegaResponsive.pagePadding(context),
-            right: RegaResponsive.pagePadding(context),
-            bottom: 4,
+    final filteredOrders = _orders.where((order) {
+      if (_selectedOrderFilter == 'هەموو') return true;
+      final isDelivered = order.status == 'delivered' || order.status == 'completed';
+      final isCancelled = order.status == 'cancelled' || order.status == 'rejected';
+      final isActive = !isDelivered && !isCancelled;
+      if (_selectedOrderFilter == 'بەردەوام') return isActive;
+      if (_selectedOrderFilter == 'تەواوبوو') return isDelivered;
+      if (_selectedOrderFilter == 'هەڵوەشایەوە') return isCancelled;
+      return true;
+    }).toList();
+
+    return RefreshIndicator(
+      color: RC.bg(const Color(0xFFF59E0B)),
+      onRefresh: _syncCustomerOrdersFromBackend,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        slivers: [
+          // Title
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(
+                top: 24,
+                left: RegaResponsive.pagePadding(context),
+                right: RegaResponsive.pagePadding(context),
+                bottom: 4,
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final title = Text(
+                    _t('داواکاریەکانم'),
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                  );
+                  final count = Text(
+                    tx('${stats.total} ${_t('داواکاری')}'),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: RC.fg(Colors.grey.shade600),
+                    ),
+                  );
+                  if (constraints.maxWidth < RegaBreakpoints.phone) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        title,
+                        const SizedBox(height: 4),
+                        count,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: title),
+                      count,
+                    ],
+                  );
+                },
+              ),
+            ),
           ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final title = Text(
-                _t('داواکاریەکانم'),
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
-              );
-              final count = Text(
-                tx('${stats.total} ${_t('داواکاری')}'),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: RC.fg(Colors.grey.shade600),
+          SliverToBoxAdapter(
+            child: _buildOrderStatsSummary(),
+          ),
+          // Divider
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Divider(color: RC.bg(Colors.grey.shade200), thickness: 1),
+            ),
+          ),
+          // Filter Chips
+          SliverToBoxAdapter(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: RC.bg(Colors.white),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: RC.bg(Colors.grey.shade200)),
                 ),
-              );
-              if (constraints.maxWidth < RegaBreakpoints.phone) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    title,
-                    const SizedBox(height: 4),
-                    count,
+                    _buildOrderFilterChip('هەموو', count: stats.total),
+                    _buildOrderFilterChip('بەردەوام', count: stats.active),
+                    _buildOrderFilterChip('تەواوبوو', count: stats.completed),
+                    _buildOrderFilterChip('هەڵوەشایەوە', count: stats.cancelled),
                   ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: title),
-                  count,
-                ],
-              );
-            },
-          ),
-        ),
-        _buildOrderStatsSummary(),
-        // Divider
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Divider(color: RC.bg(Colors.grey.shade200), thickness: 1),
-        ),
-        // Filter Chips
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: RC.bg(Colors.white),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: RC.bg(Colors.grey.shade200)),
-            ),
-            child: Row(
-              children: [
-                _buildOrderFilterChip('هەموو', count: stats.total),
-                _buildOrderFilterChip('بەردەوام', count: stats.active),
-                _buildOrderFilterChip('تەواوبوو', count: stats.completed),
-                _buildOrderFilterChip('هەڵوەشایەوە', count: stats.cancelled),
-              ],
+                ),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 8),
-        // Orders List
-        Expanded(
-          child: _orders.isEmpty
-              ? Center(
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 8),
+          ),
+          // Orders List or Empty State
+          if (_orders.isEmpty || filteredOrders.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.receipt_long_outlined, size: 72, color: RC.fg(Colors.grey.shade400)),
                       const SizedBox(height: 16),
-                      Text(_t('هیچ داواکارییەکی تۆمارکراوت نییە'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text(
+                        _orders.isEmpty
+                            ? _t('هیچ داواکارییەکی تۆمارکراوت نییە')
+                            : _t('هیچ داواکارییەک لەم بەشەدا نییە'),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
-                )
-              : RefreshIndicator(
-                  color: RC.bg(Color(0xFFF59E0B)),
-                  onRefresh: _syncCustomerOrdersFromBackend,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: _orders.length,
-                    itemBuilder: (context, idx) {
-                      final order = _orders[idx];
-                      final isDelivered = order.status == 'delivered' || order.status == 'completed';
-                      final isCancelled = order.status == 'cancelled' || order.status == 'rejected';
-                      final isActive = !isDelivered && !isCancelled;
-
-                      // Apply filter logic
-                      if (_selectedOrderFilter != 'هەموو') {
-                        if (_selectedOrderFilter == 'بەردەوام' && !isActive) return const SizedBox.shrink();
-                        if (_selectedOrderFilter == 'تەواوبوو' && !isDelivered) return const SizedBox.shrink();
-                        if (_selectedOrderFilter == 'هەڵوەشایەوە' && !isCancelled) return const SizedBox.shrink();
-                      }
-                      return _buildOrderCard(order);
-                    },
-                  ),
                 ),
-        ),
-      ],
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 90),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, idx) {
+                    final order = filteredOrders[idx];
+                    return _buildOrderCard(order);
+                  },
+                  childCount: filteredOrders.length,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -6734,7 +6774,6 @@ class _MainScreenState extends State<MainScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Text(
@@ -6753,21 +6792,128 @@ class _MainScreenState extends State<MainScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: statusBg,
-                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     tx(statusStr),
                     style: TextStyle(color: statusText, fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
+                const SizedBox(width: 6),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => _confirmDeleteOrder(order),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.delete_outline_rounded,
+                        color: Colors.red.shade400,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
+            if (order.isDirectRequest) ...[
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFF59E0B)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bolt_rounded, size: 16, color: Color(0xFFD97706)),
+                        const SizedBox(width: 4),
+                        Text(
+                          tx('داواکاری ڕاستەوخۆ'),
+                          style: const TextStyle(
+                            color: Color(0xFFB45309),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    tx('#${order.id}'),
+                    style: TextStyle(
+                      color: RC.fg(Colors.grey.shade600),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
             Text(
               tx(order.storeName),
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             _buildOrderStepper(order),
+            if (order.isDirectRequest) ...[
+              if (order.directRequestImage != null && order.directRequestImage!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    order.directRequestImage!,
+                    height: 140,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+              ],
+              if (order.directRequestNotes != null && order.directRequestNotes!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: RC.bg(Colors.grey.shade50),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: RC.bg(Colors.grey.shade200)),
+                  ),
+                  child: Text(
+                    tx(order.directRequestNotes!),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: RC.fg(Colors.black87),
+                    ),
+                  ),
+                ),
+              ],
+              if (order.address.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(Icons.location_on_outlined, size: 16, color: RC.fg(Colors.grey.shade600)),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        tx(order.address),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
             if (_isLiveTrackStatus(order.status)) ...[
               const SizedBox(height: 12),
               Material(
@@ -6831,42 +6977,44 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 16),
-            Divider(color: RC.bg(Colors.grey.shade100), height: 1),
-            const SizedBox(height: 12),
-            ...order.items.map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                tx(item.product.name),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: RC.fg(Colors.black87)),
+            if (!order.isDirectRequest) ...[
+              const SizedBox(height: 16),
+              Divider(color: RC.bg(Colors.grey.shade100), height: 1),
+              const SizedBox(height: 12),
+              ...order.items.map((item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  tx(item.product.name),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: RC.fg(Colors.black87)),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              tx('× ${item.quantity}'),
-                              style: TextStyle(fontSize: 14, color: RC.fg(Colors.grey.shade400), fontWeight: FontWeight.bold),
-                            ),
-                          ],
+                              const SizedBox(width: 8),
+                              Text(
+                                tx('× ${item.quantity}'),
+                                style: TextStyle(fontSize: 14, color: RC.fg(Colors.grey.shade400), fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        tx('${_formatNum(item.product.price * item.quantity)} ${_t('د.ع')}'),
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: RC.fg(Colors.black87)),
-                      ),
-                    ],
-                  ),
-                )),
-            const SizedBox(height: 4),
+                        const SizedBox(width: 8),
+                        Text(
+                          tx('${_formatNum(item.product.price * item.quantity)} ${_t('د.ع')}'),
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: RC.fg(Colors.black87)),
+                        ),
+                      ],
+                    ),
+                  )),
+              const SizedBox(height: 4),
+            ],
             Divider(color: RC.bg(Colors.grey.shade100), height: 1),
             const SizedBox(height: 16),
             Row(
@@ -6876,13 +7024,22 @@ class _MainScreenState extends State<MainScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_t('کۆی گشتی حساب'), style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey.shade500))),
+                      Text(
+                        order.isDirectRequest ? _t('جۆری داواکاری') : _t('کۆی گشتی حساب'),
+                        style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey.shade500)),
+                      ),
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerRight,
                         child: Text(
-                          tx('${_formatNum(order.totalAmount)} ${_t('د.ع')}'),
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFFB45309))),
+                          order.isDirectRequest
+                              ? tx('داواکاری ڕاستەوخۆ')
+                              : tx('${_formatNum(order.totalAmount)} ${_t('د.ع')}'),
+                          style: TextStyle(
+                            fontSize: order.isDirectRequest ? 15 : 18,
+                            fontWeight: FontWeight.bold,
+                            color: RC.fg(const Color(0xFFB45309)),
+                          ),
                         ),
                       ),
                     ],
@@ -6892,27 +7049,29 @@ class _MainScreenState extends State<MainScreen> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: GestureDetector(
-                        onTap: () => _showReceiptModal(order),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: RC.bg(Colors.grey.shade100),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.receipt_long_outlined, size: 16, color: RC.fg(Colors.grey.shade700)),
-                              const SizedBox(width: 6),
-                              Text(tx('پسوولە'), style: TextStyle(fontSize: 13, color: RC.fg(Colors.grey.shade800), fontWeight: FontWeight.bold)),
-                            ],
+                    if (!order.isDirectRequest) ...[
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: GestureDetector(
+                          onTap: () => _showReceiptModal(order),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: RC.bg(Colors.grey.shade100),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.receipt_long_outlined, size: 16, color: RC.fg(Colors.grey.shade700)),
+                                const SizedBox(width: 6),
+                                Text(tx('پسوولە'), style: TextStyle(fontSize: 13, color: RC.fg(Colors.grey.shade800), fontWeight: FontWeight.bold)),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
+                      const SizedBox(width: 8),
+                    ],
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: GestureDetector(
@@ -6964,6 +7123,86 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteOrder(OrderItem order) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: RC.bg(Colors.white),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.delete_outline_rounded, color: Colors.red.shade600, size: 28),
+            const SizedBox(width: 8),
+            Text(
+              tx('سڕینەوەی داواکاری'),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Text(
+          tx('ئایا دڵنیایت لە سڕینەوەی ئەم داواکارییە؟'),
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              tx('پاشگەزبوونەوە'),
+              style: TextStyle(color: RC.fg(Colors.grey.shade700), fontWeight: FontWeight.bold),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              tx('سڕینەوە'),
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final success = await CustomerApiService.instance.deleteOrder(order.id);
+      if (!mounted) return;
+      if (success) {
+        setState(() {
+          _orders.removeWhere((o) => o.id == order.id);
+        });
+        context.read<OrdersNotifier>().notify();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tx('داواکاری بە سەرکەوتوویی سڕایەوە')),
+            backgroundColor: RC.bg(const Color(0xFF059669)),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tx('سڕینەوە سەرکەوتوو نەبوو')),
+            backgroundColor: Colors.red.shade600,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx('هەڵەیەک ڕوویدا لە سڕینەوەی داواکاری')),
+          backgroundColor: Colors.red.shade600,
+        ),
+      );
+    }
   }
 
   // ============================================================================

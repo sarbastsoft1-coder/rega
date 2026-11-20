@@ -421,6 +421,19 @@ class CustomerApiService {
     return [];
   }
 
+  Future<bool> deleteOrder(String orderId) async {
+    await initToken();
+    try {
+      final uri = Uri.parse('$baseUrl/public/customer-orders/$orderId');
+      final res = await http.delete(uri, headers: _headers()).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
+        return body['success'] == true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   /// ئاگاداری و داشکاندنەکان لە ئەدمین (بۆ زەنگی نۆتیفیکەیشن)
   Future<List<dynamic>> fetchNotifications() async {
     await initToken();

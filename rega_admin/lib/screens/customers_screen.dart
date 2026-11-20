@@ -758,20 +758,55 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 ),
               ],
             ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: RC.bg(Color(0xFF113E2E)),
-                foregroundColor: RC.fg(Colors.white),
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () => _showAddCustomerDialog(),
-              icon: Icon(Icons.add, size: 18, color: RC.fg(Colors.white)),
-              label: Text(
-                AppStrings.tr('add_customer', _lang),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: RC.fg(const Color(0xFF113E2E)),
+                    side: BorderSide(color: RC.fg(const Color(0xFF113E2E))),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () async {
+                    final ok = await showSendCustomerNotificationDialog(
+                      context,
+                      api: widget.api,
+                      lang: _lang,
+                    );
+                    if (ok && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(tx('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت')),
+                          backgroundColor: RegaColors.emeraldDark,
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.notifications_active_rounded, size: 18),
+                  label: Text(
+                    tx('ناردنی ئاگاداری'),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: RC.bg(Color(0xFF113E2E)),
+                    foregroundColor: RC.fg(Colors.white),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () => _showAddCustomerDialog(),
+                  icon: Icon(Icons.add, size: 18, color: RC.fg(Colors.white)),
+                  label: Text(
+                    AppStrings.tr('add_customer', _lang),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
             ),
           ],
         );
@@ -1258,6 +1293,35 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   InkWell(
+                    onTap: () async {
+                      final ok = await showSendCustomerNotificationDialog(
+                        context,
+                        api: widget.api,
+                        lang: _lang,
+                        preselectedIds: {c.id},
+                        preselectedLabel: '${c.name} ${c.phone}'.trim(),
+                      );
+                      if (ok && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(tx('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت')),
+                            backgroundColor: RegaColors.emeraldDark,
+                          ),
+                        );
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(6),
+                    child: Tooltip(
+                      message: tx('ناردنی ئاگاداری'),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
+                        child: Icon(Icons.notifications_active_outlined, size: 16, color: RC.fg(const Color(0xFF2563EB))),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  InkWell(
                     onTap: () => _showCustomerDetailsDialog(c),
                     borderRadius: BorderRadius.circular(6),
                     child: Container(
@@ -1494,6 +1558,39 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
+                                      // Send Notification Button
+                                      InkWell(
+                                        onTap: () async {
+                                          final ok = await showSendCustomerNotificationDialog(
+                                            context,
+                                            api: widget.api,
+                                            lang: _lang,
+                                            preselectedIds: {c.id},
+                                            preselectedLabel: '${c.name} ${c.phone}'.trim(),
+                                          );
+                                          if (ok && context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(tx('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت')),
+                                                backgroundColor: RegaColors.emeraldDark,
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Tooltip(
+                                          message: tx('ناردنی ئاگاداری'),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(5),
+                                            decoration: BoxDecoration(
+                                              color: AdminSurfaces.of(context).chipFill,
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Icon(Icons.notifications_active_outlined, size: 16, color: RC.fg(const Color(0xFF2563EB))),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
                                       // View Details Eye Button
                                       InkWell(
                                         onTap: () => _showCustomerDetailsDialog(c),
