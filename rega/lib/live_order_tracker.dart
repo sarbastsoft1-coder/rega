@@ -11,7 +11,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'map/mapbox_directions.dart';
-import 'map/mapbox_geocoding.dart';
 import 'map/mapbox_tiles.dart';
 import 'rega_mobile.dart';
 
@@ -308,83 +307,22 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
     }
   }
 
-  /// Center delivery pin: classic location teardrop + live label bubble.
+  /// Center delivery pin: classic location teardrop pin.
   /// Drawn with CustomPaint (not Material Icons) so web icon-fonts cannot
   /// fall back to a home glyph after tree-shaking.
   Widget _buildMapPin({double size = 38}) {
     final pinW = size * 1.15;
     final pinH = size * 1.45;
-    final label = widget.pinLabel.trim();
-    final showBubble = widget.pinLoading ||
-        (label.isNotEmpty && !MapboxGeocoding.looksLikeCoordinates(label));
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (showBubble) ...[
-          Container(
-            constraints: const BoxConstraints(maxWidth: 220),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: RC.bg(Colors.white),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.16),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (widget.pinLoading) ...[
-                  SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.8,
-                      color: RC.fg(const Color(0xFFEAB308)),
-                    ),
-                  ),
-                  if (label.isNotEmpty) const SizedBox(width: 6),
-                ],
-                if (label.isNotEmpty)
-                  Flexible(
-                    child: Text(
-                      tx(label),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: RC.fg(const Color(0xFF0F172A)),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.1,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Container(
-            width: 2,
-            height: 6,
-            color: RC.bg(const Color(0xFFFAC800)),
-          ),
-        ],
-        SizedBox(
-          width: pinW,
-          height: pinH,
-          child: CustomPaint(
-            painter: _LocationPinPainter(
-              fill: RC.bg(const Color(0xFFE11D48)),
-              stroke: RC.bg(Colors.white),
-              hole: RC.bg(const Color(0xFFFAC800)),
-            ),
-          ),
+    return SizedBox(
+      width: pinW,
+      height: pinH,
+      child: CustomPaint(
+        painter: _LocationPinPainter(
+          fill: RC.bg(const Color(0xFFE11D48)),
+          stroke: RC.bg(Colors.white),
+          hole: RC.bg(const Color(0xFFFAC800)),
         ),
-      ],
+      ),
     );
   }
 
@@ -455,8 +393,8 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                 markers: [
                   Marker(
                     point: _pinned,
-                    width: 230,
-                    height: 110,
+                    width: 44,
+                    height: 56,
                     alignment: Alignment.topCenter,
                     child: _buildMapPin(),
                   ),

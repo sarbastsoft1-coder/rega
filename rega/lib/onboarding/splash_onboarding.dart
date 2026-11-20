@@ -161,25 +161,6 @@ class _SplashOnboardingFlowState extends State<SplashOnboardingFlow>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'REGA',
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
-                      color: RC.fg(Colors.white),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    tx('ڕێگا'),
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: RC.fg(Colors.white).withValues(alpha: 0.92),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -204,31 +185,17 @@ class _SplashOnboardingFlowState extends State<SplashOnboardingFlow>
                   child: Container(color: RC.bg(_brand)),
                 ),
                 Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        height: 88,
-                        child: Image.asset(
-                          widget.logoAssetPath,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => Icon(
-                            Icons.storefront_rounded,
-                            size: 72,
-                            color: RC.fg(Colors.white),
-                          ),
-                        ),
+                  child: SizedBox(
+                    height: 88,
+                    child: Image.asset(
+                      widget.logoAssetPath,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.storefront_rounded,
+                        size: 72,
+                        color: RC.fg(Colors.white),
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'REGA',
-                        style: TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.w900,
-                          color: RC.fg(Colors.white),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ],
