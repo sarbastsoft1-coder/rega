@@ -2439,6 +2439,8 @@ const Map<String, List<String>> kRegaI18n = {
   'گەیاندن تەواوبوو بە سەرکەوتوویی!': ['گەیاندن تەواوبوو بە سەرکەوتوویی!', 'تم التوصيل بنجاح!', 'Delivery completed successfully!'],
   'گەیاندن تەواوکرا و حسابەکان لە PostgreSQL یەکلاکرانەوە ✅': ['گەیاندن تەواوکرا و حسابەکان لە PostgreSQL یەکلاکرانەوە ✅', 'تم التوصيل وتسوية الحسابات في PostgreSQL ✅', 'Delivery completed and accounts settled in PostgreSQL ✅'],
   'گەیاندن: ٧-١٢ خولەک': ['گەیاندن: ٧-١٢ خولەک', 'التوصيل: 7-12 دقيقة', 'Delivery: 7-12 min'],
+  'گەیاندن خۆڕاییە': ['گەیاندن خۆڕاییە', 'توصيل مجاني', 'Free Delivery'],
+  'خۆڕایی': ['خۆڕایی', 'مجاني', 'Free'],
   'گەیاندنی بێبەرامبەر (Free Delivery': ['گەیاندنی بێبەرامبەر (Free Delivery', 'توصيل مجاني (Free Delivery', 'Free delivery (Free Delivery'],
   'گەیاندنە تەواوکراوەکان': ['گەیاندنە تەواوکراوەکان', 'التوصيلات المكتملة', 'Completed deliveries'],
   'گەیشت': ['گەیشت', 'وصل', 'Arrived'],

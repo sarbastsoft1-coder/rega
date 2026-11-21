@@ -282,7 +282,9 @@ class PublicAndCustomerController extends Controller
                 ? Neighborhood::find($validated['neighborhood_id'])
                 : null;
 
-            $deliveryFee = $neighborhood ? (int) $neighborhood->delivery_fee : (int) $store->base_delivery_fee;
+            $deliveryFee = ((int) $store->base_delivery_fee === 0)
+                ? 0
+                : ($neighborhood ? (int) $neighborhood->delivery_fee : (int) $store->base_delivery_fee);
 
             $profitService = app(\App\Services\OrderProfitService::class);
             $commissionRate = $profitService->commissionForStore($store);
@@ -505,7 +507,9 @@ class PublicAndCustomerController extends Controller
 
             $deliveryFee = isset($validated['delivery_fee'])
                 ? (int) $validated['delivery_fee']
-                : ($neighborhood ? (int) $neighborhood->delivery_fee : (int) $store->base_delivery_fee);
+                : (((int) $store->base_delivery_fee === 0)
+                    ? 0
+                    : ($neighborhood ? (int) $neighborhood->delivery_fee : (int) $store->base_delivery_fee));
 
             $profitService = app(\App\Services\OrderProfitService::class);
             $commissionRate = $profitService->commissionForStore($store);

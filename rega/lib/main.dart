@@ -271,7 +271,15 @@ class _MainScreenState extends State<MainScreen> {
 
   bool get _hasDeliveryPlaceChosen => context.read<LocationNotifier>().hasChosenPlace;
 
-  int get _deliveryFeeOrZero => context.read<LocationNotifier>().deliveryFeeOrZero;
+  int get _deliveryFeeOrZero {
+    if (_cart.isNotEmpty) {
+      final sId = _cart.first.product.storeId;
+      final s = allStores.where((st) => st.id == sId).firstOrNull;
+      if (s != null && s.isFreeDelivery) return 0;
+    }
+    if (_selectedStore != null && _selectedStore!.isFreeDelivery) return 0;
+    return context.read<LocationNotifier>().deliveryFeeOrZero;
+  }
 
   // Dynamic Marketplace Data from Backend (Categories, Banners)
   List<Map<String, dynamic>> _dynamicCategories = [];
@@ -1053,7 +1061,7 @@ class _MainScreenState extends State<MainScreen> {
             rating: ((sm['rating'] as num?) ?? 9.6).toDouble(),
             reviewCount: (sm['review_count'] as num?)?.toInt() ?? 0,
             deliveryTime: sm['delivery_time']?.toString() ?? '20-30 خولەک',
-            deliveryFee: (sm['base_delivery_fee'] as num?)?.toInt() ?? 1500,
+            deliveryFee: (sm['base_delivery_fee'] as num?)?.toInt() ?? (sm['delivery_fee'] as num?)?.toInt() ?? 1500,
             imageUrl: () {
               final cover = RegaApiHost.resolveMediaUrl(sm['cover_url']?.toString());
               return cover.isNotEmpty
@@ -1123,12 +1131,10 @@ class _MainScreenState extends State<MainScreen> {
             }
           }
 
-          // باجی داشکاندن لە ٪ بەرهەمەکانی فرۆشیار — ئەگەر نەبێت هیچ نیشانە نیشان نادرێت
+          // باجی داشکاندن لە ٪ بەرهەمەکانی فرۆشیار — ئەگەر نەبێت باجی ئەدمین دەمێنێتەوە
           final String? computedBadge = bestDiscountPct > 0
               ? 'OFF %$bestDiscountPct'
-              : (detail != null
-                  ? null
-                  : ((rawBadge != null && rawBadge.isNotEmpty) ? rawBadge : null));
+              : ((rawBadge != null && rawBadge.isNotEmpty) ? rawBadge : null);
           mappedStore = StoreItem(
             id: mappedStore.id,
             name: mappedStore.name,
@@ -1203,7 +1209,7 @@ class _MainScreenState extends State<MainScreen> {
           rating: ((sm['rating'] as num?) ?? 9.6).toDouble(),
           reviewCount: (sm['review_count'] as num?)?.toInt() ?? 0,
           deliveryTime: sm['delivery_time']?.toString() ?? '20-30 خولەک',
-          deliveryFee: (sm['base_delivery_fee'] as num?)?.toInt() ?? 1500,
+          deliveryFee: (sm['base_delivery_fee'] as num?)?.toInt() ?? (sm['delivery_fee'] as num?)?.toInt() ?? 1500,
           imageUrl: () {
             final cover = RegaApiHost.resolveMediaUrl(sm['cover_url']?.toString());
             return cover.isNotEmpty
@@ -3113,17 +3119,28 @@ class _MainScreenState extends State<MainScreen> {
                                   contentPadding: const EdgeInsets.all(10),
                                   leading: ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
-                                    child: Image.network(
-                                      store.imageUrl,
-                                      width: 54,
-                                      height: 54,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (ctx, err, stack) => Container(
-                                        width: 54,
-                                        height: 54,
-                                        color: RC.bg(Colors.amber.shade100),
-                                        child: Icon(Icons.store, color: RC.fg(Colors.amber)),
-                                      ),
+                                    child: Stack(
+                                      children: [
+                                        _wrapClosedFilter(
+                                          isOpen: store.isOpen,
+                                          child: Image.network(
+                                            store.imageUrl,
+                                            width: 54,
+                                            height: 54,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (ctx, err, stack) => Container(
+                                              width: 54,
+                                              height: 54,
+                                              color: RC.bg(Colors.amber.shade100),
+                                              child: Icon(Icons.store, color: RC.fg(Colors.amber)),
+                                            ),
+                                          ),
+                                        ),
+                                        if (!store.isOpen)
+                                          Positioned.fill(
+                                            child: Container(color: RC.bg(Colors.black).withOpacity(0.30)),
+                                          ),
+                                      ],
                                     ),
                                   ),
                                   title: Text(tx(store.name), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
@@ -4388,9 +4405,26 @@ class _MainScreenState extends State<MainScreen> {
   );
 }
 
+  static const ColorFilter _grayscaleFilter = ColorFilter.matrix(<double>[
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0,      0,      0,      1, 0,
+  ]);
+
+  Widget _wrapClosedFilter({required bool isOpen, required Widget child}) {
+    if (isOpen) return child;
+    return ColorFiltered(
+      colorFilter: _grayscaleFilter,
+      child: child,
+    );
+  }
+
   Widget _buildVerticalGridStoreCard(StoreItem store) {
     final rawBadge = store.discountBadge?.trim() ?? '';
-    final hasDiscount = rawBadge.isNotEmpty;
+    final isFreeDelivery = store.isFreeDelivery;
+    final isFreeBadge = rawBadge.toUpperCase().contains('FREE') || rawBadge.contains('خۆڕای');
+    final hasDiscount = rawBadge.isNotEmpty && !isFreeBadge;
     final pctMatch = RegExp(r'(\d+)\s*%|%\s*(\d+)').firstMatch(rawBadge);
     final pctText = pctMatch != null
         ? '%${pctMatch.group(1) ?? pctMatch.group(2)}'
@@ -4410,15 +4444,25 @@ class _MainScreenState extends State<MainScreen> {
           fit: StackFit.expand,
           children: [
             // Cover Image
-            Image.network(
-              store.imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                color: RC.bg(Colors.grey.shade200),
-                alignment: Alignment.center,
-                child: Icon(Icons.storefront_rounded, color: RC.fg(Colors.grey), size: 36),
+            _wrapClosedFilter(
+              isOpen: store.isOpen,
+              child: Image.network(
+                store.imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: RC.bg(Colors.grey.shade200),
+                  alignment: Alignment.center,
+                  child: Icon(Icons.storefront_rounded, color: RC.fg(Colors.grey), size: 36),
+                ),
               ),
             ),
+            // Dimmed overlay when closed
+            if (!store.isOpen)
+              Positioned.fill(
+                child: Container(
+                  color: RC.bg(Colors.black).withOpacity(0.30),
+                ),
+              ),
             // Soft bottom fade so yellow bar stays readable
             Positioned(
               left: 0,
@@ -4438,16 +4482,54 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ),
+            // Top Green Free Delivery Banner (گەیاندن خۆڕاییە) — exactly matches design
+            if (isFreeDelivery)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 28,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: RC.bg(const Color(0xFF059669)),
+                  ),
+                  child: Directionality(
+                    textDirection: TextDirection.rtl,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.delivery_dining_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          tx('گەیاندن خۆڕاییە'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             // Top-right status pill (کراوە / داخراوە)
             Positioned(
-              top: 10,
+              top: isFreeDelivery ? 36 : 10,
               right: 10,
               child: _buildStoreOpenBadge(store.isOpen),
             ),
             // Top-left diagonal discount ribbon (داشکاندن %)
             if (hasDiscount)
               Positioned(
-                top: 0,
+                top: isFreeDelivery ? 28 : 0,
                 left: 0,
                 child: _buildDiscountCornerRibbon(pctText, size: 86),
               ),
@@ -4508,8 +4590,18 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-                  child: Image.network(store.imageUrl, height: 145, width: double.infinity, fit: BoxFit.cover),
+                  child: _wrapClosedFilter(
+                    isOpen: store.isOpen,
+                    child: Image.network(store.imageUrl, height: 145, width: double.infinity, fit: BoxFit.cover),
+                  ),
                 ),
+                if (!store.isOpen)
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                      child: Container(color: RC.bg(Colors.black).withOpacity(0.30)),
+                    ),
+                  ),
                 Positioned(
                   top: 10,
                   left: 10,
@@ -4651,10 +4743,12 @@ class _MainScreenState extends State<MainScreen> {
                   image: DecorationImage(
                     image: NetworkImage(store.imageUrl),
                     fit: BoxFit.cover,
+                    colorFilter: !store.isOpen ? _grayscaleFilter : null,
                   ),
                 ),
                 child: Container(
                   decoration: BoxDecoration(
+                    color: !store.isOpen ? RC.bg(Colors.black).withOpacity(0.30) : null,
                     gradient: LinearGradient(
                       colors: [RC.bg(Colors.black).withOpacity(0.5), Colors.transparent, RC.bg(Colors.black).withOpacity(0.3)],
                       begin: Alignment.bottomCenter,
@@ -4776,9 +4870,11 @@ class _MainScreenState extends State<MainScreen> {
                                         ? '${km.toStringAsFixed(1)} کم'
                                         : '${km.toStringAsFixed(0)} کم';
                                   }
-                                  final fee = store.deliveryFee > 0
-                                      ? store.deliveryFee
-                                      : _deliveryFeeOrZero;
+                                  final fee = store.isFreeDelivery
+                                      ? 0
+                                      : (store.deliveryFee > 0
+                                          ? store.deliveryFee
+                                          : _deliveryFeeOrZero);
                                   final reviews = store.reviewCount > 0 ? store.reviewCount : null;
                                   final ratingText = reviews != null
                                       ? '${store.ratingOutOf10}/10 ($reviews)'
@@ -4807,7 +4903,9 @@ class _MainScreenState extends State<MainScreen> {
                                       Icon(Icons.directions_bike_rounded, color: RC.fg(Colors.black), size: 16),
                                       const SizedBox(width: 4),
                                       Text(
-                                        tx('$fee د.ع'),
+                                        store.isFreeDelivery || fee == 0
+                                            ? tx('خۆڕایی')
+                                            : tx('$fee د.ع'),
                                         style: TextStyle(
                                           color: RC.fg(Colors.black),
                                           fontSize: 12,
@@ -5237,7 +5335,7 @@ class _MainScreenState extends State<MainScreen> {
   // ============================================================================
   Widget _buildStoresTab() {
     // Filter to ONLY stores & restaurants that have an active discount or special offer
-    final discountStores = allStores.where((s) => s.discountBadge != null && s.discountBadge!.trim().isNotEmpty).toList();
+    final discountStores = allStores.where((s) => (s.discountBadge != null && s.discountBadge!.trim().isNotEmpty) || s.isFreeDelivery).toList();
 
     return ListView(
       padding: const EdgeInsets.all(14),
@@ -5738,8 +5836,14 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    tx('${_formatNum(deliveryFee)} ${_t('د.ع')}'),
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: RC.fg(Colors.black)),
+                    deliveryFee == 0
+                        ? tx('خۆڕایی')
+                        : tx('${_formatNum(deliveryFee)} ${_t('د.ع')}'),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: deliveryFee == 0 ? RC.fg(const Color(0xFF059669)) : RC.fg(Colors.black),
+                    ),
                   ),
                 ],
               ),

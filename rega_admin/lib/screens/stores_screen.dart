@@ -353,7 +353,7 @@ class _StoresScreenState extends State<StoresScreen> {
         }
       }
     }
-    const feePresets = [1000, 1500, 2000, 2500, 3000];
+    const feePresets = [0, 1000, 1500, 2000, 2500, 3000];
     final locationPresets = <Map<String, dynamic>>[
       {'nameKey': 'loc_kalar_bazaar', 'lat': 34.6836, 'lng': 45.3189},
       {'nameKey': 'loc_shahidan', 'lat': 34.6912, 'lng': 45.3264},
@@ -490,10 +490,17 @@ class _StoresScreenState extends State<StoresScreen> {
                 runSpacing: 6,
                 children: feePresets.map((fee) {
                   final selected = feeCtrl.text.trim() == fee.toString();
+                  final chipText = fee == 0 ? '0 (${_t('خۆڕایی')})' : '$fee';
                   return FilterChip(
                     selected: selected,
-                    label: Text('$fee'),
-                    selectedColor: RC.bg(Color(0xFFFFEDD5)),
+                    label: Text(
+                      chipText,
+                      style: TextStyle(
+                        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                        color: fee == 0 && selected ? RC.fg(const Color(0xFF059669)) : null,
+                      ),
+                    ),
+                    selectedColor: fee == 0 ? RC.bg(const Color(0xFFDCFCE7)) : RC.bg(const Color(0xFFFFEDD5)),
                     visualDensity: VisualDensity.compact,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     onSelected: (_) => setDialogState(() => feeCtrl.text = fee.toString()),

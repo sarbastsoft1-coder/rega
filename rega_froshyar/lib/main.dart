@@ -12,7 +12,6 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'vendor_api_service.dart';
 import 'blocked_account.dart';
-import 'online_drivers_map.dart';
 import 'assigned_driver_map.dart';
 import 'rega_mobile.dart';
 import 'image_compress_service.dart';
@@ -1170,6 +1169,66 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
+  /// Online/Offline Capsule Switch styled exactly after reference (Image 2)
+  Widget _buildOnlineOfflineSwitch() {
+    return Semantics(
+      button: true,
+      toggled: _isOnline,
+      label: _isOnline ? 'Online' : 'Offline',
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _isOnline = !_isOnline;
+            VendorApiService.instance.updateOnlineStatus(_isOnline);
+          });
+        },
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+          decoration: BoxDecoration(
+            color: RC.bg(Colors.black).withOpacity(0.18),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: RC.bg(Colors.white).withOpacity(0.25),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 40,
+                height: 22,
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: _isOnline ? RC.bg(const Color(0xFF10B981)) : RC.bg(Colors.black45),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: _isOnline ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: RC.bg(Colors.white),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: RC.bg(Colors.black26),
+                        blurRadius: 3,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> screens = [
@@ -1202,9 +1261,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         onUpdateStatus: _updateOrderStatus,
         onOrdersChanged: () => _syncVendorOrdersOnly(initialLoad: false),
         onSimulate: () {
-          if (_soundEnabled) {
-            OrderSoundService.playNewOrderAlert(soundEnabled: true);
-          }
+          OrderSoundService.playNewOrderAlert(soundEnabled: true);
         },
       ),
     ];
@@ -1215,14 +1272,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
         appBar: PreferredSize(
-          preferredSize: Size.fromHeight(
-            MediaQuery.sizeOf(context).width < RegaBreakpoints.phone ? 118 : 80,
-          ),
+          preferredSize: const Size.fromHeight(80),
           child: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
             automaticallyImplyLeading: false,
-            toolbarHeight: MediaQuery.sizeOf(context).width < RegaBreakpoints.phone ? 118 : 80,
+            toolbarHeight: 80,
             titleSpacing: 14,
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
@@ -1234,7 +1289,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   begin: Alignment.centerRight,
                   end: Alignment.centerLeft,
                 ),
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
                 boxShadow: [
                   BoxShadow(
                     color: RC.bg(Color(0x33000000)),
@@ -1246,68 +1301,69 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
             title: SizedBox(
               width: double.infinity,
-              height: MediaQuery.sizeOf(context).width < RegaBreakpoints.phone ? 108 : 52,
+              height: 52,
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1080),
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final storeLeading = Flexible(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Stack(
-                              clipBehavior: Clip.none,
-                              alignment: Alignment.bottomRight,
-                              children: [
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: RC.bg(Colors.white).withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: RC.bg(Colors.white).withOpacity(0.4),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    Icons.storefront_outlined,
-                                    color: RC.fg(Colors.white),
-                                    size: 24,
+                      final storeLeading = Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            alignment: Alignment.bottomRight,
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: RC.bg(Colors.white).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: RC.bg(Colors.white).withOpacity(0.4),
+                                    width: 1.5,
                                   ),
                                 ),
-                                Positioned(
-                                  bottom: -1,
-                                  right: -1,
-                                  child: Container(
-                                    width: 13,
-                                    height: 13,
-                                    decoration: BoxDecoration(
-                                      color: _isOnline ? RC.bg(Color(0xFF10B981)) : RC.bg(Color(0xFFF43F5E)),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: RC.bg(Color(0xFFD97706)), width: 2),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(width: 10),
-                            Flexible(
-                              child: Text(
-                                tx(_businessName),
-                                style: TextStyle(
+                                child: Icon(
+                                  Icons.storefront_outlined,
                                   color: RC.fg(Colors.white),
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -0.3,
+                                  size: 24,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
+                              Positioned(
+                                bottom: -1,
+                                right: -1,
+                                child: Container(
+                                  width: 13,
+                                  height: 13,
+                                  decoration: BoxDecoration(
+                                    color: _isOnline ? RC.bg(const Color(0xFF10B981)) : RC.bg(const Color(0xFFF43F5E)),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: RC.bg(const Color(0xFFD97706)), width: 2),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 10),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.sizeOf(context).width < RegaBreakpoints.phone ? 120 : 260,
                             ),
-                          ],
-                        ),
+                            child: Text(
+                              tx(_businessName),
+                              style: TextStyle(
+                                color: RC.fg(Colors.white),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.3,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       );
 
                       final actionTrailing = Row(
@@ -1325,7 +1381,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(tx('دەنگی ئاگادارکردنەوەی داواکاری چالاک کرا 🔔'), textAlign: TextAlign.center),
-                                    duration: Duration(seconds: 1),
+                                    duration: const Duration(seconds: 1),
                                     behavior: SnackBarBehavior.floating,
                                   ),
                                 );
@@ -1334,7 +1390,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(tx('دەنگی ئاگادارکردنەوە بێدەنگ کرا 🔕'), textAlign: TextAlign.center),
-                                    duration: Duration(seconds: 1),
+                                    duration: const Duration(seconds: 1),
                                     behavior: SnackBarBehavior.floating,
                                   ),
                                 );
@@ -1364,94 +1420,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           ),
                           const SizedBox(width: 8),
 
-                          // Live GPS of online captains
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const OnlineDriversMapPage()),
-                              );
-                            },
-                            child: Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: RC.bg(Colors.black).withOpacity(0.18),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: RC.bg(Colors.white).withOpacity(0.25), width: 1),
-                              ),
-                              child: Icon(Icons.gps_fixed_rounded, color: RC.fg(Colors.white), size: 19),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Online/Offline Operational Switch
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _isOnline = !_isOnline;
-                                VendorApiService.instance.updateOnlineStatus(_isOnline);
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: RC.bg(Colors.black).withOpacity(0.18),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: RC.bg(Colors.white).withOpacity(0.25),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    width: 40,
-                                    height: 22,
-                                    padding: const EdgeInsets.all(2),
-                                    decoration: BoxDecoration(
-                                      color: _isOnline ? RC.bg(Color(0xFF10B981)) : RC.bg(Colors.black45),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    alignment: _isOnline ? Alignment.centerRight : Alignment.centerLeft,
-                                    child: Container(
-                                      width: 18,
-                                      height: 18,
-                                      decoration: BoxDecoration(
-                                        color: RC.bg(Colors.white),
-                                        shape: BoxShape.circle,
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: RC.bg(Colors.black26),
-                                            blurRadius: 3,
-                                            offset: Offset(0, 1),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                          // Online/Offline Capsule Switch
+                          _buildOnlineOfflineSwitch(),
                         ],
                       );
-
-                      if (constraints.maxWidth < RegaBreakpoints.phone) {
-                        return Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(children: [storeLeading]),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: AlignmentDirectional.centerEnd,
-                              child: actionTrailing,
-                            ),
-                          ],
-                        );
-                      }
 
                       return Stack(
                         alignment: Alignment.center,
@@ -1464,7 +1436,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                               actionTrailing,
                             ],
                           ),
-                          if (MediaQuery.sizeOf(context).width >= RegaBreakpoints.phone) _buildTopLogo(),
+                          _buildTopLogo(),
                         ],
                       );
                     },
@@ -1678,6 +1650,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     return const IgnorePointer(
       child: _TopBarLogoWidget(
         primaryPath: kAppLogoFilePath,
+        height: 44,
       ),
     );
   }
@@ -2215,12 +2188,34 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   RegaResponsive.pagePadding(context),
                   8,
                 ),
-                child: Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Text(
-                    t('داواکارییە چالاکەکان'),
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      t('داواکارییە چالاکەکان'),
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: onSimulate,
+                      icon: Icon(Icons.notifications_active_rounded, size: 18, color: RC.fg(Colors.white)),
+                      label: Text(
+                        tx('تاقیکردنەوەی دەنگ'),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: RC.fg(Colors.white),
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: RC.bg(const Color(0xFFFF6418)),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               // Drivers strip (same idea as admin intake)

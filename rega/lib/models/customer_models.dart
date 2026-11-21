@@ -80,6 +80,13 @@ class StoreItem {
     if (rating <= 5.01) return double.parse((rating * 2).toStringAsFixed(1));
     return double.parse(rating.clamp(0, 10).toStringAsFixed(1));
   }
+
+  /// ئایا گەیاندن خۆڕاییە بۆ ئەم فرۆشگایە (لەلایەن ئەدمینەوە یان باجی خۆڕایی)
+  bool get isFreeDelivery =>
+      deliveryFee <= 0 ||
+      (discountBadge != null &&
+          (discountBadge!.toUpperCase().contains('FREE') ||
+              discountBadge!.contains('خۆڕای')));
 }
 
 class ProductItem {
