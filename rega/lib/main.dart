@@ -4627,20 +4627,8 @@ class _MainScreenState extends State<MainScreen> {
     subCategories.sort((a, b) =>
         ((a['sort_order'] as int?) ?? 999).compareTo((b['sort_order'] as int?) ?? 999));
 
-    // Always include offer/discount category if relevant or as standard
-    subCategories.add({
-      'title': 'داشکاندنەکان',
-      'displayTitle': _t('داشکاندنەکان'),
-      'badge': 'ئۆفەری تایبەت',
-      'isDiscount': true,
-      'image': 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=600',
-      'secondaryImage': '',
-      'sort_order': 10000,
-    });
-
     final List<ProductItem> activeProds = storeProds.where((p) {
       if (_selectedSubCategory == null || _selectedSubCategory == 'گشتی') return true;
-      if (_selectedSubCategory == 'داشکاندنەکان') return true;
       return p.subCategory == _selectedSubCategory;
     }).toList();
 
