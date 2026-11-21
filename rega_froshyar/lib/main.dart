@@ -2172,7 +2172,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final activeOrders = orders
         .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.rejected)
         .toList();
-    final onlineCount = _drivers.where((d) => d['is_online'] == true).length;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -2214,113 +2213,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              // Drivers strip (same idea as admin intake)
-              Container(
-                height: 148,
-                margin: EdgeInsets.fromLTRB(
-                  RegaResponsive.pagePadding(context),
-                  0,
-                  RegaResponsive.pagePadding(context),
-                  8,
-                ),
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                decoration: BoxDecoration(
-                  color: RC.bg(Colors.white),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: RC.bg(Color(0xFFBBF7D0))),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.two_wheeler_rounded, color: RC.fg(Color(0xFF16A34A)), size: 20),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(tx('ماتۆرسوارەکان (نزیکترین یەکەم)'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
-                        ),
-                        Text(
-                          tx('$onlineCount ئۆنلاین / ${_drivers.length}'),
-                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF166534))),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      tx(_selectedOrder == null
-                          ? 'سەرەتا داواکارییەک هەڵبژێرە، پاشان ماتۆرسوار دەست لێدە'
-                          : 'داواکاری هەڵبژێردراو: ${_selectedOrder!.id} — نزیکترین + ئەمڕۆ چەند گەیاندن'),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: _selectedOrder == null ? RC.bg(Colors.grey.shade600) : RC.bg(Color(0xFFEA580C)),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: _drivers.isEmpty
-                          ? Center(child: Text(tx('هیچ ماتۆرسوارێک نییە'), style: TextStyle(color: RC.fg(Colors.grey.shade500), fontWeight: FontWeight.w700)))
-                          : ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: _drivers.length,
-                              separatorBuilder: (_, __) => const SizedBox(width: 8),
-                              itemBuilder: (_, idx) {
-                                final d = _drivers[idx];
-                                final online = d['is_online'] == true;
-                                final today = (d['today_deliveries'] as num?)?.toInt() ?? 0;
-                                final dist = _fmtDriverDistance(d['distance_meters']);
-                                return InkWell(
-                                  borderRadius: BorderRadius.circular(12),
-                                  onTap: () async {
-                                    final order = _selectedOrder;
-                                    if (order == null) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text(tx('سەرەتا داواکارییەک هەڵبژێرە')),
-                                          backgroundColor: RC.bg(Color(0xFFEA580C)),
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    await _assignDriverToOrder(order, d);
-                                  },
-                                  child: Container(
-                                    width: 148,
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: online ? RC.bg(Color(0xFFF0FDF4)) : RC.bg(Color(0xFFF8FAFC)),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: online ? RC.bg(Color(0xFF86EFAC)) : RC.bg(Color(0xFFE2E8F0))),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Icon(Icons.two_wheeler_rounded, size: 18, color: online ? RC.fg(Color(0xFF16A34A)) : RC.bg(Colors.grey)),
-                                        const Spacer(),
-                                        Text(
-                                          tx(d['name']?.toString() ?? '—'),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5),
-                                        ),
-                                        Text(
-                                          tx(online ? 'ئۆنلاین · $dist' : 'ئۆفلاین · $dist'),
-                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: online ? RC.bg(Color(0xFF16A34A)) : RC.bg(Colors.grey)),
-                                        ),
-                                        Text(
-                                          tx('ئەمڕۆ: $today'),
-                                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFFEA580C))),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
                     ),
                   ],
                 ),
