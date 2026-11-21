@@ -2215,49 +2215,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   RegaResponsive.pagePadding(context),
                   8,
                 ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final title = Text(
-                      t('داواکارییە چالاکەکان'),
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-                    );
-                    final soundBtn = ElevatedButton.icon(
-                      onPressed: onSimulate,
-                      icon: Icon(Icons.notifications_active_rounded, size: 15, color: RC.fg(Colors.white)),
-                      label: Text(
-                        tx(constraints.maxWidth < RegaBreakpoints.phone ? t('دەنگ') : 'تاقیکردنەوەی دەنگ'),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          color: RC.fg(Colors.white),
-                          letterSpacing: 0,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: RC.bg(Color(0xFFFF6418)),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    );
-                    if (constraints.maxWidth < RegaBreakpoints.phone) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          title,
-                          const SizedBox(height: 10),
-                          Align(alignment: AlignmentDirectional.centerStart, child: soundBtn),
-                        ],
-                      );
-                    }
-                    return Row(
-                      children: [
-                        Expanded(child: title),
-                        const SizedBox(width: 8),
-                        soundBtn,
-                      ],
-                    );
-                  },
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    t('داواکارییە چالاکەکان'),
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                  ),
                 ),
               ),
               // Drivers strip (same idea as admin intake)
