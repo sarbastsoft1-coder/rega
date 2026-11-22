@@ -71,14 +71,17 @@ Future<Position?> regaResolveCurrentPosition({
 
 /// Neighborhood centers — filled from backend zones; no frozen labels as UI source of truth.
 class KalarGeoCatalog {
-  /// Downtown Kalar — default map center when user has not pinned yet.
-  static const LatLng kalarCenter = LatLng(34.6836, 45.3189);
+  /// Real downtown Kalar (ناو بازاڕی کەلار) — default map center when user has not pinned yet.
+  static const LatLng kalarCenter = LatLng(34.6295, 45.3159);
 
   /// Runtime coords synced from admin/backend neighborhoods (id → LatLng).
   static final Map<String, LatLng> neighborhoodCoords = {};
 
-  /// Max distance (meters) to treat a pin as inside a delivery zone.
-  static const double maxZoneMatchMeters = 12000;
+  /// Max distance (meters) to associate a backend delivery fee zone around Kalar/Rizgari.
+  static const double maxZoneMatchMeters = 4500;
+
+  /// Strict distance (meters) to use a backend zone's name as the pin neighborhood label.
+  static const double strictNeighborhoodLabelMeters = 900;
 
   /// Rough Iraq bounds for map picking (user can pin park/home anywhere).
   static const LatLng iraqCenter = LatLng(33.3152, 44.3661); // Baghdad
@@ -165,15 +168,16 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
   @override
   void didUpdateWidget(covariant KalarInteractivePickerMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Do not camera-jump on every parent rebuild during pan-pick — that fights
-    // the drag and freezes the label. Only sync an external pin change in tap mode.
+    // During pan-pick, _pinned is updated before onLocationChanged fires, so
+    // sameAsPinned is true. When !sameAsPinned, an external jump (e.g. search
+    // result or neighborhood chip selection) occurred — move camera smoothly.
     if (oldWidget.initialPoint != widget.initialPoint) {
       final sameAsPinned =
           (widget.initialPoint.latitude - _pinned.latitude).abs() < 1e-7 &&
           (widget.initialPoint.longitude - _pinned.longitude).abs() < 1e-7;
       if (!sameAsPinned) {
         _pinned = widget.initialPoint;
-        if (_ready && !_panPickMode) {
+        if (_ready) {
           try {
             _controller.move(_pinned, _controller.camera.zoom);
           } catch (_) {}
@@ -409,6 +413,77 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
               child: _buildMapPin(size: 40),
             ),
           ),
+        // Floating live Kurdish neighborhood / place bubble above the pin
+        IgnorePointer(
+          child: Align(
+            alignment: const Alignment(0, -0.32),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: (widget.pinLabel.trim().isEmpty && !widget.pinLoading)
+                  ? const SizedBox.shrink()
+                  : Container(
+                      key: ValueKey('${widget.pinLabel}_${widget.pinLoading}'),
+                      constraints: const BoxConstraints(maxWidth: 290),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: RC.bg(const Color(0xFF0F172A)).withValues(alpha: 0.90),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: RC.bg(const Color(0xFFFAC800)).withValues(alpha: 0.85),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.22),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (widget.pinLoading) ...[
+                            SizedBox(
+                              width: 13,
+                              height: 13,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  RC.fg(const Color(0xFFFAC800)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 7),
+                          ] else ...[
+                            Icon(
+                              Icons.place_rounded,
+                              size: 15,
+                              color: RC.fg(const Color(0xFFFAC800)),
+                            ),
+                            const SizedBox(width: 5),
+                          ],
+                          Flexible(
+                            child: Text(
+                              widget.pinLabel.trim().isNotEmpty
+                                  ? widget.pinLabel.trim()
+                                  : tx('دۆزینەوەی ناونیشان...'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: RC.fg(Colors.white),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ),
+        ),
         // Soft top fade so controls sit cleanly over Mapbox tiles
         Positioned(
           top: 0,

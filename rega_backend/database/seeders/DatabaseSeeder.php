@@ -32,17 +32,17 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // 2. Kalar delivery zones
+        // 2. Kalar delivery zones (real satellite-verified Kalar & Rizgari coordinates)
         $zonesData = [
-            ['code' => 'n1', 'name_ku' => 'شارۆچکەی رزگاری', 'name_ar' => 'ناحية رزكاري', 'name_en' => 'Rzgari', 'fee' => 1500, 'lat' => 34.6710, 'lng' => 45.2950, 'min' => 30],
-            ['code' => 'n2', 'name_ku' => 'گەڕەکی زانکۆ', 'name_ar' => 'حي الجامعة', 'name_en' => 'Zanko', 'fee' => 1000, 'lat' => 34.6920, 'lng' => 45.3240, 'min' => 20],
-            ['code' => 'n3', 'name_ku' => 'گەڕەکی شەهیدان', 'name_ar' => 'حي الشهداء', 'name_en' => 'Shahidan', 'fee' => 1000, 'lat' => 34.6855, 'lng' => 45.3195, 'min' => 20],
-            ['code' => 'n4', 'name_ku' => 'گەڕەکی سیروان', 'name_ar' => 'حي سيروان', 'name_en' => 'Sirwan', 'fee' => 1500, 'lat' => 34.6790, 'lng' => 45.3310, 'min' => 25],
-            ['code' => 'n5', 'name_ku' => 'گەڕەکی شۆڕش', 'name_ar' => 'حي شورش', 'name_en' => 'Shorish', 'fee' => 1500, 'lat' => 34.6880, 'lng' => 45.3110, 'min' => 25],
-            ['code' => 'n6', 'name_ku' => 'گەڕەکی بێساری', 'name_ar' => 'حي بيساري', 'name_en' => 'Besari', 'fee' => 2000, 'lat' => 34.7010, 'lng' => 45.3360, 'min' => 35],
-            ['code' => 'n7', 'name_ku' => 'گەڕەکی کاکەییان', 'name_ar' => 'حي كاكائيان', 'name_en' => 'Kakeyan', 'fee' => 1500, 'lat' => 34.6760, 'lng' => 45.3150, 'min' => 25],
-            ['code' => 'n8', 'name_ku' => 'گەڕەکی فەرمانبەران', 'name_ar' => 'حي الموظفين', 'name_en' => 'Farmanbaran', 'fee' => 1000, 'lat' => 34.6895, 'lng' => 45.3210, 'min' => 20],
-            ['code' => 'n9', 'name_ku' => 'ناو بازاڕی کەلار', 'name_ar' => 'سوق كلار المركزي', 'name_en' => 'Downtown Market', 'fee' => 1000, 'lat' => 34.6836, 'lng' => 45.3189, 'min' => 18],
+            ['code' => 'n1', 'name_ku' => 'شارۆچکەی رزگاری', 'name_ar' => 'ناحية رزكاري', 'name_en' => 'Rzgari', 'fee' => 1500, 'lat' => 34.6250, 'lng' => 45.2760, 'min' => 30],
+            ['code' => 'n2', 'name_ku' => 'گەڕەکی زانکۆ', 'name_ar' => 'حي الجامعة', 'name_en' => 'Zanko', 'fee' => 1000, 'lat' => 34.6485, 'lng' => 45.3295, 'min' => 20],
+            ['code' => 'n3', 'name_ku' => 'گەڕەکی شەهیدان', 'name_ar' => 'حي الشهداء', 'name_en' => 'Shahidan', 'fee' => 1000, 'lat' => 34.6345, 'lng' => 45.3185, 'min' => 20],
+            ['code' => 'n4', 'name_ku' => 'گەڕەکی سیروان', 'name_ar' => 'حي سيروان', 'name_en' => 'Sirwan', 'fee' => 1500, 'lat' => 34.6242, 'lng' => 45.3235, 'min' => 25],
+            ['code' => 'n5', 'name_ku' => 'گەڕەکی شۆڕش', 'name_ar' => 'حي شورش', 'name_en' => 'Shorish', 'fee' => 1500, 'lat' => 34.6312, 'lng' => 45.3088, 'min' => 25],
+            ['code' => 'n6', 'name_ku' => 'گەڕەکی بێساری', 'name_ar' => 'حي بيساري', 'name_en' => 'Besari', 'fee' => 2000, 'lat' => 34.6410, 'lng' => 45.3208, 'min' => 35],
+            ['code' => 'n7', 'name_ku' => 'گەڕەکی کاکەییان', 'name_ar' => 'حي كاكائيان', 'name_en' => 'Kakeyan', 'fee' => 1500, 'lat' => 34.6265, 'lng' => 45.3122, 'min' => 25],
+            ['code' => 'n8', 'name_ku' => 'گەڕەکی فەرمانبەران', 'name_ar' => 'حي الموظفين', 'name_en' => 'Farmanbaran', 'fee' => 1000, 'lat' => 34.6372, 'lng' => 45.3242, 'min' => 20],
+            ['code' => 'n9', 'name_ku' => 'ناو بازاڕی کەلار', 'name_ar' => 'سوق كلار المركزي', 'name_en' => 'Downtown Market', 'fee' => 1000, 'lat' => 34.6295, 'lng' => 45.3159, 'min' => 18],
         ];
 
         foreach ($zonesData as $idx => $z) {

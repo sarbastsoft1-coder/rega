@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../map/mapbox_geocoding.dart';
 import '../models/customer_models.dart';
 
-/// Delivery pin + display name. Never defaults to a hardcoded neighborhood.
+/// Delivery pin + display name. Always prioritizes exact GPS coordinates (`lat`, `lng`)
+/// as the primary delivery location while keeping manual user place notes separate
+/// from auto-resolved neighborhood names.
 class LocationNotifier extends ChangeNotifier {
   static const _kLat = 'rega_delivery_lat';
   static const _kLng = 'rega_delivery_lng';
@@ -20,7 +23,7 @@ class LocationNotifier extends ChangeNotifier {
   double? _pinnedLat;
   double? _pinnedLng;
   String? _placeNote;
-  /// Reverse-geocoded or otherwise resolved place label (not a Flutter const).
+  /// Reverse-geocoded or locally matched Kurdish neighborhood/compound name.
   String? _resolvedPlaceName;
   bool _loaded = false;
 
@@ -30,24 +33,63 @@ class LocationNotifier extends ChangeNotifier {
   String? get placeNote => _placeNote;
   String? get resolvedPlaceName => _resolvedPlaceName;
   bool get hasPin => _pinnedLat != null && _pinnedLng != null;
+
+  /// Exact GPS coordinate pair as [LatLng], or null when not yet pinned.
+  LatLng? get pinnedPoint =>
+      hasPin ? LatLng(_pinnedLat!, _pinnedLng!) : null;
+
+  /// Formatted exact GPS coordinates (`lat, lng`) for delivery & driver dispatch.
+  String? get exactCoordinatesLabel =>
+      hasPin ? MapboxGeocoding.coordinatesLabel(LatLng(_pinnedLat!, _pinnedLng!), decimals: 5) : null;
+
   bool get hasChosenPlace =>
       hasPin ||
       (_placeNote != null && _placeNote!.isNotEmpty) ||
       (_resolvedPlaceName != null && _resolvedPlaceName!.isNotEmpty);
 
-  /// Home bar / chips: note → resolved geocode/zone name → null (caller shows hint).
-  /// Never shows raw GPS coordinates.
+  /// Home bar / checkout chips: combines resolved Kurdish neighborhood with manual
+  /// user note ("ناوی شوێن") without losing either, and falls back gracefully when
+  /// a pin is in a new housing complex with no street name in Mapbox/OSM.
   String? get displayPlaceLabel {
     final note = _placeNote?.trim();
-    if (note != null && note.isNotEmpty) return note;
     final resolved = _resolvedPlaceName?.trim();
-    if (resolved != null &&
-        resolved.isNotEmpty &&
-        !MapboxGeocoding.looksLikeCoordinates(resolved)) {
-      return resolved;
+    final validResolved = (resolved != null &&
+            resolved.isNotEmpty &&
+            !MapboxGeocoding.looksLikeCoordinates(resolved))
+        ? resolved
+        : null;
+
+    if (note != null && note.isNotEmpty) {
+      if (validResolved != null &&
+          !note.contains(validResolved) &&
+          !validResolved.contains(note)) {
+        return '$validResolved · $note';
+      }
+      return note;
     }
+
+    if (validResolved != null) {
+      return validResolved;
+    }
+
+    if (hasPin) {
+      final local = MapboxGeocoding.matchLocalPlace(LatLng(_pinnedLat!, _pinnedLng!));
+      if (local != null) return local.nameKu;
+    }
+
     final zone = _neighborhood?.name.trim();
     if (zone != null && zone.isNotEmpty) return zone;
+
+    if (hasPin) {
+      final pt = LatLng(_pinnedLat!, _pinnedLng!);
+      if (MapboxGeocoding.isInsideKalarUrbanArea(pt)) {
+        return 'کەلار · گەڕەک / کۆمەڵگای نوێ (GPS)';
+      }
+      if (MapboxGeocoding.isInsideRizgariArea(pt)) {
+        return 'شارۆچکەی ڕزگاری · شوێنی دیاریکراو (GPS)';
+      }
+      return 'شوێنی دیاریکراو لەسەر نەخشە (GPS)';
+    }
     return null;
   }
 
@@ -68,13 +110,21 @@ class LocationNotifier extends ChangeNotifier {
           zoneId.isNotEmpty &&
           zoneName != null &&
           zoneName.isNotEmpty) {
+        final rawLat = prefs.getDouble(_kZoneLat);
+        final rawLng = prefs.getDouble(_kZoneLng);
+        final fixedCoord = MapboxGeocoding.resolveKnownCoordForName(
+          zoneName,
+          code: zoneId,
+          rawLat: rawLat,
+          rawLng: rawLng,
+        );
         _neighborhood = Neighborhood(
           id: zoneId,
           name: zoneName,
           nameEn: zoneName,
           deliveryFee: prefs.getInt(_kZoneFee) ?? 0,
-          lat: prefs.getDouble(_kZoneLat),
-          lng: prefs.getDouble(_kZoneLng),
+          lat: fixedCoord?.latitude ?? rawLat,
+          lng: fixedCoord?.longitude ?? rawLng,
         );
       }
       notifyListeners();

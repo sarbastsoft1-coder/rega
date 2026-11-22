@@ -589,13 +589,34 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   /// Closest admin/backend zone within [KalarGeoCatalog.maxZoneMatchMeters], else null.
-  Neighborhood? _closestNeighborhoodTo(double lat, double lng) {
+  /// Used for associating delivery fee zones around Kalar & Rizgari.
+  Neighborhood? _closestNeighborhoodTo(double lat, double lng, {double? maxMeters}) {
     if (kalarNeighborhoods.isEmpty) return null;
+    final pt = LatLng(lat, lng);
+    final localMatch = MapboxGeocoding.matchLocalPlace(pt);
+    if (localMatch != null) {
+      for (final n in kalarNeighborhoods) {
+        if (n.id == localMatch.id ||
+            n.name.trim() == localMatch.nameKu ||
+            n.name.contains(localMatch.nameKu) ||
+            localMatch.nameKu.contains(n.name.trim())) {
+          return n;
+        }
+      }
+    }
+
     Neighborhood? closest;
     double minDistance = double.infinity;
     for (final n in kalarNeighborhoods) {
-      final geoLat = n.lat ?? KalarGeoCatalog.neighborhoodCoords[n.id]?.latitude;
-      final geoLng = n.lng ?? KalarGeoCatalog.neighborhoodCoords[n.id]?.longitude;
+      final resolvedCoord = MapboxGeocoding.resolveKnownCoordForName(
+        n.name,
+        nameEn: n.nameEn,
+        code: n.id,
+        rawLat: n.lat ?? KalarGeoCatalog.neighborhoodCoords[n.id]?.latitude,
+        rawLng: n.lng ?? KalarGeoCatalog.neighborhoodCoords[n.id]?.longitude,
+      );
+      final geoLat = resolvedCoord?.latitude ?? n.lat ?? KalarGeoCatalog.neighborhoodCoords[n.id]?.latitude;
+      final geoLng = resolvedCoord?.longitude ?? n.lng ?? KalarGeoCatalog.neighborhoodCoords[n.id]?.longitude;
       if (geoLat == null || geoLng == null) continue;
       final dist = Geolocator.distanceBetween(lat, lng, geoLat, geoLng);
       if (dist < minDistance) {
@@ -604,8 +625,24 @@ class _MainScreenState extends State<MainScreen> {
       }
     }
     if (closest == null) return null;
-    if (minDistance > KalarGeoCatalog.maxZoneMatchMeters) return null;
+    final limit = maxMeters ?? KalarGeoCatalog.maxZoneMatchMeters;
+    if (minDistance > limit) return null;
     return closest;
+  }
+
+  /// Strict neighborhood/compound name for [lat], [lng] — only returns a specific
+  /// neighborhood name when the pin is inside its geofence or within 900m,
+  /// preventing wrong distant neighborhood names in new housing complexes.
+  String? _strictNeighborhoodNameAt(double lat, double lng) {
+    final pt = LatLng(lat, lng);
+    final local = MapboxGeocoding.matchLocalPlace(pt);
+    if (local != null) return local.nameKu;
+    final strictZone = _closestNeighborhoodTo(
+      lat,
+      lng,
+      maxMeters: KalarGeoCatalog.strictNeighborhoodLabelMeters,
+    );
+    return strictZone?.name;
   }
 
   Future<String?> _reverseGeocodeLabel(double lat, double lng) {
@@ -686,15 +723,17 @@ class _MainScreenState extends State<MainScreen> {
 
       final fixedPos = pos;
       final closest = _closestNeighborhoodTo(fixedPos.latitude, fixedPos.longitude);
+      final strictName = _strictNeighborhoodNameAt(fixedPos.latitude, fixedPos.longitude);
       final geocoded = await _reverseGeocodeLabel(fixedPos.latitude, fixedPos.longitude);
       if (mounted) {
-        final label = geocoded ?? closest?.name;
+        final label = geocoded ?? strictName;
+        // Preserve any manual user input in "ناوی شوێن" (clearPlaceNote: false).
         context.read<LocationNotifier>().setPin(
           lat: fixedPos.latitude,
           lng: fixedPos.longitude,
           neighborhood: closest,
           clearNeighborhood: closest == null,
-          clearPlaceNote: true,
+          clearPlaceNote: false,
           resolvedPlaceName: label,
           clearResolvedPlaceName: label == null,
         );
@@ -968,13 +1007,25 @@ class _MainScreenState extends State<MainScreen> {
             ..addAll(rawZones.map((z) {
               final m = z as Map<String, dynamic>;
               final code = m['code']?.toString();
+              final id = (code != null && code.isNotEmpty) ? code : 'n${m['id']}';
+              final nameKu = m['name_ku']?.toString() ?? '';
+              final nameEn = m['name_en']?.toString() ?? '';
+              final rawLat = (m['center_lat'] as num?)?.toDouble();
+              final rawLng = (m['center_lng'] as num?)?.toDouble();
+              final fixedCoord = MapboxGeocoding.resolveKnownCoordForName(
+                nameKu,
+                nameEn: nameEn,
+                code: id,
+                rawLat: rawLat,
+                rawLng: rawLng,
+              );
               return Neighborhood(
-                id: (code != null && code.isNotEmpty) ? code : 'n${m['id']}',
-                name: m['name_ku']?.toString() ?? '',
-                nameEn: m['name_en']?.toString() ?? '',
+                id: id,
+                name: nameKu,
+                nameEn: nameEn,
                 deliveryFee: (m['delivery_fee'] as num?)?.toInt() ?? 0,
-                lat: (m['center_lat'] as num?)?.toDouble(),
-                lng: (m['center_lng'] as num?)?.toDouble(),
+                lat: fixedCoord?.latitude ?? rawLat,
+                lng: fixedCoord?.longitude ?? rawLng,
               );
             }));
           KalarGeoCatalog.syncFromZones(
@@ -2572,34 +2623,72 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  /// Pick delivery place: current GPS anywhere in Iraq, OR tap a future place
-  /// (e.g. a park) so the driver goes there even if the user is not there yet.
+  /// Pick delivery place: current GPS anywhere in Iraq, OR tap/search a future place
+  /// (e.g. a park, neighborhood, or residential compound) so the driver goes to exact
+  /// GPS coordinates with a clean Kurdish neighborhood/place label.
   Future<void> _showLocationPicker() async {
     final hasSavedPin = _pinnedCustomerLat != null && _pinnedCustomerLng != null;
-    LatLng draftPin = hasSavedPin
+    final isLegacySayyidKhalilDefault = hasSavedPin &&
+        (_pinnedCustomerLat! - 34.6836).abs() < 0.0005 &&
+        (_pinnedCustomerLng! - 45.3189).abs() < 0.0005 &&
+        (_deliveryPlaceNote == null || _deliveryPlaceNote!.trim().isEmpty);
+
+    LatLng draftPin = (hasSavedPin && !isLegacySayyidKhalilDefault)
         ? LatLng(_pinnedCustomerLat!, _pinnedCustomerLng!)
         : KalarGeoCatalog.kalarCenter;
-    Neighborhood? draftNeighborhood =
-        hasSavedPin ? _closestNeighborhoodTo(draftPin.latitude, draftPin.longitude) : _selectedNeighborhood;
-    String? draftGeocode = _resolvedPlaceName;
+    Neighborhood? draftNeighborhood = _closestNeighborhoodTo(
+      draftPin.latitude,
+      draftPin.longitude,
+    ) ?? _selectedNeighborhood;
+    String? draftGeocode = isLegacySayyidKhalilDefault ? null : _resolvedPlaceName;
+    String? customNeighborhoodOverride;
+    LatLng? overrideAnchorPin;
     bool geocoding = false;
     int geocodeGen = 0;
     Timer? geocodeDebounce;
+    Timer? searchDebounce;
+    bool searchingPlaces = false;
+    List<GeocodedPlaceSuggestion> searchResults = [];
+    final searchCtrl = TextEditingController();
     final noteCtrl = TextEditingController(text: _deliveryPlaceNote ?? '');
 
-    String draftLabel() {
-      // Pin bubble = place name only — never raw GPS coordinates.
-      final note = noteCtrl.text.trim();
-      if (note.isNotEmpty) return note;
+    String resolvedNeighborhoodLabel() {
+      if (customNeighborhoodOverride != null &&
+          customNeighborhoodOverride!.trim().isNotEmpty) {
+        return customNeighborhoodOverride!.trim();
+      }
       if (draftGeocode != null &&
           draftGeocode!.isNotEmpty &&
           !MapboxGeocoding.looksLikeCoordinates(draftGeocode)) {
         return draftGeocode!;
       }
-      if (draftNeighborhood != null && draftNeighborhood!.name.isNotEmpty) {
-        return draftNeighborhood!.name;
+      final strict = _strictNeighborhoodNameAt(draftPin.latitude, draftPin.longitude);
+      if (strict != null && strict.isNotEmpty) {
+        return strict;
       }
-      return '';
+      if (MapboxGeocoding.isInsideKalarUrbanArea(draftPin)) {
+        final near = MapboxGeocoding.nearestLocalPlace(draftPin, maxMeters: 1350);
+        if (near != null) {
+          return 'کەلار · نزیک ${near.place.nameKu}';
+        }
+        return 'کەلار · گەڕەک / کۆمەڵگای نوێ';
+      }
+      if (MapboxGeocoding.isInsideRizgariArea(draftPin)) {
+        return 'شارۆچکەی ڕزگاری · ناوچەی نیشتەجێبوون';
+      }
+      return 'شوێنی دیاریکراو لەسەر نەخشە (GPS)';
+    }
+
+    String draftLabel() {
+      final area = resolvedNeighborhoodLabel();
+      final note = noteCtrl.text.trim();
+      if (note.isNotEmpty) {
+        if (area.isNotEmpty && !note.contains(area) && !area.contains(note)) {
+          return '$area · $note';
+        }
+        return note;
+      }
+      return area;
     }
 
     await showModalBottomSheet(
@@ -2620,7 +2709,7 @@ class _MainScreenState extends State<MainScreen> {
                         name.isNotEmpty &&
                         !MapboxGeocoding.looksLikeCoordinates(name))
                     ? name
-                    : null;
+                    : _strictNeighborhoodNameAt(pt.latitude, pt.longitude);
                 geocoding = false;
               });
             }
@@ -2628,20 +2717,53 @@ class _MainScreenState extends State<MainScreen> {
             void applyPin(LatLng pt) {
               draftPin = pt;
               draftNeighborhood = _closestNeighborhoodTo(pt.latitude, pt.longitude);
-              // Clear stale place name while waiting for reverse-geocode.
-              draftGeocode = null;
+              // Clear manual chip override only if the user panned away (> 350m) from where they picked it.
+              if (overrideAnchorPin != null &&
+                  MapboxGeocoding.distanceMeters(pt, overrideAnchorPin!) > 350) {
+                customNeighborhoodOverride = null;
+                overrideAnchorPin = null;
+              }
+              // Immediate local Kurdish geofence preview while reverse-geocode fetches details.
+              draftGeocode = _strictNeighborhoodNameAt(pt.latitude, pt.longitude);
               setModalState(() => geocoding = true);
               geocodeDebounce?.cancel();
-              geocodeDebounce = Timer(const Duration(milliseconds: 380), () {
+              geocodeDebounce = Timer(const Duration(milliseconds: 350), () {
                 if (!context.mounted) return;
                 refreshGeocode(pt);
               });
             }
 
+            void runPlaceSearch(String q) {
+              searchDebounce?.cancel();
+              final trimmed = q.trim();
+              if (trimmed.isEmpty) {
+                setModalState(() {
+                  searchingPlaces = false;
+                  searchResults = [];
+                });
+                return;
+              }
+              setModalState(() => searchingPlaces = true);
+              searchDebounce = Timer(const Duration(milliseconds: 260), () async {
+                final found = await MapboxGeocoding.searchPlaces(
+                  trimmed,
+                  proximity: draftPin,
+                );
+                if (!context.mounted) return;
+                setModalState(() {
+                  searchResults = found;
+                  searchingPlaces = false;
+                });
+              });
+            }
+
             // Always resolve place name for the pin when the picker opens.
-            if (!geocoding && geocodeGen == 0 && noteCtrl.text.trim().isEmpty) {
+            if (!geocoding && geocodeGen == 0) {
               refreshGeocode(draftPin);
             }
+
+            final activeAreaLabel = resolvedNeighborhoodLabel();
+            final coordsText = MapboxGeocoding.coordinatesLabel(draftPin, decimals: 5);
 
             return Align(
               alignment: Alignment.bottomCenter,
@@ -2655,7 +2777,7 @@ class _MainScreenState extends State<MainScreen> {
                     height: MediaQuery.of(context).size.height * 0.94,
                     child: Column(
                       children: [
-                        // REGA brand gold header
+                        // REGA brand gold header + forward search bar
                         Container(
                           width: double.infinity,
                           decoration: BoxDecoration(
@@ -2669,38 +2791,167 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                           padding: EdgeInsets.only(
                             top: MediaQuery.of(context).padding.top > 0 ? 4 : 8,
-                            bottom: 12,
-                            left: 8,
-                            right: 8,
+                            bottom: 10,
+                            left: 10,
+                            right: 10,
                           ),
-                          child: Row(
+                          child: Column(
                             children: [
-                              IconButton(
-                                onPressed: () => Navigator.pop(context),
-                                icon: Icon(Icons.close_rounded, color: RC.fg(Colors.black)),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    icon: Icon(Icons.close_rounded, color: RC.fg(Colors.black)),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      _t('دیاریکردنی شوێن'),
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        color: RC.fg(Colors.black),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 48),
+                                ],
                               ),
-                              Expanded(
-                                child: Text(
-                                  _t('دیاریکردنی شوێن'),
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
-                                    color: RC.fg(Colors.black),
+                              // Forward search / autocomplete for Kurdish neighborhoods & compounds
+                              SizedBox(
+                                height: 42,
+                                child: TextField(
+                                  controller: searchCtrl,
+                                  textInputAction: TextInputAction.search,
+                                  onChanged: runPlaceSearch,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                                  decoration: InputDecoration(
+                                    hintText: tx('گەڕان بۆ گەڕەک، سیتی، کۆمەڵگا یان شوێن...'),
+                                    hintStyle: TextStyle(
+                                      fontSize: 12.5,
+                                      color: RC.fg(const Color(0xFF64748B)),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    prefixIcon: Icon(
+                                      Icons.search_rounded,
+                                      size: 19,
+                                      color: RC.fg(const Color(0xFF0F172A)),
+                                    ),
+                                    suffixIcon: searchingPlaces
+                                        ? const Padding(
+                                            padding: EdgeInsets.all(11),
+                                            child: SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(strokeWidth: 2),
+                                            ),
+                                          )
+                                        : (searchCtrl.text.isNotEmpty
+                                            ? IconButton(
+                                                icon: const Icon(Icons.clear_rounded, size: 17),
+                                                onPressed: () {
+                                                  searchCtrl.clear();
+                                                  runPlaceSearch('');
+                                                },
+                                              )
+                                            : null),
+                                    filled: true,
+                                    fillColor: RC.bg(Colors.white),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: BorderSide.none,
+                                    ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 48),
                             ],
                           ),
                         ),
                         Expanded(
-                          child: KalarInteractivePickerMap(
-                            initialPoint: draftPin,
-                            pinLabel: draftLabel(),
-                            pinLoading: geocoding && noteCtrl.text.trim().isEmpty,
-                            allowIraqWide: true,
-                            onLocationChanged: applyPin,
+                          child: Stack(
+                            children: [
+                              KalarInteractivePickerMap(
+                                initialPoint: draftPin,
+                                pinLabel: draftLabel(),
+                                pinLoading: geocoding,
+                                allowIraqWide: true,
+                                onLocationChanged: applyPin,
+                              ),
+                              if (searchResults.isNotEmpty)
+                                Positioned(
+                                  top: 8,
+                                  left: 12,
+                                  right: 12,
+                                  child: Material(
+                                    elevation: 8,
+                                    borderRadius: BorderRadius.circular(16),
+                                    color: RC.bg(Colors.white),
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(maxHeight: 220),
+                                      child: ListView.separated(
+                                        shrinkWrap: true,
+                                        padding: const EdgeInsets.symmetric(vertical: 6),
+                                        itemCount: searchResults.length,
+                                        separatorBuilder: (_, __) => Divider(
+                                          height: 1,
+                                          color: RC.bg(const Color(0xFFF1F5F9)),
+                                        ),
+                                        itemBuilder: (ctx2, i) {
+                                          final s = searchResults[i];
+                                          return ListTile(
+                                            dense: true,
+                                            leading: Container(
+                                              padding: const EdgeInsets.all(7),
+                                              decoration: BoxDecoration(
+                                                color: RC.bg(const Color(0xFFFFFBEB)),
+                                                borderRadius: BorderRadius.circular(10),
+                                              ),
+                                              child: Icon(
+                                                s.isLocalCurated
+                                                    ? Icons.location_city_rounded
+                                                    : Icons.place_rounded,
+                                                size: 18,
+                                                color: RC.fg(const Color(0xFFD97706)),
+                                              ),
+                                            ),
+                                            title: Text(
+                                              s.title,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            subtitle: Text(
+                                              s.subtitle,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: RC.fg(const Color(0xFF64748B)),
+                                              ),
+                                            ),
+                                            onTap: () {
+                                              FocusScope.of(context).unfocus();
+                                              setModalState(() {
+                                                draftPin = s.point;
+                                                draftNeighborhood = _closestNeighborhoodTo(
+                                                  s.point.latitude,
+                                                  s.point.longitude,
+                                                );
+                                                customNeighborhoodOverride =
+                                                    s.neighborhoodName ?? s.title;
+                                                overrideAnchorPin = s.point;
+                                                draftGeocode = s.title;
+                                                searchResults = [];
+                                                searchCtrl.clear();
+                                              });
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                         Container(
@@ -2716,12 +2967,143 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                           padding: EdgeInsets.fromLTRB(
                             14,
-                            12,
+                            10,
                             14,
                             12 + MediaQuery.of(context).padding.bottom,
                           ),
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              // Live resolved Kurdish neighborhood + exact GPS coordinates badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: RC.bg(const Color(0xFFF8FAFC)),
+                                  borderRadius: BorderRadius.circular(13),
+                                  border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.my_location_rounded,
+                                      size: 17,
+                                      color: RC.fg(const Color(0xFF059669)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            activeAreaLabel,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: RC.fg(const Color(0xFF0F172A)),
+                                            ),
+                                          ),
+                                          Text(
+                                            'GPS: $coordsText',
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: RC.fg(const Color(0xFF64748B)),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (customNeighborhoodOverride != null)
+                                      TextButton(
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          minimumSize: Size.zero,
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        onPressed: () {
+                                          setModalState(() {
+                                            customNeighborhoodOverride = null;
+                                            overrideAnchorPin = null;
+                                          });
+                                        },
+                                        child: Text(
+                                          tx('خۆکار'),
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            color: RC.fg(const Color(0xFFD97706)),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              // Quick Kurdish neighborhood & residential compound selector chips
+                              // (never overwrites manual user text in "ناوی شوێن")
+                              SizedBox(
+                                height: 34,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: MapboxGeocoding.localPlaces.length,
+                                  separatorBuilder: (_, __) => const SizedBox(width: 6),
+                                  itemBuilder: (ctx3, idx) {
+                                    final place = MapboxGeocoding.localPlaces[idx];
+                                    final isSelected = activeAreaLabel == place.nameKu ||
+                                        activeAreaLabel.startsWith('${place.nameKu} ·');
+                                    return InkWell(
+                                      borderRadius: BorderRadius.circular(10),
+                                      onTap: () {
+                                        final dist = MapboxGeocoding.distanceMeters(
+                                          draftPin,
+                                          place.center,
+                                        );
+                                        setModalState(() {
+                                          customNeighborhoodOverride = place.nameKu;
+                                          // If pin is far (> 2.2 km), move pin to that neighborhood;
+                                          // if already near/inside Kalar, keep exact house GPS pin!
+                                          if (dist > 2200) {
+                                            draftPin = place.center;
+                                          }
+                                          overrideAnchorPin = draftPin;
+                                          draftNeighborhood = _closestNeighborhoodTo(
+                                            draftPin.latitude,
+                                            draftPin.longitude,
+                                          );
+                                        });
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? RC.bg(const Color(0xFFFAC800))
+                                              : RC.bg(const Color(0xFFF1F5F9)),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? RC.bg(const Color(0xFFEAB308))
+                                                : RC.bg(const Color(0xFFE2E8F0)),
+                                          ),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          place.nameKu,
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                                            color: isSelected
+                                                ? RC.fg(Colors.black)
+                                                : RC.fg(const Color(0xFF334155)),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 9),
                               TextField(
                                 controller: noteCtrl,
                                 textInputAction: TextInputAction.done,
@@ -2746,10 +3128,10 @@ class _MainScreenState extends State<MainScreen> {
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 10),
                               SizedBox(
                                 width: double.infinity,
-                                height: 54,
+                                height: 52,
                                 child: ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: RC.bg(const Color(0xFFFAC800)),
@@ -2760,9 +3142,9 @@ class _MainScreenState extends State<MainScreen> {
                                   ),
                                   onPressed: () {
                                     final note = noteCtrl.text.trim();
-                                    final label = note.isNotEmpty
-                                        ? note
-                                        : (draftGeocode ?? draftNeighborhood?.name);
+                                    final resolvedArea = resolvedNeighborhoodLabel();
+                                    // Always save exact GPS coordinates (lat, lng) as primary,
+                                    // while preserving both resolvedArea and manual placeNote.
                                     context.read<LocationNotifier>().setPin(
                                       lat: draftPin.latitude,
                                       lng: draftPin.longitude,
@@ -2770,15 +3152,18 @@ class _MainScreenState extends State<MainScreen> {
                                       clearNeighborhood: draftNeighborhood == null,
                                       placeNote: note.isEmpty ? null : note,
                                       clearPlaceNote: note.isEmpty,
-                                      resolvedPlaceName: label,
-                                      clearResolvedPlaceName: label == null,
+                                      resolvedPlaceName: resolvedArea,
+                                      clearResolvedPlaceName: resolvedArea.isEmpty,
                                     );
                                     setState(() {});
                                     Navigator.pop(context);
+                                    final savedLabel =
+                                        context.read<LocationNotifier>().displayPlaceLabel ??
+                                        draftLabel();
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
-                                          tx('📍 ${_t('شوێنی گەیاندن پاشەکەوت کرا')}: ${label ?? draftLabel()}'),
+                                          tx('📍 ${_t('شوێنی گەیاندن پاشەکەوت کرا')}: $savedLabel'),
                                         ),
                                         backgroundColor: RC.bg(Color(0xFF059669)),
                                       ),
@@ -2805,6 +3190,8 @@ class _MainScreenState extends State<MainScreen> {
       },
     ).whenComplete(() {
       geocodeDebounce?.cancel();
+      searchDebounce?.cancel();
+      searchCtrl.dispose();
       noteCtrl.dispose();
     });
   }
@@ -6648,14 +7035,21 @@ class _MainScreenState extends State<MainScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: RC.bg(Colors.grey.shade100),
-                        foregroundColor: RC.fg(Colors.black),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        backgroundColor: RC.bg(Color(0xFFDC2626)),
+                        foregroundColor: RC.fg(Colors.white),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         elevation: 0,
                       ),
                       onPressed: () => Navigator.pop(ctx),
-                      child: Text(tx('داخستن'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      child: Text(
+                        _t('داخستن'),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: RC.fg(Colors.white),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -7369,14 +7763,21 @@ class _MainScreenState extends State<MainScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: RC.bg(Color(0xFF1F2937)),
+                      backgroundColor: RC.bg(Color(0xFFDC2626)),
                       foregroundColor: RC.fg(Colors.white),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 0,
                     ),
                     onPressed: () => Navigator.pop(ctx),
-                    child: Text(_t('داخستن') == 'داخستن' ? 'داخستن' : (_currentLanguage == 'English' ? 'Close' : 'إغلاق'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    child: Text(
+                      _t('داخستن') == 'داخستن' ? 'داخستن' : (_currentLanguage == 'English' ? 'Close' : 'إغلاق'),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: RC.fg(Colors.white),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -7491,14 +7892,23 @@ class _MainScreenState extends State<MainScreen> {
               // Bottom Close Button
               SizedBox(
                 width: double.infinity,
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: RC.bg(Colors.grey.shade100),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: RC.bg(Color(0xFFDC2626)),
+                    foregroundColor: RC.fg(Colors.white),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
                   ),
                   onPressed: () => Navigator.pop(ctx),
-                  child: Text(tx('داخستن'), style: TextStyle(color: RC.fg(Colors.black87), fontWeight: FontWeight.bold)),
+                  child: Text(
+                    _t('داخستن'),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: RC.fg(Colors.white),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -7569,14 +7979,23 @@ class _MainScreenState extends State<MainScreen> {
               // Close Button
               SizedBox(
                 width: double.infinity,
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: RC.bg(Colors.grey.shade100),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: RC.bg(Color(0xFFDC2626)),
+                    foregroundColor: RC.fg(Colors.white),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
                   ),
                   onPressed: () => Navigator.pop(ctx),
-                  child: Text(tx('داخستن'), style: TextStyle(color: RC.fg(Colors.black87), fontWeight: FontWeight.bold)),
+                  child: Text(
+                    _t('داخستن'),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: RC.fg(Colors.white),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -7646,14 +8065,23 @@ class _MainScreenState extends State<MainScreen> {
               // Close Button
               SizedBox(
                 width: double.infinity,
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: RC.bg(Colors.grey.shade100),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: RC.bg(Color(0xFFDC2626)),
+                    foregroundColor: RC.fg(Colors.white),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
                   ),
                   onPressed: () => Navigator.pop(ctx),
-                  child: Text(tx('داخستن'), style: TextStyle(color: RC.fg(Colors.black87), fontWeight: FontWeight.bold)),
+                  child: Text(
+                    _t('داخستن'),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: RC.fg(Colors.white),
+                    ),
+                  ),
                 ),
               ),
             ],
