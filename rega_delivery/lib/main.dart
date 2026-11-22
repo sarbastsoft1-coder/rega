@@ -4054,6 +4054,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final TextEditingController _authPhoneCtrl = TextEditingController();
   final TextEditingController _authPasswordCtrl = TextEditingController();
   bool _isAuthenticating = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -4188,12 +4189,19 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                       child: TextField(
                         controller: _authPasswordCtrl,
-                        obscureText: true,
+                        obscureText: _obscurePassword,
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         decoration: InputDecoration(
                           hintText: tx('••••••••'),
                           border: InputBorder.none,
-                          suffixIcon: Icon(Icons.lock_outline_rounded, color: RC.fg(Color(0xFF94A3B8))),
+                          prefixIcon: Icon(Icons.lock_outline_rounded, color: RC.fg(Color(0xFF94A3B8))),
+                          suffixIcon: IconButton(
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: RC.fg(Color(0xFF94A3B8)),
+                            ),
+                          ),
                         ),
                       ),
                     ),

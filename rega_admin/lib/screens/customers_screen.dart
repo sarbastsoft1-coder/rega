@@ -239,6 +239,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
     String city = AppStrings.knownCitiesKu.contains(rawCity) ? rawCity : 'کەلار';
     bool isActive = existing?.isActive ?? true;
     bool saving = false;
+    bool obscurePassword = true;
     String? formError;
 
     void dialogSnack(BuildContext dialogCtx, String msg, {bool error = false}) {
@@ -362,7 +363,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                             TextField(
                               controller: passwordCtrl,
                               enabled: !saving,
-                              obscureText: true,
+                              obscureText: obscurePassword,
                               decoration: InputDecoration(
                                 labelText: AppStrings.tr(
                                   isEdit ? 'password_new_optional' : 'password_required_label',
@@ -370,6 +371,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                 ),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                suffixIcon: IconButton(
+                                  onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
+                                  icon: Icon(
+                                    obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                  ),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 14),

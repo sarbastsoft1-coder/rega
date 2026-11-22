@@ -161,6 +161,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     final passwordCtrl = TextEditingController();
     bool isActive = existing?['is_active'] != false;
     bool saving = false;
+    bool obscurePassword = true;
 
     showDialog(
       context: context,
@@ -214,10 +215,14 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: passwordCtrl,
-                      obscureText: true,
+                      obscureText: obscurePassword,
                       decoration: InputDecoration(
                         labelText: txn(isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *'),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        suffixIcon: IconButton(
+                          onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
+                          icon: Icon(obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1910,17 +1915,28 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   }
 
   Widget _buildPasswordInput({required String label, required TextEditingController controller}) {
-    return TextField(
-      controller: controller,
-      obscureText: true,
-      decoration: InputDecoration(
-        hintText: txn(label),
-        hintStyle: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8))),
-        filled: true,
-        fillColor: _mutedFill,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+    bool obscure = true;
+    return StatefulBuilder(
+      builder: (ctx, setFieldState) => TextField(
+        controller: controller,
+        obscureText: obscure,
+        decoration: InputDecoration(
+          hintText: txn(label),
+          hintStyle: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8))),
+          filled: true,
+          fillColor: _mutedFill,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          suffixIcon: IconButton(
+            onPressed: () => setFieldState(() => obscure = !obscure),
+            icon: Icon(
+              obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+              size: 18,
+              color: RC.fg(Color(0xFF94A3B8)),
+            ),
+          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+        ),
       ),
     );
   }

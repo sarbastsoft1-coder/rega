@@ -1249,39 +1249,53 @@ class _StoresScreenState extends State<StoresScreen> {
         ],
         Directionality(
           textDirection: forceLtr ? TextDirection.ltr : TextDirection.rtl,
-          child: TextField(
-            controller: controller,
-            obscureText: obscureText,
-            keyboardType: isPhone
-                ? TextInputType.phone
-                : (numeric
-                    ? const TextInputType.numberWithOptions(decimal: true, signed: true)
-                    : TextInputType.text),
-            textAlign: forceLtr ? TextAlign.left : TextAlign.right,
-            inputFormatters: isPhone
-                ? [IraqPhoneFormatter()]
-                : (numeric ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]'))] : null),
-            decoration: InputDecoration(
-              hintText: isPhone ? '0750 000 0000' : hint,
-              hintStyle: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8))),
-              prefixIcon: Icon(icon, size: 20, color: RC.fg(Color(0xFF94A3B8))),
-              filled: true,
-              fillColor: RC.bg(Color(0xFFF8FAFC)),
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: RC.bg(Color(0xFFEA580C)), width: 1.8),
-              ),
-            ),
+          child: StatefulBuilder(
+            builder: (ctx, setFieldState) {
+              return TextField(
+                controller: controller,
+                obscureText: obscureText,
+                keyboardType: isPhone
+                    ? TextInputType.phone
+                    : (numeric
+                        ? const TextInputType.numberWithOptions(decimal: true, signed: true)
+                        : TextInputType.text),
+                textAlign: forceLtr ? TextAlign.left : TextAlign.right,
+                inputFormatters: isPhone
+                    ? [IraqPhoneFormatter()]
+                    : (numeric ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]'))] : null),
+                decoration: InputDecoration(
+                  hintText: isPhone ? '0750 000 0000' : hint,
+                  hintStyle: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8))),
+                  prefixIcon: Icon(icon, size: 20, color: RC.fg(Color(0xFF94A3B8))),
+                  suffixIcon: icon == Icons.lock_outline_rounded
+                      ? IconButton(
+                          onPressed: () => setFieldState(() => obscureText = !obscureText),
+                          icon: Icon(
+                            obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                            size: 18,
+                            color: RC.fg(Color(0xFF94A3B8)),
+                          ),
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: RC.bg(Color(0xFFF8FAFC)),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: RC.bg(Color(0xFFEA580C)), width: 1.8),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],

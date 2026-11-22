@@ -330,6 +330,8 @@ class _MainScreenState extends State<MainScreen> {
   late TextEditingController _confirmPasswordCtrl;
   bool _isAccountRenewal = false;
   int _accountRenewalStep = 0;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   // Security & Integrity State
   bool _isLocationAuthorized = kIsWeb;
@@ -9504,6 +9506,24 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildCustomField(String label, TextEditingController controller, IconData icon, {TextInputType keyboardType = TextInputType.text, bool isPassword = false}) {
     final bool isEn = _currentLanguage == 'English';
     final bool isPhone = keyboardType == TextInputType.phone;
+    final bool isConfirm = identical(controller, _confirmPasswordCtrl);
+    final bool obscure = isPassword && (isConfirm ? _obscureConfirmPassword : _obscurePassword);
+    final Widget? eyeToggle = isPassword
+        ? IconButton(
+            onPressed: () => setState(() {
+              if (isConfirm) {
+                _obscureConfirmPassword = !_obscureConfirmPassword;
+              } else {
+                _obscurePassword = !_obscurePassword;
+              }
+            }),
+            icon: Icon(
+              obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+              size: 20,
+              color: RC.fg(Colors.grey.shade500),
+            ),
+          )
+        : null;
     return Container(
       width: double.infinity,
       child: Column(
@@ -9525,7 +9545,7 @@ class _MainScreenState extends State<MainScreen> {
               child: TextField(
                 controller: controller,
                 keyboardType: keyboardType,
-                obscureText: isPassword,
+                obscureText: obscure,
                 textAlign: isPhone || isEn ? TextAlign.left : TextAlign.right,
                 inputFormatters: isPhone ? [IraqPhoneFormatter()] : null,
                 style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14),
@@ -9535,8 +9555,12 @@ class _MainScreenState extends State<MainScreen> {
                   filled: true,
                   fillColor: RC.bg(Colors.grey.shade50),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                  prefixIcon: isEn || isPhone ? Icon(icon, size: 20, color: RC.fg(Colors.grey.shade400)) : null,
-                  suffixIcon: !isEn && !isPhone ? Icon(icon, size: 20, color: RC.fg(Colors.grey.shade400)) : null,
+                  prefixIcon: isPassword
+                      ? Icon(icon, size: 20, color: RC.fg(Colors.grey.shade400))
+                      : (isEn || isPhone ? Icon(icon, size: 20, color: RC.fg(Colors.grey.shade400)) : null),
+                  suffixIcon: isPassword
+                      ? eyeToggle
+                      : (!isEn && !isPhone ? Icon(icon, size: 20, color: RC.fg(Colors.grey.shade400)) : null),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(color: RC.bg(Colors.amber).withOpacity(0.2)),

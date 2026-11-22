@@ -119,6 +119,7 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
     final passwordCtrl = TextEditingController();
     bool isActive = existing?['is_active'] != false;
     bool saving = false;
+    bool obscurePassword = true;
 
     showDialog(
       context: context,
@@ -177,10 +178,14 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: passwordCtrl,
-                      obscureText: true,
+                      obscureText: obscurePassword,
                       decoration: InputDecoration(
                         labelText: txn(isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *'),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        suffixIcon: IconButton(
+                          onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
+                          icon: Icon(obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
