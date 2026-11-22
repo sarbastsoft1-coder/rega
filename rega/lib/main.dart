@@ -32,6 +32,7 @@ import 'state/orders_notifier.dart';
 import 'state/session_notifier.dart';
 import 'services/push_notifications.dart';
 import 'services/customer_notification_sound.dart';
+import 'screens/kalar_map_screen.dart';
 
 import 'direct_request_screen.dart';
 import 'onboarding/onboarding_notifier.dart';
@@ -2976,73 +2977,6 @@ class _MainScreenState extends State<MainScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              // Live resolved Kurdish neighborhood + exact GPS coordinates badge
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: RC.bg(const Color(0xFFF8FAFC)),
-                                  borderRadius: BorderRadius.circular(13),
-                                  border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.my_location_rounded,
-                                      size: 17,
-                                      color: RC.fg(const Color(0xFF059669)),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            activeAreaLabel,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.w800,
-                                              color: RC.fg(const Color(0xFF0F172A)),
-                                            ),
-                                          ),
-                                          Text(
-                                            'GPS: $coordsText',
-                                            style: TextStyle(
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: RC.fg(const Color(0xFF64748B)),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    if (customNeighborhoodOverride != null)
-                                      TextButton(
-                                        style: TextButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          minimumSize: Size.zero,
-                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                        onPressed: () {
-                                          setModalState(() {
-                                            customNeighborhoodOverride = null;
-                                            overrideAnchorPin = null;
-                                          });
-                                        },
-                                        child: Text(
-                                          tx('خۆکار'),
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                            color: RC.fg(const Color(0xFFD97706)),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
                               // Quick Kurdish neighborhood & residential compound selector chips
                               // (never overwrites manual user text in "ناوی شوێن")
                               SizedBox(
@@ -4367,7 +4301,16 @@ class _MainScreenState extends State<MainScreen> {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: _showLocationPicker,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => KalarMapScreen(
+                      language: _currentLanguage,
+                      onBack: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                );
+              },
               customBorder: const CircleBorder(),
               child: Container(
                 width: 46,

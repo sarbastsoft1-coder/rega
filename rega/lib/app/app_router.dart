@@ -9,6 +9,7 @@ import '../onboarding/splash_onboarding.dart';
 import '../state/navigation_notifier.dart';
 import '../state/orders_notifier.dart';
 import '../state/session_notifier.dart';
+import '../screens/kalar_map_screen.dart';
 
 import '../rega_i18n.dart';
 typedef CustomerShellBuilder = Widget Function(
@@ -171,6 +172,23 @@ GoRouter createCustomerRouter({
             onOrderStatusChanged: (nextStatus) {
               o.status = nextStatus;
               context.read<OrdersNotifier>().notify();
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: '/map',
+        name: 'map',
+        builder: (context, state) {
+          final lang = state.uri.queryParameters['lang'] ?? 'Kurdish';
+          return KalarMapScreen(
+            language: lang,
+            onBack: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/home');
+              }
             },
           );
         },
