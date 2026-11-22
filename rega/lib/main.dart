@@ -3397,12 +3397,6 @@ class _MainScreenState extends State<MainScreen> {
                                     tx('هیچ ئاگادارییەک نییە'),
                                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: RC.fg(Colors.grey.shade700)),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    tx('کاتێک ئەدمین داشکاندن یان ئاگاداری بنێرێت، لێرە دەردەکەوێت'),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade500)),
-                                  ),
                                 ],
                               ),
                             ),
