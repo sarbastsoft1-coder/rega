@@ -378,7 +378,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('داخستن'))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: RC.bg(const Color(0xFFDC2626)),
+              foregroundColor: RC.fg(Colors.white),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
+            ),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(tx('داخستن'), style: const TextStyle(fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
     );
@@ -717,9 +726,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
             icon: const Icon(Icons.location_on_rounded, size: 16),
             label: Text(tx('بینین لەسەر نەخشەی زیندوو')),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: RC.bg(const Color(0xFFDC2626)),
+              foregroundColor: RC.fg(Colors.white),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
+            ),
             onPressed: () => Navigator.pop(ctx),
-            child: Text(tx('داخستن')),
+            child: Text(tx('داخستن'), style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

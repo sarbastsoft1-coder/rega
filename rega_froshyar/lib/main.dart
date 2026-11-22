@@ -2160,7 +2160,23 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('داخستن'))),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: RC.bg(const Color(0xFFDC2626)),
+                  foregroundColor: RC.fg(Colors.white),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  t('داخستن'),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: RC.fg(Colors.white)),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -3491,17 +3507,18 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       // Close button
                       SizedBox(
                         width: double.infinity,
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: RC.fg(Color(0xFF1B2028)),
-                            side: BorderSide(color: RC.bg(Color(0xFFD1D5DB))),
-                            padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: RC.bg(const Color(0xFFDC2626)),
+                            foregroundColor: RC.fg(Colors.white),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
                           ),
                           onPressed: () => Navigator.pop(dialogCtx),
                           child: Text(
                             t('داخستن'),
-                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900),
+                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900, color: RC.fg(Colors.white)),
                           ),
                         ),
                       ),

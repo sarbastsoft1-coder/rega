@@ -1409,13 +1409,13 @@ class _StoresScreenState extends State<StoresScreen> {
                         },
                       ),
                       const SizedBox(height: 8),
-                      OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: RC.fg(Color(0xFF64748B)),
-                          backgroundColor: RC.bg(Color(0xFFF8FAFC)),
-                          side: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: RC.bg(const Color(0xFFDC2626)),
+                          foregroundColor: RC.fg(Colors.white),
                           minimumSize: const Size(double.infinity, 46),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
                         ),
                         onPressed: () => Navigator.pop(ctx),
                         child: Text(_t('close'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
@@ -1424,13 +1424,13 @@ class _StoresScreenState extends State<StoresScreen> {
                       Row(
                         children: [
                           Expanded(
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: RC.fg(Color(0xFF64748B)),
-                                backgroundColor: RC.bg(Color(0xFFF8FAFC)),
-                                side: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: RC.bg(const Color(0xFFDC2626)),
+                                foregroundColor: RC.fg(Colors.white),
                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
                               ),
                               onPressed: () => Navigator.pop(ctx),
                               child: Text(_t('close'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),

@@ -703,11 +703,13 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: RC.bg(Color(0xFF113E2E)),
+              backgroundColor: RC.bg(const Color(0xFFDC2626)),
               foregroundColor: RC.fg(Colors.white),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
             ),
             onPressed: () => Navigator.pop(ctx),
-            child: Text(AppStrings.tr('close', lang)),
+            child: Text(AppStrings.tr('close', lang), style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

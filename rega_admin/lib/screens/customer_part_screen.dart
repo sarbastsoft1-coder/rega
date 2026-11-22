@@ -253,7 +253,16 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
               },
               child: Text(tx('ناردنی ئاگاداری')),
             ),
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('داخستن'))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: RC.bg(const Color(0xFFDC2626)),
+                foregroundColor: RC.fg(Colors.white),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(tx('داخستن'), style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
           ],
         ),
       );
