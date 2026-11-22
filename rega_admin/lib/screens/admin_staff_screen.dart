@@ -74,9 +74,20 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
+        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+        actionsOverflowButtonSpacing: 8,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(tx('سڕینەوەی ئەدمین؟'), style: TextStyle(fontWeight: FontWeight.w900)),
-        content: Text(tx('دڵنیایت دەتەوێت هەژماری «$name» بسڕیتەوە؟ ئەم کارە ناگەڕێتەوە.')),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 420),
+            maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 280),
+          ),
+          child: SingleChildScrollView(
+            child: Text(tx('دڵنیایت دەتەوێت هەژماری «$name» بسڕیتەوە؟ ئەم کارە ناگەڕێتەوە.')),
+          ),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tx('پاشگەزبوونەوە'))),
           ElevatedButton(
@@ -114,30 +125,36 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           insetPadding: AdminBreakpoints.dialogInset(ctx),
+          contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+          actionsOverflowButtonSpacing: 8,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Text(
             tx(isEdit ? 'دەستکاریکردنی ئەدمین' : 'دروستکردنی هەژماری ئەدمین'),
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
           ),
-          content: SizedBox(
-            width: AdminBreakpoints.dialogWidth(ctx, max: 440),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: InputDecoration(
-                      labelText: tx('ناو *'),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 440),
+              maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 520),
+            ),
+            child: SizedBox(
+              width: AdminBreakpoints.dialogWidth(ctx, max: 440),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: InputDecoration(
+                        labelText: tx('ناو *'),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Directionality(
-                    textDirection: TextDirection.ltr,
-                    child: TextField(
+                    const SizedBox(height: 12),
+                    TextField(
                       controller: phoneCtrl,
                       keyboardType: TextInputType.phone,
+                      textDirection: TextDirection.ltr,
                       textAlign: TextAlign.left,
                       inputFormatters: [IraqPhoneFormatter()],
                       decoration: InputDecoration(
@@ -146,44 +163,45 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: tx('ئیمەیڵ *'),
-                      hintText: tx('admin@example.com'),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      textDirection: TextDirection.ltr,
+                      decoration: InputDecoration(
+                        labelText: tx('ئیمەیڵ *'),
+                        hintText: tx('admin@example.com'),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: passwordCtrl,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: txn(isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *'),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: passwordCtrl,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: txn(isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *'),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: tx('ڕۆڵ'),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 12),
+                    InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: tx('ڕۆڵ'),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(
+                        tx('ئەدمین'),
+                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
                     ),
-                    child: Text(
-                      tx('ئەدمین'),
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                    SwitchListTile(
+                      value: isActive,
+                      onChanged: (v) => setDialogState(() => isActive = v),
+                      title: Text(tx('چالاک'), style: TextStyle(fontWeight: FontWeight.w700)),
+                      contentPadding: EdgeInsets.zero,
                     ),
-                  ),
-                  SwitchListTile(
-                    value: isActive,
-                    onChanged: (v) => setDialogState(() => isActive = v),
-                    title: Text(tx('چالاک'), style: TextStyle(fontWeight: FontWeight.w700)),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -262,259 +280,298 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
         ? RC.bg(Color(0xFF94A3B8))
         : RC.bg(Color(0xFF64748B));
     final cardBg = Theme.of(context).cardColor;
+    final padH = AdminBreakpoints.pagePadH(context);
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: widget.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Padding(
-          padding: EdgeInsets.symmetric(horizontal: AdminBreakpoints.pagePadH(context), vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final narrow = constraints.maxWidth < AdminBreakpoints.headerCompact;
-                  final phone = constraints.maxWidth < AdminBreakpoints.phone;
-                  final title = Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final phone = constraints.maxWidth < AdminBreakpoints.phone;
+            final narrow = constraints.maxWidth < 800;
+
+            final title = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tx('هەژمارەکانی ئەدمین'),
+                  style: TextStyle(
+                    fontSize: phone ? 18 : 22,
+                    fontWeight: FontWeight.w900,
+                    color: onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  tx('دروستکردن و دەستکاریکردنی هەژماری ئەدمین — چوونە ژوورەوە بە ئیمەیڵ و وشەی نهێنی'),
+                  style: TextStyle(fontSize: 12.5, color: muted, fontWeight: FontWeight.w600),
+                ),
+              ],
+            );
+
+            final topActions = AdminTopBarRow(
+              searchCtrl: _searchCtrl,
+              hintText: tx('گەڕان...'),
+              onSearchChanged: (_) {},
+            );
+
+            final headerRow = narrow
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        tx('هەژمارەکانی ئەدمین'),
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        tx('دروستکردن و دەستکاریکردنی هەژماری ئەدمین — چوونە ژوورەوە بە ئیمەیڵ و وشەی نهێنی'),
-                        style: TextStyle(fontSize: 12.5, color: muted, fontWeight: FontWeight.w600),
-                      ),
+                      Align(alignment: AlignmentDirectional.centerEnd, child: topActions),
+                      const SizedBox(height: 10),
+                      title,
                     ],
-                  );
-                  final actions = Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: phone ? constraints.maxWidth : 220,
-                        child: TextField(
-                          controller: _searchCtrl,
-                          onSubmitted: (_) => _load(),
-                          decoration: InputDecoration(
-                            hintText: tx('گەڕان بە ناو، مۆبایل یان ئیمەیڵ...'),
-                            prefixIcon: const Icon(Icons.search_rounded, size: 18),
-                            filled: true,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: RC.bg(Color(0xFFEA580C)),
-                          foregroundColor: RC.fg(Colors.white),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        ),
-                        onPressed: () => _showEditor(),
-                        icon: const Icon(Icons.person_add_alt_1_rounded),
-                        label: Text(tx('دروستکردنی ئەدمین'), style: TextStyle(fontWeight: FontWeight.w900)),
-                      ),
-                      if (phone)
-                        AdminTopBarRow(
-                          searchCtrl: _searchCtrl,
-                          hintText: tx('گەڕان...'),
-                          onSearchChanged: (_) {},
-                        )
-                      else if (!narrow)
-                        AdminTopBarRow(
-                          searchCtrl: _searchCtrl,
-                          hintText: tx('گەڕان...'),
-                          onSearchChanged: (_) {},
-                        ),
-                    ],
-                  );
-                  if (narrow) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [title, const SizedBox(height: 12), actions],
-                    );
-                  }
-                  return Row(
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(child: title),
-                      actions,
+                      const SizedBox(width: 12),
+                      Flexible(child: topActions),
                     ],
                   );
-                },
-              ),
-              const SizedBox(height: 14),
-              Expanded(
-                child: _loading
-                    ? Center(child: CircularProgressIndicator(color: RC.bg(Color(0xFFEA580C))))
-                    : _staff.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.group_off_rounded, size: 48, color: muted),
-                                const SizedBox(height: 10),
-                                Text(
-                                  tx('هیچ هەژماری ئەدمین نییە'),
-                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: onSurface),
-                                ),
-                                const SizedBox(height: 8),
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: RC.bg(Color(0xFFEA580C)),
-                                    foregroundColor: RC.fg(Colors.white),
-                                  ),
-                                  onPressed: () => _showEditor(),
-                                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                                  label: Text(tx('دروستکردنی یەکەم ئەدمین')),
-                                ),
-                              ],
+
+            final toolbar = Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: phone ? constraints.maxWidth - padH * 2 : 280,
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onSubmitted: (_) => _load(),
+                    decoration: InputDecoration(
+                      hintText: tx('گەڕان بە ناو، مۆبایل یان ئیمەیڵ...'),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                      filled: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: RC.bg(Color(0xFFEA580C)),
+                    foregroundColor: RC.fg(Colors.white),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  onPressed: () => _showEditor(),
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                  label: Text(tx('دروستکردنی ئەدمین'), style: TextStyle(fontWeight: FontWeight.w900)),
+                ),
+              ],
+            );
+
+            return CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(padH, 16, padH, 14),
+                  sliver: SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1080),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            headerRow,
+                            const SizedBox(height: 14),
+                            toolbar,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (_loading)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: CircularProgressIndicator(color: RC.bg(Color(0xFFEA580C)))),
+                  )
+                else if (_staff.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: padH, vertical: 24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.group_off_rounded, size: 48, color: muted),
+                            const SizedBox(height: 10),
+                            Text(
+                              tx('هیچ هەژماری ئەدمین نییە'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: onSurface),
                             ),
-                          )
-                        : ListView.separated(
-                            itemCount: _staff.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
-                            itemBuilder: (ctx, i) {
-                              final staff = _staff[i];
-                              final id = staff['id'] as int;
-                              final active = staff['is_active'] != false;
-                              final email = staff['email']?.toString();
-                              return Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: cardBg,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: Theme.of(context).brightness == Brightness.dark
-                                        ? RC.bg(Color(0xFF334155))
-                                        : RC.bg(Color(0xFFE2E8F0)),
-                                  ),
+                            const SizedBox(height: 10),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: RC.bg(Color(0xFFEA580C)),
+                                foregroundColor: RC.fg(Colors.white),
+                              ),
+                              onPressed: () => _showEditor(),
+                              icon: const Icon(Icons.person_add_alt_1_rounded),
+                              label: Text(tx('دروستکردنی یەکەم ئەدمین')),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(padH, 0, padH, 24),
+                    sliver: SliverList.separated(
+                      itemCount: _staff.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (ctx, i) {
+                        final staff = _staff[i];
+                        final id = staff['id'] as int;
+                        final active = staff['is_active'] != false;
+                        final email = staff['email']?.toString();
+                        return Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1080),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? RC.bg(Color(0xFF334155))
+                                      : RC.bg(Color(0xFFE2E8F0)),
                                 ),
-                                child: LayoutBuilder(
-                                  builder: (context, rowC) {
-                                    final rowPhone = rowC.maxWidth < 420;
-                                    final avatarCol = Row(
-                                      crossAxisAlignment: rowPhone ? CrossAxisAlignment.start : CrossAxisAlignment.center,
-                                      children: [
-                                        CircleAvatar(
-                                          backgroundColor: RC.bg(Color(0xFFFFEDD5)),
-                                          child: Icon(
-                                            Icons.admin_panel_settings_rounded,
-                                            color: active ? RC.fg(Color(0xFFEA580C)) : RC.bg(Color(0xFF94A3B8)),
-                                          ),
+                              ),
+                              child: LayoutBuilder(
+                                builder: (context, rowC) {
+                                  final rowPhone = rowC.maxWidth < 520;
+                                  final avatarCol = Row(
+                                    crossAxisAlignment: rowPhone ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+                                    children: [
+                                      CircleAvatar(
+                                        backgroundColor: RC.bg(Color(0xFFFFEDD5)),
+                                        child: Icon(
+                                          Icons.admin_panel_settings_rounded,
+                                          color: active ? RC.fg(Color(0xFFEA580C)) : RC.bg(Color(0xFF94A3B8)),
                                         ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                tx(staff['name']?.toString() ?? ''),
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w900,
-                                                  fontSize: 14,
-                                                  color: onSurface,
-                                                ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              tx(staff['name']?.toString() ?? ''),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 14,
+                                                color: onSurface,
                                               ),
-                                              Text(
-                                                tx('${staff['phone'] ?? ''} • ئەدمین'
-                                                '${email != null && email.isNotEmpty ? ' • $email' : ''}'),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: muted,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                    final actions = Wrap(
-                                      spacing: 4,
-                                      crossAxisAlignment: WrapCrossAlignment.center,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: active ? RC.bg(Color(0xFFDCFCE7)) : RC.bg(Color(0xFFFEE2E2)),
-                                            borderRadius: BorderRadius.circular(20),
-                                          ),
-                                          child: Text(
-                                            tx(active ? 'چالاک' : 'ناچالاک'),
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w800,
-                                              color: active ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFFDC2626)),
                                             ),
+                                            Text(
+                                              tx('${staff['phone'] ?? ''} • ئەدمین'
+                                              '${email != null && email.isNotEmpty ? ' • $email' : ''}'),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: muted,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                  final actions = Wrap(
+                                    spacing: 4,
+                                    runSpacing: 4,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: active ? RC.bg(Color(0xFFDCFCE7)) : RC.bg(Color(0xFFFEE2E2)),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: Text(
+                                          tx(active ? 'چالاک' : 'ناچالاک'),
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            color: active ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFFDC2626)),
                                           ),
                                         ),
-                                        IconButton(
-                                          tooltip: tx('دەستکاری'),
-                                          onPressed: () => _showEditor(existing: staff),
-                                          icon: const Icon(Icons.edit_rounded),
+                                      ),
+                                      IconButton(
+                                        tooltip: tx('دەستکاری'),
+                                        onPressed: () => _showEditor(existing: staff),
+                                        icon: const Icon(Icons.edit_rounded),
+                                      ),
+                                      IconButton(
+                                        tooltip: txn(active ? 'ناچالاککردن' : 'چالاککردن'),
+                                        onPressed: () async {
+                                          try {
+                                            await widget.api.toggleAdminStaffActive(id);
+                                            await _load();
+                                            _snack('دۆخی هەژمار نوێکرایەوە');
+                                          } catch (e) {
+                                            _snack(e.toString(), error: true);
+                                          }
+                                        },
+                                        icon: Icon(
+                                          active ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
+                                          color: active ? RC.fg(Color(0xFF16A34A)) : RC.bg(Color(0xFF94A3B8)),
+                                          size: 32,
                                         ),
-                                        IconButton(
-                                          tooltip: txn(active ? 'ناچالاککردن' : 'چالاککردن'),
-                                          onPressed: () async {
-                                            try {
-                                              await widget.api.toggleAdminStaffActive(id);
-                                              await _load();
-                                              _snack('دۆخی هەژمار نوێکرایەوە');
-                                            } catch (e) {
-                                              _snack(e.toString(), error: true);
-                                            }
-                                          },
-                                          icon: Icon(
-                                            active ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
-                                            color: active ? RC.fg(Color(0xFF16A34A)) : RC.bg(Color(0xFF94A3B8)),
-                                            size: 32,
-                                          ),
-                                        ),
-                                        IconButton(
-                                          tooltip: tx('سڕینەوە'),
-                                          onPressed: () => _confirmDelete(staff),
-                                          icon: Icon(Icons.delete_forever_rounded, color: RC.fg(Color(0xFFDC2626))),
-                                        ),
-                                      ],
-                                    );
-                                    if (rowPhone) {
-                                      return Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        children: [
-                                          avatarCol,
-                                          const SizedBox(height: 10),
-                                          actions,
-                                        ],
-                                      );
-                                    }
-                                    return Row(
-                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      ),
+                                      IconButton(
+                                        tooltip: tx('سڕینەوە'),
+                                        onPressed: () => _confirmDelete(staff),
+                                        icon: Icon(Icons.delete_forever_rounded, color: RC.fg(Color(0xFFDC2626))),
+                                      ),
+                                    ],
+                                  );
+                                  if (rowPhone) {
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
                                       children: [
-                                        Expanded(child: avatarCol),
-                                        actions,
+                                        avatarCol,
+                                        const SizedBox(height: 10),
+                                        Align(alignment: AlignmentDirectional.centerEnd, child: actions),
                                       ],
                                     );
-                                  },
-                                ),
-                              );
-                            },
+                                  }
+                                  return Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Expanded(child: avatarCol),
+                                      const SizedBox(width: 8),
+                                      actions,
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
                           ),
-              ),
-            ],
-          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );

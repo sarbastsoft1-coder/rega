@@ -109,49 +109,62 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         insetPadding: AdminBreakpoints.dialogInset(ctx),
-        title: Text(tx(isEdit ? 'دەستکاریکردنی گەڕەک' : 'زیادکردنی گەڕەکی نوێ لە کەلار')),
+        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+        actionsOverflowButtonSpacing: 8,
+        title: Text(
+          tx(isEdit ? 'دەستکاریکردنی گەڕەک' : 'زیادکردنی گەڕەکی نوێ لە کەلار'),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
         content: SizedBox(
           width: AdminBreakpoints.dialogWidth(ctx, max: 420),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: kuCtrl, decoration: InputDecoration(labelText: tx('ناوی گەڕەک (کوردی) *'))),
-              const SizedBox(height: 12),
-              TextField(controller: enCtrl, decoration: InputDecoration(labelText: AppStrings.tr('name_en_field', widget.lang))),
-              const SizedBox(height: 12),
-              TextField(
-                controller: feeCtrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: tx('نرخی گەیاندنی ماتۆرسوار (د.ع) *')),
-              ),
-              const SizedBox(height: 8),
-              StatefulBuilder(
-                builder: (ctx2, setChipState) {
-                  const presets = [1000, 1500, 2000, 2500, 3000];
-                  return Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: presets.map((p) {
-                      final selected = feeCtrl.text.trim() == p.toString();
-                      return ChoiceChip(
-                        label: Text(tx('$p')),
-                        selected: selected,
-                        onSelected: (_) {
-                          feeCtrl.text = p.toString();
-                          setChipState(() {});
-                        },
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 480),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: kuCtrl, decoration: InputDecoration(labelText: tx('ناوی گەڕەک (کوردی) *'))),
+                  const SizedBox(height: 12),
+                  TextField(controller: enCtrl, decoration: InputDecoration(labelText: AppStrings.tr('name_en_field', widget.lang))),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: feeCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: tx('نرخی گەیاندنی ماتۆرسوار (د.ع) *')),
+                  ),
+                  const SizedBox(height: 8),
+                  StatefulBuilder(
+                    builder: (ctx2, setChipState) {
+                      const presets = [1000, 1500, 2000, 2500, 3000];
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: presets.map((p) {
+                          final selected = feeCtrl.text.trim() == p.toString();
+                          return ChoiceChip(
+                            label: Text(tx('$p')),
+                            selected: selected,
+                            onSelected: (_) {
+                              feeCtrl.text = p.toString();
+                              setChipState(() {});
+                            },
+                          );
+                        }).toList(),
                       );
-                    }).toList(),
-                  );
-                },
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: minCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: tx('کاتی خەمڵێنراوی گەیاندن (خولەک)')),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: minCtrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: tx('کاتی خەمڵێنراوی گەیاندن (خولەک)')),
-              ),
-            ],
+            ),
           ),
         ),
         actions: [
@@ -380,6 +393,7 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                               if (!hasPreview)
                                 Container(
                                   color: RC.bg(Color(0xAA0F172A)),
+                                  padding: const EdgeInsets.all(12),
                                   alignment: Alignment.center,
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
@@ -392,6 +406,8 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                                       const SizedBox(height: 8),
                                       Text(
                                         AppStrings.tr('item_image_tap_hint', widget.lang),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           color: RC.fg(Colors.white),
@@ -405,6 +421,7 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                               if (busy)
                                 Container(
                                   color: RC.bg(Color(0x880F172A)),
+                                  padding: const EdgeInsets.all(12),
                                   alignment: Alignment.center,
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
@@ -415,6 +432,9 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                                         tx(picking
                                             ? AppStrings.tr('item_image_compressing', widget.lang)
                                             : AppStrings.tr('item_image_uploading', widget.lang)),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
                                         style: TextStyle(
                                           color: RC.fg(Colors.white),
                                           fontWeight: FontWeight.w800,
@@ -433,12 +453,12 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
-                  height: 44,
                   child: FilledButton.icon(
                     onPressed: (saving || busy) ? null : () => pickCompressAndUpload(secondary: secondary),
                     style: FilledButton.styleFrom(
                       backgroundColor: RegaColors.orange,
                       foregroundColor: RC.fg(Colors.white),
+                      minimumSize: const Size(double.infinity, 44),
                     ),
                     icon: busy
                         ? SizedBox(
@@ -458,6 +478,8 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                           : (hasPreview
                               ? AppStrings.tr('item_image_change', widget.lang)
                               : AppStrings.tr('item_image_pick', widget.lang))),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
@@ -522,93 +544,104 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
 
           return AlertDialog(
             insetPadding: AdminBreakpoints.dialogInset(ctx),
-            title: Text(tx(isEdit ? 'دەستکاریکردنی بەشی سەرەکی' : 'زیادکردنی بەشی نوێ بۆ ئەپی کڕیار')),
+            contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+            actionsOverflowButtonSpacing: 8,
+            title: Text(
+              tx(isEdit ? 'دەستکاریکردنی بەشی سەرەکی' : 'زیادکردنی بەشی نوێ بۆ ئەپی کڕیار'),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
             content: SizedBox(
               width: AdminBreakpoints.dialogWidth(ctx, max: 460),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      tx('وێنەی سەرەکی بۆ گریدی سەرەکی؛ وێنەی دووەم (sec) بۆ چیپ/ئایکۆن.'),
-                      style: TextStyle(fontSize: 12, color: RC.fg(Colors.black54)),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: kuCtrl,
-                      enabled: !saving,
-                      decoration: InputDecoration(
-                        labelText: AppStrings.tr('section_name_ku', widget.lang),
-                        hintText: AppStrings.tr('section_name_ku_hint', widget.lang),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 580),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        tx('وێنەی سەرەکی بۆ گریدی سەرەکی؛ وێنەی دووەم (sec) بۆ چیپ/ئایکۆن.'),
+                        style: TextStyle(fontSize: 12, color: RC.fg(Colors.black54)),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: arCtrl,
-                      enabled: !saving,
-                      decoration: InputDecoration(
-                        labelText: AppStrings.tr('section_name_ar', widget.lang),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: kuCtrl,
+                        enabled: !saving,
+                        decoration: InputDecoration(
+                          labelText: AppStrings.tr('section_name_ku', widget.lang),
+                          hintText: AppStrings.tr('section_name_ku_hint', widget.lang),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: enCtrl,
-                      enabled: !saving,
-                      decoration: InputDecoration(labelText: AppStrings.tr('name_en_field', widget.lang)),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: orderCtrl,
-                      enabled: !saving,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: tx('ڕیزبەندی (sort_order)'),
-                        hintText: tx('1 = یەکەم خانە لە گرید'),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: arCtrl,
+                        enabled: !saving,
+                        decoration: InputDecoration(
+                          labelText: AppStrings.tr('section_name_ar', widget.lang),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    imageUploadBlock(
-                      title: tx('وێنەی سەرەکی (گرید)'),
-                      ctrl: imgCtrl,
-                      pending: pendingImage,
-                      picking: pickingPrimary,
-                      uploading: uploadingPrimary,
-                      uploadOk: primaryUploadOk,
-                      uploadError: primaryUploadError,
-                      secondary: false,
-                      urlLabel: 'یان بەستەری وێنەی سەرەکی',
-                    ),
-                    const SizedBox(height: 16),
-                    imageUploadBlock(
-                      title: tx('وێنەی دووەم / Sec image (چیپ)'),
-                      ctrl: secImgCtrl,
-                      pending: pendingSecImage,
-                      picking: pickingSecondary,
-                      uploading: uploadingSecondary,
-                      uploadOk: secondaryUploadOk,
-                      uploadError: secondaryUploadError,
-                      secondary: true,
-                      urlLabel: 'یان بەستەری وێنەی دووەم (secondary_image_url)',
-                    ),
-                    const SizedBox(height: 8),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        tx('لە شاشەی سەرەکی ئەپی کڕیار دەرکەوێت'),
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: enCtrl,
+                        enabled: !saving,
+                        decoration: InputDecoration(labelText: AppStrings.tr('name_en_field', widget.lang)),
                       ),
-                      value: featured,
-                      activeThumbColor: RegaColors.goldDark,
-                      onChanged: saving ? null : (v) => setDialogState(() => featured = v),
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(tx('بەش چالاکە'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                      value: active,
-                      onChanged: saving ? null : (v) => setDialogState(() => active = v),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: orderCtrl,
+                        enabled: !saving,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: tx('ڕیزبەندی (sort_order)'),
+                          hintText: tx('1 = یەکەم خانە لە گرید'),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      imageUploadBlock(
+                        title: tx('وێنەی سەرەکی (گرید)'),
+                        ctrl: imgCtrl,
+                        pending: pendingImage,
+                        picking: pickingPrimary,
+                        uploading: uploadingPrimary,
+                        uploadOk: primaryUploadOk,
+                        uploadError: primaryUploadError,
+                        secondary: false,
+                        urlLabel: 'یان بەستەری وێنەی سەرەکی',
+                      ),
+                      const SizedBox(height: 16),
+                      imageUploadBlock(
+                        title: tx('وێنەی دووەم / Sec image (چیپ)'),
+                        ctrl: secImgCtrl,
+                        pending: pendingSecImage,
+                        picking: pickingSecondary,
+                        uploading: uploadingSecondary,
+                        uploadOk: secondaryUploadOk,
+                        uploadError: secondaryUploadError,
+                        secondary: true,
+                        urlLabel: 'یان بەستەری وێنەی دووەم (secondary_image_url)',
+                      ),
+                      const SizedBox(height: 8),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          tx('لە شاشەی سەرەکی ئەپی کڕیار دەرکەوێت'),
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                        ),
+                        value: featured,
+                        activeThumbColor: RegaColors.goldDark,
+                        onChanged: saving ? null : (v) => setDialogState(() => featured = v),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tx('بەش چالاکە'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                        value: active,
+                        onChanged: saving ? null : (v) => setDialogState(() => active = v),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -677,13 +710,18 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
   Widget _imagePlaceholder() {
     return Container(
       color: RC.bg(Color(0xFFF1F5F9)),
+      padding: const EdgeInsets.all(12),
       alignment: Alignment.center,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.image_outlined, size: 36, color: RC.fg(Colors.black38)),
-          SizedBox(height: 6),
-          Text(tx('وێنەی بەش'), style: TextStyle(color: RC.fg(Colors.black45), fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text(
+            tx('وێنەی بەش'),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: RC.fg(Colors.black45), fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );
@@ -693,8 +731,23 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(tx('سڕینەوەی گەڕەکی ${z['name_ku']}')),
-        content: Text(tx('ئایا دڵنیایت لە سڕینەوەی ئەم گەڕەکە؟')),
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
+        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+        actionsOverflowButtonSpacing: 8,
+        title: Text(
+          tx('سڕینەوەی گەڕەکی ${z['name_ku']}'),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 420),
+            maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 280),
+          ),
+          child: SingleChildScrollView(
+            child: Text(tx('ئایا دڵنیایت لە سڕینەوەی ئەم گەڕەکە؟')),
+          ),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
           ElevatedButton(
@@ -718,11 +771,26 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(tx('سڕینەوەی بەشی ${c['name_ku']}')),
-        content: Text(
-          tx(storesCount > 0
-              ? 'ئەم بەشە $storesCount فرۆشگای لەسەرە — ناتوانرێت بسڕدرێتەوە هەتا فرۆشگاکان بگۆڕدرێن. دەتوانیت چالاکی بکەیتەوە یان لە سەرەکی لاببەیت.'
-              : 'ئایا دڵنیایت لە سڕینەوەی ئەم بەشە؟ لە گریدی سەرەکی ئەپی کڕیار دەسڕێتەوە.'),
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
+        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+        actionsOverflowButtonSpacing: 8,
+        title: Text(
+          tx('سڕینەوەی بەشی ${c['name_ku']}'),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 420),
+            maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 280),
+          ),
+          child: SingleChildScrollView(
+            child: Text(
+              tx(storesCount > 0
+                  ? 'ئەم بەشە $storesCount فرۆشگای لەسەرە — ناتوانرێت بسڕدرێتەوە هەتا فرۆشگاکان بگۆڕدرێن. دەتوانیت چالاکی بکەیتەوە یان لە سەرەکی لاببەیت.'
+                  : 'ئایا دڵنیایت لە سڕینەوەی ئەم بەشە؟ لە گریدی سەرەکی ئەپی کڕیار دەسڕێتەوە.'),
+            ),
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
@@ -776,10 +844,11 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
       CatalogZonesMode.both => 'ڕێکخستنی گەڕەکەکانی کەلار و کرێی گەیاندن + بەشە سەرەکییەکانی ئەپی کڕیار',
     };
 
+    final padH = AdminBreakpoints.pagePadH(context);
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+          padding: EdgeInsets.fromLTRB(padH, padH < 16 ? 10 : 18, padH, 6),
           child: SectionHeader(
             title: headerTitle,
             subtitle: headerSubtitle,
@@ -788,6 +857,8 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
         if (_hasTabs && _tabCtrl != null)
           TabBar(
             controller: _tabCtrl,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
               Tab(text: tx('📍 گەڕەکەکانی کەلار (${_zones.length})')),
               Tab(text: tx('🗂️ بەشەکانی بازاڕ (${_categories.length})')),
@@ -816,200 +887,222 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
 
   Widget _buildZonesList() {
     final pad = AdminBreakpoints.pagePadH(context);
-    return ListView(
-      padding: EdgeInsets.all(pad),
-      children: [
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: ElevatedButton.icon(
-            onPressed: () => _showZoneDialog(),
-            icon: const Icon(Icons.add_location_alt_rounded, size: 18),
-            label: Text(tx('زیادکردنی گەڕەکی نوێ')),
-          ),
-        ),
-        const SizedBox(height: 14),
-        ..._zones.map((raw) {
-          final z = raw as Map<String, dynamic>;
-          final active = z['is_active'] == true;
-          final narrow = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
-          final feeChip = Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: RegaColors.emerald.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              tx(formatIqd(z['delivery_fee'] as num?, lang: widget.lang)),
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                color: RegaColors.emeraldDark,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 720;
+        return ListView(
+          padding: EdgeInsets.all(pad),
+          children: [
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: ElevatedButton.icon(
+                onPressed: () => _showZoneDialog(),
+                icon: const Icon(Icons.add_location_alt_rounded, size: 18),
+                label: Text(tx('زیادکردنی گەڕەکی نوێ')),
               ),
             ),
-          );
-          final actions = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Switch(
-                value: active,
-                onChanged: (v) async {
-                  await widget.api.updateNeighborhood(z['id'] as int, {'is_active': v});
-                  _load();
-                },
-              ),
-              IconButton(
-                onPressed: () => _showZoneDialog(existing: z),
-                icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
-              ),
-              IconButton(
-                onPressed: () => _confirmDeleteZone(z),
-                icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
-              ),
-            ],
-          );
-          if (narrow) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: RegaColors.gold.withValues(alpha: 0.22),
-                            child: Icon(Icons.location_on_rounded, color: RC.fg(Color(0xFF0F172A))),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  tx('${z['name_ku'] ?? ''} (${z['name_en'] ?? ''})'),
-                                  style: const TextStyle(fontWeight: FontWeight.w800),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  tx('⏱️ ${z['estimated_minutes'] ?? 25} خولەک  •  🏪 ${z['stores_count'] ?? 0} فرۆشگا  •  📦 ${z['orders_count'] ?? 0} داواکاری'),
-                                  style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade700)),
-                                ),
-                              ],
-                            ),
-                          ),
-                          feeChip,
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Align(alignment: AlignmentDirectional.centerEnd, child: actions),
-                    ],
+            const SizedBox(height: 14),
+            ..._zones.map((raw) {
+              final z = raw as Map<String, dynamic>;
+              final active = z['is_active'] == true;
+              final feeChip = Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: RegaColors.emerald.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  tx(formatIqd(z['delivery_fee'] as num?, lang: widget.lang)),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: RegaColors.emeraldDark,
                   ),
                 ),
-              ),
-            );
-          }
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Card(
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: RegaColors.gold.withValues(alpha: 0.22),
-                  child: Icon(Icons.location_on_rounded, color: RC.fg(Color(0xFF0F172A))),
+              );
+              final actions = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Switch(
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    value: active,
+                    onChanged: (v) async {
+                      await widget.api.updateNeighborhood(z['id'] as int, {'is_active': v});
+                      _load();
+                    },
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    onPressed: () => _showZoneDialog(existing: z),
+                    icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    onPressed: () => _confirmDeleteZone(z),
+                    icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
+                  ),
+                ],
+              );
+              if (narrow) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 10, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: RegaColors.gold.withValues(alpha: 0.22),
+                                child: Icon(Icons.location_on_rounded, color: RC.fg(Color(0xFF0F172A))),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      tx('${z['name_ku'] ?? ''} (${z['name_en'] ?? ''})'),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontWeight: FontWeight.w800),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      tx('⏱️ ${z['estimated_minutes'] ?? 25} خولەک  •  🏪 ${z['stores_count'] ?? 0} فرۆشگا  •  📦 ${z['orders_count'] ?? 0} داواکاری'),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade700)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              feeChip,
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Align(alignment: AlignmentDirectional.centerEnd, child: actions),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Card(
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: RegaColors.gold.withValues(alpha: 0.22),
+                      child: Icon(Icons.location_on_rounded, color: RC.fg(Color(0xFF0F172A))),
+                    ),
+                    title: Text(
+                      tx('${z['name_ku'] ?? ''} (${z['name_en'] ?? ''})'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: Text(
+                      tx('⏱️ ${z['estimated_minutes'] ?? 25} خولەک  •  🏪 ${z['stores_count'] ?? 0} فرۆشگا  •  📦 ${z['orders_count'] ?? 0} داواکاری'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        feeChip,
+                        const SizedBox(width: 8),
+                        actions,
+                      ],
+                    ),
+                  ),
                 ),
-                title: Text(
-                  tx('${z['name_ku'] ?? ''} (${z['name_en'] ?? ''})'),
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                subtitle: Text(
-                  tx('⏱️ ${z['estimated_minutes'] ?? 25} خولەک  •  🏪 ${z['stores_count'] ?? 0} فرۆشگا  •  📦 ${z['orders_count'] ?? 0} داواکاری'),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    feeChip,
-                    const SizedBox(width: 8),
-                    actions,
-                  ],
-                ),
-              ),
-            ),
-          );
-        }),
-      ],
+              );
+            }),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildCategoriesList() {
     final pad = AdminBreakpoints.pagePadH(context);
-    final narrow = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
-    return ListView(
-      padding: EdgeInsets.all(pad),
-      children: [
-        if (narrow) ...[
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: RegaColors.gold.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: RegaColors.gold.withValues(alpha: 0.35)),
-            ),
-            child: Text(
-              tx('هەر بەشێک کە زیاد دەکەیت (ناو + وێنە) لە گریدی سەرەکی ئەپی کڕیار دەردەکەوێت، وەک خواردنگە و مارکێت.'),
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.35),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _showCategoryDialog(),
-              icon: const Icon(Icons.add_box_rounded, size: 18),
-              label: Text(tx('زیادکردنی بەشی نوێ')),
-            ),
-          ),
-        ] else
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: RegaColors.gold.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: RegaColors.gold.withValues(alpha: 0.35)),
-                  ),
-                  child: Text(
-                    tx('هەر بەشێک کە زیاد دەکەیت (ناو + وێنە) لە گریدی سەرەکی ئەپی کڕیار دەردەکەوێت، وەک خواردنگە و مارکێت.'),
-                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.35),
-                  ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final gridW = (w - pad * 2).clamp(240.0, w);
+        final narrowBanner = gridW < AdminBreakpoints.phone;
+        final cols = gridW < 720 ? 1 : (gridW < 1320 ? 2 : 3);
+        final cardWidth = cols == 1 ? gridW : AdminBreakpoints.cardWidth(gridW, cols, 14);
+
+        return ListView(
+          padding: EdgeInsets.all(pad),
+          children: [
+            if (narrowBanner) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: RegaColors.gold.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: RegaColors.gold.withValues(alpha: 0.35)),
+                ),
+                child: Text(
+                  tx('هەر بەشێک کە زیاد دەکەیت (ناو + وێنە) لە گریدی سەرەکی ئەپی کڕیار دەردەکەوێت، وەک خواردنگە و مارکێت.'),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.35),
                 ),
               ),
-              const SizedBox(width: 12),
-              ElevatedButton.icon(
-                onPressed: () => _showCategoryDialog(),
-                icon: const Icon(Icons.add_box_rounded, size: 18),
-                label: Text(tx('زیادکردنی بەشی نوێ')),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _showCategoryDialog(),
+                  icon: const Icon(Icons.add_box_rounded, size: 18),
+                  label: Text(tx('زیادکردنی بەشی نوێ')),
+                ),
               ),
-            ],
-          ),
-        const SizedBox(height: 16),
-        if (_categories.isEmpty)
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
-            child: Center(
-              child: Text(
-                tx('هیچ بەشێک نییە — یەکەم بەش زیاد بکە بۆ ئەپی کڕیار'),
-                style: TextStyle(fontWeight: FontWeight.w700, color: RC.fg(Colors.black54)),
+            ] else
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: RegaColors.gold.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: RegaColors.gold.withValues(alpha: 0.35)),
+                      ),
+                      child: Text(
+                        tx('هەر بەشێک کە زیاد دەکەیت (ناو + وێنە) لە گریدی سەرەکی ئەپی کڕیار دەردەکەوێت، وەک خواردنگە و مارکێت.'),
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.35),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => _showCategoryDialog(),
+                    icon: const Icon(Icons.add_box_rounded, size: 18),
+                    label: Text(tx('زیادکردنی بەشی نوێ')),
+                  ),
+                ],
               ),
-            ),
-          )
-        else
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth > 900;
-              return Wrap(
+            const SizedBox(height: 16),
+            if (_categories.isEmpty)
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Center(
+                  child: Text(
+                    tx('هیچ بەشێک نییە — یەکەم بەش زیاد بکە بۆ ئەپی کڕیار'),
+                    style: TextStyle(fontWeight: FontWeight.w700, color: RC.fg(Colors.black54)),
+                  ),
+                ),
+              )
+            else
+              Wrap(
                 spacing: 14,
                 runSpacing: 14,
                 children: [
@@ -1019,7 +1112,6 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                         final c = _categories[index] as Map<String, dynamic>;
                         final active = c['is_active'] == true;
                         final featured = c['is_featured_home'] == true;
-                        final cardWidth = wide ? (constraints.maxWidth - 14) / 2 : constraints.maxWidth;
                         return SizedBox(
                           width: cardWidth,
                           child: Card(
@@ -1045,9 +1137,9 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                                               color: RC.bg(Color(0xFFE2E8F0)),
                                               child: const Icon(Icons.category_rounded, size: 40),
                                             ),
-                                      Positioned(
+                                      PositionedDirectional(
                                         top: 8,
-                                        left: 8,
+                                        start: 8,
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                           decoration: BoxDecoration(
@@ -1066,9 +1158,9 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                                       ),
                                       if (c['secondary_image_url'] != null &&
                                           c['secondary_image_url'].toString().isNotEmpty)
-                                        Positioned(
+                                        PositionedDirectional(
                                           top: 8,
-                                          right: 8,
+                                          end: 8,
                                           child: ClipRRect(
                                             borderRadius: BorderRadius.circular(10),
                                             child: Image.network(
@@ -1088,6 +1180,8 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                                           color: RC.bg(Color(0xFFFAC800)),
                                           child: Text(
                                             tx(c['name_ku']?.toString() ?? ''),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                             textAlign: TextAlign.center,
                                             style: TextStyle(
                                               fontWeight: FontWeight.w900,
@@ -1102,55 +1196,79 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                                 ),
                                 Padding(
                                   padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                                  child: Row(
+                                  child: Wrap(
+                                    spacing: 4,
+                                    runSpacing: 6,
+                                    alignment: WrapAlignment.spaceBetween,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
                                     children: [
-                                      IconButton(
-                                        tooltip: tx('بەرەو سەرەوە'),
-                                        onPressed: index == 0 ? null : () => _moveCategory(index, -1),
-                                        icon: const Icon(Icons.arrow_upward_rounded, size: 20),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            tooltip: tx('بەرەو سەرەوە'),
+                                            visualDensity: VisualDensity.compact,
+                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                            onPressed: index == 0 ? null : () => _moveCategory(index, -1),
+                                            icon: const Icon(Icons.arrow_upward_rounded, size: 20),
+                                          ),
+                                          IconButton(
+                                            tooltip: tx('بەرەو خوارەوە'),
+                                            visualDensity: VisualDensity.compact,
+                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                            onPressed: index >= _categories.length - 1
+                                                ? null
+                                                : () => _moveCategory(index, 1),
+                                            icon: const Icon(Icons.arrow_downward_rounded, size: 20),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            tx('🏪 ${c['stores_count'] ?? 0} فرۆشگا'),
+                                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                                          ),
+                                        ],
                                       ),
-                                      IconButton(
-                                        tooltip: tx('بەرەو خوارەوە'),
-                                        onPressed: index >= _categories.length - 1
-                                            ? null
-                                            : () => _moveCategory(index, 1),
-                                        icon: const Icon(Icons.arrow_downward_rounded, size: 20),
-                                      ),
-                                      Expanded(
-                                        child: Text(
-                                          tx('🏪 ${c['stores_count'] ?? 0} فرۆشگا'),
-                                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                                        ),
-                                      ),
-                                      FilterChip(
-                                        selected: featured,
-                                        selectedColor: RegaColors.gold.withValues(alpha: 0.3),
-                                        label: Text(tx('سەرەکی'), style: TextStyle(fontSize: 11)),
-                                        onSelected: (v) async {
-                                          await widget.api.updateCategory(
-                                            c['id'] as int,
-                                            {'is_featured_home': v},
-                                          );
-                                          _load();
-                                        },
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Switch(
-                                        value: active,
-                                        onChanged: (v) async {
-                                          await widget.api.updateCategory(c['id'] as int, {'is_active': v});
-                                          _load();
-                                        },
-                                      ),
-                                      IconButton(
-                                        tooltip: tx('دەستکاری'),
-                                        onPressed: () => _showCategoryDialog(existing: c),
-                                        icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
-                                      ),
-                                      IconButton(
-                                        tooltip: tx('سڕینەوە'),
-                                        onPressed: () => _confirmDeleteCategory(c),
-                                        icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          FilterChip(
+                                            selected: featured,
+                                            visualDensity: VisualDensity.compact,
+                                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                            selectedColor: RegaColors.gold.withValues(alpha: 0.3),
+                                            label: Text(tx('سەرەکی'), style: const TextStyle(fontSize: 11)),
+                                            onSelected: (v) async {
+                                              await widget.api.updateCategory(
+                                                c['id'] as int,
+                                                {'is_featured_home': v},
+                                              );
+                                              _load();
+                                            },
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Switch(
+                                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                            value: active,
+                                            onChanged: (v) async {
+                                              await widget.api.updateCategory(c['id'] as int, {'is_active': v});
+                                              _load();
+                                            },
+                                          ),
+                                          IconButton(
+                                            tooltip: tx('دەستکاری'),
+                                            visualDensity: VisualDensity.compact,
+                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                            onPressed: () => _showCategoryDialog(existing: c),
+                                            icon: const Icon(Icons.edit_outlined, size: 20, color: RegaColors.blue),
+                                          ),
+                                          IconButton(
+                                            tooltip: tx('سڕینەوە'),
+                                            visualDensity: VisualDensity.compact,
+                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                            onPressed: () => _confirmDeleteCategory(c),
+                                            icon: const Icon(Icons.delete_outline, size: 20, color: RegaColors.crimson),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -1162,10 +1280,10 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                       },
                     ),
                 ],
-              );
-            },
-          ),
-      ],
+              ),
+          ],
+        );
+      },
     );
   }
 }

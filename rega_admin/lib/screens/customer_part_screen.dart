@@ -140,49 +140,97 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: Text(tx('پڕۆفایلی کڕیار — ${detail['name'] ?? ''}')),
+          insetPadding: AdminBreakpoints.dialogInset(ctx),
+          contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+          actionsOverflowButtonSpacing: 8,
+          title: Text(
+            tx('پڕۆفایلی کڕیار — ${detail['name'] ?? ''}'),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
           content: SizedBox(
-            width: (MediaQuery.sizeOf(context).width * 0.92).clamp(280.0, 560.0),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(tx('📞 مۆبایل: ${detail['phone'] ?? '-'}  |  ✉️ ئیمەیڵ: ${detail['email'] ?? '-'}')),
-                  const Divider(height: 24),
-                  Text(tx('📍 ناونیشانە تۆمارکراوەکان لە کەلار:'), style: TextStyle(fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 8),
-                  if (addresses.isEmpty)
-                    Text(tx('هیچ ناونیشانێک تۆمار نەکراوە'))
-                  else
-                    ...addresses.map((a) {
-                      final m = a as Map<String, dynamic>;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Text(tx('• [${m['label'] ?? 'ماڵەوە'}] ${m['address_line'] ?? ''} (${m['neighborhood']?['name_ku'] ?? ''})')),
+            width: AdminBreakpoints.dialogWidth(ctx, max: 560),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 540),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ResponsiveDetailRow(
+                      label: 'مۆبایل',
+                      value: '${detail['phone'] ?? '-'}',
+                      ltrValue: true,
+                    ),
+                    const SizedBox(height: 6),
+                    ResponsiveDetailRow(
+                      label: 'ئیمەیڵ',
+                      value: '${detail['email'] ?? '-'}',
+                      ltrValue: true,
+                    ),
+                    const Divider(height: 24),
+                    Text(tx('📍 ناونیشانە تۆمارکراوەکان لە کەلار:'), style: TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 8),
+                    if (addresses.isEmpty)
+                      Text(tx('هیچ ناونیشانێک تۆمار نەکراوە'))
+                    else
+                      ...addresses.map((a) {
+                        final m = a as Map<String, dynamic>;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text(tx('• [${m['label'] ?? 'ماڵەوە'}] ${m['address_line'] ?? ''} (${m['neighborhood']?['name_ku'] ?? ''})')),
+                        );
+                      }),
+                    const Divider(height: 24),
+                    Text(tx('🛍️ دوایین داواکارییەکان (${orders.length}):'), style: const TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 8),
+                    ...orders.map((o) {
+                      final m = o as Map<String, dynamic>;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: RC.bg(Colors.grey).withValues(alpha: 0.22)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              tx('${m['order_number']}  •  🏪 ${m['store']?['name_ku'] ?? '-'}'),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              tx('📍 ${m['delivery_address'] ?? ''}'),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade600)),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              alignment: WrapAlignment.spaceBetween,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  tx(formatIqd(m['total_amount'] as num?, lang: widget.lang)),
+                                  style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark),
+                                ),
+                                StatusBadge(status: m['status']?.toString() ?? 'pending', lang: widget.lang),
+                              ],
+                            ),
+                          ],
+                        ),
                       );
                     }),
-                  const Divider(height: 24),
-                  Text(tx('🛍️ دوایین داواکارییەکان (${orders.length}):'), style: const TextStyle(fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 8),
-                  ...orders.map((o) {
-                    final m = o as Map<String, dynamic>;
-                    return ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(tx('${m['order_number']}  •  🏪 ${m['store']?['name_ku'] ?? '-'}'), style: const TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text(tx('📍 ${m['delivery_address'] ?? ''}')),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(tx(formatIqd(m['total_amount'] as num?, lang: widget.lang)), style: const TextStyle(fontWeight: FontWeight.w900)),
-                          const SizedBox(width: 8),
-                          StatusBadge(status: m['status']?.toString() ?? 'pending', lang: widget.lang),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -244,150 +292,177 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
 
           return AlertDialog(
             insetPadding: AdminBreakpoints.dialogInset(ctx),
-            title: Text(tx('تۆمارکردنی داواکاری ڕاستەوخۆ بۆ کڕیار (Live PostgreSQL Order)')),
+            contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+            actionsOverflowButtonSpacing: 8,
+            title: Text(
+              tx('تۆمارکردنی داواکاری ڕاستەوخۆ بۆ کڕیار (Live PostgreSQL Order)'),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
             content: SizedBox(
               width: AdminBreakpoints.dialogWidth(ctx, max: 580),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DropdownButtonFormField<int?>(
-                      initialValue: selectedCustomerId,
-                      decoration: InputDecoration(labelText: tx('هەڵبژاردنی کڕیار *')),
-                      items: _vipCustomers.map((c) {
-                        final m = c as Map<String, dynamic>;
-                        return DropdownMenuItem<int?>(
-                          value: m['id'] as int,
-                          child: Text(tx('${m['name']} (${m['phone']})')),
-                        );
-                      }).toList(),
-                      onChanged: (v) => setDialogState(() => selectedCustomerId = v),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            initialValue: selectedStoreId,
-                            decoration: InputDecoration(labelText: tx('فرۆشگا / چێشتخانە *')),
-                            items: _stores.map((s) {
-                              final m = s as Map<String, dynamic>;
-                              return DropdownMenuItem<int>(
-                                value: m['id'] as int,
-                                child: Text(tx(m['name_ku']?.toString() ?? '')),
-                              );
-                            }).toList(),
-                            onChanged: (v) {
-                              if (v == null) return;
-                              setDialogState(() {
-                                selectedStoreId = v;
-                                cartQty.clear();
-                              });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<int?>(
-                            initialValue: selectedZoneId,
-                            decoration: InputDecoration(labelText: tx('گەڕەکی کەلار')),
-                            items: _neighborhoods.map((z) {
-                              final m = z as Map<String, dynamic>;
-                              return DropdownMenuItem<int?>(
-                                value: m['id'] as int,
-                                child: Text(tx('${m['name_ku']} (${m['delivery_fee']} د.ع)')),
-                              );
-                            }).toList(),
-                            onChanged: (v) => setDialogState(() => selectedZoneId = v),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: addrCtrl,
-                      decoration: InputDecoration(labelText: tx('ناونیشانی تەواوی گەیاندن *')),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(tx('🍱 هەڵبژاردنی بەرهەمەکان:'), style: TextStyle(fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 8),
-                    if (storeProducts.isEmpty)
-                      Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: Text(tx('ئەم فرۆشگایە هیچ بەرهەمێکی تێدا نییە')),
-                      )
-                    else
-                      ...storeProducts.map((raw) {
-                        final p = raw as Map<String, dynamic>;
-                        final pid = p['id'] as int;
-                        final qty = cartQty[pid] ?? 0;
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: RC.bg(Colors.grey).withValues(alpha: 0.25)),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  tx('${p['name_ku']} — ${formatIqd(p['discount_price'] ?? p['price'], lang: widget.lang)}'),
-                                  style: const TextStyle(fontWeight: FontWeight.w700),
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: qty > 0
-                                    ? () => setDialogState(() {
-                                          if (qty == 1) {
-                                            cartQty.remove(pid);
-                                          } else {
-                                            cartQty[pid] = qty - 1;
-                                          }
-                                        })
-                                    : null,
-                                icon: const Icon(Icons.remove_circle_outline_rounded),
-                              ),
-                              Text(tx('$qty'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-                              IconButton(
-                                onPressed: () => setDialogState(() => cartQty[pid] = qty + 1),
-                                icon: const Icon(Icons.add_circle_rounded, color: RegaColors.emeraldDark),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: InputDecorator(
-                            decoration: InputDecoration(labelText: tx('شێوازی پارەدان')),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 560),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<int?>(
+                        isExpanded: true,
+                        initialValue: selectedCustomerId,
+                        decoration: InputDecoration(labelText: tx('هەڵبژاردنی کڕیار *')),
+                        items: _vipCustomers.map((c) {
+                          final m = c as Map<String, dynamic>;
+                          return DropdownMenuItem<int?>(
+                            value: m['id'] as int,
                             child: Text(
-                              tx('کاش لە کاتی وەرگرتن (COD)'),
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: RC.fg(Colors.grey.shade800),
+                              tx('${m['name']} (${m['phone']})'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (v) => setDialogState(() => selectedCustomerId = v),
+                      ),
+                      const SizedBox(height: 12),
+                      ResponsiveFormRow(
+                        breakpoint: 460,
+                        first: DropdownButtonFormField<int>(
+                          isExpanded: true,
+                          initialValue: selectedStoreId,
+                          decoration: InputDecoration(labelText: tx('فرۆشگا / چێشتخانە *')),
+                          items: _stores.map((s) {
+                            final m = s as Map<String, dynamic>;
+                            return DropdownMenuItem<int>(
+                              value: m['id'] as int,
+                              child: Text(
+                                tx(m['name_ku']?.toString() ?? ''),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
+                            );
+                          }).toList(),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setDialogState(() {
+                              selectedStoreId = v;
+                              cartQty.clear();
+                            });
+                          },
+                        ),
+                        second: DropdownButtonFormField<int?>(
+                          isExpanded: true,
+                          initialValue: selectedZoneId,
+                          decoration: InputDecoration(labelText: tx('گەڕەکی کەلار')),
+                          items: _neighborhoods.map((z) {
+                            final m = z as Map<String, dynamic>;
+                            return DropdownMenuItem<int?>(
+                              value: m['id'] as int,
+                              child: Text(
+                                tx('${m['name_ku']} (${m['delivery_fee']} د.ع)'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (v) => setDialogState(() => selectedZoneId = v),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: addrCtrl,
+                        decoration: InputDecoration(labelText: tx('ناونیشانی تەواوی گەیاندن *')),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(tx('🍱 هەڵبژاردنی بەرهەمەکان:'), style: TextStyle(fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 8),
+                      if (storeProducts.isEmpty)
+                        Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text(tx('ئەم فرۆشگایە هیچ بەرهەمێکی تێدا نییە')),
+                        )
+                      else
+                        ...storeProducts.map((raw) {
+                          final p = raw as Map<String, dynamic>;
+                          final pid = p['id'] as int;
+                          final qty = cartQty[pid] ?? 0;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: RC.bg(Colors.grey).withValues(alpha: 0.25)),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    tx('${p['name_ku']} — ${formatIqd(p['discount_price'] ?? p['price'], lang: widget.lang)}'),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                                IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                                  onPressed: qty > 0
+                                      ? () => setDialogState(() {
+                                            if (qty == 1) {
+                                              cartQty.remove(pid);
+                                            } else {
+                                              cartQty[pid] = qty - 1;
+                                            }
+                                          })
+                                      : null,
+                                  icon: const Icon(Icons.remove_circle_outline_rounded),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  child: Text(tx('$qty'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                                ),
+                                IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                                  onPressed: () => setDialogState(() => cartQty[pid] = qty + 1),
+                                  icon: const Icon(Icons.add_circle_rounded, color: RegaColors.emeraldDark),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      const SizedBox(height: 12),
+                      ResponsiveFormRow(
+                        breakpoint: 460,
+                        first: InputDecorator(
+                          decoration: InputDecoration(labelText: tx('شێوازی پارەدان')),
+                          child: Text(
+                            tx('کاش لە کاتی وەرگرتن (COD)'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: RC.fg(Colors.grey.shade800),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: couponCtrl,
-                            decoration: InputDecoration(labelText: tx('کۆپۆنی داشکاندن (نمونە: REGA25)')),
-                          ),
+                        second: TextField(
+                          controller: couponCtrl,
+                          decoration: InputDecoration(labelText: tx('کۆپۆنی داشکاندن (نمونە: REGA25)')),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: notesCtrl,
-                      decoration: InputDecoration(labelText: tx('تێبینی کڕیار')),
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: notesCtrl,
+                        decoration: InputDecoration(labelText: tx('تێبینی کڕیار')),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -423,7 +498,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                   }
                 },
                 icon: const Icon(Icons.rocket_launch_rounded, size: 18),
-                label: Text(tx('تۆمارکردن و ناردن بۆ چێشتخانە')),
+                label: Text(tx('تۆمارکردن و ناردن بۆ چێشتخانە'), maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ],
           );
@@ -432,296 +507,452 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
     );
   }
 
+  Widget _buildHubTab(IconData icon, String label, bool compact) {
+    if (compact) {
+      return Tab(
+        height: 40,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16),
+            const SizedBox(width: 6),
+            Text(label),
+          ],
+        ),
+      );
+    }
+    return Tab(icon: Icon(icon, size: 18), text: label);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Column(
-      children: [
-        // Customer Hub Header Banner
-        Container(
-          width: double.infinity,
-          margin: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 18, AdminBreakpoints.pagePadH(context), 0),
-          padding: const EdgeInsets.fromLTRB(22, 18, 22, 12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [RC.bg(Color(0xFF1E293B)), RC.bg(Color(0xFF0F172A))],
-              begin: Alignment.centerRight,
-              end: Alignment.centerLeft,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final h = MediaQuery.sizeOf(context).height;
+        final padH = AdminBreakpoints.pagePadH(context);
+        final isPhone = w < AdminBreakpoints.phone;
+        final isCompactBanner = isPhone || h < 640;
+        final stackHeader = w < 840;
+        final btnPad = isPhone
+            ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+            : null;
+
+        final titleRow = Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(isPhone ? 8 : 10),
+              decoration: BoxDecoration(
+                color: RegaColors.gold,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(Icons.shopping_bag_rounded, color: RC.fg(Color(0xFF0F172A)), size: isPhone ? 22 : 26),
             ),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: RegaColors.gold.withValues(alpha: 0.5), width: 1.4),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                spacing: 14,
-                runSpacing: 10,
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
+            SizedBox(width: isPhone ? 10 : 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: RegaColors.gold,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Icon(Icons.shopping_bag_rounded, color: RC.fg(Color(0xFF0F172A)), size: 26),
-                      ),
-                      const SizedBox(width: 14),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tx('بەشی کڕیاران و مارکێتپڵەیس (REGA Customer Hub)'),
-                            style: TextStyle(color: RegaColors.gold, fontSize: 18, fontWeight: FontWeight.w900),
-                          ),
-                          Text(
-                            tx('بەستراوەتەوە بە ئەپی کڕیاران (rega) • بەشەکانی سەرەکی، هەژمار، داواکاری، کۆپۆن و گەڕەکەکان'),
-                            style: TextStyle(color: RC.fg(Colors.white70), fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ],
+                  Text(
+                    tx('بەشی کڕیاران و مارکێتپڵەیس (REGA Customer Hub)'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: RegaColors.gold,
+                      fontSize: isPhone ? 15.5 : 18,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                  Wrap(
-                    spacing: 10,
-                    children: [
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: RegaColors.gold,
-                          foregroundColor: RC.fg(Color(0xFF0F172A)),
-                        ),
-                        onPressed: _showCreateCustomerOrderDialog,
-                        icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
-                        label: Text(tx('داواکاری نوێ بۆ کڕیار')),
-                      ),
-                      FilledButton.tonalIcon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: RC.bg(Colors.white).withValues(alpha: 0.12),
-                          foregroundColor: RC.fg(Colors.white),
-                        ),
-                        onPressed: () => _load(),
-                        icon: const Icon(Icons.sync_rounded, size: 18),
-                        label: Text(tx('نوێکردنەوە')),
-                      ),
-                    ],
-                  ),
+                  if (!isCompactBanner)
+                    Text(
+                      tx('بەستراوەتەوە بە ئەپی کڕیاران (rega) • بەشەکانی سەرەکی، هەژمار، داواکاری، کۆپۆن و گەڕەکەکان'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: RC.fg(Colors.white70), fontSize: 12),
+                    ),
                 ],
               ),
-              const SizedBox(height: 14),
-              TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                indicatorColor: RegaColors.gold,
-                indicatorWeight: 3.5,
-                labelColor: RegaColors.gold,
-                unselectedLabelColor: RC.fg(Colors.white70),
-                labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-                dividerColor: Colors.transparent,
-                tabs: [
-                  Tab(icon: Icon(Icons.workspace_premium_rounded, size: 18), text: tx('پوختە و کڕیاران')),
-                  Tab(
-                    icon: const Icon(Icons.receipt_long_rounded, size: 18),
-                    text: tx('داواکاری کڕیاران (${_kpis['total_customer_orders'] ?? 0})'),
-                  ),
-                  Tab(
-                    icon: const Icon(Icons.handshake_rounded, size: 18),
-                    text: tx('داواکاری ڕاستەوخۆ'),
-                  ),
-                  Tab(icon: Icon(Icons.groups_rounded, size: 18), text: tx('بەڕێوەبردنی کڕیاران')),
-                  Tab(icon: Icon(Icons.grid_view_rounded, size: 18), text: tx('بەشەکانی سەرەکی ئەپ')),
-                  Tab(icon: Icon(Icons.notifications_active_rounded, size: 18), text: tx('ئاگاداری بۆ کڕیار')),
-                  Tab(icon: Icon(Icons.location_city_rounded, size: 18), text: tx('گەڕەکەکانی کەلار')),
-                  Tab(icon: Icon(Icons.campaign_rounded, size: 18), text: tx('کۆپۆن و ڕیکلامەکان')),
-                ],
+            ),
+          ],
+        );
+
+        final actionsWrap = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: RegaColors.gold,
+                foregroundColor: RC.fg(Color(0xFF0F172A)),
+                padding: btnPad,
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-                  ? ErrorRetryView(message: _error!, onRetry: _load)
-                  : TabBarView(
-                      controller: _tabController,
+              onPressed: _showCreateCustomerOrderDialog,
+              icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
+              label: Text(
+                tx('داواکاری نوێ بۆ کڕیار'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(
+                backgroundColor: RC.bg(Colors.white).withValues(alpha: 0.12),
+                foregroundColor: RC.fg(Colors.white),
+                padding: btnPad,
+              ),
+              onPressed: () => _load(),
+              icon: const Icon(Icons.sync_rounded, size: 18),
+              label: Text(
+                tx('نوێکردنەوە'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        );
+
+        return Column(
+          children: [
+            // Customer Hub Header Banner
+            Container(
+              width: double.infinity,
+              margin: EdgeInsets.fromLTRB(padH, isCompactBanner ? 8 : 18, padH, 0),
+              padding: isCompactBanner
+                  ? const EdgeInsets.fromLTRB(12, 10, 12, 6)
+                  : const EdgeInsets.fromLTRB(22, 18, 22, 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [RC.bg(Color(0xFF1E293B)), RC.bg(Color(0xFF0F172A))],
+                  begin: AlignmentDirectional.centerStart,
+                  end: AlignmentDirectional.centerEnd,
+                ),
+                borderRadius: BorderRadius.circular(isCompactBanner ? 16 : 22),
+                border: Border.all(color: RegaColors.gold.withValues(alpha: 0.5), width: 1.4),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (stackHeader) ...[
+                    titleRow,
+                    SizedBox(height: isCompactBanner ? 8 : 12),
+                    actionsWrap,
+                  ] else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        _buildVipOverviewTab(isDark),
-                        _buildCustomerOrdersTab(),
-                        DirectRequestsScreen(
-                          api: widget.api,
-                          lang: widget.lang,
-                          onChanged: widget.onDataChanged,
-                        ),
-                        CustomersScreen(api: widget.api, lang: widget.lang),
-                        CatalogZonesScreen(
-                          api: widget.api,
-                          lang: widget.lang,
-                          mode: CatalogZonesMode.categories,
-                        ),
-                        MarketingScreen(
-                          api: widget.api,
-                          lang: widget.lang,
-                          mode: MarketingMode.notifications,
-                        ),
-                        CatalogZonesScreen(
-                          api: widget.api,
-                          lang: widget.lang,
-                          mode: CatalogZonesMode.zones,
-                        ),
-                        MarketingScreen(api: widget.api, lang: widget.lang),
+                        Expanded(child: titleRow),
+                        const SizedBox(width: 12),
+                        Flexible(child: actionsWrap),
                       ],
                     ),
-        ),
-      ],
+                  SizedBox(height: isCompactBanner ? 8 : 14),
+                  TabBar(
+                    controller: _tabController,
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.start,
+                    indicatorColor: RegaColors.gold,
+                    indicatorWeight: 3.5,
+                    labelColor: RegaColors.gold,
+                    unselectedLabelColor: RC.fg(Colors.white70),
+                    labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                    dividerColor: Colors.transparent,
+                    tabs: [
+                      _buildHubTab(Icons.workspace_premium_rounded, tx('پوختە و کڕیاران'), isCompactBanner),
+                      _buildHubTab(Icons.receipt_long_rounded, tx('داواکاری کڕیاران (${_kpis['total_customer_orders'] ?? 0})'), isCompactBanner),
+                      _buildHubTab(Icons.handshake_rounded, tx('داواکاری ڕاستەوخۆ'), isCompactBanner),
+                      _buildHubTab(Icons.groups_rounded, tx('بەڕێوەبردنی کڕیاران'), isCompactBanner),
+                      _buildHubTab(Icons.grid_view_rounded, tx('بەشەکانی سەرەکی ئەپ'), isCompactBanner),
+                      _buildHubTab(Icons.notifications_active_rounded, tx('ئاگاداری بۆ کڕیار'), isCompactBanner),
+                      _buildHubTab(Icons.location_city_rounded, tx('گەڕەکەکانی کەلار'), isCompactBanner),
+                      _buildHubTab(Icons.campaign_rounded, tx('کۆپۆن و ڕیکلامەکان'), isCompactBanner),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: isCompactBanner ? 6 : 12),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? ErrorRetryView(message: _error!, onRetry: _load)
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildVipOverviewTab(isDark),
+                            _buildCustomerOrdersTab(),
+                            DirectRequestsScreen(
+                              api: widget.api,
+                              lang: widget.lang,
+                              onChanged: widget.onDataChanged,
+                            ),
+                            CustomersScreen(api: widget.api, lang: widget.lang),
+                            CatalogZonesScreen(
+                              api: widget.api,
+                              lang: widget.lang,
+                              mode: CatalogZonesMode.categories,
+                            ),
+                            MarketingScreen(
+                              api: widget.api,
+                              lang: widget.lang,
+                              mode: MarketingMode.notifications,
+                            ),
+                            CatalogZonesScreen(
+                              api: widget.api,
+                              lang: widget.lang,
+                              mode: CatalogZonesMode.zones,
+                            ),
+                            MarketingScreen(api: widget.api, lang: widget.lang),
+                          ],
+                        ),
+            ),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildVipOverviewTab(bool isDark) {
+    final padH = AdminBreakpoints.pagePadH(context);
     return ListView(
-      padding: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 8, AdminBreakpoints.pagePadH(context), 28),
+      padding: EdgeInsets.fromLTRB(padH, 8, padH, 28),
       children: [
-        GridView.count(
-          crossAxisCount: () {
-            final w = MediaQuery.sizeOf(context).width;
-            if (w < AdminBreakpoints.phone) return 1;
-            if (w > 1200) return 3;
-            return 2;
-          }(),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 14,
-          crossAxisSpacing: 14,
-          childAspectRatio: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 2.8 : 2.35,
-          children: [
-            StatKpiCard(
-              title: tx('کۆی کڕیارانی تۆمارکراو'),
-              value: '${_kpis['total_customers'] ?? 0}',
-              subtitle: tx('${_kpis['active_customers'] ?? 0} چالاک'),
-              icon: Icons.groups_rounded,
-              accentColor: RegaColors.goldDark,
-            ),
-            StatKpiCard(
-              title: tx('ناونیشانەکانی کەلار'),
-              value: '${_kpis['saved_addresses_count'] ?? 0}',
-              subtitle: tx('تۆمارکراو لە GPS'),
-              icon: Icons.pin_drop_rounded,
-              accentColor: RegaColors.blue,
-            ),
-            StatKpiCard(
-              title: tx('کۆی خەرجی کڕیاران (GMV)'),
-              value: formatIqd(_kpis['total_customer_gmv'] as num?, lang: widget.lang),
-              subtitle: tx('${_kpis['total_customer_orders'] ?? 0} داواکاری'),
-              icon: Icons.shopping_bag_rounded,
-              accentColor: RegaColors.emeraldDark,
-            ),
-            StatKpiCard(
-              title: tx('کۆپۆنە چالاکەکان'),
-              value: '${_kpis['active_coupons_count'] ?? 0}',
-              subtitle: tx('ئامادە بۆ کڕیار'),
-              icon: Icons.discount_rounded,
-              accentColor: RegaColors.purple,
-            ),
-            StatKpiCard(
-              title: tx('بانەر و ڕیکلامی سەرەکی'),
-              value: '${_kpis['active_banners_count'] ?? 0}',
-              subtitle: tx('لە شاشەی سەرەکی ئەپ'),
-              icon: Icons.burst_mode_rounded,
-              accentColor: RegaColors.orange,
-            ),
-            StatKpiCard(
-              title: tx('هەژماری ڕاگیراو'),
-              value: '${_kpis['suspended_customers'] ?? 0}',
-              subtitle: tx('بلۆککراو'),
-              icon: Icons.block_rounded,
-              accentColor: RegaColors.crimson,
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, kpiConstraints) {
+            final w = kpiConstraints.maxWidth;
+            final cols = w < 560 ? 1 : (w < 980 ? 2 : 3);
+            final isPhone = w < AdminBreakpoints.phone;
+            final kpis = <Widget>[
+              StatKpiCard(
+                title: tx('کۆی کڕیارانی تۆمارکراو'),
+                value: '${_kpis['total_customers'] ?? 0}',
+                subtitle: tx('${_kpis['active_customers'] ?? 0} چالاک'),
+                icon: Icons.groups_rounded,
+                accentColor: RegaColors.goldDark,
+              ),
+              StatKpiCard(
+                title: tx('ناونیشانەکانی کەلار'),
+                value: '${_kpis['saved_addresses_count'] ?? 0}',
+                subtitle: tx('تۆمارکراو لە GPS'),
+                icon: Icons.pin_drop_rounded,
+                accentColor: RegaColors.blue,
+              ),
+              StatKpiCard(
+                title: tx('کۆی خەرجی کڕیاران (GMV)'),
+                value: formatIqd(_kpis['total_customer_gmv'] as num?, lang: widget.lang),
+                subtitle: tx('${_kpis['total_customer_orders'] ?? 0} داواکاری'),
+                icon: Icons.shopping_bag_rounded,
+                accentColor: RegaColors.emeraldDark,
+              ),
+              StatKpiCard(
+                title: tx('کۆپۆنە چالاکەکان'),
+                value: '${_kpis['active_coupons_count'] ?? 0}',
+                subtitle: tx('ئامادە بۆ کڕیار'),
+                icon: Icons.discount_rounded,
+                accentColor: RegaColors.purple,
+              ),
+              StatKpiCard(
+                title: tx('بانەر و ڕیکلامی سەرەکی'),
+                value: '${_kpis['active_banners_count'] ?? 0}',
+                subtitle: tx('لە شاشەی سەرەکی ئەپ'),
+                icon: Icons.burst_mode_rounded,
+                accentColor: RegaColors.orange,
+              ),
+              StatKpiCard(
+                title: tx('هەژماری ڕاگیراو'),
+                value: '${_kpis['suspended_customers'] ?? 0}',
+                subtitle: tx('بلۆککراو'),
+                icon: Icons.block_rounded,
+                accentColor: RegaColors.crimson,
+              ),
+            ];
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: kpis.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: cols,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                mainAxisExtent: isPhone ? 84 : 162,
+              ),
+              itemBuilder: (_, idx) => kpis[idx],
+            );
+          },
         ),
         const SizedBox(height: 22),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        LayoutBuilder(
+          builder: (context, cardConstraints) {
+            final isPhone = cardConstraints.maxWidth < AdminBreakpoints.phone;
+            final compactItem = cardConstraints.maxWidth < 760;
+            return Card(
+              child: Padding(
+                padding: EdgeInsets.all(isPhone ? 14 : 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      tx('پڕخەرجترین کڕیاران و ناونیشانەکانیان'),
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                    ),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: RegaColors.gold,
-                        foregroundColor: RC.fg(Color(0xFF0F172A)),
-                      ),
-                      onPressed: () => _tabController.animateTo(3),
-                      icon: const Icon(Icons.person_add_rounded, size: 17),
-                      label: Text(tx('زیادکردنی کڕیار')),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                ..._vipCustomers.map((raw) {
-                  final c = raw as Map<String, dynamic>;
-                  final addrs = c['addresses'] as List<dynamic>? ?? [];
-                  final addrLine = addrs.isNotEmpty
-                      ? (addrs.first as Map<String, dynamic>)['address_line']?.toString()
-                      : 'بێ ناونیشان';
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
-                    leading: CircleAvatar(
-                      backgroundColor: RegaColors.gold.withValues(alpha: 0.25),
-                      child: Text(
-                        tx((c['name']?.toString() ?? 'C').characters.first),
-                        style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF0F172A))),
-                      ),
-                    ),
-                    title: Text(
-                      tx('${c['name'] ?? ''}  •  📞 ${c['phone'] ?? ''}'),
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    subtitle: Text(tx('📍 $addrLine  •  🛍️ ${c['customer_orders_count'] ?? 0} داواکاری')),
-                    trailing: Wrap(
+                    Wrap(
                       spacing: 10,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.spaceBetween,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          tx(formatIqd(c['total_spent'] as num?, lang: widget.lang)),
-                          style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark),
+                          tx('پڕخەرجترین کڕیاران و ناونیشانەکانیان'),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                         ),
-                        OutlinedButton.icon(
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: RegaColors.gold,
+                            foregroundColor: RC.fg(Color(0xFF0F172A)),
+                          ),
                           onPressed: () => _tabController.animateTo(3),
-                          icon: const Icon(Icons.edit_rounded, size: 16),
-                          label: Text(tx('دەستکاری')),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: () => _showCustomerDetailsDialog(c),
-                          icon: const Icon(Icons.visibility_rounded, size: 16),
-                          label: Text(tx('وردەکاری')),
+                          icon: const Icon(Icons.person_add_rounded, size: 17),
+                          label: Text(tx('زیادکردنی کڕیار')),
                         ),
                       ],
                     ),
-                  );
-                }),
-              ],
-            ),
-          ),
+                    const SizedBox(height: 14),
+                    ..._vipCustomers.map((raw) {
+                      final c = raw as Map<String, dynamic>;
+                      final addrs = c['addresses'] as List<dynamic>? ?? [];
+                      final addrLine = addrs.isNotEmpty
+                          ? (addrs.first as Map<String, dynamic>)['address_line']?.toString()
+                          : 'بێ ناونیشان';
+                      final avatar = CircleAvatar(
+                        backgroundColor: RegaColors.gold.withValues(alpha: 0.25),
+                        child: Text(
+                          tx((c['name']?.toString() ?? 'C').characters.first),
+                          style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF0F172A))),
+                        ),
+                      );
+                      final titleText = tx('${c['name'] ?? ''}  •  📞 ${c['phone'] ?? ''}');
+                      final subText = tx('📍 $addrLine  •  🛍️ ${c['customer_orders_count'] ?? 0} داواکاری');
+                      final spentText = tx(formatIqd(c['total_spent'] as num?, lang: widget.lang));
+
+                      if (compactItem) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: RC.bg(Colors.grey).withValues(alpha: 0.2)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  avatar,
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          titleText,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.w800),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          subText,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade600)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Text(
+                                    spentText,
+                                    style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark),
+                                  ),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        onPressed: () => _tabController.animateTo(3),
+                                        icon: const Icon(Icons.edit_rounded, size: 16),
+                                        label: Text(tx('دەستکاری')),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed: () => _showCustomerDetailsDialog(c),
+                                        icon: const Icon(Icons.visibility_rounded, size: 16),
+                                        label: Text(tx('وردەکاری')),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                        leading: avatar,
+                        title: Text(
+                          titleText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        subtitle: Text(
+                          subText,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Wrap(
+                          spacing: 10,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              spentText,
+                              style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () => _tabController.animateTo(3),
+                              icon: const Icon(Icons.edit_rounded, size: 16),
+                              label: Text(tx('دەستکاری')),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () => _showCustomerDetailsDialog(c),
+                              icon: const Icon(Icons.visibility_rounded, size: 16),
+                              label: Text(tx('وردەکاری')),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
   }
 
   Widget _buildCustomerOrdersTab() {
+    final padH = AdminBreakpoints.pagePadH(context);
     return ListView.separated(
-      padding: EdgeInsets.fromLTRB(AdminBreakpoints.pagePadH(context), 10, AdminBreakpoints.pagePadH(context), 24),
+      padding: EdgeInsets.fromLTRB(padH, 10, padH, 24),
       itemCount: _recentOrders.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (_, idx) {
@@ -729,7 +960,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
         final status = o['status']?.toString() ?? 'pending';
         return Card(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(AdminBreakpoints.cardPadding(context)),
             child: Wrap(
               spacing: 14,
               runSpacing: 10,
@@ -739,28 +970,18 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Text(tx('${o['order_number']}'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                        const SizedBox(width: 10),
-                        StatusBadge(status: status, lang: widget.lang),
-                        const SizedBox(width: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: RegaColors.emerald.withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            tx('📍 ناونیشان: ${o['delivery_address'] ?? '-'}'),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                              color: RegaColors.emeraldDark,
-                            ),
-                          ),
+                        Text(
+                          tx('${o['order_number']}'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                         ),
+                        StatusBadge(status: status, lang: widget.lang),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -768,11 +989,15 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                       tx('👤 کڕیار: ${o['customer_name'] ?? '-'} (${IraqPhoneFormatter.display((o['customer_phone'] ?? '').toString())})  •  🏪 ${o['store']?['name_ku'] ?? '-'}'),
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    Text(tx('📍 ناونیشان: ${o['delivery_address'] ?? '-'}'), style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade600))),
+                    Text(
+                      tx('📍 ناونیشان: ${o['delivery_address'] ?? '-'}'),
+                      style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade600)),
+                    ),
                   ],
                 ),
                 Wrap(
                   spacing: 10,
+                  runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(

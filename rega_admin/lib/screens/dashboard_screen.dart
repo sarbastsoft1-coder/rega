@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -201,8 +202,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final width = MediaQuery.sizeOf(context).width;
-    final padH = width < AdminBreakpoints.phone ? 14.0 : (width < AdminBreakpoints.tablet ? 18.0 : 24.0);
+    final padH = AdminBreakpoints.pagePadH(context);
 
     return Directionality(
       textDirection: widget.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
@@ -245,7 +245,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildTopHeader() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < AdminBreakpoints.headerInline;
+        final isNarrow = constraints.maxWidth < 820;
 
         final title = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -301,9 +301,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Flexible(child: title),
+              Expanded(child: title),
               const SizedBox(width: 12),
-              topActions,
+              Flexible(child: topActions),
             ],
           );
         }
@@ -319,14 +319,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final gap = width < AdminBreakpoints.phone ? 10.0 : 16.0;
-        final double cardWidth;
-        if (width >= AdminBreakpoints.kpiFourCol) {
-          cardWidth = (width - gap * 3) / 4;
-        } else if (width >= AdminBreakpoints.kpiTwoCol) {
-          cardWidth = (width - gap) / 2;
-        } else {
-          cardWidth = width;
-        }
+        final int cols = width >= AdminBreakpoints.kpiFourCol
+            ? 4
+            : (width >= AdminBreakpoints.kpiTwoCol ? 2 : 1);
+        final double cardWidth = AdminBreakpoints.cardWidth(width, cols, gap);
         return Wrap(
           spacing: gap,
           runSpacing: gap,
@@ -423,9 +419,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(
+              Expanded(
                 child: Text(
                   tx(title),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -433,6 +431,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 width: 38,
                 height: 38,
@@ -445,24 +444,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            tx(value),
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              color: theme.colorScheme.onSurface,
-              letterSpacing: -0.5,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              tx(value),
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                color: theme.colorScheme.onSurface,
+                letterSpacing: -0.5,
+              ),
             ),
           ),
           const SizedBox(height: 4),
           Row(
             children: [
-              Text(
-                tx(trend),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: RC.fg(Color(0xFF16A34A)),
+              Expanded(
+                child: Text(
+                  tx(trend),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: RC.fg(Color(0xFF16A34A)),
+                  ),
                 ),
               ),
             ],
@@ -553,12 +560,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       Icon(Icons.circle, size: 7, color: RC.fg(Color(0xFF16A34A))),
                       const SizedBox(width: 5),
-                      Text(
-                        AppStrings.tr('dashboard_delivery_riders_on_duty', widget.lang),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: RC.fg(Color(0xFF16A34A)),
+                      Flexible(
+                        child: Text(
+                          AppStrings.tr('dashboard_delivery_riders_on_duty', widget.lang),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: RC.fg(Color(0xFF16A34A)),
+                          ),
                         ),
                       ),
                     ],
@@ -607,33 +618,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           // Central Pin
                           Marker(
                             point: _centerLocus,
-                            width: 80,
-                            height: 40,
+                            width: 84,
+                            height: 52,
                             alignment: Alignment.topCenter,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.location_on_rounded, size: 22, color: RC.fg(Color(0xFFFF5722))),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AdminSurfaces.of(context).card,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
-                                    boxShadow: [BoxShadow(color: RC.bg(Colors.black26), blurRadius: 4)],
-                                  ),
-                                  child: Text(
-                                    tx('کەلار'),
-                                    style: TextStyle(
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w900,
-                                      // Explicit dark ink: Marker subtree can inherit light
-                                      // DefaultTextStyle (e.g. dark theme) → white-on-white.
-                                      color: AdminSurfaces.of(context).textPrimary,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.location_on_rounded, size: 22, color: RC.fg(Color(0xFFFF5722))),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AdminSurfaces.of(context).card,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
+                                      boxShadow: [BoxShadow(color: RC.bg(Colors.black26), blurRadius: 4)],
+                                    ),
+                                    child: Text(
+                                      tx('کەلار'),
+                                      style: TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w900,
+                                        // Explicit dark ink: Marker subtree can inherit light
+                                        // DefaultTextStyle (e.g. dark theme) → white-on-white.
+                                        color: AdminSurfaces.of(context).textPrimary,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                           // 5 Motorcycle Couriers
@@ -658,8 +672,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                   // Map Zoom Controls (+, -)
-                  Positioned(
-                    left: 12,
+                  PositionedDirectional(
+                    start: 12,
                     bottom: 12,
                     child: Container(
                       decoration: BoxDecoration(
@@ -709,150 +723,209 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ? 'days_30'
             : 'days_7';
     final dayValue = AppStrings.tr(dayKey, widget.lang);
-    return Container(
-      decoration: BoxDecoration(
-        color: surfaces.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: surfaces.hairline),
-        boxShadow: [
-          BoxShadow(
-            color: surfaces.shadow,
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+    double maxScale = 400.0;
+    for (final d in _chartData) {
+      final tot = d.completed + d.pending + d.onTheWay;
+      if (tot > maxScale) maxScale = tot;
+    }
+    maxScale = ((maxScale / 100).ceil() * 100).toDouble();
+    if (maxScale < 400.0) maxScale = 400.0;
+
+    return LayoutBuilder(
+      builder: (context, cardC) {
+        final narrow = cardC.maxWidth < 460 ||
+            MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
+        return Container(
+          decoration: BoxDecoration(
+            color: surfaces.card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: surfaces.hairline),
+            boxShadow: [
+              BoxShadow(
+                color: surfaces.shadow,
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-        ],
-      ),
-      padding: EdgeInsets.symmetric(
-        horizontal: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 12 : 20,
-        vertical: 14,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header with Title & Legend & Days Dropdown
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            alignment: WrapAlignment.spaceBetween,
+          padding: EdgeInsets.symmetric(
+            horizontal: narrow ? 12 : 20,
+            vertical: 14,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Header with Title & Legend & Days Dropdown
               Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
                 spacing: 10,
-                runSpacing: 8,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                alignment: WrapAlignment.spaceBetween,
                 children: [
-                  Text(
-                    AppStrings.tr('dashboard_order_activity', widget.lang),
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                      color: surfaces.textPrimary,
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      Text(
+                        AppStrings.tr('dashboard_order_activity', widget.lang),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          color: surfaces.textPrimary,
+                        ),
+                      ),
+                      _buildLegendDot(RC.bg(Color(0xFF166534)), AppStrings.tr('chart_legend_delivered', widget.lang)),
+                      _buildLegendDot(RC.bg(Color(0xFFEA580C)), AppStrings.tr('chart_legend_pending', widget.lang)),
+                      _buildLegendDot(RC.bg(Color(0xFFCBD5E1)), AppStrings.tr('chart_legend_on_the_way', widget.lang)),
+                    ],
+                  ),
+                  Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: surfaces.border),
+                      color: surfaces.mutedFill,
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: dayValue,
+                        isDense: true,
+                        icon: Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: surfaces.textSecondary),
+                        dropdownColor: surfaces.card,
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
+                        items: [
+                          DropdownMenuItem(value: days7, child: Text(tx(days7))),
+                          DropdownMenuItem(value: days14, child: Text(tx(days14))),
+                          DropdownMenuItem(value: days30, child: Text(tx(days30))),
+                        ],
+                        onChanged: (v) {
+                          if (v == days14) {
+                            setState(() => _selectedDays = 'days_14');
+                          } else if (v == days30) {
+                            setState(() => _selectedDays = 'days_30');
+                          } else {
+                            setState(() => _selectedDays = 'days_7');
+                          }
+                        },
+                      ),
                     ),
                   ),
-                  _buildLegendDot(RC.bg(Color(0xFF166534)), AppStrings.tr('chart_legend_delivered', widget.lang)),
-                  _buildLegendDot(RC.bg(Color(0xFFEA580C)), AppStrings.tr('chart_legend_pending', widget.lang)),
-                  _buildLegendDot(RC.bg(Color(0xFFCBD5E1)), AppStrings.tr('chart_legend_on_the_way', widget.lang)),
                 ],
               ),
-              Container(
-                height: 32,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: surfaces.border),
-                  color: surfaces.mutedFill,
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: dayValue,
-                    isDense: true,
-                    icon: Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: surfaces.textSecondary),
-                    dropdownColor: surfaces.card,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
-                    items: [
-                      DropdownMenuItem(value: days7, child: Text(tx(days7))),
-                      DropdownMenuItem(value: days14, child: Text(tx(days14))),
-                      DropdownMenuItem(value: days30, child: Text(tx(days30))),
-                    ],
-                    onChanged: (v) {
-                      if (v == days14) {
-                        setState(() => _selectedDays = 'days_14');
-                      } else if (v == days30) {
-                        setState(() => _selectedDays = 'days_30');
-                      } else {
-                        setState(() => _selectedDays = 'days_7');
-                      }
-                    },
-                  ),
+              const SizedBox(height: 14),
+
+              // Custom Stacked Bar Chart with Gridlines
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Y-Axis labels
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 22),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(tx('${maxScale.round()}'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
+                          Text(tx('${(maxScale * 0.75).round()}'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
+                          Text(tx('${(maxScale * 0.5).round()}'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
+                          Text(tx('${(maxScale * 0.25).round()}'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
+                          Text(tx('0'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+
+                    // Stacked Bars Area with Horizontal Dashed Gridlines
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, chartC) {
+                          final availH = math.max(40.0, chartC.maxHeight - 28.0);
+                          final minSlotW = narrow ? 36.0 : 48.0;
+                          final needsScroll = _chartData.length * minSlotW > chartC.maxWidth;
+
+                          return Stack(
+                            children: [
+                              // Gridlines
+                              Positioned.fill(
+                                bottom: 22,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: List.generate(
+                                    5,
+                                    (index) => Container(
+                                      height: 1,
+                                      color: AdminSurfaces.of(context).chipFill,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Vertical Stacked Columns
+                              if (_chartData.isEmpty)
+                                Positioned.fill(
+                                  child: Center(
+                                    child: Text(
+                                      tx('زانیارییە داراییەکان لە سێرڤەرەوە باردەکرێن...'),
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(fontSize: 12, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                )
+                              else if (needsScroll)
+                                Positioned.fill(
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: SizedBox(
+                                      width: _chartData.length * minSlotW,
+                                      height: chartC.maxHeight,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: _chartData
+                                            .map((d) => SizedBox(
+                                                  width: minSlotW,
+                                                  child: _buildStackedBarColumn(
+                                                    d,
+                                                    availH: availH,
+                                                    maxScale: maxScale,
+                                                    narrow: narrow,
+                                                  ),
+                                                ))
+                                            .toList(),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              else
+                                Positioned.fill(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: _chartData
+                                        .map((d) => Expanded(
+                                              child: _buildStackedBarColumn(
+                                                d,
+                                                availH: availH,
+                                                maxScale: maxScale,
+                                                narrow: narrow,
+                                              ),
+                                            ))
+                                        .toList(),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-
-          // Custom Stacked Bar Chart with Gridlines
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Y-Axis labels (0, 100, 200, 300, 400)
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(tx('400'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
-                    Text(tx('300'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
-                    Text(tx('200'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
-                    Text(tx('100'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
-                    Text(tx('0'), style: TextStyle(fontSize: 10.5, color: RC.fg(Color(0xFF9CA3AF)), fontWeight: FontWeight.w700)),
-                  ],
-                ),
-                const SizedBox(width: 10),
-
-                // Stacked Bars Area with Horizontal Dashed Gridlines
-                Expanded(
-                  child: Stack(
-                    children: [
-                      // Gridlines
-                      Positioned.fill(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: List.generate(
-                            5,
-                            (index) => Container(
-                              height: 1,
-                              color: AdminSurfaces.of(context).chipFill,
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Vertical Stacked Columns
-                      if (_chartData.isEmpty)
-                        Positioned.fill(
-                          child: Center(
-                            child: Text(
-                              tx('زانیارییە داراییەکان لە سێرڤەرەوە باردەکرێن...'),
-                              style: TextStyle(fontSize: 12, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        )
-                      else
-                        Positioned.fill(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: _chartData.map((d) {
-                              return _buildStackedBarColumn(d);
-                            }).toList(),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -875,18 +948,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStackedBarColumn(({String date, double completed, double pending, double onTheWay}) d) {
-    const double maxScale = 400.0;
-    final narrow = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
-    final chartMaxHeight = narrow ? 140.0 : 175.0;
+  Widget _buildStackedBarColumn(
+    ({String date, double completed, double pending, double onTheWay}) d, {
+    required double availH,
+    required double maxScale,
+    required bool narrow,
+  }) {
     final barW = narrow ? 18.0 : 26.0;
 
-    final hCompleted = (d.completed / maxScale) * chartMaxHeight;
-    final hPending = (d.pending / maxScale) * chartMaxHeight;
-    final hOnTheWay = (d.onTheWay / maxScale) * chartMaxHeight;
+    final hCompleted = (d.completed / maxScale) * availH;
+    final hPending = (d.pending / maxScale) * availH;
+    final hOnTheWay = (d.onTheWay / maxScale) * availH;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: barW,
@@ -1010,28 +1086,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
               }
 
               final tableWidth = constraints.maxWidth > 720 ? constraints.maxWidth : 720.0;
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: tableWidth,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        child: Row(
-                          children: [
-                            Expanded(flex: 2, child: Text(AppStrings.tr('col_order', widget.lang), style: headerStyle())),
-                            Expanded(flex: 2, child: Text(AppStrings.tr('col_customer', widget.lang), style: headerStyle())),
-                            Expanded(flex: 2, child: Text(AppStrings.tr('col_vendor', widget.lang), style: headerStyle())),
-                            Expanded(flex: 2, child: Text(AppStrings.tr('col_courier', widget.lang), style: headerStyle())),
-                            Expanded(flex: 2, child: Text(AppStrings.tr('col_status', widget.lang), style: headerStyle())),
-                            Expanded(flex: 1, child: Text(AppStrings.tr('col_time', widget.lang), style: headerStyle())),
-                          ],
+              return Scrollbar(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          child: Row(
+                            children: [
+                              Expanded(flex: 2, child: Text(AppStrings.tr('col_order', widget.lang), maxLines: 1, overflow: TextOverflow.ellipsis, style: headerStyle())),
+                              const SizedBox(width: 6),
+                              Expanded(flex: 2, child: Text(AppStrings.tr('col_customer', widget.lang), maxLines: 1, overflow: TextOverflow.ellipsis, style: headerStyle())),
+                              const SizedBox(width: 6),
+                              Expanded(flex: 2, child: Text(AppStrings.tr('col_vendor', widget.lang), maxLines: 1, overflow: TextOverflow.ellipsis, style: headerStyle())),
+                              const SizedBox(width: 6),
+                              Expanded(flex: 2, child: Text(AppStrings.tr('col_courier', widget.lang), maxLines: 1, overflow: TextOverflow.ellipsis, style: headerStyle())),
+                              const SizedBox(width: 6),
+                              Expanded(flex: 2, child: Text(AppStrings.tr('col_status', widget.lang), maxLines: 1, overflow: TextOverflow.ellipsis, style: headerStyle())),
+                              const SizedBox(width: 6),
+                              Expanded(flex: 1, child: Text(AppStrings.tr('col_time', widget.lang), maxLines: 1, overflow: TextOverflow.ellipsis, style: headerStyle())),
+                            ],
+                          ),
                         ),
-                      ),
-                      Divider(height: 1, color: surfaces.hairline),
-                      ..._recentOrders.map((o) => _buildOrderRow(o)),
-                    ],
+                        Divider(height: 1, color: surfaces.hairline),
+                        ..._recentOrders.map((o) => _buildOrderRow(o)),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -1084,6 +1167,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                   child: Text(
                     tx(o.orderCode),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
@@ -1091,6 +1176,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
                   decoration: BoxDecoration(
@@ -1099,6 +1185,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   child: Text(
                     tx(_statusLabel(o.status)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
@@ -1149,6 +1237,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildOrderRow(RecentOrderEntry o) {
     final surfaces = AdminSurfaces.of(context);
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
     return InkWell(
       onTap: () => widget.onNavigateTab(1),
       child: Container(
@@ -1163,25 +1252,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
             flex: 2,
             child: Row(
               children: [
-                Text(
-                  tx(o.orderCode),
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: surfaces.textPrimary,
+                Flexible(
+                  child: Text(
+                    tx(o.orderCode),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: surfaces.textPrimary,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.chevron_left_rounded, size: 16, color: surfaces.textTertiary),
+                Icon(
+                  isRtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+                  size: 16,
+                  color: surfaces.textTertiary,
+                ),
               ],
             ),
           ),
+          const SizedBox(width: 6),
 
           // 2. کڕیار
           Expanded(
             flex: 2,
             child: Text(
               tx(o.customerName),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
@@ -1189,12 +1289,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
+          const SizedBox(width: 6),
 
           // 3. فرۆشیار
           Expanded(
             flex: 2,
             child: Text(
               tx(o.storeName),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
@@ -1202,6 +1305,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
+          const SizedBox(width: 6),
 
           // 4. ماتۆرسوار (Avatar + Name)
           Expanded(
@@ -1239,6 +1343,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
+          const SizedBox(width: 6),
 
           // 5. دۆخ (Status Pill)
           Expanded(
@@ -1253,6 +1358,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 child: Text(
                   tx(_statusLabel(o.status)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
@@ -1262,12 +1369,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
+          const SizedBox(width: 6),
 
           // 6. کات
           Expanded(
             flex: 1,
             child: Text(
               tx(o.time),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,

@@ -12,6 +12,7 @@ import '../core/services/media_pick_service.dart';
 import '../core/services/open_url_io.dart' if (dart.library.html) '../core/services/open_url_web.dart';
 import '../map/mapbox_tiles.dart';
 import '../widgets/admin_top_header.dart';
+import '../widgets/common_widgets.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 
@@ -405,19 +406,25 @@ class _DriversScreenState extends State<DriversScreen> {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720, maxHeight: 720),
+          constraints: BoxConstraints(
+            maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 720),
+            maxHeight: AdminBreakpoints.dialogMaxHeight(ctx, fraction: 0.90),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 8, 8),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
                         tx(title),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                       ),
                     ),
@@ -440,21 +447,25 @@ class _DriversScreenState extends State<DriversScreen> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: hasPendingImage
-                        ? Image.memory(
-                            Uint8List.fromList(pendingBytes),
-                            fit: BoxFit.contain,
+                        ? InteractiveViewer(
+                            child: Image.memory(
+                              Uint8List.fromList(pendingBytes),
+                              fit: BoxFit.contain,
+                            ),
                           )
                         : resolved.isNotEmpty
-                            ? Image.network(
-                                resolved,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => Padding(
-                                  padding: EdgeInsets.all(24),
-                                  child: Text(tx('نەتوانرا وێنە باربکرێت')),
+                            ? InteractiveViewer(
+                                child: Image.network(
+                                  resolved,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Text(tx('نەتوانرا وێنە باربکرێت')),
+                                  ),
                                 ),
                               )
                             : Padding(
-                                padding: EdgeInsets.all(24),
+                                padding: const EdgeInsets.all(24),
                                 child: Text(tx('هیچ وێنەیەک نییە')),
                               ),
                   ),
@@ -570,22 +581,11 @@ class _DriversScreenState extends State<DriversScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
           final dialogW = AdminBreakpoints.dialogWidth(ctx, max: 560);
-          final stackFields = dialogW < 520;
-          Widget pair(Widget a, Widget b) {
-            if (stackFields) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [a, const SizedBox(height: 12), b],
-              );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [Expanded(child: a), const SizedBox(width: 12), Expanded(child: b)],
-            );
-          }
 
           return AlertDialog(
           insetPadding: AdminBreakpoints.dialogInset(ctx),
+          contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+          actionsOverflowButtonSpacing: 8,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             children: [
@@ -601,6 +601,8 @@ class _DriversScreenState extends State<DriversScreen> {
               Expanded(
                 child: Text(
                   tx(isEdit ? 'دەستکاریکردنی هەموو بەشەکانی شۆفێر / گەیاندن' : 'زیادکردنی ماتۆرسواری نوێ'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                 ),
               ),
@@ -609,7 +611,7 @@ class _DriversScreenState extends State<DriversScreen> {
           content: ConstrainedBox(
             constraints: BoxConstraints(
               maxWidth: dialogW,
-              maxHeight: AdminBreakpoints.dialogMaxHeight(ctx),
+              maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 580),
             ),
             child: SizedBox(
             width: dialogW,
@@ -620,8 +622,9 @@ class _DriversScreenState extends State<DriversScreen> {
                 children: [
                   Text(tx('١. زانیاری کەسی شۆفێر'), style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF113E2E)))),
                   const SizedBox(height: 10),
-                  pair(
-                    TextField(
+                  ResponsiveFormRow(
+                    breakpoint: 460,
+                    first: TextField(
                       controller: nameCtrl,
                       decoration: InputDecoration(
                         labelText: tx('ناوی تەواوی شۆفێر *'),
@@ -630,44 +633,40 @@ class _DriversScreenState extends State<DriversScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                     ),
-                    Directionality(
+                    second: TextField(
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
                       textDirection: TextDirection.ltr,
-                      child: TextField(
-                        controller: phoneCtrl,
-                        keyboardType: TextInputType.phone,
-                        textDirection: TextDirection.ltr,
-                        textAlign: TextAlign.left,
-                        inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
-                        decoration: InputDecoration(
-                          labelText: tx('ژمارەی مۆبایل *'),
-                          hintText: txn(IraqPhoneFormatter.hint),
-                          prefixIcon: const Icon(Icons.phone_android_outlined, size: 20),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        ),
+                      textAlign: TextAlign.left,
+                      inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
+                      decoration: InputDecoration(
+                        labelText: tx('ژمارەی مۆبایل *'),
+                        hintText: txn(IraqPhoneFormatter.hint),
+                        prefixIcon: const Icon(Icons.phone_android_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  pair(
-                    Directionality(
+                  ResponsiveFormRow(
+                    breakpoint: 460,
+                    first: TextField(
+                      controller: homePhoneCtrl,
+                      keyboardType: TextInputType.phone,
                       textDirection: TextDirection.ltr,
-                      child: TextField(
-                        controller: homePhoneCtrl,
-                        keyboardType: TextInputType.phone,
-                        textDirection: TextDirection.ltr,
-                        textAlign: TextAlign.left,
-                        inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
-                        decoration: InputDecoration(
-                          labelText: tx('ژمارەی ماڵەوە'),
-                          hintText: txn(IraqPhoneFormatter.hint),
-                          prefixIcon: const Icon(Icons.phone_outlined, size: 20),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        ),
+                      textAlign: TextAlign.left,
+                      inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
+                      decoration: InputDecoration(
+                        labelText: tx('ژمارەی ماڵەوە'),
+                        hintText: txn(IraqPhoneFormatter.hint),
+                        prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                     ),
-                    DropdownButtonFormField<String>(
+                    second: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: const ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].contains(bloodType)
                           ? bloodType
                           : 'O+',
@@ -678,14 +677,14 @@ class _DriversScreenState extends State<DriversScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                       items: [
-                        DropdownMenuItem(value: 'A+', child: Text(tx('A+'))),
-                        DropdownMenuItem(value: 'A-', child: Text(tx('A-'))),
-                        DropdownMenuItem(value: 'B+', child: Text(tx('B+'))),
-                        DropdownMenuItem(value: 'B-', child: Text(tx('B-'))),
-                        DropdownMenuItem(value: 'AB+', child: Text(tx('AB+'))),
-                        DropdownMenuItem(value: 'AB-', child: Text(tx('AB-'))),
-                        DropdownMenuItem(value: 'O+', child: Text(tx('O+'))),
-                        DropdownMenuItem(value: 'O-', child: Text(tx('O-'))),
+                        DropdownMenuItem(value: 'A+', child: Text(tx('A+'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'A-', child: Text(tx('A-'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'B+', child: Text(tx('B+'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'B-', child: Text(tx('B-'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'AB+', child: Text(tx('AB+'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'AB-', child: Text(tx('AB-'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'O+', child: Text(tx('O+'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'O-', child: Text(tx('O-'), maxLines: 1, overflow: TextOverflow.ellipsis)),
                       ],
                       onChanged: (v) => setDialogState(() => bloodType = v ?? 'O+'),
                     ),
@@ -712,8 +711,10 @@ class _DriversScreenState extends State<DriversScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  pair(
-                    DropdownButtonFormField<String>(
+                  ResponsiveFormRow(
+                    breakpoint: 460,
+                    first: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: cityCtrl.text,
                       decoration: InputDecoration(
                         labelText: tx('شار / دەڤەر'),
@@ -722,14 +723,15 @@ class _DriversScreenState extends State<DriversScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                       items: [
-                        DropdownMenuItem(value: 'هەولێر', child: Text(tx('هەولێر'))),
-                        DropdownMenuItem(value: 'سلێمانی', child: Text(tx('سلێمانی'))),
-                        DropdownMenuItem(value: 'دهۆک', child: Text(tx('دهۆک'))),
-                        DropdownMenuItem(value: 'کەلار', child: Text(tx('کەلار'))),
+                        DropdownMenuItem(value: 'هەولێر', child: Text(tx('هەولێر'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'سلێمانی', child: Text(tx('سلێمانی'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'دهۆک', child: Text(tx('دهۆک'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'کەلار', child: Text(tx('کەلار'), maxLines: 1, overflow: TextOverflow.ellipsis)),
                       ],
                       onChanged: (v) => setDialogState(() => cityCtrl.text = v ?? 'هەولێر'),
                     ),
-                    DropdownButtonFormField<String>(
+                    second: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: status,
                       decoration: InputDecoration(
                         labelText: tx('دۆخی کارکردنی دلیڤەری'),
@@ -738,9 +740,9 @@ class _DriversScreenState extends State<DriversScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                       items: [
-                        DropdownMenuItem(value: 'active', child: Text(tx('🟢 چالاک (بەردەست)'))),
-                        DropdownMenuItem(value: 'on_the_way', child: Text(tx('🟡 لە دلیڤەری (سەرقاڵ)'))),
-                        DropdownMenuItem(value: 'offline', child: Text(tx('⚪ ناچالاک (ئۆفلاین)'))),
+                        DropdownMenuItem(value: 'active', child: Text(tx('🟢 چالاک (بەردەست)'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'on_the_way', child: Text(tx('🟡 لە دلیڤەری (سەرقاڵ)'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'offline', child: Text(tx('⚪ ناچالاک (ئۆفلاین)'), maxLines: 1, overflow: TextOverflow.ellipsis)),
                       ],
                       onChanged: (v) => setDialogState(() => status = v ?? 'active'),
                     ),
@@ -748,8 +750,9 @@ class _DriversScreenState extends State<DriversScreen> {
                   const SizedBox(height: 18),
                   Text(tx('٢. زانیاری ماتۆڕ (جۆر / تابلۆ / ڕەنگ)'), style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF113E2E)))),
                   const SizedBox(height: 10),
-                  pair(
-                    TextField(
+                  ResponsiveFormRow(
+                    breakpoint: 460,
+                    first: TextField(
                       controller: motorTypeCtrl,
                       decoration: InputDecoration(
                         labelText: tx('جۆری ماتۆڕ *'),
@@ -758,7 +761,7 @@ class _DriversScreenState extends State<DriversScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                     ),
-                    TextField(
+                    second: TextField(
                       controller: plateCtrl,
                       decoration: InputDecoration(
                         labelText: tx('ژمارەی تابلۆی ماتۆڕ *'),
@@ -769,8 +772,9 @@ class _DriversScreenState extends State<DriversScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  pair(
-                    TextField(
+                  ResponsiveFormRow(
+                    breakpoint: 460,
+                    first: TextField(
                       controller: colorCtrl,
                       decoration: InputDecoration(
                         labelText: tx('ڕەنگی ماتۆڕ'),
@@ -779,7 +783,7 @@ class _DriversScreenState extends State<DriversScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                     ),
-                    TextField(
+                    second: TextField(
                       controller: yearCtrl,
                       decoration: InputDecoration(
                         labelText: tx('مۆدێل / ساڵ'),
@@ -908,38 +912,45 @@ class _DriversScreenState extends State<DriversScreen> {
                   Text(tx('٥. زمانەکان'), style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF113E2E)))),
                   const SizedBox(height: 10),
                   Container(
+                    width: double.infinity,
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: AdminSurfaces.of(context).chipFill,
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Row(
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
                       children: [
                         for (final opt in [
                           ('ku', AppStrings.tr('lang_ku', widget.lang)),
                           ('ar', AppStrings.tr('lang_ar', widget.lang)),
                           ('en', AppStrings.tr('lang_en', widget.lang)),
                         ])
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 3),
-                              child: ChoiceChip(
-                                label: Center(child: Text(tx(opt.$2), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
-                                selected: language == opt.$1,
-                                selectedColor: RC.bg(Colors.white),
-                                backgroundColor: Colors.transparent,
-                                side: BorderSide(
-                                  color: language == opt.$1 ? RC.bg(Color(0xFF16A34A)) : Colors.transparent,
-                                ),
-                                onSelected: (_) => setDialogState(() => language = opt.$1),
-                              ),
+                          ChoiceChip(
+                            showCheckmark: false,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            label: Text(
+                              tx(opt.$2),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
                             ),
+                            selected: language == opt.$1,
+                            selectedColor: RC.bg(Colors.white),
+                            backgroundColor: Colors.transparent,
+                            side: BorderSide(
+                              color: language == opt.$1 ? RC.bg(Color(0xFF16A34A)) : Colors.transparent,
+                            ),
+                            onSelected: (_) => setDialogState(() => language = opt.$1),
                           ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 14),
                   SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
                     title: Text(tx('مسدودکردنی هەژمار (Block account)'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                     subtitle: Text(
                       tx(isAccountActive
@@ -983,7 +994,7 @@ class _DriversScreenState extends State<DriversScreen> {
                 backgroundColor: RC.bg(Color(0xFF113E2E)),
                 foregroundColor: RC.fg(Colors.white),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
               onPressed: saving
                   ? null
@@ -1134,7 +1145,11 @@ class _DriversScreenState extends State<DriversScreen> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
                     )
-                  : Text(tx(isEdit ? 'پاشەکەوتکردنی هەموو گۆڕانکارییەکان' : 'زیادکردنی شۆفێر')),
+                  : Text(
+                      tx(isEdit ? 'پاشەکەوتکردنی هەموو گۆڕانکارییەکان' : 'زیادکردنی شۆفێر'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
             ),
           ],
         );
@@ -1184,8 +1199,14 @@ class _DriversScreenState extends State<DriversScreen> {
               Icon(Icons.badge_outlined, size: 18, color: RC.fg(Color(0xFF113E2E))),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(tx(title), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                child: Text(
+                  tx(title),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -1227,6 +1248,7 @@ class _DriversScreenState extends State<DriversScreen> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: status,
             decoration: InputDecoration(
               labelText: tx('دۆخی پشتڕاستکردنەوە'),
@@ -1235,9 +1257,9 @@ class _DriversScreenState extends State<DriversScreen> {
               isDense: true,
             ),
             items: [
-              DropdownMenuItem(value: 'pending', child: Text(tx('چاوەڕوانی پشکنین'))),
-              DropdownMenuItem(value: 'verified', child: Text(tx('پشتڕاستکراوە'))),
-              DropdownMenuItem(value: 'rejected', child: Text(tx('ڕەتکراوە'))),
+              DropdownMenuItem(value: 'pending', child: Text(tx('چاوەڕوانی پشکنین'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'verified', child: Text(tx('پشتڕاستکراوە'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'rejected', child: Text(tx('ڕەتکراوە'), maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
             onChanged: (v) {
               if (v != null) onStatus(v);
@@ -1248,9 +1270,16 @@ class _DriversScreenState extends State<DriversScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
                   onPressed: onPick,
                   icon: const Icon(Icons.upload_file_rounded, size: 18),
-                  label: Text(tx(hasFile ? 'گۆڕینی وێنە / PDF' : 'بارکردنی وێنە / PDF')),
+                  label: Text(
+                    tx(hasFile ? 'گۆڕینی وێنە / PDF' : 'بارکردنی وێنە / PDF'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
               if (hasFile) ...[
@@ -1359,6 +1388,8 @@ class _DriversScreenState extends State<DriversScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         insetPadding: AdminBreakpoints.dialogInset(ctx),
+        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+        actionsOverflowButtonSpacing: 8,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
@@ -1371,126 +1402,156 @@ class _DriversScreenState extends State<DriversScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(tx(courier.name), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                  Text(tx(courier.phone), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF64748B)))),
+                  Text(
+                    tx(courier.name),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                  ),
+                  Directionality(
+                    textDirection: TextDirection.ltr,
+                    child: Text(
+                      tx(courier.phone),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF64748B))),
+                    ),
+                  ),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             _buildStatusBadge(courier.status),
           ],
         ),
         content: SizedBox(
           width: AdminBreakpoints.dialogWidth(ctx, max: 460),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDetailRow('شار / دەڤەر', courier.city),
-              const Divider(height: 16),
-              _buildDetailRow('ژمارەی ماڵەوە', courier.homePhone.isEmpty ? '—' : courier.homePhone),
-              const Divider(height: 16),
-              _buildDetailRow('جۆری خوێن', courier.bloodType.isEmpty ? '—' : courier.bloodType),
-              const Divider(height: 16),
-              _buildDetailRow('کارتی زانیاری', courier.infoCardNumber.isEmpty ? '—' : courier.infoCardNumber),
-              const Divider(height: 16),
-              _buildDetailRow(
-                'کارتی نیشتیمانی',
-                _findDoc(courier.documents, 'national_id').documentNumber.isEmpty
-                    ? '—'
-                    : _findDoc(courier.documents, 'national_id').documentNumber,
-              ),
-              const Divider(height: 16),
-              _buildDetailRow('داواکارییەکانی ئەمڕۆ', '${courier.todayOrders} داواکاری'),
-              const Divider(height: 16),
-              _buildDetailRow('جۆری ماتۆڕ', courier.motorType),
-              const Divider(height: 16),
-              _buildDetailRow('ژمارەی تابلۆی ماتۆڕ', courier.plateNumber),
-              const Divider(height: 16),
-              _buildDetailRow('ڕەنگی ماتۆڕ', '${courier.motorColor} • ${courier.modelYear}'),
-              const Divider(height: 16),
-              _buildDetailRow('پارەی کاش لەدەست (COD)', '${courier.cashCollected} د.ع'),
-              const Divider(height: 16),
-              _buildDetailRow('باڵانسی واڵێت', '${courier.walletBalance} د.ع'),
-              const Divider(height: 16),
-              _buildDetailRow(
-                AppStrings.tr('status', widget.lang),
-                courier.isVerified
-                    ? AppStrings.statusLabel('approved', widget.lang)
-                    : AppStrings.statusLabel('pending', widget.lang),
-              ),
-              const Divider(height: 16),
-              _buildDetailRow(
-                AppStrings.tr('language', widget.lang),
-                AppStrings.tr(
-                  courier.language == 'ar'
-                      ? 'lang_ar'
-                      : courier.language == 'en'
-                          ? 'lang_en'
-                          : 'lang_ku',
-                  widget.lang,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(tx('بەڵگەنامە یاساییەکان'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-              ),
-              const SizedBox(height: 8),
-              ...(['info_card', 'national_id', 'driver_license', 'vehicle_registration'].map((type) {
-                final doc = _findDoc(courier.documents, type);
-                final statusKu = doc.status == 'verified'
-                    ? 'پشتڕاستکراوە'
-                    : doc.status == 'rejected'
-                        ? 'ڕەتکراوە'
-                        : 'چاوەڕوان';
-                final hasFile = doc.fileUrl != null && doc.fileUrl!.isNotEmpty;
-                final fileHint = !hasFile
-                    ? 'بێ فایل'
-                    : (_isPdfNameOrUrl(doc.fileUrl) ? 'PDF' : 'وێنە');
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          tx(_docTypeLabel(type)),
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      Text(
-                        tx('$statusKu • $fileHint'),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: doc.status == 'verified'
-                              ? RC.bg(Color(0xFF16A34A))
-                              : doc.status == 'rejected'
-                                  ? RC.bg(Color(0xFFDC2626))
-                                  : RC.bg(Color(0xFFD97706)),
-                        ),
-                      ),
-                      if (hasFile) ...[
-                        const SizedBox(width: 6),
-                        IconButton(
-                          tooltip: tx('بینین / کردنەوە'),
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () => _previewDocumentFile(
-                            title: _docTypeLabel(type),
-                            url: doc.fileUrl,
-                          ),
-                          icon: Icon(
-                            _isPdfNameOrUrl(doc.fileUrl)
-                                ? Icons.picture_as_pdf_rounded
-                                : Icons.visibility_rounded,
-                            size: 18,
-                            color: RC.fg(Color(0xFF113E2E)),
-                          ),
-                        ),
-                      ],
-                    ],
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 540),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildDetailRow('شار / دەڤەر', courier.city),
+                  const Divider(height: 16),
+                  _buildDetailRow('ژمارەی ماڵەوە', courier.homePhone.isEmpty ? '—' : courier.homePhone, ltrValue: courier.homePhone.isNotEmpty),
+                  const Divider(height: 16),
+                  _buildDetailRow('جۆری خوێن', courier.bloodType.isEmpty ? '—' : courier.bloodType, ltrValue: true),
+                  const Divider(height: 16),
+                  _buildDetailRow('کارتی زانیاری', courier.infoCardNumber.isEmpty ? '—' : courier.infoCardNumber, ltrValue: courier.infoCardNumber.isNotEmpty),
+                  const Divider(height: 16),
+                  _buildDetailRow(
+                    'کارتی نیشتیمانی',
+                    _findDoc(courier.documents, 'national_id').documentNumber.isEmpty
+                        ? '—'
+                        : _findDoc(courier.documents, 'national_id').documentNumber,
+                    ltrValue: _findDoc(courier.documents, 'national_id').documentNumber.isNotEmpty,
                   ),
-                );
-              })),
-            ],
+                  const Divider(height: 16),
+                  _buildDetailRow('داواکارییەکانی ئەمڕۆ', '${courier.todayOrders} داواکاری'),
+                  const Divider(height: 16),
+                  _buildDetailRow('جۆری ماتۆڕ', courier.motorType),
+                  const Divider(height: 16),
+                  _buildDetailRow('ژمارەی تابلۆی ماتۆڕ', courier.plateNumber, ltrValue: true),
+                  const Divider(height: 16),
+                  _buildDetailRow('ڕەنگی ماتۆڕ', '${courier.motorColor} • ${courier.modelYear}'),
+                  const Divider(height: 16),
+                  _buildDetailRow('پارەی کاش لەدەست (COD)', '${courier.cashCollected} د.ع'),
+                  const Divider(height: 16),
+                  _buildDetailRow('باڵانسی واڵێت', '${courier.walletBalance} د.ع'),
+                  const Divider(height: 16),
+                  _buildDetailRow(
+                    AppStrings.tr('status', widget.lang),
+                    courier.isVerified
+                        ? AppStrings.statusLabel('approved', widget.lang)
+                        : AppStrings.statusLabel('pending', widget.lang),
+                  ),
+                  const Divider(height: 16),
+                  _buildDetailRow(
+                    AppStrings.tr('language', widget.lang),
+                    AppStrings.tr(
+                      courier.language == 'ar'
+                          ? 'lang_ar'
+                          : courier.language == 'en'
+                              ? 'lang_en'
+                              : 'lang_ku',
+                      widget.lang,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(tx('بەڵگەنامە یاساییەکان'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                  ),
+                  const SizedBox(height: 8),
+                  ...(['info_card', 'national_id', 'driver_license', 'vehicle_registration'].map((type) {
+                    final doc = _findDoc(courier.documents, type);
+                    final statusKu = doc.status == 'verified'
+                        ? 'پشتڕاستکراوە'
+                        : doc.status == 'rejected'
+                            ? 'ڕەتکراوە'
+                            : 'چاوەڕوان';
+                    final hasFile = doc.fileUrl != null && doc.fileUrl!.isNotEmpty;
+                    final fileHint = !hasFile
+                        ? 'بێ فایل'
+                        : (_isPdfNameOrUrl(doc.fileUrl) ? 'PDF' : 'وێنە');
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              tx(_docTypeLabel(type)),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              tx('$statusKu • $fileHint'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: doc.status == 'verified'
+                                    ? RC.bg(Color(0xFF16A34A))
+                                    : doc.status == 'rejected'
+                                        ? RC.bg(Color(0xFFDC2626))
+                                        : RC.bg(Color(0xFFD97706)),
+                              ),
+                            ),
+                          ),
+                          if (hasFile) ...[
+                            const SizedBox(width: 6),
+                            IconButton(
+                              tooltip: tx('بینین / کردنەوە'),
+                              visualDensity: VisualDensity.compact,
+                              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                              onPressed: () => _previewDocumentFile(
+                                title: _docTypeLabel(type),
+                                url: doc.fileUrl,
+                              ),
+                              icon: Icon(
+                                _isPdfNameOrUrl(doc.fileUrl)
+                                    ? Icons.picture_as_pdf_rounded
+                                    : Icons.visibility_rounded,
+                                size: 18,
+                                color: RC.fg(Color(0xFF113E2E)),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  })),
+                ],
+              ),
+            ),
           ),
         ),
         actions: [
@@ -1515,13 +1576,13 @@ class _DriversScreenState extends State<DriversScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(tx(label), style: TextStyle(color: AdminSurfaces.of(context).textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
-        Text(tx(value), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: RC.fg(Color(0xFF0F172A)))),
-      ],
+  Widget _buildDetailRow(String label, String value, {bool ltrValue = false}) {
+    return ResponsiveDetailRow(
+      label: label,
+      value: value,
+      ltrValue: ltrValue,
+      labelStyle: TextStyle(color: AdminSurfaces.of(context).textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
+      valueStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: RC.fg(Color(0xFF0F172A))),
     );
   }
 
@@ -1547,18 +1608,23 @@ class _DriversScreenState extends State<DriversScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: RC.bg(Color(0xFF113E2E)),
-                      foregroundColor: RC.fg(Colors.white),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed: () => _showAddCourierDialog(),
-                    icon: Icon(Icons.add, size: 18, color: RC.fg(Colors.white)),
-                    label: Text(AppStrings.tr('add_courier', widget.lang),
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                  Flexible(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: RC.bg(Color(0xFF113E2E)),
+                        foregroundColor: RC.fg(Colors.white),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () => _showAddCourierDialog(),
+                      icon: Icon(Icons.add, size: 18, color: RC.fg(Colors.white)),
+                      label: Text(
+                        AppStrings.tr('add_courier', widget.lang),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                      ),
                     ),
                   ),
                 ],
@@ -1572,7 +1638,7 @@ class _DriversScreenState extends State<DriversScreen> {
               // 4. Main Two-Column Content: Left Column Table, Right Column Map
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 980;
+                  final isWide = constraints.maxWidth >= 1120;
                   if (isWide) {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1623,21 +1689,25 @@ class _DriversScreenState extends State<DriversScreen> {
   Widget _buildTopHeader() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 760;
+        final isNarrow = constraints.maxWidth < 860;
         final titleWidget = Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               AppStrings.tr('drivers_title', widget.lang),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 22,
+                fontSize: constraints.maxWidth < 400 ? 18 : 22,
                 fontWeight: FontWeight.w900,
                 color: AdminSurfaces.of(context).textPrimary,
               ),
             ),
-            SizedBox(height: 2),
+            const SizedBox(height: 2),
             Text(
               AppStrings.tr('drivers_subtitle', widget.lang),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12.5,
                 color: AdminSurfaces.of(context).textSecondary,
@@ -1666,23 +1736,18 @@ class _DriversScreenState extends State<DriversScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: titleWidget),
-                ],
-              ),
+              titleWidget,
               const SizedBox(height: 12),
               topActions,
             ],
           );
         } else {
           return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              titleWidget,
-              topActions,
+              Expanded(child: titleWidget),
+              const SizedBox(width: 12),
+              Flexible(child: topActions),
             ],
           );
         }
@@ -1697,14 +1762,8 @@ class _DriversScreenState extends State<DriversScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final double cardWidth;
-        if (width >= 960) {
-          cardWidth = (width - 48) / 4;
-        } else if (width >= 560) {
-          cardWidth = (width - 16) / 2;
-        } else {
-          cardWidth = width;
-        }
+        final cols = width >= 960 ? 4 : (width >= 560 ? 2 : 1);
+        final cardWidth = AdminBreakpoints.cardWidth(width, cols, 16);
         return Wrap(
           spacing: 16,
           runSpacing: 16,
@@ -1781,7 +1840,6 @@ class _DriversScreenState extends State<DriversScreen> {
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Icon Box
           Container(
@@ -1793,29 +1851,41 @@ class _DriversScreenState extends State<DriversScreen> {
             ),
             child: Icon(icon, color: iconColor, size: icon == Icons.circle ? 16 : 22),
           ),
+          const SizedBox(width: 10),
           // Value and Title
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                tx(title),
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: AdminSurfaces.of(context).textSecondary,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  tx(title),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AdminSurfaces.of(context).textSecondary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                tx(value),
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                  color: AdminSurfaces.of(context).textPrimary,
-                  letterSpacing: -0.5,
+                const SizedBox(height: 6),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      tx(value),
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: AdminSurfaces.of(context).textPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1884,7 +1954,7 @@ class _DriversScreenState extends State<DriversScreen> {
     required ValueChanged<String?> onChanged,
   }) {
     return Container(
-      height: 38,
+      constraints: const BoxConstraints(minHeight: 38),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
@@ -1894,6 +1964,7 @@ class _DriversScreenState extends State<DriversScreen> {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
+          isDense: true,
           icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
           style: TextStyle(
             fontSize: 12,
@@ -1909,7 +1980,14 @@ class _DriversScreenState extends State<DriversScreen> {
                   children: [
                     Icon(icon, size: 15, color: RC.fg(Color(0xFF64748B))),
                     const SizedBox(width: 6),
-                    Text(tx(labels != null && i < labels.length ? labels[i] : items[i])),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 160),
+                      child: Text(
+                        tx(labels != null && i < labels.length ? labels[i] : items[i]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1924,6 +2002,7 @@ class _DriversScreenState extends State<DriversScreen> {
   // Right Card: شوێنی ماتۆرسواران (Couriers Live Map Card)
   // ============================================================================
   Widget _buildCouriersMapCard() {
+    final mapHeight = math.min(380.0, math.max(220.0, MediaQuery.sizeOf(context).height * 0.42));
     return Container(
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
@@ -1944,22 +2023,28 @@ class _DriversScreenState extends State<DriversScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.location_on_rounded, size: 18, color: AdminSurfaces.of(context).textPrimary),
-                    const SizedBox(width: 6),
-                    Text(
-                      AppStrings.tr('couriers_map', widget.lang),
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w900,
-                        color: AdminSurfaces.of(context).textPrimary,
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_on_rounded, size: 18, color: AdminSurfaces.of(context).textPrimary),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          AppStrings.tr('couriers_map', widget.lang),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w900,
+                            color: AdminSurfaces.of(context).textPrimary,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 InkWell(
                   onTap: () {
                     _mapController.move(const LatLng(34.6295, 45.3159), 14.2);
@@ -1976,7 +2061,7 @@ class _DriversScreenState extends State<DriversScreen> {
 
           // Interactive Map Canvas
           SizedBox(
-            height: 380,
+            height: mapHeight,
             child: FlutterMap(
               mapController: _mapController,
               options: MapOptions(
@@ -2009,6 +2094,8 @@ class _DriversScreenState extends State<DriversScreen> {
                         child: Center(
                           child: Text(
                             tx('کەلار'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF0F172A))),
                           ),
                         ),
@@ -2053,8 +2140,10 @@ class _DriversScreenState extends State<DriversScreen> {
           // Map Legend at bottom
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            child: Wrap(
+              alignment: WrapAlignment.spaceEvenly,
+              spacing: 12,
+              runSpacing: 8,
               children: [
                 _LegendItem(
                   color: RC.bg(Color(0xFF16A34A)),
@@ -2099,10 +2188,11 @@ class _DriversScreenState extends State<DriversScreen> {
         builder: (context, constraints) {
           if (constraints.maxWidth < AdminBreakpoints.phone) {
             return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (list.isEmpty)
                   Padding(
-                    padding: EdgeInsets.all(40),
+                    padding: const EdgeInsets.all(40),
                     child: Center(
                       child: Text(tx('هیچ ماتۆرسوارێک بەردەست نییە'), style: TextStyle(color: RC.fg(Color(0xFF94A3B8)))),
                     ),
@@ -2113,170 +2203,193 @@ class _DriversScreenState extends State<DriversScreen> {
               ],
             );
           }
-          final tableWidth = constraints.maxWidth < 680 ? 680.0 : constraints.maxWidth;
+          final tableWidth = constraints.maxWidth < 760 ? 760.0 : constraints.maxWidth;
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: tableWidth,
-                  child: Column(
-                    children: [
-                      // Table Headers
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: AdminSurfaces.of(context).mutedFill,
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                          border: Border(bottom: BorderSide(color: AdminSurfaces.of(context).hairline)),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(flex: 3, child: Text(tx('ماتۆرسوار'), textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text(tx('ژمارەی مۆبایل'), textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(tx('شار'), textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(tx('داواکارییەکانی ئەمڕۆ'), textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(tx('دۆخ'), textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(tx('کردار'), textAlign: TextAlign.left, style: _headerStyle)),
-                          ],
-                        ),
-                      ),
-
-          // Table Rows
-          if (list.isEmpty)
-            Padding(
-              padding: EdgeInsets.all(40),
-              child: Center(
-                child: Text(tx('هیچ ماتۆرسوارێک بەردەست نییە'), style: TextStyle(color: RC.fg(Color(0xFF94A3B8)))),
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: list.length,
-              separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
-              itemBuilder: (context, index) {
-                final c = list[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Row(
-                    children: [
-                      // 1. Driver Name + Avatar
-                      Expanded(
-                        flex: 3,
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 14,
-                              backgroundImage: NetworkImage(c.avatarUrl),
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                tx(c.name),
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 12.5,
-                                  color: RC.fg(Color(0xFF1E293B)),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // 2. Phone
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          tx(c.phone),
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AdminSurfaces.of(context).textPrimary,
+              Scrollbar(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(
+                      children: [
+                        // Table Headers
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AdminSurfaces.of(context).mutedFill,
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                            border: Border(bottom: BorderSide(color: AdminSurfaces.of(context).hairline)),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(flex: 3, child: Text(tx('ماتۆرسوار'), textAlign: TextAlign.start, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 3, child: Text(tx('ژمارەی مۆبایل'), textAlign: TextAlign.start, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: Text(tx('شار'), textAlign: TextAlign.start, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: Text(tx('داواکارییەکانی ئەمڕۆ'), textAlign: TextAlign.center, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: Text(tx('دۆخ'), textAlign: TextAlign.center, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: Text(tx('کردار'), textAlign: TextAlign.end, style: _headerStyle)),
+                            ],
                           ),
                         ),
-                      ),
 
-                      // 3. City
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          tx(c.city),
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AdminSurfaces.of(context).textPrimary,
-                          ),
-                        ),
-                      ),
-
-                      // 4. Today Orders
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          tx('${c.todayOrders}'),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
-                            color: AdminSurfaces.of(context).textPrimary,
-                          ),
-                        ),
-                      ),
-
-                      // 5. Status
-                      Expanded(
-                        flex: 2,
-                        child: Center(child: _buildStatusBadge(c.status)),
-                      ),
-
-                      // 6. Action Buttons [✏️] [👁]
-                      Expanded(
-                        flex: 2,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            // View details button
-                            InkWell(
-                              onTap: () => _showCourierDetailsDialog(c),
-                              borderRadius: BorderRadius.circular(6),
-                              child: Container(
-                                padding: const EdgeInsets.all(5),
-                                decoration: BoxDecoration(
-                                  color: AdminSurfaces.of(context).chipFill,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
-                              ),
+                        // Table Rows
+                        if (list.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(40),
+                            child: Center(
+                              child: Text(tx('هیچ ماتۆرسوارێک بەردەست نییە'), style: TextStyle(color: RC.fg(Color(0xFF94A3B8)))),
                             ),
-                            const SizedBox(width: 6),
-                            // Edit button
-                            InkWell(
-                              onTap: () => _showAddCourierDialog(existing: c),
-                              borderRadius: BorderRadius.circular(6),
-                              child: Container(
-                                padding: const EdgeInsets.all(5),
-                                decoration: BoxDecoration(
-                                  color: AdminSurfaces.of(context).chipFill,
-                                  borderRadius: BorderRadius.circular(6),
+                          )
+                        else
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: list.length,
+                            separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
+                            itemBuilder: (context, index) {
+                              final c = list[index];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    // 1. Driver Name + Avatar
+                                    Expanded(
+                                      flex: 3,
+                                      child: Row(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 14,
+                                            backgroundImage: NetworkImage(c.avatarUrl),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              tx(c.name),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 12.5,
+                                                color: RC.fg(Color(0xFF1E293B)),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 2. Phone
+                                    Expanded(
+                                      flex: 3,
+                                      child: Align(
+                                        alignment: AlignmentDirectional.centerStart,
+                                        child: Directionality(
+                                          textDirection: TextDirection.ltr,
+                                          child: Text(
+                                            tx(c.phone),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: AdminSurfaces.of(context).textPrimary,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 3. City
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        tx(c.city),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.start,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: AdminSurfaces.of(context).textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 4. Today Orders
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        tx('${c.todayOrders}'),
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: AdminSurfaces.of(context).textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 5. Status
+                                    Expanded(
+                                      flex: 2,
+                                      child: Center(child: _buildStatusBadge(c.status)),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 6. Action Buttons [✏️] [👁]
+                                    Expanded(
+                                      flex: 2,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: [
+                                          // View details button
+                                          InkWell(
+                                            onTap: () => _showCourierDetailsDialog(c),
+                                            borderRadius: BorderRadius.circular(6),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: AdminSurfaces.of(context).chipFill,
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          // Edit button
+                                          InkWell(
+                                            onTap: () => _showAddCourierDialog(existing: c),
+                                            borderRadius: BorderRadius.circular(6),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: AdminSurfaces.of(context).chipFill,
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-                    ],
+                              );
+                            },
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -2290,7 +2403,9 @@ class _DriversScreenState extends State<DriversScreen> {
   }
 
   Widget _couriersPaginationFooter(List<CourierItem> list) {
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: AdminSurfaces.of(context).hairline)),
@@ -2314,7 +2429,10 @@ class _DriversScreenState extends State<DriversScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildPageNavBtn(icon: Icons.chevron_left_rounded, onTap: () {}),
+                _buildPageNavBtn(
+                  icon: isRtl ? Icons.chevron_right_rounded : Icons.chevron_left_rounded,
+                  onTap: () {},
+                ),
                 const SizedBox(width: 4),
                 _buildPageNumberBtn(page: 1, active: _currentPage == 1),
                 const SizedBox(width: 4),
@@ -2322,7 +2440,10 @@ class _DriversScreenState extends State<DriversScreen> {
                 const SizedBox(width: 4),
                 _buildPageNumberBtn(page: 3, active: _currentPage == 3),
                 const SizedBox(width: 4),
-                _buildPageNavBtn(icon: Icons.chevron_right_rounded, onTap: () {}),
+                _buildPageNavBtn(
+                  icon: isRtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+                  onTap: () {},
+                ),
               ],
             ),
           ),
@@ -2349,11 +2470,31 @@ class _DriversScreenState extends State<DriversScreen> {
               Expanded(
                 child: Text(tx(c.name), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
               ),
+              const SizedBox(width: 8),
               _buildStatusBadge(c.status),
             ],
           ),
           const SizedBox(height: 6),
-          Text(tx('${c.city} • ${c.phone}'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary)),
+          Wrap(
+            spacing: 6,
+            runSpacing: 2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                tx('${c.city} •'),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
+              ),
+              Directionality(
+                textDirection: TextDirection.ltr,
+                child: Text(
+                  tx(c.phone),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 4),
           Text(
             tx('ئەمڕۆ: ${c.todayOrders} داواکاری'),
@@ -2365,21 +2506,23 @@ class _DriversScreenState extends State<DriversScreen> {
             children: [
               InkWell(
                 onTap: () => _showCourierDetailsDialog(c),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
-                  child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(8)),
+                  child: Icon(Icons.visibility_outlined, size: 17, color: RC.fg(Color(0xFF475569))),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               InkWell(
                 onTap: () => _showAddCourierDialog(existing: c),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
-                  child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(8)),
+                  child: Icon(Icons.edit_outlined, size: 17, color: RC.fg(Color(0xFF475569))),
                 ),
               ),
             ],
@@ -2414,13 +2557,15 @@ class _DriversScreenState extends State<DriversScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
         tx(label),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w800,
@@ -2433,13 +2578,13 @@ class _DriversScreenState extends State<DriversScreen> {
   Widget _buildPageNumberBtn({required int page, required bool active}) {
     return InkWell(
       onTap: () => setState(() => _currentPage = page),
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        width: 28,
-        height: 28,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           color: active ? RC.bg(Color(0xFF113E2E)) : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
           child: Text(
@@ -2458,13 +2603,13 @@ class _DriversScreenState extends State<DriversScreen> {
   Widget _buildPageNavBtn({required IconData icon, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        width: 28,
-        height: 28,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
           child: Icon(icon, size: 18, color: RC.fg(Color(0xFF94A3B8))),

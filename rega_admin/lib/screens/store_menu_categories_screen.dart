@@ -136,9 +136,24 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(tx('سڕینەوەی ${row['name_ku']}')),
-        content: Text(
-          tx('ئایا دڵنیایت؟ ${(row['products_count'] ?? 0)} بەرهەم لەم بەشەدا هەیە.'),
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
+        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+        actionsOverflowButtonSpacing: 8,
+        title: Text(
+          tx('سڕینەوەی ${row['name_ku']}'),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 420),
+            maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 260),
+          ),
+          child: SingleChildScrollView(
+            child: Text(
+              tx('ئایا دڵنیایت؟ ${(row['products_count'] ?? 0)} بەرهەم لەم بەشەدا هەیە.'),
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -217,24 +232,31 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                 const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: AspectRatio(
-                    aspectRatio: 1.6,
-                    child: pending != null
-                        ? Image.memory(pending.bytes, fit: BoxFit.cover)
-                        : resolved.isNotEmpty
-                            ? Image.network(
-                                resolved,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => _placeholder(label),
-                              )
-                            : _placeholder(label),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 180),
+                    child: AspectRatio(
+                      aspectRatio: 1.6,
+                      child: pending != null
+                          ? Image.memory(pending.bytes, fit: BoxFit.cover)
+                          : resolved.isNotEmpty
+                              ? Image.network(
+                                  resolved,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => _placeholder(label),
+                                )
+                              : _placeholder(label),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: saving ? null : onPick,
                   icon: const Icon(Icons.photo_library_rounded, size: 18),
-                  label: Text(tx('هەڵبژاردنی وێنە (+compress)')),
+                  label: Text(
+                    tx('هەڵبژاردنی وێنە (+compress)'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 TextField(
@@ -251,115 +273,140 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
 
           return AlertDialog(
             insetPadding: AdminBreakpoints.dialogInset(ctx),
-            title: Text(tx(isEdit ? 'دەستکاری بەشی مێنیو / چیپ' : 'زیادکردنی بەشی مێنیو (چیپ)')),
+            contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+            actionsOverflowButtonSpacing: 8,
+            title: Text(
+              tx(isEdit ? 'دەستکاری بەشی مێنیو / چیپ' : 'زیادکردنی بەشی مێنیو (چیپ)'),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
             content: SizedBox(
               width: AdminBreakpoints.dialogWidth(ctx, max: 520),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      tx('ئەم بەشانە لە ڕووکاری فرۆشگا (چیپ بار) و گریدی بابەتەکان دەردەکەون. '
-                      'وێنەی سەرەکی بۆ کارتی گەورە، وێنەی دووەم (sec) بۆ ئایکۆنی چیپ.'),
-                      style: TextStyle(fontSize: 12, color: RC.fg(Colors.black54)),
-                    ),
-                    const SizedBox(height: 14),
-                    DropdownButtonFormField<int?>(
-                      initialValue: homeCategoryId,
-                      decoration: InputDecoration(
-                        labelText: tx('بەشی سەرەکی ئەپ (فلتەر / هەڵبژاردن)'),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 580),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        tx('ئەم بەشانە لە ڕووکاری فرۆشگا (چیپ بار) و گریدی بابەتەکان دەردەکەون. '
+                        'وێنەی سەرەکی بۆ کارتی گەورە، وێنەی دووەم (sec) بۆ ئایکۆنی چیپ.'),
+                        style: TextStyle(fontSize: 12, color: RC.fg(Colors.black54)),
                       ),
-                      items: [
-                        DropdownMenuItem<int?>(
-                          value: null,
-                          child: Text(tx('هەموو بەشەکان')),
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<int?>(
+                        isExpanded: true,
+                        initialValue: homeCategoryId,
+                        decoration: InputDecoration(
+                          labelText: tx('بەشی سەرەکی ئەپ (فلتەر / هەڵبژاردن)'),
                         ),
-                        ..._homeCategories.map((c) {
-                          final m = c as Map<String, dynamic>;
+                        items: [
+                          DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text(
+                              tx('هەموو بەشەکان'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          ..._homeCategories.map((c) {
+                            final m = c as Map<String, dynamic>;
+                            return DropdownMenuItem<int?>(
+                              value: m['id'] as int,
+                              child: Text(
+                                tx(m['name_ku']?.toString() ?? ''),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }),
+                        ],
+                        onChanged: (v) => setDialogState(() {
+                          homeCategoryId = v;
+                          final choices = _storesForHomeCategory(v);
+                          if (storeId == null ||
+                              choices.every((s) => (s as Map)['id'] != storeId)) {
+                            storeId = choices.isNotEmpty
+                                ? (choices.first as Map)['id'] as int
+                                : null;
+                          }
+                        }),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<int?>(
+                        isExpanded: true,
+                        initialValue: storeId,
+                        decoration: InputDecoration(
+                          labelText: tx('فرۆشگا *'),
+                        ),
+                        items: storeChoices.map((s) {
+                          final m = s as Map<String, dynamic>;
                           return DropdownMenuItem<int?>(
                             value: m['id'] as int,
-                            child: Text(tx(m['name_ku']?.toString() ?? '')),
+                            child: Text(
+                              tx(m['name_ku']?.toString() ?? ''),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           );
-                        }),
-                      ],
-                      onChanged: (v) => setDialogState(() {
-                        homeCategoryId = v;
-                        final choices = _storesForHomeCategory(v);
-                        if (storeId == null ||
-                            choices.every((s) => (s as Map)['id'] != storeId)) {
-                          storeId = choices.isNotEmpty
-                              ? (choices.first as Map)['id'] as int
-                              : null;
-                        }
-                      }),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<int?>(
-                      initialValue: storeId,
-                      decoration: InputDecoration(
-                        labelText: tx('فرۆشگا *'),
+                        }).toList(),
+                        onChanged: isEdit
+                            ? (v) => setDialogState(() => storeId = v)
+                            : (v) => setDialogState(() => storeId = v),
                       ),
-                      items: storeChoices.map((s) {
-                        final m = s as Map<String, dynamic>;
-                        return DropdownMenuItem<int?>(
-                          value: m['id'] as int,
-                          child: Text(tx(m['name_ku']?.toString() ?? '')),
-                        );
-                      }).toList(),
-                      onChanged: isEdit
-                          ? (v) => setDialogState(() => storeId = v)
-                          : (v) => setDialogState(() => storeId = v),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: kuCtrl,
-                      decoration: InputDecoration(
-                        labelText: tx('ناوی بەش / چیپ (کوردی) *'),
-                        hintText: tx('نموونە: گریل و کەباب'),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: kuCtrl,
+                        decoration: InputDecoration(
+                          labelText: tx('ناوی بەش / چیپ (کوردی) *'),
+                          hintText: tx('نموونە: گریل و کەباب'),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: arCtrl,
-                      decoration: InputDecoration(labelText: tx('ناو (عەرەبی)')),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: enCtrl,
-                      decoration: InputDecoration(
-                        labelText: AppStrings.tr('name_en_field', widget.lang),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: arCtrl,
+                        decoration: InputDecoration(labelText: tx('ناو (عەرەبی)')),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: orderCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(labelText: tx('ڕیزبەندی')),
-                    ),
-                    const SizedBox(height: 16),
-                    imageBox(
-                      label: tx('وێنەی سەرەکی (کارتی بابەت)'),
-                      ctrl: imgCtrl,
-                      pending: pendingPrimary,
-                      onPick: () async {
-                        final picked = await _pickCompressedImage();
-                        if (picked == null) return;
-                        setDialogState(() => pendingPrimary = picked);
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    imageBox(
-                      label: tx('وێنەی دووەم / Sec image (ئایکۆنی چیپ)'),
-                      ctrl: secImgCtrl,
-                      pending: pendingSecondary,
-                      onPick: () async {
-                        final picked = await _pickCompressedImage();
-                        if (picked == null) return;
-                        setDialogState(() => pendingSecondary = picked);
-                      },
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: enCtrl,
+                        decoration: InputDecoration(
+                          labelText: AppStrings.tr('name_en_field', widget.lang),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: orderCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(labelText: tx('ڕیزبەندی')),
+                      ),
+                      const SizedBox(height: 16),
+                      imageBox(
+                        label: tx('وێنەی سەرەکی (کارتی بابەت)'),
+                        ctrl: imgCtrl,
+                        pending: pendingPrimary,
+                        onPick: () async {
+                          final picked = await _pickCompressedImage();
+                          if (picked == null) return;
+                          setDialogState(() => pendingPrimary = picked);
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      imageBox(
+                        label: tx('وێنەی دووەم / Sec image (ئایکۆنی چیپ)'),
+                        ctrl: secImgCtrl,
+                        pending: pendingSecondary,
+                        onPick: () async {
+                          final picked = await _pickCompressedImage();
+                          if (picked == null) return;
+                          setDialogState(() => pendingSecondary = picked);
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -447,8 +494,15 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
   Widget _placeholder(String label) {
     return Container(
       color: RC.bg(Color(0xFFF1F5F9)),
+      padding: const EdgeInsets.all(12),
       alignment: Alignment.center,
-      child: Text(tx(label), style: TextStyle(color: RC.fg(Colors.black45), fontWeight: FontWeight.w700)),
+      child: Text(
+        tx(label),
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: RC.fg(Colors.black45), fontWeight: FontWeight.w700),
+      ),
     );
   }
 
@@ -479,219 +533,314 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
   @override
   Widget build(BuildContext context) {
     final pad = AdminBreakpoints.pagePadH(context);
-    final narrow = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
-    final filterW = narrow ? double.infinity : 220.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(pad, 8, pad, 0),
-          child: narrow
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final narrow = w < AdminBreakpoints.phone;
+        final compactCard = w < 580;
+        final availW = (w - pad * 2) > 200 ? (w - pad * 2) : 200.0;
+        final filterW = narrow ? availW : (availW < 220.0 ? availW : 220.0);
+
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(pad, 8, pad, 0),
+                child: narrow
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            tx('ڕووکاری فرۆشگا — بەشەکانی مێنیو / چیپ (${_rows.length})'),
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                          ),
+                          const SizedBox(height: 10),
+                          ElevatedButton.icon(
+                            onPressed: () => _showDialog(),
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: Text(tx('زیادکردنی بەش / چیپ')),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              tx('ڕووکاری فرۆشگا — بەشەکانی مێنیو / چیپ (${_rows.length})'),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed: () => _showDialog(),
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: Text(tx('زیادکردنی بەش / چیپ')),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(pad, 12, pad, 8),
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(
-                      tx('ڕووکاری فرۆشگا — بەشەکانی مێنیو / چیپ (${_rows.length})'),
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
-                    ),
-                    const SizedBox(height: 10),
-                    ElevatedButton.icon(
-                      onPressed: () => _showDialog(),
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: Text(tx('زیادکردنی بەش / چیپ')),
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        tx('ڕووکاری فرۆشگا — بەشەکانی مێنیو / چیپ (${_rows.length})'),
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                    SizedBox(
+                      width: filterW,
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onSubmitted: (_) => _load(),
+                        decoration: InputDecoration(
+                          hintText: tx('گەڕان…'),
+                          prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                        ),
                       ),
                     ),
-                    ElevatedButton.icon(
-                      onPressed: () => _showDialog(),
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: Text(tx('زیادکردنی بەش / چیپ')),
-                    ),
-                  ],
-                ),
-        ),
-        Padding(
-          padding: EdgeInsets.fromLTRB(pad, 12, pad, 8),
-          child: Wrap(
-            spacing: 12,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              SizedBox(
-                width: filterW,
-                child: TextField(
-                  controller: _searchCtrl,
-                  onSubmitted: (_) => _load(),
-                  decoration: InputDecoration(
-                    hintText: tx('گەڕان…'),
-                    prefixIcon: Icon(Icons.search_rounded, size: 18),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: filterW,
-                child: DropdownButtonFormField<int?>(
-                  initialValue: _homeCategoryFilter,
-                  decoration: InputDecoration(labelText: tx('بەشی سەرەکی ئەپ')),
-                  items: [
-                    DropdownMenuItem<int?>(value: null, child: Text(tx('هەموو'))),
-                    ..._homeCategories.map((c) {
-                      final m = c as Map<String, dynamic>;
-                      return DropdownMenuItem<int?>(
-                        value: m['id'] as int,
-                        child: Text(tx(m['name_ku']?.toString() ?? '')),
-                      );
-                    }),
-                  ],
-                  onChanged: (v) {
-                    setState(() {
-                      _homeCategoryFilter = v;
-                      _storeFilter = null;
-                    });
-                    _load();
-                  },
-                ),
-              ),
-              SizedBox(
-                width: filterW,
-                child: DropdownButtonFormField<int?>(
-                  initialValue: _storeFilter,
-                  decoration: InputDecoration(labelText: tx('فرۆشگا')),
-                  items: [
-                    DropdownMenuItem<int?>(value: null, child: Text(tx('هەموو فرۆشگاکان'))),
-                    ..._storesForHomeCategory(_homeCategoryFilter).map((s) {
-                      final m = s as Map<String, dynamic>;
-                      return DropdownMenuItem<int?>(
-                        value: m['id'] as int,
-                        child: Text(tx(m['name_ku']?.toString() ?? '')),
-                      );
-                    }),
-                  ],
-                  onChanged: (v) {
-                    setState(() => _storeFilter = v);
-                    _load();
-                  },
-                ),
-              ),
-              IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
-            ],
-          ),
-        ),
-        Expanded(
-          child: _loading
-              ? Center(child: CircularProgressIndicator())
-              : _error != null
-                  ? ErrorRetryView(message: _error!, onRetry: _load)
-                  : _rows.isEmpty
-                      ? Center(
-                          child: Text(
-                            tx('هیچ بەشێکی مێنیو نییە — یەکەم چیپ زیاد بکە'),
-                            style: TextStyle(fontWeight: FontWeight.w700, color: RC.fg(Colors.black54)),
+                    SizedBox(
+                      width: filterW,
+                      child: DropdownButtonFormField<int?>(
+                        initialValue: _homeCategoryFilter,
+                        isExpanded: true,
+                        decoration: InputDecoration(labelText: tx('بەشی سەرەکی ئەپ')),
+                        items: [
+                          DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text(tx('هەموو'), maxLines: 1, overflow: TextOverflow.ellipsis),
                           ),
-                        )
-                      : ListView.separated(
-                          padding: EdgeInsets.fromLTRB(pad, 8, pad, 24),
-                          itemCount: _rows.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 10),
-                          itemBuilder: (_, index) {
-                            final row = Map<String, dynamic>.from(_rows[index] as Map);
-                            final store = row['store'] as Map<String, dynamic>?;
-                            final homeCat = store?['category'] as Map<String, dynamic>?;
-                            return Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Row(
-                                  children: [
-                                    _thumb(row['image_url']?.toString()),
-                                    const SizedBox(width: 8),
-                                    _thumb(row['secondary_image_url']?.toString()),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            tx(row['name_ku']?.toString() ?? ''),
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w900,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            tx([
-                                              if (homeCat?['name_ku'] != null)
-                                                'بەش: ${homeCat!['name_ku']}',
-                                              if (store?['name_ku'] != null)
-                                                'فرۆشگا: ${store!['name_ku']}',
-                                              '${row['products_count'] ?? 0} بەرهەم',
-                                              '#${row['sort_order'] ?? index + 1}',
-                                            ].join(' • ')),
-                                            style: TextStyle(
-                                              fontSize: 11.5,
-                                              color: RC.fg(Color(0xFF64748B)),
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Wrap(
-                                            spacing: 6,
-                                            children: [
-                                              Chip(
-                                                label: Text(tx('سەرەکی'), style: TextStyle(fontSize: 10)),
-                                                visualDensity: VisualDensity.compact,
-                                                backgroundColor: row['image_url'] != null
-                                                    ? RegaColors.gold.withValues(alpha: 0.25)
-                                                    : RC.bg(Color(0xFFF1F5F9)),
-                                              ),
-                                              Chip(
-                                                label: Text(tx('Sec'), style: TextStyle(fontSize: 10)),
-                                                visualDensity: VisualDensity.compact,
-                                                backgroundColor: row['secondary_image_url'] != null
-                                                    ? RC.bg(Color(0xFFFFEDD5))
-                                                    : RC.bg(Color(0xFFF1F5F9)),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    IconButton(
-                                      tooltip: tx('بەرەو سەرەوە'),
-                                      onPressed: index == 0 ? null : () => _moveRow(index, -1),
-                                      icon: const Icon(Icons.arrow_upward_rounded, size: 20),
-                                    ),
-                                    IconButton(
-                                      tooltip: tx('بەرەو خوارەوە'),
-                                      onPressed: index >= _rows.length - 1
-                                          ? null
-                                          : () => _moveRow(index, 1),
-                                      icon: const Icon(Icons.arrow_downward_rounded, size: 20),
-                                    ),
-                                    IconButton(
-                                      onPressed: () => _showDialog(existing: row),
-                                      icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
-                                    ),
-                                    IconButton(
-                                      onPressed: () => _confirmDelete(row),
-                                      icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
-                                    ),
-                                  ],
-                                ),
+                          ..._homeCategories.map((c) {
+                            final m = c as Map<String, dynamic>;
+                            return DropdownMenuItem<int?>(
+                              value: m['id'] as int,
+                              child: Text(
+                                tx(m['name_ku']?.toString() ?? ''),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             );
-                          },
+                          }),
+                        ],
+                        onChanged: (v) {
+                          setState(() {
+                            _homeCategoryFilter = v;
+                            _storeFilter = null;
+                          });
+                          _load();
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: filterW,
+                      child: DropdownButtonFormField<int?>(
+                        initialValue: _storeFilter,
+                        isExpanded: true,
+                        decoration: InputDecoration(labelText: tx('فرۆشگا')),
+                        items: [
+                          DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text(tx('هەموو فرۆشگاکان'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          ..._storesForHomeCategory(_homeCategoryFilter).map((s) {
+                            final m = s as Map<String, dynamic>;
+                            return DropdownMenuItem<int?>(
+                              value: m['id'] as int,
+                              child: Text(
+                                tx(m['name_ku']?.toString() ?? ''),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }),
+                        ],
+                        onChanged: (v) {
+                          setState(() => _storeFilter = v);
+                          _load();
+                        },
+                      ),
+                    ),
+                    IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
+                  ],
+                ),
+              ),
+            ),
+            if (_loading)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(pad),
+                    child: ErrorRetryView(message: _error!, onRetry: _load),
+                  ),
+                ),
+              )
+            else if (_rows.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(pad),
+                    child: Text(
+                      tx('هیچ بەشێکی مێنیو نییە — یەکەم چیپ زیاد بکە'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.w700, color: RC.fg(Colors.black54)),
+                    ),
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(pad, 8, pad, 24),
+                sliver: SliverList.separated(
+                  itemCount: _rows.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (_, index) {
+                    final row = Map<String, dynamic>.from(_rows[index] as Map);
+                    final store = row['store'] as Map<String, dynamic>?;
+                    final homeCat = store?['category'] as Map<String, dynamic>?;
+
+                    final thumbsAndInfo = Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _thumb(row['image_url']?.toString()),
+                        const SizedBox(width: 8),
+                        _thumb(row['secondary_image_url']?.toString()),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tx(row['name_ku']?.toString() ?? ''),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                tx([
+                                  if (homeCat?['name_ku'] != null)
+                                    'بەش: ${homeCat!['name_ku']}',
+                                  if (store?['name_ku'] != null)
+                                    'فرۆشگا: ${store!['name_ku']}',
+                                  '${row['products_count'] ?? 0} بەرهەم',
+                                  '#${row['sort_order'] ?? index + 1}',
+                                ].join(' • ')),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: RC.fg(Color(0xFF64748B)),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: [
+                                  Chip(
+                                    label: Text(tx('سەرەکی'), style: const TextStyle(fontSize: 10)),
+                                    visualDensity: VisualDensity.compact,
+                                    backgroundColor: row['image_url'] != null
+                                        ? RegaColors.gold.withValues(alpha: 0.25)
+                                        : RC.bg(Color(0xFFF1F5F9)),
+                                  ),
+                                  Chip(
+                                    label: Text(tx('Sec'), style: const TextStyle(fontSize: 10)),
+                                    visualDensity: VisualDensity.compact,
+                                    backgroundColor: row['secondary_image_url'] != null
+                                        ? RC.bg(Color(0xFFFFEDD5))
+                                        : RC.bg(Color(0xFFF1F5F9)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-        ),
-      ],
+                      ],
+                    );
+
+                    final actionButtons = Wrap(
+                      spacing: 2,
+                      runSpacing: 2,
+                      children: [
+                        IconButton(
+                          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          tooltip: tx('بەرەو سەرەوە'),
+                          onPressed: index == 0 ? null : () => _moveRow(index, -1),
+                          icon: const Icon(Icons.arrow_upward_rounded, size: 19),
+                        ),
+                        IconButton(
+                          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          tooltip: tx('بەرەو خوارەوە'),
+                          onPressed: index >= _rows.length - 1
+                              ? null
+                              : () => _moveRow(index, 1),
+                          icon: const Icon(Icons.arrow_downward_rounded, size: 19),
+                        ),
+                        IconButton(
+                          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => _showDialog(existing: row),
+                          icon: const Icon(Icons.edit_outlined, size: 19, color: RegaColors.blue),
+                        ),
+                        IconButton(
+                          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => _confirmDelete(row),
+                          icon: const Icon(Icons.delete_outline, size: 19, color: RegaColors.crimson),
+                        ),
+                      ],
+                    );
+
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: compactCard
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  thumbsAndInfo,
+                                  const SizedBox(height: 6),
+                                  Align(
+                                    alignment: AlignmentDirectional.centerEnd,
+                                    child: actionButtons,
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  Expanded(child: thumbsAndInfo),
+                                  const SizedBox(width: 8),
+                                  actionButtons,
+                                ],
+                              ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

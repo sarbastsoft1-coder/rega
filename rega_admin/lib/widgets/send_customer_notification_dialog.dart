@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../core/api/api_client.dart';
@@ -54,134 +56,165 @@ Future<bool> showSendCustomerNotificationDialog(
 
         return AlertDialog(
           insetPadding: AdminBreakpoints.dialogInset(ctx),
+          contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+          actionsOverflowButtonSpacing: 8,
           title: Text(tx('ناردنی ئاگاداری بۆ کڕیاران')),
-          content: SizedBox(
-            width: AdminBreakpoints.dialogWidth(ctx, max: 520),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    tx(
-                      forcedSelected && (preselectedLabel?.trim().isNotEmpty ?? false)
-                          ? 'ئاگاداری تایبەت بۆ: $preselectedLabel'
-                          : 'ئەم نامەیە جیاوازە لە زەنگی ناوخۆیی ئەدمین — ڕاستەوخۆ دەچێتە سندوقی ئاگاداری ئەپی کڕیار (داشکاندن / پرۆمۆشن / نامەی تایبەت).',
-                    ),
-                    style: TextStyle(fontSize: 12, color: RC.fg(Colors.black54), height: 1.35),
-                  ),
-                  const SizedBox(height: 14),
-                  if (!forcedSelected) ...[
-                    DropdownButtonFormField<String>(
-                      initialValue: audience,
-                      decoration: InputDecoration(labelText: tx('ئامانجی وەرگر')),
-                      items: [
-                        DropdownMenuItem(value: 'customers', child: Text(tx('هەموو کڕیاران'))),
-                        DropdownMenuItem(value: 'selected', child: Text(tx('کڕیاری هەڵبژێردراو'))),
-                      ],
-                      onChanged: (v) => setDialogState(() => audience = v ?? 'customers'),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  DropdownButtonFormField<String>(
-                    initialValue: notifType,
-                    decoration: InputDecoration(labelText: tx('جۆری ئاگاداری')),
-                    items: [
-                      DropdownMenuItem(value: 'discount', child: Text(tx('داشکاندن / پرۆمۆشن'))),
-                      DropdownMenuItem(value: 'general', child: Text(tx('گشتی'))),
-                      DropdownMenuItem(value: 'other', child: Text(tx('ئەویتر / تایبەت'))),
-                    ],
-                    onChanged: (v) => setDialogState(() => notifType = v ?? 'discount'),
-                  ),
-                  if (audience == 'selected') ...[
-                    const SizedBox(height: 12),
-                    if (!forcedSelected) ...[
-                      TextField(
-                        controller: searchCtrl,
-                        decoration: InputDecoration(
-                          labelText: tx('گەڕان بە ناو یان مۆبایل'),
-                          prefixIcon: const Icon(Icons.search_rounded, size: 18),
-                        ),
-                        onChanged: (_) => setDialogState(() {}),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 520),
+              maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 560),
+            ),
+            child: SizedBox(
+              width: AdminBreakpoints.dialogWidth(ctx, max: 520),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     Text(
                       tx(
-                        loadingCustomers
-                            ? 'بارکردنی کڕیاران...'
-                            : '${selectedIds.length} کڕیار هەڵبژێردرا · ${filtered.length} نیشان دراو',
+                        forcedSelected && (preselectedLabel?.trim().isNotEmpty ?? false)
+                            ? 'ئاگاداری تایبەت بۆ: $preselectedLabel'
+                            : 'ئەم نامەیە جیاوازە لە زەنگی ناوخۆیی ئەدمین — ڕاستەوخۆ دەچێتە سندوقی ئاگاداری ئەپی کڕیار (داشکاندن / پرۆمۆشن / نامەی تایبەت).',
                       ),
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Colors.black54)),
+                      style: TextStyle(fontSize: 12, color: RC.fg(Colors.black54), height: 1.35),
                     ),
+                    const SizedBox(height: 14),
                     if (!forcedSelected) ...[
-                      const SizedBox(height: 6),
-                      Container(
-                        height: 180,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: RC.bg(Colors.black12)),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: loadingCustomers
-                            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                            : filtered.isEmpty
-                                ? Center(child: Text(tx('هیچ کڕیارێک نەدۆزرایەوە')))
-                                : ListView.builder(
-                                    itemCount: filtered.length,
-                                    itemBuilder: (_, i) {
-                                      final c = filtered[i];
-                                      final id = (c['id'] as num?)?.toInt();
-                                      if (id == null) return const SizedBox.shrink();
-                                      final checked = selectedIds.contains(id);
-                                      return CheckboxListTile(
-                                        dense: true,
-                                        value: checked,
-                                        title: Text(
-                                          tx(c['name']?.toString() ?? '—'),
-                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                                        ),
-                                        subtitle: Text(tx(c['phone']?.toString() ?? '')),
-                                        onChanged: (v) {
-                                          setDialogState(() {
-                                            if (v == true) {
-                                              selectedIds.add(id);
-                                            } else {
-                                              selectedIds.remove(id);
-                                            }
-                                          });
-                                        },
-                                      );
-                                    },
-                                  ),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: audience,
+                        decoration: InputDecoration(labelText: tx('ئامانجی وەرگر')),
+                        items: [
+                          DropdownMenuItem(
+                            value: 'customers',
+                            child: Text(tx('هەموو کڕیاران'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          DropdownMenuItem(
+                            value: 'selected',
+                            child: Text(tx('کڕیاری هەڵبژێردراو'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                        ],
+                        onChanged: (v) => setDialogState(() => audience = v ?? 'customers'),
                       ),
+                      const SizedBox(height: 12),
                     ],
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: notifType,
+                      decoration: InputDecoration(labelText: tx('جۆری ئاگاداری')),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'discount',
+                          child: Text(tx('داشکاندن / پرۆمۆشن'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                        DropdownMenuItem(
+                          value: 'general',
+                          child: Text(tx('گشتی'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                        DropdownMenuItem(
+                          value: 'other',
+                          child: Text(tx('ئەویتر / تایبەت'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                      onChanged: (v) => setDialogState(() => notifType = v ?? 'discount'),
+                    ),
+                    if (audience == 'selected') ...[
+                      const SizedBox(height: 12),
+                      if (!forcedSelected) ...[
+                        TextField(
+                          controller: searchCtrl,
+                          decoration: InputDecoration(
+                            labelText: tx('گەڕان بە ناو یان مۆبایل'),
+                            prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                          ),
+                          onChanged: (_) => setDialogState(() {}),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      Text(
+                        tx(
+                          loadingCustomers
+                              ? 'بارکردنی کڕیاران...'
+                              : '${selectedIds.length} کڕیار هەڵبژێردرا · ${filtered.length} نیشان دراو',
+                        ),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Colors.black54)),
+                      ),
+                      if (!forcedSelected) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          height: math.min(180.0, AdminBreakpoints.dialogMaxHeight(ctx, fraction: 0.28)),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: RC.bg(Colors.black12)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: loadingCustomers
+                              ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                              : filtered.isEmpty
+                                  ? Center(child: Text(tx('هیچ کڕیارێک نەدۆزرایەوە')))
+                                  : ListView.builder(
+                                      itemCount: filtered.length,
+                                      itemBuilder: (_, i) {
+                                        final c = filtered[i];
+                                        final id = (c['id'] as num?)?.toInt();
+                                        if (id == null) return const SizedBox.shrink();
+                                        final checked = selectedIds.contains(id);
+                                        return CheckboxListTile(
+                                          dense: true,
+                                          value: checked,
+                                          title: Text(
+                                            tx(c['name']?.toString() ?? '—'),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                          ),
+                                          subtitle: Text(
+                                            tx(c['phone']?.toString() ?? ''),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          onChanged: (v) {
+                                            setDialogState(() {
+                                              if (v == true) {
+                                                selectedIds.add(id);
+                                              } else {
+                                                selectedIds.remove(id);
+                                              }
+                                            });
+                                          },
+                                        );
+                                      },
+                                    ),
+                        ),
+                      ],
+                    ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: titleCtrl,
+                      decoration: InputDecoration(
+                        labelText: tx('سەردێڕ *'),
+                        hintText: tx('نموونە: داشکاندنی %30 ئەمڕۆ'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: bodyCtrl,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        labelText: tx('ناوەڕۆک / نامە *'),
+                        hintText: tx('هەر نامەیەک کە دەتەوێت بۆ کڕیار بنێریت...'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: badgeCtrl,
+                      decoration: InputDecoration(
+                        labelText: tx('باجی داشکاندن (ئارەزوومەندانە)'),
+                        hintText: tx('نموونە: %30 OFF یان 5,000 د.ع'),
+                      ),
+                    ),
                   ],
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: titleCtrl,
-                    decoration: InputDecoration(
-                      labelText: tx('سەردێڕ *'),
-                      hintText: tx('نموونە: داشکاندنی %30 ئەمڕۆ'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: bodyCtrl,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      labelText: tx('ناوەڕۆک / نامە *'),
-                      hintText: tx('هەر نامەیەک کە دەتەوێت بۆ کڕیار بنێریت...'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: badgeCtrl,
-                    decoration: InputDecoration(
-                      labelText: tx('باجی داشکاندن (ئارەزوومەندانە)'),
-                      hintText: tx('نموونە: %30 OFF یان 5,000 د.ع'),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -42,30 +43,36 @@ class AdminTopBarRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenW = MediaQuery.sizeOf(context).width;
-    final compactSearch = screenW < AdminBreakpoints.phone;
-    final gap = compactSearch ? 4.0 : 10.0;
+    final mqW = MediaQuery.sizeOf(context).width;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availW = constraints.hasBoundedWidth ? constraints.maxWidth : mqW;
+        final compactSearch = availW < 420 || mqW < AdminBreakpoints.phone;
+        final compactProfile = availW < 500 || mqW < AdminBreakpoints.phone;
+        final gap = compactSearch ? 4.0 : 10.0;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        AdminGlobalSearchBar(
-          controller: searchCtrl,
-          hintText: tx(hintText.isEmpty ? AppStrings.tr('search_system', context.watch<AdminAppNotifier>().lang) : hintText),
-          onChanged: onSearchChanged,
-          compact: compactSearch,
-        ),
-        SizedBox(width: gap),
-        AdminProfileDropdown(onGoToSettings: onGoToSettings, compact: compactSearch),
-        SizedBox(width: compactSearch ? 2 : 8),
-        AdminNotificationsBell(
-          onGoToOrders: onGoToOrders,
-          onGoToStores: onGoToStores,
-          onGoToDrivers: onGoToDrivers,
-          onGoToSettings: onGoToSettings,
-        ),
-      ],
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            AdminGlobalSearchBar(
+              controller: searchCtrl,
+              hintText: tx(hintText.isEmpty ? AppStrings.tr('search_system', context.watch<AdminAppNotifier>().lang) : hintText),
+              onChanged: onSearchChanged,
+              compact: compactSearch,
+            ),
+            SizedBox(width: gap),
+            AdminProfileDropdown(onGoToSettings: onGoToSettings, compact: compactProfile),
+            SizedBox(width: compactSearch ? 2 : 8),
+            AdminNotificationsBell(
+              onGoToOrders: onGoToOrders,
+              onGoToStores: onGoToStores,
+              onGoToDrivers: onGoToDrivers,
+              onGoToSettings: onGoToSettings,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -125,7 +132,9 @@ class AdminLocaleToggle extends StatelessWidget {
           .toList(),
       child: Container(
         height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: EdgeInsets.symmetric(
+          horizontal: MediaQuery.sizeOf(context).width < 380 ? 6 : 10,
+        ),
         decoration: BoxDecoration(
           color: surfaces.card,
           borderRadius: BorderRadius.circular(10),
@@ -135,7 +144,7 @@ class AdminLocaleToggle extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.language_rounded, size: 16, color: surfaces.textSecondary),
-            const SizedBox(width: 6),
+            SizedBox(width: MediaQuery.sizeOf(context).width < 380 ? 4 : 6),
             Text(
               lang == 'en' ? 'EN' : (lang == 'ar' ? 'AR' : 'KU'),
               style: TextStyle(
@@ -266,7 +275,7 @@ class _AdminGlobalSearchBarState extends State<AdminGlobalSearchBar> {
     final screenW = MediaQuery.sizeOf(context).width;
     final barW = screenW < AdminBreakpoints.phone
         ? (screenW * 0.42).clamp(120.0, 180.0)
-        : 220.0;
+        : (screenW < 760 ? 150.0 : (screenW < 1100 ? 185.0 : 220.0));
     return Container(
       width: barW,
       constraints: BoxConstraints(
@@ -475,22 +484,22 @@ class _SpotlightSearchDialogState extends State<_SpotlightSearchDialog> {
             return t.contains(query) || s.contains(query);
           }).toList();
 
+    final isPhone = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
     return Dialog(
       backgroundColor: surfaces.dialog,
       surfaceTintColor: Colors.transparent,
       elevation: 16,
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 12 : 20,
-        vertical: 24,
-      ),
+      insetPadding: AdminBreakpoints.dialogInset(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(color: surfaces.border),
       ),
       child: Container(
         width: AdminBreakpoints.dialogWidth(context, max: 520),
-        constraints: const BoxConstraints(maxHeight: 520),
-        padding: const EdgeInsets.all(20),
+        constraints: BoxConstraints(
+          maxHeight: math.min(520.0, AdminBreakpoints.dialogMaxHeight(context, fraction: 0.85)),
+        ),
+        padding: EdgeInsets.all(isPhone ? 14 : 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -618,139 +627,152 @@ class AdminProfileDropdown extends StatelessWidget {
         backgroundColor: surfaces.dialog,
         surfaceTintColor: Colors.transparent,
         elevation: 16,
-        insetPadding: EdgeInsets.symmetric(
-          horizontal: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 12 : 20,
-          vertical: 24,
-        ),
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
           side: BorderSide(color: surfaces.border),
         ),
-        child: Container(
-          width: AdminBreakpoints.dialogWidth(context, max: 380),
-          padding: const EdgeInsets.all(22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: surfaces.isDark ? RC.bg(Color(0xFF3B2112)) : RC.bg(Color(0xFFFFF7ED)),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: RC.bg(Color(0xFFFFEDD5)), width: 2),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 380),
+            maxHeight: AdminBreakpoints.dialogMaxHeight(ctx, fraction: 0.85),
+          ),
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(
+              MediaQuery.sizeOf(ctx).width < AdminBreakpoints.phone ? 16 : 22,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: surfaces.isDark ? RC.bg(Color(0xFF3B2112)) : RC.bg(Color(0xFFFFF7ED)),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: RC.bg(Color(0xFFFFEDD5)), width: 2),
+                      ),
+                      child: Center(
+                        child: Icon(Icons.admin_panel_settings_rounded, color: RC.fg(Color(0xFFEA580C)), size: 28),
+                      ),
                     ),
-                    child: Center(
-                      child: Icon(Icons.admin_panel_settings_rounded, color: RC.fg(Color(0xFFEA580C)), size: 28),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          tx(userName),
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                            color: surfaces.textPrimary,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tx(userName),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: surfaces.textPrimary,
+                            ),
                           ),
+                          const SizedBox(height: 2),
+                          Text(
+                            tx(userEmail.isEmpty ? AppStrings.tr('nav_staff', lang) : userEmail),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 11.5, color: surfaces.textSecondary, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: surfaces.successSoft,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        tx(AppStrings.statusLabel('verified', lang)),
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: surfaces.isDark ? RC.bg(Color(0xFF86EFAC)) : RC.bg(Color(0xFF15803D)),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          tx(userEmail.isEmpty ? AppStrings.tr('nav_staff', lang) : userEmail),
-                          style: TextStyle(fontSize: 11.5, color: surfaces.textSecondary, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Divider(height: 1, color: surfaces.hairline),
+                const SizedBox(height: 10),
+                _buildMenuActionTile(
+                  context: context,
+                  icon: Icons.settings_outlined,
+                  title: AppStrings.tr('nav_support', lang),
+                  subtitle: AppStrings.tr('dashboard_subtitle', lang),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    context.read<AdminNavNotifier>().setTabIndex(AdminNavNotifier.indexForPath('/support'));
+                    context.go('/support');
+                  },
+                ),
+                _buildMenuActionTile(
+                  context: context,
+                  icon: Icons.language_rounded,
+                  title: AppStrings.tr('language', lang),
+                  subtitle: AppStrings.tr(
+                    lang == 'ku' ? 'lang_ku' : (lang == 'ar' ? 'lang_ar' : 'lang_en'),
+                    lang,
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showLanguageDialog(context);
+                  },
+                ),
+                _buildMenuActionTile(
+                  context: context,
+                  icon: app.isDark ? Icons.light_mode_rounded : Icons.dark_mode_outlined,
+                  title: app.isDark ? AppStrings.tr('theme_light', lang) : AppStrings.tr('theme_dark', lang),
+                  subtitle: AppStrings.tr('theme_switch_sub', lang),
+                  onTap: () {
+                    app.setDark(!app.isDark);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                const SizedBox(height: 8),
+                Divider(height: 1, color: surfaces.hairline),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await app.logout();
+                    if (context.mounted) context.go('/login');
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout_rounded, color: RC.fg(Color(0xFFDC2626)), size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            AppStrings.tr('logout', lang),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: RC.fg(Color(0xFFDC2626)),
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: surfaces.successSoft,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      tx(AppStrings.statusLabel('verified', lang)),
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                        color: surfaces.isDark ? RC.bg(Color(0xFF86EFAC)) : RC.bg(Color(0xFF15803D)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Divider(height: 1, color: surfaces.hairline),
-              const SizedBox(height: 10),
-              _buildMenuActionTile(
-                context: context,
-                icon: Icons.settings_outlined,
-                title: AppStrings.tr('nav_support', lang),
-                subtitle: AppStrings.tr('dashboard_subtitle', lang),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.read<AdminNavNotifier>().setTabIndex(AdminNavNotifier.indexForPath('/support'));
-                  context.go('/support');
-                },
-              ),
-              _buildMenuActionTile(
-                context: context,
-                icon: Icons.language_rounded,
-                title: AppStrings.tr('language', lang),
-                subtitle: AppStrings.tr(
-                  lang == 'ku' ? 'lang_ku' : (lang == 'ar' ? 'lang_ar' : 'lang_en'),
-                  lang,
                 ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showLanguageDialog(context);
-                },
-              ),
-              _buildMenuActionTile(
-                context: context,
-                icon: app.isDark ? Icons.light_mode_rounded : Icons.dark_mode_outlined,
-                title: app.isDark ? AppStrings.tr('theme_light', lang) : AppStrings.tr('theme_dark', lang),
-                subtitle: AppStrings.tr('theme_switch_sub', lang),
-                onTap: () {
-                  app.setDark(!app.isDark);
-                  Navigator.pop(ctx);
-                },
-              ),
-              const SizedBox(height: 8),
-              Divider(height: 1, color: surfaces.hairline),
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await app.logout();
-                  if (context.mounted) context.go('/login');
-                },
-                borderRadius: BorderRadius.circular(10),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.logout_rounded, color: RC.fg(Color(0xFFDC2626)), size: 20),
-                      const SizedBox(width: 12),
-                      Text(
-                        AppStrings.tr('logout', lang),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: RC.fg(Color(0xFFDC2626)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -766,45 +788,55 @@ class AdminProfileDropdown extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: surfaces.dialog,
         surfaceTintColor: Colors.transparent,
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
+        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text(AppStrings.tr('lang_pick', lang), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                lang == 'ku' ? Icons.check_circle_rounded : Icons.language_rounded,
-                color: lang == 'ku' ? RC.fg(Color(0xFFEA580C)) : surfaces.textSecondary,
-              ),
-              title: Text(AppStrings.tr('lang_ku', lang), style: const TextStyle(fontWeight: FontWeight.w800)),
-              onTap: () {
-                app.setLang('ku');
-                Navigator.pop(ctx);
-              },
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 360),
+            maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 320),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(
+                    lang == 'ku' ? Icons.check_circle_rounded : Icons.language_rounded,
+                    color: lang == 'ku' ? RC.fg(Color(0xFFEA580C)) : surfaces.textSecondary,
+                  ),
+                  title: Text(AppStrings.tr('lang_ku', lang), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  onTap: () {
+                    app.setLang('ku');
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(
+                    lang == 'ar' ? Icons.check_circle_rounded : Icons.language_rounded,
+                    color: lang == 'ar' ? RC.fg(Color(0xFFEA580C)) : surfaces.textSecondary,
+                  ),
+                  title: Text(AppStrings.tr('lang_ar', lang), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  onTap: () {
+                    app.setLang('ar');
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(
+                    lang == 'en' ? Icons.check_circle_rounded : Icons.language_rounded,
+                    color: lang == 'en' ? RC.fg(Color(0xFFEA580C)) : surfaces.textSecondary,
+                  ),
+                  title: Text(AppStrings.tr('lang_en', lang), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  onTap: () {
+                    app.setLang('en');
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ],
             ),
-            ListTile(
-              leading: Icon(
-                lang == 'ar' ? Icons.check_circle_rounded : Icons.language_rounded,
-                color: lang == 'ar' ? RC.fg(Color(0xFFEA580C)) : surfaces.textSecondary,
-              ),
-              title: Text(AppStrings.tr('lang_ar', lang), style: const TextStyle(fontWeight: FontWeight.w800)),
-              onTap: () {
-                app.setLang('ar');
-                Navigator.pop(ctx);
-              },
-            ),
-            ListTile(
-              leading: Icon(
-                lang == 'en' ? Icons.check_circle_rounded : Icons.language_rounded,
-                color: lang == 'en' ? RC.fg(Color(0xFFEA580C)) : surfaces.textSecondary,
-              ),
-              title: Text(AppStrings.tr('lang_en', lang), style: const TextStyle(fontWeight: FontWeight.w800)),
-              onTap: () {
-                app.setLang('en');
-                Navigator.pop(ctx);
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -885,7 +917,8 @@ class AdminProfileDropdown extends StatelessWidget {
               ),
               if (!compact) ...[
                 const SizedBox(width: 8),
-                Flexible(
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 125),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -1046,73 +1079,84 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
             backgroundColor: surfaces.dialog,
             surfaceTintColor: Colors.transparent,
             elevation: 16,
-            insetPadding: EdgeInsets.symmetric(
-              horizontal: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 12 : 20,
-              vertical: 24,
-            ),
+            insetPadding: AdminBreakpoints.dialogInset(ctx),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(22),
               side: BorderSide(color: surfaces.border),
             ),
             child: Container(
-              width: AdminBreakpoints.dialogWidth(context, max: 420),
-              padding: const EdgeInsets.all(22),
+              width: AdminBreakpoints.dialogWidth(ctx, max: 420),
+              constraints: BoxConstraints(
+                maxHeight: AdminBreakpoints.dialogMaxHeight(ctx, fraction: 0.88),
+              ),
+              padding: EdgeInsets.all(
+                MediaQuery.sizeOf(ctx).width < AdminBreakpoints.phone ? 14 : 22,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: RC.bg(Color(0xFFFFF7ED)),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              Icons.notifications_active_rounded,
-                              color: RC.fg(Color(0xFFEA580C)),
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                AppStrings.tr('notifications', lang),
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  color: AdminSurfaces.of(context).textPrimary,
-                                ),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: RC.bg(Color(0xFFFFF7ED)),
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                              Text(
-                                tx(unread > 0
-                                    ? AppStrings.trParams('unread_waiting', lang, {'n': '$unread'})
-                                    : AppStrings.tr('all_read', lang)),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: AdminSurfaces.of(context).textSecondary,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                              child: Icon(
+                                Icons.notifications_active_rounded,
+                                color: RC.fg(Color(0xFFEA580C)),
+                                size: 22,
                               ),
-                            ],
-                          ),
-                        ],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    AppStrings.tr('notifications', lang),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                      color: AdminSurfaces.of(context).textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    tx(unread > 0
+                                        ? AppStrings.trParams('unread_waiting', lang, {'n': '$unread'})
+                                        : AppStrings.tr('all_read', lang)),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AdminSurfaces.of(context).textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      if (unread > 0)
+                      if (unread > 0) ...[
+                        const SizedBox(width: 8),
                         TextButton(
                           onPressed: () async {
                             try {
                               await inboxState.markAllRead();
                             } catch (_) {}
                           },
-                          child: Text(AppStrings.tr('mark_all_read', lang),
+                          child: Text(
+                            AppStrings.tr('mark_all_read', lang),
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -1120,6 +1164,7 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                             ),
                           ),
                         ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -1140,39 +1185,41 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                       ),
                     )
                   else
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 360),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: items.length,
-                        separatorBuilder: (_, __) =>
-                            Divider(height: 8, color: AdminSurfaces.of(context).hairline),
-                        itemBuilder: (_, i) {
-                          final item = items[i];
-                          final isUnread = item['is_read'] != true;
-                          final timeLabel =
-                              item['time_label']?.toString() ?? '';
-                          return _buildNotificationItem(
-                            icon: _iconFor(item['icon']?.toString()),
-                            iconColor: _colorFor(item['color']?.toString()),
-                            title: item['title_ku']?.toString() ?? '',
-                            subtitle: item['body_ku']?.toString() ?? '',
-                            time: timeLabel,
-                            isUnread: isUnread,
-                            onTap: () async {
-                              final key = item['id']?.toString();
-                              if (key != null && isUnread) {
-                                try {
-                                  await inboxState.markRead(key);
-                                } catch (_) {}
-                              }
-                              if (!ctx.mounted) return;
-                              Navigator.pop(ctx);
-                              if (!context.mounted) return;
-                              _navigateForItem(context, item);
-                            },
-                          );
-                        },
+                    Flexible(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 360),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: items.length,
+                          separatorBuilder: (_, __) =>
+                              Divider(height: 8, color: AdminSurfaces.of(context).hairline),
+                          itemBuilder: (_, i) {
+                            final item = items[i];
+                            final isUnread = item['is_read'] != true;
+                            final timeLabel =
+                                item['time_label']?.toString() ?? '';
+                            return _buildNotificationItem(
+                              icon: _iconFor(item['icon']?.toString()),
+                              iconColor: _colorFor(item['color']?.toString()),
+                              title: item['title_ku']?.toString() ?? '',
+                              subtitle: item['body_ku']?.toString() ?? '',
+                              time: timeLabel,
+                              isUnread: isUnread,
+                              onTap: () async {
+                                final key = item['id']?.toString();
+                                if (key != null && isUnread) {
+                                  try {
+                                    await inboxState.markRead(key);
+                                  } catch (_) {}
+                                }
+                                if (!ctx.mounted) return;
+                                Navigator.pop(ctx);
+                                if (!context.mounted) return;
+                                _navigateForItem(context, item);
+                              },
+                            );
+                          },
+                        ),
                       ),
                     ),
                   const SizedBox(height: 16),
@@ -1317,9 +1364,9 @@ class _AdminNotificationsBellState extends State<AdminNotificationsBell> {
                 size: 24,
               ),
               if (unread > 0)
-                Positioned(
+                PositionedDirectional(
                   top: -4,
-                  right: -4,
+                  end: -4,
                   child: Container(
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(

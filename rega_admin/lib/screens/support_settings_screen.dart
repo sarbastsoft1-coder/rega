@@ -56,7 +56,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   final _vendorMinPayoutCtrl = TextEditingController(text: '25000');
 
   // Payment Gateways States
-  bool _enableCod = true;
+  final bool _enableCod = true;
   String _payoutSchedule = 'هەفتانە';
   String _primaryCurrency = 'دیناری عێراقی';
 
@@ -167,69 +167,78 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           insetPadding: AdminBreakpoints.dialogInset(ctx),
+          contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+          actionsOverflowButtonSpacing: 8,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Text(
             tx(isEdit ? 'دەستکاریکردنی هەژماری ئەدمین' : 'دروستکردنی هەژماری ئەدمین'),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
           ),
-          content: SizedBox(
-            width: AdminBreakpoints.dialogWidth(ctx, max: 420),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: InputDecoration(
-                      labelText: tx('ناو *'),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 520),
+            ),
+            child: SizedBox(
+              width: AdminBreakpoints.dialogWidth(ctx, max: 420),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: InputDecoration(
+                        labelText: tx('ناو *'),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: phoneCtrl,
-                    decoration: InputDecoration(
-                      labelText: tx('مۆبایل *'),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: phoneCtrl,
+                      decoration: InputDecoration(
+                        labelText: tx('مۆبایل *'),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: tx('ئیمەیڵ *'),
-                      hintText: tx('admin@example.com'),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: tx('ئیمەیڵ *'),
+                        hintText: tx('admin@example.com'),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: passwordCtrl,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: txn(isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *'),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: passwordCtrl,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: txn(isEdit ? 'وشەی نهێنی نوێ (ئارەزوومەندانە)' : 'وشەی نهێنی *'),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: tx('ڕۆڵ'),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 12),
+                    InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: tx('ڕۆڵ'),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(
+                        tx('ئەدمین'),
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
                     ),
-                    child: Text(
-                      tx('ئەدمین'),
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                    SwitchListTile(
+                      value: isActive,
+                      onChanged: (v) => setDialogState(() => isActive = v),
+                      title: Text(tx('چالاک'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                      contentPadding: EdgeInsets.zero,
                     ),
-                  ),
-                  SwitchListTile(
-                    value: isActive,
-                    onChanged: (v) => setDialogState(() => isActive = v),
-                    title: Text(tx('چالاک'), style: TextStyle(fontWeight: FontWeight.w700)),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -343,11 +352,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     super.dispose();
   }
 
+  double get _cardPad => AdminBreakpoints.cardPadding(context);
   Color get _cardColor => AdminSurfaces.of(context).card;
   Color get _borderColor => AdminSurfaces.of(context).border;
   Color get _mutedFill => AdminSurfaces.of(context).mutedFill;
-  Color get _textPrimary => AdminSurfaces.of(context).textPrimary;
-  Color get _textSecondary => AdminSurfaces.of(context).textSecondary;
 
   void _showSnack(String message, {bool error = false}) {
     if (!mounted) return;
@@ -368,7 +376,14 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           children: [
             Icon(Icons.check_circle_rounded, color: RC.fg(Colors.white), size: 20),
             const SizedBox(width: 10),
-            Text(tx(message), style: const TextStyle(fontWeight: FontWeight.w700)),
+            Expanded(
+              child: Text(
+                tx(message),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
           ],
         ),
         backgroundColor: RC.bg(Color(0xFFEA580C)),
@@ -381,7 +396,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: widget.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SingleChildScrollView(
@@ -453,7 +468,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   Widget _buildExcelBackupCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(_cardPad),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
@@ -549,9 +564,14 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           const SizedBox(height: 20),
           Divider(height: 1, color: RC.bg(Color(0xFFFFEDD5))),
           const SizedBox(height: 16),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -599,7 +619,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           ),
           const SizedBox(height: 8),
           if (_loadingBackups && _storedBackups.isEmpty)
-            Padding(
+            const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             )
@@ -622,69 +642,94 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               final size = int.tryParse(item['size']?.toString() ?? '') ?? 0;
               final modified = ExcelBackupService.formatModified(item['modified_at']?.toString());
               final busy = _downloadingBackupFile == file;
+              final badge = Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: RC.bg(Color(0xFFEA580C)),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  tx(type.toUpperCase()),
+                  style: TextStyle(
+                    color: RC.fg(Colors.white),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              );
+              final fileInfo = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tx(file),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    tx('$modified · ${ExcelBackupService.formatBytes(size)}'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: RC.fg(Color(0xFF64748B)),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              );
+              final dlBtn = TextButton(
+                onPressed: busy || file.isEmpty ? null : () => _downloadStoredBackup(file),
+                child: busy
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(AppStrings.tr('excel_backup_download_file', widget.lang)),
+              );
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: RC.bg(Color(0xFFFFF7ED)),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: RC.bg(Color(0xFFFFEDD5))),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: RC.bg(Color(0xFFEA580C)),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          tx(type.toUpperCase()),
-                          style: TextStyle(
-                            color: RC.fg(Colors.white),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+                child: LayoutBuilder(
+                  builder: (context, rowC) {
+                    final compact = rowC.maxWidth < 460;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: RC.bg(Color(0xFFFFF7ED)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: RC.bg(Color(0xFFFFEDD5))),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              tx(file),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
+                      child: compact
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  children: [
+                                    badge,
+                                    const SizedBox(width: 10),
+                                    Expanded(child: fileInfo),
+                                  ],
+                                ),
+                                Align(
+                                  alignment: AlignmentDirectional.centerEnd,
+                                  child: dlBtn,
+                                ),
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                badge,
+                                const SizedBox(width: 10),
+                                Expanded(child: fileInfo),
+                                dlBtn,
+                              ],
                             ),
-                            Text(
-                              tx('$modified · ${ExcelBackupService.formatBytes(size)}'),
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: RC.fg(Color(0xFF64748B)),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: busy || file.isEmpty ? null : () => _downloadStoredBackup(file),
-                        child: busy
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : Text(AppStrings.tr('excel_backup_download_file', widget.lang)),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               );
             }),
@@ -699,7 +744,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   Widget _buildTopHeader() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 760;
+        final isNarrow = constraints.maxWidth < 900;
 
         final title = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -712,7 +757,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                 color: RC.fg(Color(0xFF111827)),
               ),
             ),
-            SizedBox(height: 2),
+            const SizedBox(height: 2),
             Text(
               tx('بەڕێوەبردنی هەژمار و خزمەتگوزارییەکانی REGA'),
               style: TextStyle(
@@ -743,23 +788,18 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: title),
-                ],
-              ),
+              title,
               const SizedBox(height: 12),
               topActions,
             ],
           );
         } else {
           return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              title,
-              topActions,
+              Expanded(child: title),
+              const SizedBox(width: 12),
+              Flexible(child: topActions),
             ],
           );
         }
@@ -771,6 +811,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   // 2. SUB-NAVIGATION TABS (Matching Screenshot)
   // ============================================================================
   Widget _buildSubTabsRow() {
+    final isPhone = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
     final tabs = [
       {'name': 'گشتی', 'icon': Icons.tune_rounded},
       {'name': 'هەژمار', 'icon': Icons.person_outline_rounded},
@@ -794,7 +835,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               onTap: () => setState(() => _selectedSubTab = idx),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                padding: EdgeInsets.symmetric(horizontal: isPhone ? 14 : 22, vertical: 12),
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
@@ -864,7 +905,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   Widget _buildAccountTab() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final top = constraints.maxWidth > 880
+        final top = constraints.maxWidth >= AdminBreakpoints.tablet
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -895,7 +936,248 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
   Widget _buildAdminStaffCard() {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(_cardPad),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
+        boxShadow: [
+          BoxShadow(
+            color: RC.bg(Colors.black).withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                tx('هەژمارەکانی ئەدمین'),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: RC.fg(Color(0xFF111827)),
+                ),
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _loadAdminStaff,
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: Text(tx('نوێکردنەوە')),
+                  ),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: RC.bg(Color(0xFFEA580C)),
+                      foregroundColor: RC.fg(Colors.white),
+                    ),
+                    onPressed: () => _showCreateAdminDialog(),
+                    icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                    label: Text(tx('دروستکردنی ئەدمین')),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            tx('دەتوانیت هەژماری ئەدمین دروست بکەیت — چوونە ژوورەوە بە ئیمەیڵ و وشەی نهێنی.'),
+            style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 14),
+          if (_loadingStaff)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator(color: RC.bg(Color(0xFFEA580C)))),
+            )
+          else if (_adminStaff.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(tx('هیچ هەژماری ئەدمین نەدۆزرایەوە'), textAlign: TextAlign.center),
+            )
+          else
+            ..._adminStaff.map((staff) {
+              final id = staff['id'] as int;
+              final active = staff['is_active'] != false;
+              final statusPill = Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: active ? RC.bg(Color(0xFFDCFCE7)) : RC.bg(Color(0xFFFEE2E2)),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  tx(active ? 'چالاک' : 'ناچالاک'),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: active ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFFDC2626)),
+                  ),
+                ),
+              );
+              final editBtn = IconButton(
+                constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                tooltip: tx('دەستکاری'),
+                onPressed: () => _showCreateAdminDialog(existing: staff),
+                icon: Icon(Icons.edit_rounded, size: 19, color: RC.fg(Color(0xFF334155))),
+              );
+              final toggleBtn = IconButton(
+                constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                tooltip: txn(active ? 'ناچالاککردن' : 'چالاککردن'),
+                onPressed: () async {
+                  try {
+                    await widget.api.toggleAdminStaffActive(id);
+                    await _loadAdminStaff();
+                    _showSnack('دۆخی هەژمار نوێکرایەوە');
+                  } catch (e) {
+                    _showSnack(e.toString(), error: true);
+                  }
+                },
+                icon: Icon(
+                  active ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
+                  color: active ? RC.fg(Color(0xFF16A34A)) : RC.bg(Color(0xFF94A3B8)),
+                  size: 28,
+                ),
+              );
+              final deleteBtn = IconButton(
+                constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                tooltip: tx('سڕینەوە'),
+                onPressed: () async {
+                  final name = staff['name']?.toString() ?? '';
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (dCtx) => AlertDialog(
+                      insetPadding: AdminBreakpoints.dialogInset(dCtx),
+                      contentPadding: AdminBreakpoints.dialogContentPadding(dCtx),
+                      actionsOverflowButtonSpacing: 8,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      title: Text(
+                        tx('سڕینەوەی ئەدمین؟'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      content: Text(tx('دڵنیایت دەتەوێت «$name» بسڕیتەوە؟')),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(dCtx, false), child: Text(tx('پاشگەزبوونەوە'))),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: RC.bg(Color(0xFFDC2626)),
+                            foregroundColor: RC.fg(Colors.white),
+                          ),
+                          onPressed: () => Navigator.pop(dCtx, true),
+                          child: Text(tx('سڕینەوە')),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (ok != true) return;
+                  try {
+                    await widget.api.deleteAdminStaff(id);
+                    await _loadAdminStaff();
+                    _showSnack('هەژماری ئەدمین سڕایەوە ✅');
+                  } catch (e) {
+                    _showSnack(e.toString(), error: true);
+                  }
+                },
+                icon: Icon(Icons.delete_forever_rounded, size: 20, color: RC.fg(Color(0xFFDC2626))),
+              );
+
+              return LayoutBuilder(
+                builder: (context, staffC) {
+                  final compact = staffC.maxWidth < 620;
+                  final infoRow = Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: RC.bg(Color(0xFFFFEDD5)),
+                        child: Icon(
+                          Icons.admin_panel_settings_rounded,
+                          color: active ? RC.fg(Color(0xFFEA580C)) : RC.bg(Color(0xFF94A3B8)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tx(staff['name']?.toString() ?? ''),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
+                            ),
+                            Text(
+                              tx('${staff['phone'] ?? ''} • ئەدمین'
+                              '${staff['email'] != null ? ' • ${staff['email']}' : ''}'),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11.5, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      statusPill,
+                    ],
+                  );
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _mutedFill,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _borderColor),
+                    ),
+                    child: compact
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              infoRow,
+                              const SizedBox(height: 6),
+                              Align(
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: Wrap(
+                                  spacing: 4,
+                                  children: [editBtn, toggleBtn, deleteBtn],
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(child: infoRow),
+                              const SizedBox(width: 4),
+                              editBtn,
+                              toggleBtn,
+                              deleteBtn,
+                            ],
+                          ),
+                  );
+                },
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminProfileCard() {
+    return Container(
+      padding: EdgeInsets.all(_cardPad),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -915,7 +1197,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             children: [
               Expanded(
                 child: Text(
-                  tx('هەژمارەکانی ئەدمین'),
+                  tx('هەژماری بەڕێوەبەر'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
@@ -923,185 +1207,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   ),
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: _loadAdminStaff,
-                icon: const Icon(Icons.refresh_rounded, size: 16),
-                label: Text(tx('نوێکردنەوە')),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: RC.bg(Color(0xFFEA580C)),
-                  foregroundColor: RC.fg(Colors.white),
-                ),
-                onPressed: () => _showCreateAdminDialog(),
-                icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                label: Text(tx('دروستکردنی ئەدمین')),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            tx('دەتوانیت هەژماری ئەدمین دروست بکەیت — چوونە ژوورەوە بە ئیمەیڵ و وشەی نهێنی.'),
-            style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 14),
-          if (_loadingStaff)
-            Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator(color: RC.bg(Color(0xFFEA580C)))),
-            )
-          else if (_adminStaff.isEmpty)
-            Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(tx('هیچ هەژماری ئەدمین نەدۆزرایەوە'), textAlign: TextAlign.center),
-            )
-          else
-            ..._adminStaff.map((staff) {
-              final id = staff['id'] as int;
-              final active = staff['is_active'] != false;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: _mutedFill,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _borderColor),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: RC.bg(Color(0xFFFFEDD5)),
-                      child: Icon(
-                        Icons.admin_panel_settings_rounded,
-                        color: active ? RC.fg(Color(0xFFEA580C)) : RC.bg(Color(0xFF94A3B8)),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tx(staff['name']?.toString() ?? ''),
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
-                          ),
-                          Text(
-                            tx('${staff['phone'] ?? ''} • ئەدمین'
-                            '${staff['email'] != null ? ' • ${staff['email']}' : ''}'),
-                            style: TextStyle(fontSize: 11.5, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: active ? RC.bg(Color(0xFFDCFCE7)) : RC.bg(Color(0xFFFEE2E2)),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        tx(active ? 'چالاک' : 'ناچالاک'),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: active ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFFDC2626)),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: tx('دەستکاری'),
-                      onPressed: () => _showCreateAdminDialog(existing: staff),
-                      icon: Icon(Icons.edit_rounded, color: RC.fg(Color(0xFF334155))),
-                    ),
-                    IconButton(
-                      tooltip: txn(active ? 'ناچالاککردن' : 'چالاککردن'),
-                      onPressed: () async {
-                        try {
-                          await widget.api.toggleAdminStaffActive(id);
-                          await _loadAdminStaff();
-                          _showSnack('دۆخی هەژمار نوێکرایەوە');
-                        } catch (e) {
-                          _showSnack(e.toString(), error: true);
-                        }
-                      },
-                      icon: Icon(
-                        active ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
-                        color: active ? RC.fg(Color(0xFF16A34A)) : RC.bg(Color(0xFF94A3B8)),
-                        size: 30,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: tx('سڕینەوە'),
-                      onPressed: () async {
-                        final name = staff['name']?.toString() ?? '';
-                        final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (dCtx) => AlertDialog(
-                            title: Text(tx('سڕینەوەی ئەدمین؟'), style: TextStyle(fontWeight: FontWeight.w900)),
-                            content: Text(tx('دڵنیایت دەتەوێت «$name» بسڕیتەوە؟')),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.pop(dCtx, false), child: Text(tx('پاشگەزبوونەوە'))),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: RC.bg(Color(0xFFDC2626)),
-                                  foregroundColor: RC.fg(Colors.white),
-                                ),
-                                onPressed: () => Navigator.pop(dCtx, true),
-                                child: Text(tx('سڕینەوە')),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (ok != true) return;
-                        try {
-                          await widget.api.deleteAdminStaff(id);
-                          await _loadAdminStaff();
-                          _showSnack('هەژماری ئەدمین سڕایەوە ✅');
-                        } catch (e) {
-                          _showSnack(e.toString(), error: true);
-                        }
-                      },
-                      icon: Icon(Icons.delete_forever_rounded, color: RC.fg(Color(0xFFDC2626))),
-                    ),
-                  ],
-                ),
-              );
-            }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAdminProfileCard() {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
-        boxShadow: [
-          BoxShadow(
-            color: RC.bg(Colors.black).withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                tx('هەژماری بەڕێوەبەر'),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: RC.fg(Color(0xFF111827)),
-                ),
-              ),
+              const SizedBox(width: 10),
               Container(
                 width: 38,
                 height: 38,
@@ -1129,9 +1235,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     child: Icon(Icons.admin_panel_settings_rounded, color: RC.fg(Color(0xFFEA580C)), size: 36),
                   ),
                 ),
-                Positioned(
+                PositionedDirectional(
                   bottom: 0,
-                  right: 0,
+                  end: 0,
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
@@ -1179,7 +1285,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   Widget _buildNotificationsTab() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 880;
+        final isWide = constraints.maxWidth >= AdminBreakpoints.tablet;
         return Column(
           children: [
             if (isWide)
@@ -1204,7 +1310,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
   Widget _buildNotificationChannelsCard() {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(_cardPad),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -1221,16 +1327,20 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                tx('کەناڵەکانی ناردنی ئاگاداری'),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: RC.fg(Color(0xFF111827)),
+              Expanded(
+                child: Text(
+                  tx('کەناڵەکانی ناردنی ئاگاداری'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: RC.fg(Color(0xFF111827)),
+                  ),
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
                 width: 38,
                 height: 38,
@@ -1284,7 +1394,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => _showSaveFeedback('ڕێکخستنەکانی کەناڵەکانی ئاگادارکردنەوە پاشەکەوت کران'),
-            child: Text(tx('پاشەکەوتکردن'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+            child: Text(tx('پاشەکەوتکردن'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -1297,72 +1407,96 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   Widget _buildPaymentsTab() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 880;
+        final isWide = constraints.maxWidth >= AdminBreakpoints.tablet;
+        final stackBanner = constraints.maxWidth < 640;
+
+        final bannerIcon = Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: RC.bg(Color(0xFFEA580C)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(Icons.payments_rounded, color: RC.fg(Colors.white), size: 26),
+        );
+        final bannerTextCol = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tx('ڕێکخستنەکانی پارەدان و دەروازە داراییەکان'),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 16.5,
+                fontWeight: FontWeight.w900,
+                color: RC.fg(Color(0xFF0F172A)),
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              tx('دیاریکردنی کرێی گەیاندن، کۆمیسیۆنی فرۆشیاران، شێوازەکانی پارەدان و کاتی خولی پارەدان'),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: RC.fg(Color(0xFF64748B)),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        );
+        final bannerSaveBtn = ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: RC.bg(Color(0xFFEA580C)),
+            foregroundColor: RC.fg(Colors.white),
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی پارەدان نوێکرانەوە'),
+          icon: const Icon(Icons.save_rounded, size: 18),
+          label: Text(
+            tx('پاشەکەوتکردن'),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+          ),
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Top Highlights Banner
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(_cardPad),
               decoration: BoxDecoration(
                 color: RC.bg(Color(0xFFFFF7ED)),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: RC.bg(Color(0xFFFFEDD5))),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: RC.bg(Color(0xFFEA580C)),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.payments_rounded, color: RC.fg(Colors.white), size: 26),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              child: stackBanner
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          tx('ڕێکخستنەکانی پارەدان و دەروازە داراییەکان'),
-                          style: TextStyle(
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w900,
-                            color: RC.fg(Color(0xFF0F172A)),
-                          ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            bannerIcon,
+                            const SizedBox(width: 12),
+                            Expanded(child: bannerTextCol),
+                          ],
                         ),
-                        SizedBox(height: 3),
-                        Text(
-                          tx('دیاریکردنی کرێی گەیاندن، کۆمیسیۆنی فرۆشیاران، شێوازەکانی پارەدان و کاتی خولی پارەدان'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: RC.fg(Color(0xFF64748B)),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        const SizedBox(height: 12),
+                        bannerSaveBtn,
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        bannerIcon,
+                        const SizedBox(width: 16),
+                        Expanded(child: bannerTextCol),
+                        const SizedBox(width: 12),
+                        bannerSaveBtn,
                       ],
                     ),
-                  ),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: RC.bg(Color(0xFFEA580C)),
-                      foregroundColor: RC.fg(Colors.white),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی پارەدان نوێکرانەوە'),
-                    icon: const Icon(Icons.save_rounded, size: 18),
-                    label: Text(
-                      tx('پاشەکەوتکردن'),
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ],
-              ),
             ),
             const SizedBox(height: 20),
 
@@ -1393,7 +1527,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
   Widget _buildPaymentGatewaysCard() {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(_cardPad),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -1410,16 +1544,20 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                tx('شێوازەکانی پارەدان و دەروازەکان'),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: RC.fg(Color(0xFF111827)),
+              Expanded(
+                child: Text(
+                  tx('شێوازەکانی پارەدان و دەروازەکان'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: RC.fg(Color(0xFF111827)),
+                  ),
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
                 width: 38,
                 height: 38,
@@ -1447,7 +1585,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
   Widget _buildPayoutAndCurrencyCard() {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(_cardPad),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -1477,7 +1615,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Container(
                 width: 38,
                 height: 38,
@@ -1493,134 +1631,159 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
           LayoutBuilder(
             builder: (context, constraints) {
-              final fieldW = constraints.maxWidth < 600
-                  ? constraints.maxWidth
-                  : (constraints.maxWidth < 620 ? constraints.maxWidth : 280.0);
+              final cols = constraints.maxWidth >= 1040
+                  ? 4
+                  : (constraints.maxWidth >= 560 ? 2 : 1);
+              final fieldW = AdminBreakpoints.cardWidth(constraints.maxWidth, cols, 16);
               Widget field(Widget child) => SizedBox(width: fieldW, child: child);
-              return Wrap(
-                spacing: 20,
-                runSpacing: 16,
+              final saveBtn = ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: RC.bg(Color(0xFFEA580C)),
+                  foregroundColor: RC.fg(Colors.white),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی دارایی و دراو نوێکرانەوە'),
+                icon: const Icon(Icons.check_circle_rounded, size: 18),
+                label: Text(tx('پاشەکەوتکردنی ڕێکخستنەکانی خشتەی پارەدان'), style: const TextStyle(fontWeight: FontWeight.w900)),
+              );
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  field(
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(tx('دراوی سەرەکی'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
-                        const SizedBox(height: 6),
-                        Container(
-                          height: 40,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: _mutedFill,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: _borderColor),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _primaryCurrency,
-                              isExpanded: true,
-                              items: [
-                                DropdownMenuItem(value: 'دیناری عێراقی', child: Text(tx('دیناری عێراقی'))),
-                                DropdownMenuItem(value: 'دۆلاری ئەمریکی', child: Text(tx('دۆلاری ئەمریکی'))),
-                              ],
-                              onChanged: (v) => setState(() => _primaryCurrency = v ?? 'دیناری عێراقی'),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 16,
+                    children: [
+                      field(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(tx('دراوی سەرەکی'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
+                            const SizedBox(height: 6),
+                            Container(
+                              constraints: const BoxConstraints(minHeight: 40),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: _mutedFill,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: _borderColor),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _primaryCurrency,
+                                  isExpanded: true,
+                                  items: [
+                                    DropdownMenuItem(
+                                      value: 'دیناری عێراقی',
+                                      child: Text(tx('دیناری عێراقی'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'دۆلاری ئەمریکی',
+                                      child: Text(tx('دۆلاری ئەمریکی'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    ),
+                                  ],
+                                  onChanged: (v) => setState(() => _primaryCurrency = v ?? 'دیناری عێراقی'),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  field(
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(tx('خولی پارەدان بە فرۆشیاران'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
-                        const SizedBox(height: 6),
-                        Container(
-                          height: 40,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: _mutedFill,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: _borderColor),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _payoutSchedule,
-                              isExpanded: true,
-                              items: [
-                                DropdownMenuItem(value: 'هەفتانە', child: Text(AppStrings.tr('payout_weekly', widget.lang))),
-                                DropdownMenuItem(value: 'ڕۆژانە', child: Text(tx(widget.lang == 'en' ? 'Daily' : (widget.lang == 'ar' ? 'يومي' : 'ڕۆژانە')))),
-                                DropdownMenuItem(value: 'مانگانە', child: Text(AppStrings.tr('payout_monthly', widget.lang))),
-                              ],
-                              onChanged: (v) => setState(() => _payoutSchedule = v ?? 'هەفتانە'),
+                      ),
+                      field(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(tx('خولی پارەدان بە فرۆشیاران'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
+                            const SizedBox(height: 6),
+                            Container(
+                              constraints: const BoxConstraints(minHeight: 40),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: _mutedFill,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: _borderColor),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _payoutSchedule,
+                                  isExpanded: true,
+                                  items: [
+                                    DropdownMenuItem(
+                                      value: 'هەفتانە',
+                                      child: Text(AppStrings.tr('payout_weekly', widget.lang), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'ڕۆژانە',
+                                      child: Text(tx(widget.lang == 'en' ? 'Daily' : (widget.lang == 'ar' ? 'يومي' : 'ڕۆژانە')), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'مانگانە',
+                                      child: Text(AppStrings.tr('payout_monthly', widget.lang), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    ),
+                                  ],
+                                  onChanged: (v) => setState(() => _payoutSchedule = v ?? 'هەفتانە'),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  field(
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(tx('کەمترین باڵانس بۆ کێشانەوەی شۆفێران'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: _driverMinPayoutCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            suffixText: tx('دینار'),
-                            filled: true,
-                            fillColor: _mutedFill,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
-                          ),
+                      ),
+                      field(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(tx('کەمترین باڵانس بۆ کێشانەوەی شۆفێران'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: _driverMinPayoutCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                suffixText: tx('دینار'),
+                                filled: true,
+                                fillColor: _mutedFill,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  field(
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(tx('کەمترین باڵانس بۆ کێشانەوەی فرۆشیاران'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: _vendorMinPayoutCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            suffixText: tx('دینار'),
-                            filled: true,
-                            fillColor: _mutedFill,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
-                          ),
+                      ),
+                      field(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(tx('کەمترین باڵانس بۆ کێشانەوەی فرۆشیاران'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569)))),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: _vendorMinPayoutCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                suffixText: tx('دینار'),
+                                filled: true,
+                                fillColor: _mutedFill,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 20),
+                  if (constraints.maxWidth < 560)
+                    saveBtn
+                  else
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: saveBtn,
+                    ),
                 ],
               );
             },
-          ),
-          const SizedBox(height: 20),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: RC.bg(Color(0xFFEA580C)),
-                foregroundColor: RC.fg(Colors.white),
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی دارایی و دراو نوێکرانەوە'),
-              icon: const Icon(Icons.check_circle_rounded, size: 18),
-              label: Text(tx('پاشەکەوتکردنی ڕێکخستنەکانی خشتەی پارەدان'), style: TextStyle(fontWeight: FontWeight.w900)),
-            ),
           ),
         ],
       ),
@@ -1633,7 +1796,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   Widget _buildSecurityTab() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 880;
+        final isWide = constraints.maxWidth >= AdminBreakpoints.tablet;
         return Column(
           children: [
             if (isWide)
@@ -1658,7 +1821,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
   Widget _buildSecurityPasswordCard() {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(_cardPad),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -1675,16 +1838,20 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                tx('ئاسایشی وشەی نهێنی و هەژمار'),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: RC.fg(Color(0xFF111827)),
+              Expanded(
+                child: Text(
+                  tx('ئاسایشی وشەی نهێنی و هەژمار'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: RC.fg(Color(0xFF111827)),
+                  ),
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
                 width: 38,
                 height: 38,
@@ -1735,7 +1902,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               _confirmPassCtrl.clear();
               _showSaveFeedback('ڕێکخستنەکانی ئاسایش بە سەرکەوتوویی نوێکرانەوە');
             },
-            child: Text(tx('پاشەکەوتکردنی ئاسایش'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+            child: Text(tx('پاشەکەوتکردنی ئاسایش'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -1778,13 +1945,15 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
             ),
             child: Icon(icon, color: value ? RC.fg(Color(0xFFEA580C)) : RC.bg(Color(0xFF94A3B8)), size: 20),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   tx(title),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
@@ -1794,11 +1963,14 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                 const SizedBox(height: 2),
                 Text(
                   tx(subtitle),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 11, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Switch(
             value: value,
             activeThumbColor: RC.bg(Color(0xFFEA580C)),
@@ -1814,7 +1986,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Flexible(
+        Expanded(
           flex: 2,
           child: Text(
             tx(label),
@@ -1824,7 +1996,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           ),
         ),
         const SizedBox(width: 8),
-        Flexible(
+        Expanded(
           flex: 3,
           child: Text(
             tx(value),
@@ -1844,7 +2016,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   Widget _buildTopCardsRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth > 850) {
+        if (constraints.maxWidth >= AdminBreakpoints.tablet) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1872,7 +2044,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   // Card 1: زانیاریی دامەزراوە
   Widget _buildCompanyInfoCard() {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(_cardPad),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -1890,16 +2062,20 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         children: [
           // Header with Office/Apartment Icon
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                tx('زانیاریی دامەزراوە'),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: RC.fg(Color(0xFF111827)),
+              Expanded(
+                child: Text(
+                  tx('زانیاریی دامەزراوە'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: RC.fg(Color(0xFF111827)),
+                  ),
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
                 width: 38,
                 height: 38,
@@ -1948,42 +2124,32 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           const SizedBox(height: 14),
 
           // Field 4: شار Dropdown
-          Row(
-            children: [
-              SizedBox(
-                width: 110,
-                child: Text(
-                  tx('شار'),
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
+          _buildLabeledField(
+            label: 'شار',
+            field: Container(
+              constraints: const BoxConstraints(minHeight: 40),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _borderColor),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedCity,
+                  isExpanded: true,
+                  icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+                  items: [
+                    DropdownMenuItem(value: 'هەولێر', child: Text(tx('هەولێر'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(value: 'سلێمانی', child: Text(tx('سلێمانی'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(value: 'دهۆک', child: Text(tx('دهۆک'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(value: 'کەلار', child: Text(tx('کەلار'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (v) => setState(() => _selectedCity = v ?? 'هەولێر'),
                 ),
               ),
-              Expanded(
-                child: Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: _cardColor,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _borderColor),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedCity,
-                      isExpanded: true,
-                      icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
-                      items: [
-                        DropdownMenuItem(value: 'هەولێر', child: Text(tx('هەولێر'))),
-                        DropdownMenuItem(value: 'سلێمانی', child: Text(tx('سلێمانی'))),
-                        DropdownMenuItem(value: 'دهۆک', child: Text(tx('دهۆک'))),
-                        DropdownMenuItem(value: 'کەلار', child: Text(tx('کەلار'))),
-                      ],
-                      onChanged: (v) => setState(() => _selectedCity = v ?? 'هەولێر'),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 20),
 
@@ -1997,7 +2163,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => _saveDeliveryAndPlatformSettings('ژمارەکانی پەیوەندی (تەلەفۆن / WhatsApp / Telegram)'),
-            child: Text(tx('پاشەکەوتکردن'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+            child: Text(tx('پاشەکەوتکردن'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -2007,7 +2173,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   // Card 2: ڕێکخستنی دلیڤەری
   Widget _buildDeliverySettingsCard() {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(_cardPad),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -2025,16 +2191,20 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         children: [
           // Header with Delivery Truck Icon
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                tx('ڕێکخستنی دلیڤەری'),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: RC.fg(Color(0xFF111827)),
+              Expanded(
+                child: Text(
+                  tx('ڕێکخستنی دلیڤەری'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: RC.fg(Color(0xFF111827)),
+                  ),
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
                 width: 38,
                 height: 38,
@@ -2049,92 +2219,76 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           const SizedBox(height: 20),
 
           // Field 1: مەودای گەیاندن
-          Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  tx('مەودای گەیاندن'),
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
+          _buildLabeledField(
+            label: 'مەودای گەیاندن',
+            field: Container(
+              constraints: const BoxConstraints(minHeight: 40),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _borderColor),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedDistance,
+                  isExpanded: true,
+                  icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+                  items: [
+                    DropdownMenuItem(value: '٥ کیلۆمەتر', child: Text(tx('٥ کیلۆمەتر'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(value: '١٠ کیلۆمەتر', child: Text(tx('١٠ کیلۆمەتر'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(value: '١٥ کیلۆمەتر', child: Text(tx('١٥ کیلۆمەتر'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(value: '٢٠ کیلۆمەتر', child: Text(tx('٢٠ کیلۆمەتر'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (v) => setState(() => _selectedDistance = v ?? '١٠ کیلۆمەتر'),
                 ),
               ),
-              Expanded(
-                child: Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: _cardColor,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _borderColor),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedDistance,
-                      isExpanded: true,
-                      icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
-                      items: [
-                        DropdownMenuItem(value: '٥ کیلۆمەتر', child: Text(tx('٥ کیلۆمەتر'))),
-                        DropdownMenuItem(value: '١٠ کیلۆمەتر', child: Text(tx('١٠ کیلۆمەتر'))),
-                        DropdownMenuItem(value: '١٥ کیلۆمەتر', child: Text(tx('١٥ کیلۆمەتر'))),
-                        DropdownMenuItem(value: '٢٠ کیلۆمەتر', child: Text(tx('٢٠ کیلۆمەتر'))),
-                      ],
-                      onChanged: (v) => setState(() => _selectedDistance = v ?? '١٠ کیلۆمەتر'),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 14),
 
           // Field 2: کاتی کارکردن with Clock Icon
-          Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  tx('کاتی کارکردن'),
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
-                ),
+          _buildLabeledField(
+            label: 'کاتی کارکردن',
+            field: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _borderColor),
               ),
-              Expanded(
-                child: Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: _cardColor,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _borderColor),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _hoursCtrl,
+                      textAlign: TextAlign.start,
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+                      decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _hoursCtrl,
-                          textAlign: TextAlign.right,
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
-                          decoration: const InputDecoration(border: InputBorder.none, isDense: true),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(Icons.access_time_rounded, size: 16, color: RC.fg(Color(0xFF64748B))),
-                    ],
-                  ),
-                ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.access_time_rounded, size: 16, color: RC.fg(Color(0xFF64748B))),
+                ],
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 16),
 
           // Row 3: وەرگرتنی داواکاری چالاکە (Switch)
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                tx('وەرگرتنی داواکاری چالاکە'),
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+              Expanded(
+                child: Text(
+                  tx('وەرگرتنی داواکاری چالاکە'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+                ),
               ),
+              const SizedBox(width: 8),
               Switch(
                 value: _acceptOrders,
                 activeThumbColor: RC.bg(Color(0xFFEA580C)),
@@ -2152,7 +2306,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
             onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی دلیڤەری پاشەکەوت کران'),
-            child: Text(tx('پاشەکەوتکردنی ڕێکخستنی دلیڤەری'), style: TextStyle(fontWeight: FontWeight.w800)),
+            child: Text(tx('پاشەکەوتکردنی ڕێکخستنی دلیڤەری'), style: const TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -2165,7 +2319,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   Widget _buildBottomCardsRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth > 950) {
+        if (constraints.maxWidth >= 1180) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -2181,17 +2335,34 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               Expanded(flex: 3, child: _buildNotificationsSettingsCard()),
             ],
           );
-        } else {
+        }
+        if (constraints.maxWidth >= 740) {
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildSecurityRolesCard(),
-              const SizedBox(height: 16),
-              _buildPaymentFeesCard(),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildSecurityRolesCard()),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildPaymentFeesCard()),
+                ],
+              ),
               const SizedBox(height: 16),
               _buildNotificationsSettingsCard(),
             ],
           );
         }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildSecurityRolesCard(),
+            const SizedBox(height: 16),
+            _buildPaymentFeesCard(),
+            const SizedBox(height: 16),
+            _buildNotificationsSettingsCard(),
+          ],
+        );
       },
     );
   }
@@ -2199,7 +2370,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   // Card 3: ئاسایش و دەسەڵات (Security & Roles)
   Widget _buildSecurityRolesCard() {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(_cardPad),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -2217,16 +2388,20 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         children: [
           // Header with Shield Icon
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                tx('ئاسایش و دەسەڵات'),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: RC.fg(Color(0xFF111827)),
+              Expanded(
+                child: Text(
+                  tx('ئاسایش و دەسەڵات'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: RC.fg(Color(0xFF111827)),
+                  ),
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
                 width: 38,
                 height: 38,
@@ -2241,52 +2416,46 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           const SizedBox(height: 20),
 
           // Field 1: ڕۆڵەکانی کارگێڕی
-          Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  tx('ڕۆڵەکانی کارگێڕی'),
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
+          _buildLabeledField(
+            label: 'ڕۆڵەکانی کارگێڕی',
+            field: Container(
+              constraints: const BoxConstraints(minHeight: 40),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _borderColor),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedRole,
+                  isExpanded: true,
+                  icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+                  items: [
+                    DropdownMenuItem(value: 'بەڕێوەبەر', child: Text(tx('بەڕێوەبەر'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(value: 'کارمەندی پشتگیری', child: Text(tx('کارمەندی پشتگیری'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(value: 'چاودێر', child: Text(tx('چاودێر'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (v) => setState(() => _selectedRole = v ?? 'بەڕێوەبەر'),
                 ),
               ),
-              Expanded(
-                child: Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: _cardColor,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _borderColor),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedRole,
-                      isExpanded: true,
-                      icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
-                      items: [
-                        DropdownMenuItem(value: 'بەڕێوەبەر', child: Text(tx('بەڕێوەبەر'))),
-                        DropdownMenuItem(value: 'کارمەندی پشتگیری', child: Text(tx('کارمەندی پشتگیری'))),
-                        DropdownMenuItem(value: 'چاودێر', child: Text(tx('چاودێر'))),
-                      ],
-                      onChanged: (v) => setState(() => _selectedRole = v ?? 'بەڕێوەبەر'),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 16),
 
           // Field 2: دۆخی هەژمار
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                tx('دۆخی هەژمار'),
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
+              Expanded(
+                child: Text(
+                  tx('دۆخی هەژمار'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -2297,7 +2466,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.circle, size: 8, color: RC.fg(Color(0xFF16A34A))),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Text(
                       tx('چالاکە'),
                       style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF16A34A))),
@@ -2323,7 +2492,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   // Card 4: پارەدان و کرێ (Payment & Fees)
   Widget _buildPaymentFeesCard() {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(_cardPad),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -2341,16 +2510,20 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         children: [
           // Header with Credit Card Icon
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                tx('پارەدان و کرێ'),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: RC.fg(Color(0xFF111827)),
+              Expanded(
+                child: Text(
+                  tx('پارەدان و کرێ'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: RC.fg(Color(0xFF111827)),
+                  ),
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
                 width: 38,
                 height: 38,
@@ -2365,106 +2538,86 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           const SizedBox(height: 20),
 
           // Row 1: کرێی دلیڤەری: دینار 2500
-          Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  tx('کرێی دلیڤەری'),
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
-                ),
+          _buildLabeledField(
+            label: 'کرێی دلیڤەری',
+            field: Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _borderColor),
               ),
-              Expanded(
-                child: Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: _cardColor,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _borderColor),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: TextField(
-                            controller: _deliveryFeeCtrl,
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.right,
-                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF1E293B))),
-                            decoration: const InputDecoration(border: InputBorder.none, isDense: true),
-                          ),
-                        ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: TextField(
+                        controller: _deliveryFeeCtrl,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.start,
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF1E293B))),
+                        decoration: const InputDecoration(border: InputBorder.none, isDense: true),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: RC.bg(Color(0xFFF8F9FA)),
-                          border: Border(right: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
-                        ),
-                        child: Text(
-                          tx('دینار'),
-                          style: TextStyle(fontSize: 11.5, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: RC.bg(Color(0xFFF8F9FA)),
+                      border: BorderDirectional(start: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+                    ),
+                    child: Text(
+                      tx('دینار'),
+                      style: TextStyle(fontSize: 11.5, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 14),
 
           // Row 2: کۆمیسیۆنی فرۆشیار: % 10
-          Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  tx('کۆمیسیۆنی فرۆشیار'),
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
-                ),
+          _buildLabeledField(
+            label: 'کۆمیسیۆنی فرۆشیار',
+            field: Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _borderColor),
               ),
-              Expanded(
-                child: Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: _cardColor,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _borderColor),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: TextField(
-                            controller: _commissionCtrl,
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.right,
-                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF1E293B))),
-                            decoration: const InputDecoration(border: InputBorder.none, isDense: true),
-                          ),
-                        ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: TextField(
+                        controller: _commissionCtrl,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.start,
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF1E293B))),
+                        decoration: const InputDecoration(border: InputBorder.none, isDense: true),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: RC.bg(Color(0xFFF8F9FA)),
-                          border: Border(right: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
-                        ),
-                        child: Text(
-                          tx('%'),
-                          style: TextStyle(fontSize: 13, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: RC.bg(Color(0xFFF8F9FA)),
+                      border: BorderDirectional(start: BorderSide(color: RC.bg(Color(0xFFE2E8F0)))),
+                    ),
+                    child: Text(
+                      tx('%'),
+                      style: TextStyle(fontSize: 13, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 20),
 
@@ -2478,7 +2631,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => _saveDeliveryAndPlatformSettings('ڕێکخستنەکانی پارەدان و کرێ نوێکرانەوە'),
-            child: Text(tx('پاشەکەوتکردن'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+            child: Text(tx('پاشەکەوتکردن'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -2488,7 +2641,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   // Card 5: ئاگادارکردنەوەکان (Notifications Settings)
   Widget _buildNotificationsSettingsCard() {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(_cardPad),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -2506,16 +2659,20 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         children: [
           // Header with Notification Bell Icon
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                tx('ئاگادارکردنەوەکان'),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: RC.fg(Color(0xFF111827)),
+              Expanded(
+                child: Text(
+                  tx('ئاگادارکردنەوەکان'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: RC.fg(Color(0xFF111827)),
+                  ),
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
                 width: 38,
                 height: 38,
@@ -2562,12 +2719,16 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     required ValueChanged<bool> onChanged,
   }) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          tx(label),
-          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+        Expanded(
+          child: Text(
+            tx(label),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+          ),
         ),
+        const SizedBox(width: 8),
         Switch(
           value: value,
           activeThumbColor: RC.bg(Color(0xFFEA580C)),
@@ -2578,51 +2739,82 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     );
   }
 
+  Widget _buildLabeledField({
+    required String label,
+    required Widget field,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 380) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                tx(label),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
+              ),
+              const SizedBox(height: 6),
+              field,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            SizedBox(
+              width: 110,
+              child: Text(
+                tx(label),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: field),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildSettingsInputField({
     required String label,
     required TextEditingController controller,
     bool isPhone = false,
   }) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 110,
-          child: Text(
-            tx(label),
-            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF475569))),
-          ),
+    return _buildLabeledField(
+      label: label,
+      field: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: _cardColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _borderColor),
         ),
-        Expanded(
-          child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: _cardColor,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _borderColor),
-            ),
-            child: Directionality(
-              // Phone must be LTR + left-aligned or digits look reversed (e.g. 0000 000 0750).
-              textDirection: isPhone ? TextDirection.ltr : TextDirection.rtl,
-              child: TextField(
-                controller: controller,
-                keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
-                textAlign: isPhone ? TextAlign.left : TextAlign.start,
-                inputFormatters: isPhone
-                    ? <TextInputFormatter>[IraqPhoneFormatter()]
-                    : const <TextInputFormatter>[],
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
-                decoration: InputDecoration(
-                  border: InputBorder.none,
-                  isDense: true,
-                  hintText: txn(isPhone ? '0750 000 0000' : null),
-                  hintStyle: TextStyle(fontSize: 12.5, color: RC.fg(Color(0xFF94A3B8))),
-                ),
-              ),
+        child: Directionality(
+          // Phone must be LTR + left-aligned or digits look reversed (e.g. 0000 000 0750).
+          textDirection: isPhone ? TextDirection.ltr : (widget.lang == 'en' ? TextDirection.ltr : TextDirection.rtl),
+          child: TextField(
+            controller: controller,
+            keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
+            textAlign: isPhone ? TextAlign.left : TextAlign.start,
+            inputFormatters: isPhone
+                ? <TextInputFormatter>[IraqPhoneFormatter()]
+                : const <TextInputFormatter>[],
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              hintText: txn(isPhone ? '0750 000 0000' : null),
+              hintStyle: TextStyle(fontSize: 12.5, color: RC.fg(Color(0xFF94A3B8))),
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

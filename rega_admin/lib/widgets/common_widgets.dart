@@ -1,10 +1,114 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../core/localization/app_strings.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 
 import '../rega_i18n.dart';
 import '../rega_colors.dart';
+
+/// Stacks two form fields vertically below [breakpoint], otherwise side-by-side.
+class ResponsiveFormRow extends StatelessWidget {
+  final Widget first;
+  final Widget second;
+  final double breakpoint;
+  final double spacing;
+
+  const ResponsiveFormRow({
+    super.key,
+    required this.first,
+    required this.second,
+    this.breakpoint = 460,
+    this.spacing = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < breakpoint) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              first,
+              SizedBox(height: spacing),
+              second,
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: first),
+            SizedBox(width: spacing),
+            Expanded(child: second),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Key/value detail row that wraps gracefully without overflowing narrow dialogs.
+class ResponsiveDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool ltrValue;
+  final TextStyle? labelStyle;
+  final TextStyle? valueStyle;
+
+  const ResponsiveDetailRow({
+    super.key,
+    required this.label,
+    required this.value,
+    this.ltrValue = false,
+    this.labelStyle,
+    this.valueStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final surfaces = AdminSurfaces.of(context);
+    final valueWidget = Text(
+      tx(value),
+      textAlign: TextAlign.end,
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+      style: valueStyle ??
+          TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: surfaces.textPrimary,
+          ),
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Flexible(
+          flex: 2,
+          child: Text(
+            tx(label),
+            style: labelStyle ??
+                TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: surfaces.textSecondary,
+                ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 3,
+          child: ltrValue
+              ? Directionality(textDirection: TextDirection.ltr, child: valueWidget)
+              : valueWidget,
+        ),
+      ],
+    );
+  }
+}
+
 class StatKpiCard extends StatelessWidget {
   final String title;
   final String value;
@@ -26,136 +130,151 @@ class StatKpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final surfaces = AdminSurfaces.of(context);
-    final narrow = MediaQuery.sizeOf(context).width < 600;
 
-    final iconBox = Container(
-      padding: EdgeInsets.all(narrow ? 9 : 10),
-      decoration: BoxDecoration(
-        color: accentColor.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Icon(icon, color: accentColor, size: narrow ? 20 : 22),
-    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 260 ||
+            (constraints.hasBoundedHeight && constraints.maxHeight < 135) ||
+            MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
 
-    final subtitleChip = subtitle == null
-        ? null
-        : Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              tx(subtitle!),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: accentColor,
-              ),
-            ),
-          );
+        final iconBox = Container(
+          padding: EdgeInsets.all(narrow ? 9 : 10),
+          decoration: BoxDecoration(
+            color: accentColor.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: accentColor, size: narrow ? 20 : 22),
+        );
 
-    // Phone: compact horizontal row so cards don't look half-empty.
-    if (narrow) {
-      return Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                iconBox,
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        tx(title),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: surfaces.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: AlignmentDirectional.centerStart,
-                        child: Text(
-                          tx(value),
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            color: surfaces.textPrimary,
+        final subtitleChip = subtitle == null
+            ? null
+            : Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  tx(subtitle!),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: accentColor,
+                  ),
+                ),
+              );
+
+        // Phone / short cell: compact horizontal row so cards never overflow vertically.
+        if (narrow) {
+          return Card(
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                  children: [
+                    iconBox,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            tx(title),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: surfaces.textSecondary,
+                            ),
                           ),
+                          const SizedBox(height: 2),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: AlignmentDirectional.centerStart,
+                            child: Text(
+                              tx(value),
+                              style: TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w900,
+                                color: surfaces.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (subtitleChip != null) ...[
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 120),
+                          child: subtitleChip,
                         ),
                       ),
                     ],
-                  ),
+                  ],
                 ),
-                if (subtitleChip != null) ...[
-                  const SizedBox(width: 8),
-                  subtitleChip,
-                ],
-              ],
+              ),
             ),
-          ),
-        ),
-      );
-    }
+          );
+        }
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+        return Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  iconBox,
-                  if (subtitleChip != null) Flexible(child: subtitleChip),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      iconBox,
+                      if (subtitleChip != null) ...[
+                        const SizedBox(width: 6),
+                        Flexible(child: subtitleChip),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      tx(value),
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: surfaces.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    tx(title),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: surfaces.textSecondary,
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 14),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: AlignmentDirectional.centerStart,
-                child: Text(
-                  tx(value),
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: surfaces.textPrimary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                tx(title),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: surfaces.textSecondary,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -232,46 +351,51 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final surfaces = AdminSurfaces.of(context);
-    final narrow = MediaQuery.sizeOf(context).width < 600;
-  final titleCol = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          tx(title),
-          style: TextStyle(
-            fontSize: narrow ? 16 : 18,
-            fontWeight: FontWeight.w900,
-            color: surfaces.textPrimary,
-          ),
-        ),
-        if (subtitle != null) ...[
-          const SizedBox(height: 2),
-          Text(
-            tx(subtitle!),
-            style: TextStyle(
-              fontSize: 12,
-              color: surfaces.textSecondary,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < AdminBreakpoints.phone;
+        final titleCol = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tx(title),
+              style: TextStyle(
+                fontSize: narrow ? 16 : 18,
+                fontWeight: FontWeight.w900,
+                color: surfaces.textPrimary,
+              ),
             ),
-          ),
-        ],
-      ],
-    );
-    if (trailing == null) return titleCol;
-    if (narrow) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          titleCol,
-          const SizedBox(height: 10),
-          trailing!,
-        ],
-      );
-    }
-    return Row(
-      children: [
-        Expanded(child: titleCol),
-        trailing!,
-      ],
+            if (subtitle != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                tx(subtitle!),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: surfaces.textSecondary,
+                ),
+              ),
+            ],
+          ],
+        );
+        if (trailing == null) return titleCol;
+        if (narrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              titleCol,
+              const SizedBox(height: 10),
+              trailing!,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: titleCol),
+            const SizedBox(width: 12),
+            trailing!,
+          ],
+        );
+      },
     );
   }
 }
@@ -383,24 +507,33 @@ class _KalarFleetRadarMapState extends State<KalarFleetRadarMap>
                       painter: _KalarRadarGridPainter(pulse: _pulseCtrl.value),
                     ),
                     // Landmark labels
-                    const Positioned(
+                    PositionedDirectional(
                       top: 14,
-                      right: 16,
-                      child: _RadarLegendPill(),
+                      end: 16,
+                      child: _RadarLegendPill(
+                        maxWidth: math.max(120.0, size.width - 28),
+                      ),
                     ),
-                    Positioned(
+                    PositionedDirectional(
                       bottom: 14,
-                      left: 14,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: RC.bg(Colors.black).withValues(alpha: 0.55),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: RC.bg(Colors.white12)),
+                      start: 14,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: math.max(120.0, size.width - 28),
                         ),
-                        child: Text(
-                          tx('📍 کەلار • ڕووباری سیروان • قەڵای شێروانە'),
-                          style: TextStyle(color: RC.fg(Colors.white70), fontSize: 11, fontWeight: FontWeight.w600),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: RC.bg(Colors.black).withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: RC.bg(Colors.white12)),
+                          ),
+                          child: Text(
+                            tx('📍 کەلار • ڕووباری سیروان • قەڵای شێروانە'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: RC.fg(Colors.white70), fontSize: 11, fontWeight: FontWeight.w600),
+                          ),
                         ),
                       ),
                     ),
@@ -504,11 +637,14 @@ class _KalarFleetRadarMapState extends State<KalarFleetRadarMap>
 }
 
 class _RadarLegendPill extends StatelessWidget {
-  const _RadarLegendPill();
+  final double? maxWidth;
+
+  const _RadarLegendPill({this.maxWidth});
 
   @override
   Widget build(BuildContext context) {
-    final narrow = MediaQuery.sizeOf(context).width < 600;
+    final effMax = maxWidth ?? MediaQuery.sizeOf(context).width * 0.72;
+    final narrow = effMax < 440 || MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
     Widget item(Color color, String label) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -521,7 +657,7 @@ class _RadarLegendPill extends StatelessWidget {
     }
 
     return Container(
-      constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.72),
+      constraints: BoxConstraints(maxWidth: effMax),
       padding: EdgeInsets.symmetric(horizontal: narrow ? 8 : 12, vertical: 6),
       decoration: BoxDecoration(
         color: RC.bg(Colors.black).withValues(alpha: 0.6),

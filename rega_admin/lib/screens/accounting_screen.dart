@@ -137,72 +137,72 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
 
     return Column(
       children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            AdminBreakpoints.pagePadH(context),
-            16,
-            AdminBreakpoints.pagePadH(context),
-            0,
-          ),
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        Builder(
+          builder: (context) {
+            final padH = AdminBreakpoints.pagePadH(context);
+            return Column(
               children: [
-                Text(
-                  _t('acc_title'),
-                  style: TextStyle(
-                    fontSize: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 18 : 22,
-                    fontWeight: FontWeight.w900,
-                    color: surfaces.textPrimary,
+                Padding(
+                  padding: EdgeInsets.fromLTRB(padH, 16, padH, 0),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _t('acc_title'),
+                          style: TextStyle(
+                            fontSize: MediaQuery.sizeOf(context).width < AdminBreakpoints.phone ? 18 : 22,
+                            fontWeight: FontWeight.w900,
+                            color: surfaces.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          _t('acc_subtitle'),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: surfaces.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                Text(
-                  _t('acc_subtitle'),
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: surfaces.textSecondary,
+                Padding(
+                  padding: EdgeInsets.fromLTRB(padH, 8, padH, 0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final p in periods)
+                              ChoiceChip(
+                                visualDensity: VisualDensity.compact,
+                                label: Text(p.$2),
+                                selected: _period == p.$1,
+                                onSelected: (_) {
+                                  setState(() => _period = p.$1);
+                                  _loadAll();
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _loading ? null : _loadAll,
+                        icon: const Icon(Icons.refresh_rounded),
+                        tooltip: _t('refresh'),
+                      ),
+                    ],
                   ),
                 ),
               ],
-            ),
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            MediaQuery.sizeOf(context).width < 600 ? 12 : 16,
-            8,
-            MediaQuery.sizeOf(context).width < 600 ? 12 : 16,
-            0,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final p in periods)
-                      ChoiceChip(
-                        label: Text(p.$2),
-                        selected: _period == p.$1,
-                        onSelected: (_) {
-                          setState(() => _period = p.$1);
-                          _loadAll();
-                        },
-                      ),
-                  ],
-                ),
-              ),
-              IconButton(
-                onPressed: _loading ? null : _loadAll,
-                icon: const Icon(Icons.refresh_rounded),
-                tooltip: _t('refresh'),
-              ),
-            ],
-          ),
+            );
+          },
         ),
         Material(
           color: surfaces.elevated,
@@ -229,16 +229,12 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
         ),
         Expanded(
           child: _loading
-              ? Center(child: CircularProgressIndicator())
+              ? const Center(child: CircularProgressIndicator())
               : _error != null
                   ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(tx(_error!), style: TextStyle(color: surfaces.textSecondary)),
-                          const SizedBox(height: 12),
-                          ElevatedButton(onPressed: _loadAll, child: Text(_t('acc_retry'))),
-                        ],
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.all(AdminBreakpoints.pagePadH(context)),
+                        child: ErrorRetryView(message: _error!, onRetry: _loadAll),
                       ),
                     )
                   : TabBarView(
@@ -258,6 +254,8 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
   }
 
   Widget _buildDashboard() {
+    final surfaces = AdminSurfaces.of(context);
+    final padH = AdminBreakpoints.pagePadH(context);
     final stats = Map<String, dynamic>.from(_dash['stats'] as Map? ?? {});
     final series = (_dash['series'] as List?) ?? [];
     final byShop = (_dash['profit_by_shop'] as List?) ?? [];
@@ -316,189 +314,348 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
       ),
     ];
 
-    return ListView(
-      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 12 : 16),
-      children: [
-        LayoutBuilder(
-          builder: (context, c) {
-            final phone = c.maxWidth < 600;
-            final cols = c.maxWidth > 1100 ? 4 : (c.maxWidth > 700 ? 2 : (phone ? 1 : 2));
-            if (phone) {
-              return Column(
-                children: [
-                  for (var i = 0; i < kpiCards.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 10),
-                    SizedBox(width: double.infinity, child: kpiCards[i]),
-                  ],
-                ],
-              );
-            }
-            return GridView.count(
-              crossAxisCount: cols,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compactList = constraints.maxWidth < 600;
+        final phoneGrid = constraints.maxWidth < 560;
+        final cols = constraints.maxWidth >= 1100 ? 4 : (constraints.maxWidth >= 560 ? 2 : 1);
+
+        return ListView(
+          padding: EdgeInsets.symmetric(horizontal: padH, vertical: 14),
+          children: [
+            GridView.builder(
+              itemCount: kpiCards.length,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: cols == 2 ? 1.65 : 1.55,
-              children: kpiCards,
-            );
-          },
-        ),
-        const SizedBox(height: 20),
-        Text(_t('acc_profit_by_shop'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 8),
-        ...byShop.take(10).map((s) {
-          final m = Map<String, dynamic>.from(s as Map);
-          return ListTile(
-            title: Text(_localizedStoreName(m)),
-            subtitle: Text(_tp('acc_sales_label', {
-              'amount': formatIqd(m['sales'] as num?, lang: _lang),
-            })),
-            trailing: Text(
-              formatIqd(m['admin_earnings'] as num?, lang: _lang),
-              style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: cols,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                mainAxisExtent: phoneGrid ? 98 : 162,
+              ),
+              itemBuilder: (_, idx) => kpiCards[idx],
             ),
-            onTap: () async {
-              final id = m['id'] as int?;
-              if (id == null) return;
-              final detail = await widget.api.getAccountingShop(id, period: _period);
-              if (!mounted) return;
-              _showShopDetail(detail);
-            },
-          );
-        }),
-        const SizedBox(height: 12),
-        Text(_t('acc_top_products'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 8),
-        ...topProducts.take(10).map((p) {
-          final m = Map<String, dynamic>.from(p as Map);
-          return ListTile(
-            dense: true,
-            title: Text(tx(m['product_name']?.toString() ?? '—')),
-            subtitle: Text(_tp('acc_qty_label', {'qty': '${m['qty_sold'] ?? 0}'})),
-            trailing: Text(formatIqd(m['gross_profit'] as num?, lang: _lang)),
-          );
-        }),
-        if (series.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text(_t('acc_revenue_trend'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 160,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: series.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) {
-                final m = Map<String, dynamic>.from(series[i] as Map);
-                final rev = (m['revenue'] as num?)?.toInt() ?? 0;
-                final maxRev = series
-                    .map((e) => ((e as Map)['revenue'] as num?)?.toInt() ?? 0)
-                    .fold<int>(1, (a, b) => a > b ? a : b);
-                return Container(
-                  width: 72,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: RegaColors.orangeSoft,
+            const SizedBox(height: 20),
+            Text(_t('acc_profit_by_shop'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            ...byShop.take(10).map((s) {
+              final m = Map<String, dynamic>.from(s as Map);
+              Future<void> openShop() async {
+                final id = m['id'] as int?;
+                if (id == null) return;
+                final detail = await widget.api.getAccountingShop(id, period: _period);
+                if (!mounted) return;
+                _showShopDetail(detail);
+              }
+
+              final storeTitle = _localizedStoreName(m);
+              final salesSub = _tp('acc_sales_label', {
+                'amount': formatIqd(m['sales'] as num?, lang: _lang),
+              });
+              final adminEarn = formatIqd(m['admin_earnings'] as num?, lang: _lang);
+
+              if (compactList) {
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: RegaColors.orangeBorder),
+                    onTap: openShop,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            storeTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            salesSub,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12, color: surfaces.textSecondary),
+                          ),
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: Text(
+                              adminEarn,
+                              style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.bottomCenter,
-                          child: FractionallySizedBox(
-                            heightFactor: (rev / maxRev).clamp(0.05, 1),
-                            child: Container(
-                              width: 28,
-                              decoration: BoxDecoration(
-                                color: RegaColors.orange,
-                                borderRadius: BorderRadius.circular(8),
+                );
+              }
+
+              return ListTile(
+                title: Text(storeTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(salesSub, maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: Text(
+                  adminEarn,
+                  style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
+                ),
+                onTap: openShop,
+              );
+            }),
+            const SizedBox(height: 12),
+            Text(_t('acc_top_products'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            ...topProducts.take(10).map((p) {
+              final m = Map<String, dynamic>.from(p as Map);
+              final prodTitle = tx(m['product_name']?.toString() ?? '—');
+              final qtySub = _tp('acc_qty_label', {'qty': '${m['qty_sold'] ?? 0}'});
+              final grossProfit = formatIqd(m['gross_profit'] as num?, lang: _lang);
+
+              if (compactList) {
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          prodTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          qtySub,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: surfaces.textSecondary),
+                        ),
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: Text(
+                            grossProfit,
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return ListTile(
+                dense: true,
+                title: Text(prodTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(qtySub, maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: Text(grossProfit),
+              );
+            }),
+            if (series.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(_t('acc_revenue_trend'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 160,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: series.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
+                    final m = Map<String, dynamic>.from(series[i] as Map);
+                    final rev = (m['revenue'] as num?)?.toInt() ?? 0;
+                    final maxRev = series
+                        .map((e) => ((e as Map)['revenue'] as num?)?.toInt() ?? 0)
+                        .fold<int>(1, (a, b) => a > b ? a : b);
+                    return Container(
+                      width: 72,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: RegaColors.orangeSoft,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: RegaColors.orangeBorder),
+                      ),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: FractionallySizedBox(
+                                heightFactor: (rev / maxRev).clamp(0.05, 1),
+                                child: Container(
+                                  width: 28,
+                                  decoration: BoxDecoration(
+                                    color: RegaColors.orange,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 6),
+                          Text(
+                            tx('${m['day']}'.split('T').first.split('-').last),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        tx('${m['day']}'.split('T').first.split('-').last),
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 
   Widget _buildShops() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: TextField(
-            controller: _shopSearchCtrl,
-            decoration: InputDecoration(
-              hintText: _t('acc_search_shop'),
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: IconButton(onPressed: _loadAll, icon: const Icon(Icons.check)),
+    final padH = AdminBreakpoints.pagePadH(context);
+    final surfaces = AdminSurfaces.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(padH),
+                child: TextField(
+                  controller: _shopSearchCtrl,
+                  decoration: InputDecoration(
+                    hintText: _t('acc_search_shop'),
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: IconButton(onPressed: _loadAll, icon: const Icon(Icons.check)),
+                  ),
+                  onSubmitted: (_) => _loadAll(),
+                ),
+              ),
             ),
-            onSubmitted: (_) => _loadAll(),
-          ),
-        ),
-        Expanded(
-          child: _shops.isEmpty
-              ? Center(child: Text(_t('acc_no_shops')))
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+            if (_shops.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(padH),
+                    child: Text(_t('acc_no_shops'), textAlign: TextAlign.center),
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(padH, 0, padH, 24),
+                sliver: SliverList.separated(
                   itemCount: _shops.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => Divider(height: compact ? 8 : 1),
                   itemBuilder: (_, i) {
                     final m = Map<String, dynamic>.from(_shops[i] as Map);
+                    Future<void> openShop() async {
+                      final id = m['id'] as int?;
+                      if (id == null) return;
+                      final detail = await widget.api.getAccountingShop(id, period: _period);
+                      if (!mounted) return;
+                      _showShopDetail(detail);
+                    }
+
+                    final shopTitle = _localizedStoreName(m);
+                    final metaText = _tp('acc_shop_list_meta', {
+                      'rate': '${m['commission_rate'] ?? '—'}',
+                      'orders': '${m['total_orders'] ?? 0}',
+                      'completed': '${m['completed_orders'] ?? 0}',
+                      'sales': formatIqd(m['total_sales'] as num?, lang: _lang),
+                      'profit': formatIqd(m['gross_profit'] as num?, lang: _lang),
+                    });
+                    final adminEarn = formatIqd(m['admin_earnings'] as num?, lang: _lang);
+                    final sellerEarn = formatIqd(m['seller_earnings'] as num?, lang: _lang);
+
+                    if (compact) {
+                      return Card(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: openShop,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  shopTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  metaText,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 12, color: surfaces.textSecondary),
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 6,
+                                  alignment: WrapAlignment.spaceBetween,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(_t('acc_admin_owed'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                                        Text(
+                                          adminEarn,
+                                          style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      sellerEarn,
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RegaColors.goldDark),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
                     return ListTile(
-                      title: Text(_localizedStoreName(m), style: const TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text(
-                        _tp('acc_shop_list_meta', {
-                          'rate': '${m['commission_rate'] ?? '—'}',
-                          'orders': '${m['total_orders'] ?? 0}',
-                          'completed': '${m['completed_orders'] ?? 0}',
-                          'sales': formatIqd(m['total_sales'] as num?, lang: _lang),
-                          'profit': formatIqd(m['gross_profit'] as num?, lang: _lang),
-                        }),
-                      ),
+                      title: Text(shopTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(metaText, maxLines: 3, overflow: TextOverflow.ellipsis),
                       isThreeLine: true,
                       trailing: Column(
+                        mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            formatIqd(m['admin_earnings'] as num?, lang: _lang),
+                            adminEarn,
                             style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
                           ),
                           Text(_t('acc_admin_owed'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
                           Text(
-                            formatIqd(m['seller_earnings'] as num?, lang: _lang),
+                            sellerEarn,
                             style: const TextStyle(fontSize: 12, color: RegaColors.goldDark),
                           ),
                         ],
                       ),
-                      onTap: () async {
-                        final id = m['id'] as int?;
-                        if (id == null) return;
-                        final detail = await widget.api.getAccountingShop(id, period: _period);
-                        if (!mounted) return;
-                        _showShopDetail(detail);
-                      },
+                      onTap: openShop,
                     );
                   },
                 ),
-        ),
-      ],
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -516,12 +673,14 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 720),
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.9,
         builder: (_, scroll) => ListView(
           controller: scroll,
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + MediaQuery.paddingOf(ctx).bottom),
           children: [
             Text(_localizedStoreName(shop), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
             const SizedBox(height: 4),
@@ -540,9 +699,13 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                 children: [
                   Text(_t('acc_today_owed_title'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                   const SizedBox(height: 6),
-                  Text(
-                    formatIqd(todayOwed, lang: _lang),
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534))),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      formatIqd(todayOwed, lang: _lang),
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534))),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -588,15 +751,18 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
                   dense: true,
-                  title: Text('${m['day']}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  title: Text('${m['day']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: Text(
                     _tp('acc_daily_row_meta', {
                       'sales': formatIqd(m['sales'] as num?, lang: _lang),
                       'profit': formatIqd(m['gross_profit'] as num?, lang: _lang),
                       'orders': '${m['orders_count'] ?? 0}',
                     }),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   trailing: Column(
+                    mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -615,10 +781,14 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
               final m = Map<String, dynamic>.from(p as Map);
               return ListTile(
                 dense: true,
-                title: Text(tx(m['product_name']?.toString() ?? '')),
-                subtitle: Text(_tp('acc_admin_share', {
-                  'amount': formatIqd(m['admin_share'] as num?, lang: _lang),
-                })),
+                title: Text(tx(m['product_name']?.toString() ?? ''), maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  _tp('acc_admin_share', {
+                    'amount': formatIqd(m['admin_share'] as num?, lang: _lang),
+                  }),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 trailing: Text(formatIqd(m['gross_profit'] as num?, lang: _lang)),
               );
             }),
@@ -629,8 +799,8 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
               final status = AppStrings.statusLabel('${m['status'] ?? ''}', _lang);
               return ListTile(
                 dense: true,
-                title: Text(m['order_number']?.toString() ?? '#${m['id']}'),
-                subtitle: Text('$status · ${m['created_at']}'),
+                title: Text(m['order_number']?.toString() ?? '#${m['id']}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('$status · ${m['created_at']}', maxLines: 2, overflow: TextOverflow.ellipsis),
                 trailing: Text(formatIqd(m['admin_profit_amount'] as num?, lang: _lang)),
               );
             }),
@@ -659,76 +829,154 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
   }
 
   Widget _buildOrders() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              SizedBox(
-                width: 180,
-                child: TextField(
-                  controller: _orderSearchCtrl,
-                  decoration: InputDecoration(hintText: _t('acc_order_search_hint'), isDense: true),
-                  onSubmitted: (_) => _loadAll(),
+    final padH = AdminBreakpoints.pagePadH(context);
+    final surfaces = AdminSurfaces.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
+        final availW = (constraints.maxWidth - padH * 2) > 200 ? (constraints.maxWidth - padH * 2) : 200.0;
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(padH),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: compact ? availW : 220,
+                      child: TextField(
+                        controller: _orderSearchCtrl,
+                        decoration: InputDecoration(hintText: _t('acc_order_search_hint'), isDense: true),
+                        onSubmitted: (_) => _loadAll(),
+                      ),
+                    ),
+                    SizedBox(
+                      width: compact ? availW : 220,
+                      child: DropdownButton<String>(
+                        value: _orderStatus,
+                        isExpanded: true,
+                        items: [
+                          DropdownMenuItem(
+                            value: 'all',
+                            child: Text(_t('acc_status_all'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          DropdownMenuItem(
+                            value: 'delivered',
+                            child: Text(AppStrings.statusLabel('delivered', _lang), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          DropdownMenuItem(
+                            value: 'cancelled',
+                            child: Text(AppStrings.statusLabel('cancelled', _lang), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          DropdownMenuItem(
+                            value: 'pending',
+                            child: Text(AppStrings.statusLabel('pending', _lang), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          setState(() => _orderStatus = v ?? 'all');
+                          _loadAll();
+                        },
+                      ),
+                    ),
+                    ElevatedButton(onPressed: _loadAll, child: Text(_t('acc_filter'))),
+                  ],
                 ),
               ),
-              DropdownButton<String>(
-                value: _orderStatus,
-                items: [
-                  DropdownMenuItem(value: 'all', child: Text(_t('acc_status_all'))),
-                  DropdownMenuItem(value: 'delivered', child: Text(AppStrings.statusLabel('delivered', _lang))),
-                  DropdownMenuItem(value: 'cancelled', child: Text(AppStrings.statusLabel('cancelled', _lang))),
-                  DropdownMenuItem(value: 'pending', child: Text(AppStrings.statusLabel('pending', _lang))),
-                ],
-                onChanged: (v) {
-                  setState(() => _orderStatus = v ?? 'all');
-                  _loadAll();
-                },
-              ),
-              ElevatedButton(onPressed: _loadAll, child: Text(_t('acc_filter'))),
-            ],
-          ),
-        ),
-        Expanded(
-          child: _orders.isEmpty
-              ? Center(child: Text(_t('acc_no_orders')))
-              : ListView.separated(
+            ),
+            if (_orders.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(padH),
+                    child: Text(_t('acc_no_orders'), textAlign: TextAlign.center),
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(padH, 0, padH, 24),
+                sliver: SliverList.separated(
                   itemCount: _orders.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => Divider(height: compact ? 8 : 1),
                   itemBuilder: (_, i) {
                     final m = Map<String, dynamic>.from(_orders[i] as Map);
                     final status = AppStrings.statusLabel('${m['order_status'] ?? ''}', _lang);
+                    Future<void> openOrder() async {
+                      final id = m['id'] as int?;
+                      if (id == null) return;
+                      final detail = await widget.api.getAccountingOrder(id);
+                      if (!mounted) return;
+                      _showOrderDetail(detail);
+                    }
+
+                    final orderTitle = tx('${m['order_number']} · ${m['shop_name'] ?? ''}');
+                    final orderSub = _tp('acc_order_row_meta', {
+                      'status': status,
+                      'sales': formatIqd(m['total_sales'] as num?, lang: _lang),
+                      'profit': formatIqd(m['gross_profit'] as num?, lang: _lang),
+                      'pct': '${m['admin_commission'] ?? ''}',
+                    });
+                    final adminEarnings = formatIqd(m['admin_earnings'] as num?, lang: _lang);
+
+                    if (compact) {
+                      return Card(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: openOrder,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  orderTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  orderSub,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 12, color: surfaces.textSecondary),
+                                ),
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: AlignmentDirectional.centerEnd,
+                                  child: Text(
+                                    adminEarnings,
+                                    style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
                     return ListTile(
-                      title: Text(tx('${m['order_number']} · ${m['shop_name'] ?? ''}')),
-                      subtitle: Text(
-                        _tp('acc_order_row_meta', {
-                          'status': status,
-                          'sales': formatIqd(m['total_sales'] as num?, lang: _lang),
-                          'profit': formatIqd(m['gross_profit'] as num?, lang: _lang),
-                          'pct': '${m['admin_commission'] ?? ''}',
-                        }),
-                      ),
+                      title: Text(orderTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(orderSub, maxLines: 3, overflow: TextOverflow.ellipsis),
                       isThreeLine: true,
                       trailing: Text(
-                        formatIqd(m['admin_earnings'] as num?, lang: _lang),
+                        adminEarnings,
                         style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.forestGreen),
                       ),
-                      onTap: () async {
-                        final id = m['id'] as int?;
-                        if (id == null) return;
-                        final detail = await widget.api.getAccountingOrder(id);
-                        if (!mounted) return;
-                        _showOrderDetail(detail);
-                      },
+                      onTap: openOrder,
                     );
                   },
                 ),
-        ),
-      ],
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -739,12 +987,14 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 720),
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.8,
         builder: (_, scroll) => ListView(
           controller: scroll,
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + MediaQuery.paddingOf(ctx).bottom),
           children: [
             Text(order['order_number']?.toString() ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             Text('${tx(order['shop_name']?.toString() ?? '')} · $status'),
@@ -765,13 +1015,15 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
             ...items.map((it) {
               final m = Map<String, dynamic>.from(it as Map);
               return ListTile(
-                title: Text(tx('${m['product_name']} × ${m['quantity']}')),
+                title: Text(tx('${m['product_name']} × ${m['quantity']}'), maxLines: 2, overflow: TextOverflow.ellipsis),
                 subtitle: Text(
                   _tp('acc_item_row_meta', {
                     'cost': formatIqd(m['cost_price'] as num?, lang: _lang),
                     'sell': formatIqd(m['selling_price'] as num?, lang: _lang),
                     'pct': '${m['commission_percentage'] ?? ''}',
                   }),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 trailing: Text(formatIqd(m['admin_share'] as num?, lang: _lang)),
               );
@@ -837,139 +1089,156 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
     }();
     final vendorLabel = selectedStoreName ?? _t('acc_vendor_fallback');
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(_t('acc_settings_title'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 8),
-        Text(_t('acc_settings_help'), style: const TextStyle(color: RegaColors.lightMuted)),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<int?>(
-          key: ValueKey('commission-store-${_settingsStoreId ?? 'global'}'),
-          initialValue: _settingsStoreId,
-          isExpanded: true,
-          decoration: InputDecoration(
-            labelText: _t('acc_vendor_store'),
-            helperText: _t('acc_vendor_helper'),
-          ),
-          items: [
-            DropdownMenuItem<int?>(
-              value: null,
-              child: Text(_tp('acc_global_rate_option', {'pct': globalPct})),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 780),
+        child: ListView(
+          padding: EdgeInsets.all(AdminBreakpoints.pagePadH(context)),
+          children: [
+            Text(_t('acc_settings_title'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            Text(_t('acc_settings_help'), style: const TextStyle(color: RegaColors.lightMuted)),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<int?>(
+              key: ValueKey('commission-store-${_settingsStoreId ?? 'global'}'),
+              initialValue: _settingsStoreId,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: _t('acc_vendor_store'),
+                helperText: _t('acc_vendor_helper'),
+              ),
+              items: [
+                DropdownMenuItem<int?>(
+                  value: null,
+                  child: Text(
+                    _tp('acc_global_rate_option', {'pct': globalPct}),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                ..._settingsStores.map((raw) {
+                  final m = Map<String, dynamic>.from(raw as Map);
+                  final id = m['id'] as int?;
+                  final name = _localizedStoreName(m);
+                  final rate = m['commission_rate'] ?? 20;
+                  return DropdownMenuItem<int?>(
+                    value: id,
+                    child: Text(
+                      '$name — $rate%',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }),
+              ],
+              onChanged: _selectSettingsStore,
             ),
-            ..._settingsStores.map((raw) {
-              final m = Map<String, dynamic>.from(raw as Map);
-              final id = m['id'] as int?;
-              final name = _localizedStoreName(m);
-              final rate = m['commission_rate'] ?? 20;
-              return DropdownMenuItem<int?>(
-                value: id,
-                child: Text('$name — $rate%'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _commissionCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                labelText: _settingsStoreId == null
+                    ? _t('acc_global_rate_label')
+                    : _tp('acc_vendor_rate_label', {'name': vendorLabel}),
+                helperText: _t('acc_rate_helper'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: RegaColors.orangeSoft,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: RegaColors.orangeBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _settingsStoreId == null
+                        ? _t('acc_example_global')
+                        : _tp('acc_example_vendor', {'name': vendorLabel}),
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _tp('acc_example_gross', {'amount': formatIqd(exampleProfit, lang: _lang)}),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    _tp('acc_example_rate', {
+                      'pct': pct.toStringAsFixed(pct == pct.roundToDouble() ? 0 : 1),
+                    }),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _tp('acc_example_admin_gets', {'amount': formatIqd(exampleAdmin, lang: _lang)}),
+                    style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534)), fontSize: 15),
+                  ),
+                  Text(
+                    _tp('acc_example_seller_keeps', {'amount': formatIqd(exampleSeller, lang: _lang)}),
+                    style: TextStyle(fontWeight: FontWeight.w800, color: RC.fg(Color(0xFFB45309))),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () async {
+                final value = double.tryParse(_commissionCtrl.text.trim());
+                if (value == null || value < 0 || value > 100) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(_t('acc_rate_invalid')), backgroundColor: RegaColors.crimson),
+                  );
+                  return;
+                }
+                final note = _settingsStoreId == null ? _t('acc_note_global') : _t('acc_note_vendor');
+                await widget.api.updateProfitSettings(
+                  value,
+                  storeId: _settingsStoreId,
+                  note: note,
+                );
+                await _loadAll();
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      _settingsStoreId == null
+                          ? _t('acc_saved_global')
+                          : _tp('acc_saved_vendor', {'name': vendorLabel}),
+                    ),
+                    backgroundColor: RegaColors.emerald,
+                  ),
+                );
+              },
+              child: Text(_t('save')),
+            ),
+            const SizedBox(height: 24),
+            Text(_t('acc_history_title'), style: const TextStyle(fontWeight: FontWeight.w900)),
+            ...history.map((h) {
+              final m = Map<String, dynamic>.from(h as Map);
+              final changer = m['changer'] is Map ? (m['changer'] as Map)['name'] : null;
+              final storeMap = m['store'] is Map ? Map<String, dynamic>.from(m['store'] as Map) : null;
+              final scope = storeMap != null ? _localizedStoreName(storeMap) : _t('acc_global_scope');
+              final note = (m['note']?.toString() ?? '').trim();
+              final noteDisplay = _localizeHistoryNote(note);
+              return ListTile(
+                dense: true,
+                title: Text('${m['commission_percentage']}% — $scope', maxLines: 2, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  '$noteDisplay · ${changer ?? _t('acc_system')} · ${m['created_at'] ?? ''}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               );
             }),
           ],
-          onChanged: _selectSettingsStore,
         ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _commissionCtrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            labelText: _settingsStoreId == null
-                ? _t('acc_global_rate_label')
-                : _tp('acc_vendor_rate_label', {'name': vendorLabel}),
-            helperText: _t('acc_rate_helper'),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: RegaColors.orangeSoft,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: RegaColors.orangeBorder),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _settingsStoreId == null
-                    ? _t('acc_example_global')
-                    : _tp('acc_example_vendor', {'name': vendorLabel}),
-                style: const TextStyle(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _tp('acc_example_gross', {'amount': formatIqd(exampleProfit, lang: _lang)}),
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              Text(
-                _tp('acc_example_rate', {
-                  'pct': pct.toStringAsFixed(pct == pct.roundToDouble() ? 0 : 1),
-                }),
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _tp('acc_example_admin_gets', {'amount': formatIqd(exampleAdmin, lang: _lang)}),
-                style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF166534)), fontSize: 15),
-              ),
-              Text(
-                _tp('acc_example_seller_keeps', {'amount': formatIqd(exampleSeller, lang: _lang)}),
-                style: TextStyle(fontWeight: FontWeight.w800, color: RC.fg(Color(0xFFB45309))),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        ElevatedButton(
-          onPressed: () async {
-            final value = double.tryParse(_commissionCtrl.text.trim());
-            if (value == null || value < 0 || value > 100) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(_t('acc_rate_invalid')), backgroundColor: RegaColors.crimson),
-              );
-              return;
-            }
-            final note = _settingsStoreId == null ? _t('acc_note_global') : _t('acc_note_vendor');
-            await widget.api.updateProfitSettings(
-              value,
-              storeId: _settingsStoreId,
-              note: note,
-            );
-            await _loadAll();
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  _settingsStoreId == null
-                      ? _t('acc_saved_global')
-                      : _tp('acc_saved_vendor', {'name': vendorLabel}),
-                ),
-                backgroundColor: RegaColors.emerald,
-              ),
-            );
-          },
-          child: Text(_t('save')),
-        ),
-        const SizedBox(height: 24),
-        Text(_t('acc_history_title'), style: const TextStyle(fontWeight: FontWeight.w900)),
-        ...history.map((h) {
-          final m = Map<String, dynamic>.from(h as Map);
-          final changer = m['changer'] is Map ? (m['changer'] as Map)['name'] : null;
-          final storeMap = m['store'] is Map ? Map<String, dynamic>.from(m['store'] as Map) : null;
-          final scope = storeMap != null ? _localizedStoreName(storeMap) : _t('acc_global_scope');
-          final note = (m['note']?.toString() ?? '').trim();
-          final noteDisplay = _localizeHistoryNote(note);
-          return ListTile(
-            dense: true,
-            title: Text('${m['commission_percentage']}% — $scope'),
-            subtitle: Text('$noteDisplay · ${changer ?? _t('acc_system')} · ${m['created_at'] ?? ''}'),
-          );
-        }),
-      ],
+      ),
     );
   }
 
@@ -1052,31 +1321,25 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
       ),
     ];
     return ListView(
-      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 12 : 16),
+      padding: EdgeInsets.all(AdminBreakpoints.pagePadH(context)),
       children: [
         Text(_tp('acc_report_title', {'period': periodLabel}), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, c) {
-            if (c.maxWidth < 600) {
-              return Column(
-                children: [
-                  for (var i = 0; i < reportCards.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 10),
-                    SizedBox(width: double.infinity, child: reportCards[i]),
-                  ],
-                ],
-              );
-            }
-            final cols = c.maxWidth > 900 ? 3 : 2;
-            return GridView.count(
-              crossAxisCount: cols,
+            final phone = c.maxWidth < 560;
+            final cols = c.maxWidth >= 960 ? 3 : (c.maxWidth >= 560 ? 2 : 1);
+            return GridView.builder(
+              itemCount: reportCards.length,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.6,
-              children: reportCards,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: cols,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                mainAxisExtent: phone ? 98 : 158,
+              ),
+              itemBuilder: (_, idx) => reportCards[idx],
             );
           },
         ),
@@ -1095,20 +1358,26 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
   }
 
   Widget _buildTransactions() {
+    final padH = AdminBreakpoints.pagePadH(context);
     if (_transactions.isEmpty) {
-      return Center(child: Text(_t('acc_no_refund_tx')));
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(padH),
+          child: Text(_t('acc_no_refund_tx'), textAlign: TextAlign.center),
+        ),
+      );
     }
     return ListView.separated(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(padH),
       itemCount: _transactions.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (_, i) {
         final m = Map<String, dynamic>.from(_transactions[i] as Map);
         final order = m['order'] is Map ? Map<String, dynamic>.from(m['order'] as Map) : <String, dynamic>{};
         final title = order['order_number']?.toString() ??
             _tp('acc_order_number_fallback', {'id': '${m['order_id'] ?? ''}'});
         return ListTile(
-          title: Text(title),
+          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(
             _tp('acc_refund_row_meta', {
               'sales': formatIqd(m['refunded_sales'] as num?, lang: _lang),
@@ -1116,6 +1385,8 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
               'reason': '${m['reason'] ?? ''}',
               'date': '${m['created_at'] ?? ''}',
             }),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
           ),
           isThreeLine: true,
           leading: const Icon(Icons.undo_rounded, color: RegaColors.crimson),

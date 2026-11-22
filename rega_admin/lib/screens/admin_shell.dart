@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/api/api_client.dart';
@@ -376,12 +377,16 @@ class _AdminShellState extends State<AdminShell> {
                       children: [
                         Icon(Icons.logout_rounded, size: 21, color: RC.fg(Colors.white70)),
                         const SizedBox(width: 14),
-                        Text(
-                          AppStrings.tr('logout', widget.lang),
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: RC.fg(Colors.white70),
+                        Expanded(
+                          child: Text(
+                            AppStrings.tr('logout', widget.lang),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: RC.fg(Colors.white70),
+                            ),
                           ),
                         ),
                       ],
@@ -405,9 +410,17 @@ class _AdminShellState extends State<AdminShell> {
     final surfaces = AdminSurfaces.of(context);
     final surfaceColor = surfaces.elevated;
 
+    final isPhone = screenWidth < AdminBreakpoints.phone;
+    final isTightPhone = screenWidth < 380;
+
     return Scaffold(
       backgroundColor: surfaces.canvas,
-      drawer: isDesktop ? null : Drawer(child: _buildSidebar(isDrawer: true)),
+      drawer: isDesktop
+          ? null
+          : Drawer(
+              width: math.min(280.0, screenWidth * 0.84),
+              child: _buildSidebar(isDrawer: true),
+            ),
       body: SafeArea(
         child: Row(
           children: [
@@ -418,9 +431,9 @@ class _AdminShellState extends State<AdminShell> {
                 children: [
                   // Sticky chrome: always visible language + theme + refresh on all sizes.
                   Container(
-                    height: screenWidth < AdminBreakpoints.phone ? 48 : 58,
+                    height: isPhone ? 48 : 58,
                     padding: EdgeInsets.symmetric(
-                      horizontal: screenWidth < AdminBreakpoints.phone ? 4 : 14,
+                      horizontal: isPhone ? 4 : 14,
                     ),
                     decoration: BoxDecoration(
                       color: surfaceColor,
@@ -448,11 +461,14 @@ class _AdminShellState extends State<AdminShell> {
                         if (!isDesktop)
                           Builder(
                             builder: (ctx) => IconButton(
-                              visualDensity: screenWidth < AdminBreakpoints.phone
+                              visualDensity: isPhone
                                   ? VisualDensity.compact
                                   : VisualDensity.standard,
                               padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                              constraints: BoxConstraints(
+                                minWidth: isTightPhone ? 36 : 40,
+                                minHeight: 40,
+                              ),
                               icon: const Icon(Icons.menu_rounded),
                               onPressed: () => Scaffold.of(ctx).openDrawer(),
                             ),
@@ -464,20 +480,24 @@ class _AdminShellState extends State<AdminShell> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontWeight: FontWeight.w800,
-                              fontSize: screenWidth < AdminBreakpoints.phone ? 11 : 13,
+                              fontSize: isPhone ? 11 : 13,
                               color: surfaces.textPrimary,
                             ),
                           ),
                         ),
+                        const SizedBox(width: 4),
                         const AdminLocaleToggle(),
                         const SizedBox(width: 4),
                         const AdminThemeToggle(),
                         IconButton(
-                          visualDensity: screenWidth < AdminBreakpoints.phone
+                          visualDensity: isPhone
                               ? VisualDensity.compact
                               : VisualDensity.standard,
                           padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                          constraints: BoxConstraints(
+                            minWidth: isTightPhone ? 36 : 40,
+                            minHeight: 40,
+                          ),
                           tooltip: AppStrings.tr('refresh', widget.lang),
                           onPressed: _refreshing ? null : _refreshAllLiveData,
                           icon: _refreshing

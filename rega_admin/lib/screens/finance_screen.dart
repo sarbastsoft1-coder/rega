@@ -21,6 +21,7 @@ class FinanceScreen extends StatefulWidget {
 }
 
 class _FinanceScreenState extends State<FinanceScreen> {
+  final ScrollController _driverTableScrollCtrl = ScrollController();
   Timer? _refreshTimer;
   String _selectedCity = 'all';
   String _selectedPeriod = 'this_month';
@@ -62,6 +63,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _driverTableScrollCtrl.dispose();
     super.dispose();
   }
 
@@ -247,7 +249,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
   Widget _buildTopHeader() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 800;
+        final isNarrow = constraints.maxWidth < 860;
 
         final titleAndButton = Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
@@ -265,7 +267,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     color: AdminSurfaces.of(context).textPrimary,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
                   AppStrings.tr('finance_subtitle', widget.lang),
                   style: TextStyle(
@@ -294,7 +296,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
           ],
         );
 
-        final topActions = const AdminTopBarRow();
+        const topActions = AdminTopBarRow();
 
         final filters = Wrap(
           spacing: 10,
@@ -355,7 +357,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 children: [
                   Expanded(child: titleAndButton),
                   const SizedBox(width: 12),
-                  topActions,
+                  Flexible(child: topActions),
                 ],
               ),
               const SizedBox(height: 12),
@@ -375,8 +377,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
     required ValueChanged<String?> onChanged,
   }) {
     return Container(
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      constraints: const BoxConstraints(minHeight: 38),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(10),
@@ -387,23 +389,34 @@ class _FinanceScreenState extends State<FinanceScreen> {
         children: [
           Icon(icon, size: 16, color: RC.fg(Color(0xFF64748B))),
           const SizedBox(width: 8),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: value,
-              icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AdminSurfaces.of(context).textPrimary,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 190),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: value,
+                isDense: true,
+                icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AdminSurfaces.of(context).textPrimary,
+                ),
+                items: [
+                  for (var i = 0; i < items.length; i++)
+                    DropdownMenuItem<String>(
+                      value: items[i],
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 145),
+                        child: Text(
+                          tx(labels != null && i < labels.length ? labels[i] : items[i]),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                ],
+                onChanged: onChanged,
               ),
-              items: [
-                for (var i = 0; i < items.length; i++)
-                  DropdownMenuItem<String>(
-                    value: items[i],
-                    child: Text(tx(labels != null && i < labels.length ? labels[i] : items[i])),
-                  ),
-              ],
-              onChanged: onChanged,
             ),
           ),
         ],
@@ -418,14 +431,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final double cardWidth;
-        if (width >= AdminBreakpoints.kpiFourCol) {
-          cardWidth = (width - 48) / 4;
-        } else if (width >= AdminBreakpoints.kpiTwoCol) {
-          cardWidth = (width - 16) / 2;
-        } else {
-          cardWidth = width;
-        }
+        final cols = width >= AdminBreakpoints.kpiFourCol
+            ? 4
+            : (width >= AdminBreakpoints.kpiTwoCol ? 2 : 1);
+        final cardWidth = AdminBreakpoints.cardWidth(width, cols, 16);
         return Wrap(
           spacing: 16,
           runSpacing: 16,
@@ -488,7 +497,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     required Color iconColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(AdminBreakpoints.cardPadding(context)),
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
@@ -505,29 +514,39 @@ class _FinanceScreenState extends State<FinanceScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Value & Title on the right in RTL
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                tx(title),
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: AdminSurfaces.of(context).textSecondary,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  tx(title),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AdminSurfaces.of(context).textSecondary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                tx(value),
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: AdminSurfaces.of(context).textPrimary,
-                  letterSpacing: -0.5,
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    tx(value),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: AdminSurfaces.of(context).textPrimary,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 10),
           // Icon Box on the left in RTL
           Container(
             width: 44,
@@ -552,7 +571,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         final w = constraints.maxWidth;
 
         // Desktop: Top Sellers | Order Status | Trends side-by-side
-        if (w >= AdminBreakpoints.desktop) {
+        if (w >= 1220) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -566,7 +585,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         }
 
         // Tablet: Top Sellers + Order Status in a row, Trends full-width below
-        if (w >= AdminBreakpoints.chartsTwoCol) {
+        if (w >= 740) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -584,7 +603,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
           );
         }
 
-        // Phone: stack all charts (wrappers only — chart painters unchanged)
+        // Phone / Narrow Tablet: stack all charts cleanly
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -602,8 +621,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
   // Card 1: باشترین فرۆشیاران (Top Vendors Horizontal Bar Chart)
   Widget _buildTopVendorsCard() {
     return Container(
-      height: 270,
-      padding: const EdgeInsets.all(18),
+      constraints: const BoxConstraints(minHeight: 270),
+      padding: EdgeInsets.all(AdminBreakpoints.cardPadding(context)),
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
@@ -616,74 +635,119 @@ class _FinanceScreenState extends State<FinanceScreen> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            AppStrings.tr('top_vendors', widget.lang),
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-              color: AdminSurfaces.of(context).textPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: _topStores.isEmpty
-                ? Center(
-                    child: Text(AppStrings.tr('loading_from_server', widget.lang), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)))),
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: _topStores.take(3).map((s) {
-                      final name = s['name_ku']?.toString() ?? s['name_en']?.toString() ?? 'فرۆشگا';
-                      // Prefer revenue (gross_sales); fall back to delivered order count
-                      final value = (s['gross_sales'] as num?)?.toInt() ??
-                          (s['delivered_orders_count'] as num?)?.toInt() ??
-                          (s['orders_count'] as num?)?.toInt() ??
-                          0;
-                      return _buildVendorBarRow(name, value, _topStoresMax);
-                    }).toList(),
-                  ),
-          ),
-          const SizedBox(height: 12),
-          // X-axis scale labels — scaled to live max
-          Builder(
-            builder: (context) {
-              final phone = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
-              return Padding(
-                padding: EdgeInsets.only(right: phone ? 12 : 90),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final compact = c.maxWidth < 360;
+          final nameW = compact ? 64.0 : 84.0;
+          final valueW = compact ? 44.0 : 56.0;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                AppStrings.tr('top_vendors', widget.lang),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  color: AdminSurfaces.of(context).textPrimary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 150,
+                child: _topStores.isEmpty
+                    ? Center(
+                        child: Text(
+                          AppStrings.tr('loading_from_server', widget.lang),
+                          style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8))),
+                        ),
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: _topStores.take(3).map((s) {
+                          final name = s['name_ku']?.toString() ?? s['name_en']?.toString() ?? 'فرۆشگا';
+                          final value = (s['gross_sales'] as num?)?.toInt() ??
+                              (s['delivered_orders_count'] as num?)?.toInt() ??
+                              (s['orders_count'] as num?)?.toInt() ??
+                              0;
+                          return _buildVendorBarRow(
+                            name,
+                            value,
+                            _topStoresMax,
+                            nameW: nameW,
+                            valueW: valueW,
+                            compact: compact,
+                          );
+                        }).toList(),
+                      ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: EdgeInsetsDirectional.only(start: nameW + 8, end: valueW + 10),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(tx('0'), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
-                    Text(tx(_formatInt((_topStoresMax / 3).round())), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
-                    Text(tx(_formatInt(((_topStoresMax * 2) / 3).round())), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
-                    Text(tx(_formatInt(_topStoresMax)), style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600)),
+                    Flexible(
+                      child: Text(
+                        tx('0'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    Flexible(
+                      child: Text(
+                        tx(_formatInt((_topStoresMax / 3).round())),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    Flexible(
+                      child: Text(
+                        tx(_formatInt(((_topStoresMax * 2) / 3).round())),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    Flexible(
+                      child: Text(
+                        tx(_formatInt(_topStoresMax)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10.5, color: AdminSurfaces.of(context).textTertiary, fontWeight: FontWeight.w600),
+                      ),
+                    ),
                   ],
                 ),
-              );
-            },
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildVendorBarRow(String name, int value, int max) {
+  Widget _buildVendorBarRow(
+    String name,
+    int value,
+    int max, {
+    required double nameW,
+    required double valueW,
+    required bool compact,
+  }) {
     final ratio = (value / max).clamp(0.0, 1.0);
-    final phone = MediaQuery.sizeOf(context).width < AdminBreakpoints.phone;
-    final nameW = phone ? 64.0 : 85.0;
-    final valueW = phone ? 40.0 : 52.0;
     return Row(
       children: [
         SizedBox(
           width: nameW,
           child: Text(
             tx(name),
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: phone ? 11 : 12,
+              fontSize: compact ? 11 : 12,
               fontWeight: FontWeight.w700,
               color: AdminSurfaces.of(context).textPrimary,
             ),
@@ -701,7 +765,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 ),
               ),
               FractionallySizedBox(
-                alignment: Alignment.centerRight,
+                alignment: AlignmentDirectional.centerStart,
                 widthFactor: ratio,
                 child: Container(
                   height: 22,
@@ -719,10 +783,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
           width: valueW,
           child: Text(
             tx(_toDigits(_formatInt(value))),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
             style: TextStyle(
-              fontSize: phone ? 11 : 12,
+              fontSize: compact ? 11 : 12,
               fontWeight: FontWeight.w800,
-              color: RC.fg(Color(0xFF1E293B)),
+              color: AdminSurfaces.of(context).textPrimary,
             ),
           ),
         ),
@@ -733,8 +800,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
   // Card 2: دۆخی داواکارییەکان (Donut Chart)
   Widget _buildOrderStatusDonutCard() {
     return Container(
-      height: 270,
-      padding: const EdgeInsets.all(18),
+      constraints: const BoxConstraints(minHeight: 270),
+      padding: EdgeInsets.all(AdminBreakpoints.cardPadding(context)),
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
@@ -748,7 +815,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             AppStrings.tr('order_status_chart', widget.lang),
@@ -759,7 +827,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          Expanded(
+          SizedBox(
+            height: 150,
             child: Center(
               child: SizedBox(
                 width: 120,
@@ -791,34 +860,40 @@ class _FinanceScreenState extends State<FinanceScreen> {
                         strokeWidth: 16,
                       ),
                     ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          tx(_totalOrders),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: AdminSurfaces.of(context).textPrimary,
-                          ),
+                    SizedBox(
+                      width: 82,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              tx(_totalOrders),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: AdminSurfaces.of(context).textPrimary,
+                              ),
+                            ),
+                            Text(
+                              tx('داواکاری'),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AdminSurfaces.of(context).textTertiary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              tx(_completionRate),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: RC.fg(Color(0xFF16A34A)),
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          tx('داواکاری'),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: AdminSurfaces.of(context).textTertiary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          tx(_completionRate),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: RC.fg(Color(0xFF16A34A)),
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -827,8 +902,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
           ),
           const SizedBox(height: 8),
           // Legend — live percentages from DB status counts
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+          Wrap(
+            alignment: WrapAlignment.spaceEvenly,
+            spacing: 10,
+            runSpacing: 6,
             children: [
               _buildDonutLegendItem(RC.bg(Color(0xFF16503B)), AppStrings.tr('legend_delivered', widget.lang), '${_toDigits(_deliveredPct)}٪'),
               _buildDonutLegendItem(RC.bg(Color(0xFFEA580C)), AppStrings.tr('legend_on_way', widget.lang), '${_toDigits(_activePct)}٪'),
@@ -852,12 +929,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
         const SizedBox(width: 5),
         Text(
           tx(label),
-          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: RC.fg(Color(0xFF64748B))),
+          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: AdminSurfaces.of(context).textSecondary),
         ),
         const SizedBox(width: 3),
         Text(
           tx(pct),
-          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF1E293B))),
+          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AdminSurfaces.of(context).textPrimary),
         ),
       ],
     );
@@ -866,8 +943,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
   // Card 3: ڕەوتی داواکاری و داهات (Orders & Revenue Dual-Axis Chart)
   Widget _buildTrendsLineChartCard() {
     return Container(
-      height: 270,
-      padding: const EdgeInsets.all(18),
+      constraints: const BoxConstraints(minHeight: 270),
+      padding: EdgeInsets.all(AdminBreakpoints.cardPadding(context)),
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
         borderRadius: BorderRadius.circular(16),
@@ -882,6 +959,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             AppStrings.tr('orders_revenue_trend', widget.lang),
@@ -892,7 +970,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          Expanded(
+          SizedBox(
+            height: 175,
             child: _ordersRevenueMonthly.isEmpty
                 ? Center(
                     child: Text(
@@ -921,7 +1000,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.circle, size: 8, color: RC.fg(Color(0xFF16503B))),
-                  SizedBox(width: 6),
+                  const SizedBox(width: 6),
                   Text(AppStrings.tr('orders_axis', widget.lang), style: TextStyle(fontSize: 11, color: AdminSurfaces.of(context).textSecondary, fontWeight: FontWeight.w600)),
                 ],
               ),
@@ -929,7 +1008,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.circle, size: 8, color: RC.fg(Color(0xFFEA580C))),
-                  SizedBox(width: 6),
+                  const SizedBox(width: 6),
                   Text(AppStrings.tr('revenue_axis', widget.lang), style: TextStyle(fontSize: 11, color: AdminSurfaces.of(context).textSecondary, fontWeight: FontWeight.w600)),
                 ],
               ),
@@ -1014,73 +1093,78 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   }).toList(),
                 );
               }
-              final tableWidth = constraints.maxWidth > 580 ? constraints.maxWidth : 580.0;
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: tableWidth,
-                  child: Column(
-                    children: [
-                      // Table Header
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AdminSurfaces.of(context).mutedFill,
-                          border: Border(
-                            top: BorderSide(color: AdminSurfaces.of(context).hairline),
-                            bottom: BorderSide(color: AdminSurfaces.of(context).hairline),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(flex: 4, child: Text(AppStrings.tr('col_courier', widget.lang), textAlign: TextAlign.right, style: _tableHeaderStyle)),
-                            Expanded(flex: 3, child: Text(AppStrings.tr('col_completed_orders', widget.lang), textAlign: TextAlign.center, style: _tableHeaderStyle)),
-                            Expanded(flex: 3, child: Text(AppStrings.tr('col_avg_time', widget.lang), textAlign: TextAlign.center, style: _tableHeaderStyle)),
-                            Expanded(flex: 3, child: Text(AppStrings.tr('col_rating', widget.lang), textAlign: TextAlign.left, style: _tableHeaderStyle)),
-                          ],
-                        ),
-                      ),
-
-                      if (_topDrivers.isNotEmpty)
-                        ..._topDrivers.asMap().entries.map((entry) {
-                          final i = entry.key;
-                          final d = entry.value;
-                          final name = (d['name'] ?? d['full_name'] ?? 'ماتۆرسوار').toString();
-                          final completedRaw = (d['completed_deliveries'] as num?)?.toInt() ??
-                              (d['total_deliveries'] as num?)?.toInt() ??
-                              (d['total_orders'] as num?)?.toInt() ??
-                              0;
-                          final avgMins = (d['avg_delivery_minutes'] as num?)?.toInt() ?? 0;
-                          final ratingVal = d['rating'] != null ? d['rating'].toString() : '0';
-                          final star = (double.tryParse(ratingVal) ?? 0).round().clamp(0, 5);
-                          return Column(
-                            children: [
-                              _buildDriverRow(
-                                rank: _toDigits(i + 1),
-                                name: name,
-                                completedOrders: _toDigits(completedRaw),
-                                avgTime: avgMins > 0
-                                    ? '${_toDigits(avgMins)} خولەک'
-                                    : '— خولەک',
-                                rating: ratingVal,
-                                starCount: star,
-                              ),
-                              if (i < _topDrivers.length - 1)
-                                Divider(height: 1, color: AdminSurfaces.of(context).hairline),
-                            ],
-                          );
-                        })
-                      else
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 36),
-                          child: Center(
-                            child: Text(
-                              AppStrings.tr('no_courier_data', widget.lang),
-                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF94A3B8))),
+              final tableWidth = constraints.maxWidth > 640 ? constraints.maxWidth : 640.0;
+              return Scrollbar(
+                controller: _driverTableScrollCtrl,
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  controller: _driverTableScrollCtrl,
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(
+                      children: [
+                        // Table Header
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: AdminSurfaces.of(context).mutedFill,
+                            border: Border(
+                              top: BorderSide(color: AdminSurfaces.of(context).hairline),
+                              bottom: BorderSide(color: AdminSurfaces.of(context).hairline),
                             ),
                           ),
+                          child: Row(
+                            children: [
+                              Expanded(flex: 4, child: Text(AppStrings.tr('col_courier', widget.lang), textAlign: TextAlign.start, style: _tableHeaderStyle)),
+                              Expanded(flex: 3, child: Text(AppStrings.tr('col_completed_orders', widget.lang), textAlign: TextAlign.center, style: _tableHeaderStyle)),
+                              Expanded(flex: 3, child: Text(AppStrings.tr('col_avg_time', widget.lang), textAlign: TextAlign.center, style: _tableHeaderStyle)),
+                              Expanded(flex: 3, child: Text(AppStrings.tr('col_rating', widget.lang), textAlign: TextAlign.end, style: _tableHeaderStyle)),
+                            ],
+                          ),
                         ),
-                    ],
+
+                        if (_topDrivers.isNotEmpty)
+                          ..._topDrivers.asMap().entries.map((entry) {
+                            final i = entry.key;
+                            final d = entry.value;
+                            final name = (d['name'] ?? d['full_name'] ?? 'ماتۆرسوار').toString();
+                            final completedRaw = (d['completed_deliveries'] as num?)?.toInt() ??
+                                (d['total_deliveries'] as num?)?.toInt() ??
+                                (d['total_orders'] as num?)?.toInt() ??
+                                0;
+                            final avgMins = (d['avg_delivery_minutes'] as num?)?.toInt() ?? 0;
+                            final ratingVal = d['rating'] != null ? d['rating'].toString() : '0';
+                            final star = (double.tryParse(ratingVal) ?? 0).round().clamp(0, 5);
+                            return Column(
+                              children: [
+                                _buildDriverRow(
+                                  rank: _toDigits(i + 1),
+                                  name: name,
+                                  completedOrders: _toDigits(completedRaw),
+                                  avgTime: avgMins > 0
+                                      ? '${_toDigits(avgMins)} خولەک'
+                                      : '— خولەک',
+                                  rating: ratingVal,
+                                  starCount: star,
+                                ),
+                                if (i < _topDrivers.length - 1)
+                                  Divider(height: 1, color: AdminSurfaces.of(context).hairline),
+                              ],
+                            );
+                          })
+                        else
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 36),
+                            child: Center(
+                              child: Text(
+                                AppStrings.tr('no_courier_data', widget.lang),
+                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF94A3B8))),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -1180,12 +1264,16 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   child: Icon(Icons.person_rounded, size: 18, color: RC.fg(Color(0xFF94A3B8))),
                 ),
                 const SizedBox(width: 10),
-                Text(
-                  tx(name),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    color: RC.fg(Color(0xFF1E293B)),
+                Expanded(
+                  child: Text(
+                    tx(name),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: AdminSurfaces.of(context).textPrimary,
+                    ),
                   ),
                 ),
               ],
@@ -1223,30 +1311,37 @@ class _FinanceScreenState extends State<FinanceScreen> {
           // 4. Rating with Gold Stars
           Expanded(
             flex: 3,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Row(
+            child: Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: AlignmentDirectional.centerEnd,
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: List.generate(5, (i) {
-                    final isFilled = i < starCount;
-                    return Icon(
-                      Icons.star_rounded,
-                      size: 16,
-                      color: isFilled ? RC.fg(Color(0xFFF59E0B)) : RC.bg(Color(0xFFE2E8F0)),
-                    );
-                  }),
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(5, (i) {
+                        final isFilled = i < starCount;
+                        return Icon(
+                          Icons.star_rounded,
+                          size: 16,
+                          color: isFilled ? RC.fg(Color(0xFFF59E0B)) : RC.bg(Color(0xFFE2E8F0)),
+                        );
+                      }),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      tx(rating),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w900,
+                        color: AdminSurfaces.of(context).textPrimary,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  tx(rating),
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w900,
-                    color: AdminSurfaces.of(context).textPrimary,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],
@@ -1346,8 +1441,8 @@ class _DualAxisLineChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const leftPadding = 42.0;
-    const rightPadding = 48.0;
+    final leftPadding = size.width < 320 ? 34.0 : 42.0;
+    final rightPadding = size.width < 320 ? 38.0 : 48.0;
     const topPadding = 24.0;
     const bottomPadding = 25.0;
 
@@ -1378,14 +1473,22 @@ class _DualAxisLineChartPainter extends CustomPainter {
       style: TextStyle(fontSize: 9.5, color: labelColor, fontWeight: FontWeight.w700),
     );
     textPainter.layout();
-    textPainter.paint(canvas, Offset(leftPadding - 4, topPadding - 18));
+    final leftTitleX = math.max(0.0, leftPadding - 4);
+    textPainter.paint(canvas, Offset(leftTitleX, topPadding - 18));
+    final leftTitleEnd = leftTitleX + textPainter.width;
 
     textPainter.text = TextSpan(
       text: AppStrings.tr('revenue_axis', lang),
       style: TextStyle(fontSize: 9.5, color: RC.fg(Color(0xFFEA580C)), fontWeight: FontWeight.w700),
     );
     textPainter.layout();
-    textPainter.paint(canvas, Offset(leftPadding + chartWidth - textPainter.width + 4, topPadding - 18));
+    final rightTitleX = math.min(
+      math.max(0.0, size.width - textPainter.width),
+      leftPadding + chartWidth - textPainter.width + 4,
+    );
+    if (rightTitleX > leftTitleEnd + 8) {
+      textPainter.paint(canvas, Offset(rightTitleX, topPadding - 18));
+    }
 
     for (int i = 0; i < 5; i++) {
       final y = topPadding + chartHeight - (i * chartHeight / 4);
@@ -1397,7 +1500,7 @@ class _DualAxisLineChartPainter extends CustomPainter {
         style: TextStyle(fontSize: 9.5, color: mutedColor, fontWeight: FontWeight.w600),
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(leftPadding - textPainter.width - 6, y - textPainter.height / 2));
+      textPainter.paint(canvas, Offset(math.max(0.0, leftPadding - textPainter.width - 6), y - textPainter.height / 2));
 
       final rightVal = ((maxGmv * i) / 4).round();
       textPainter.text = TextSpan(
@@ -1405,10 +1508,14 @@ class _DualAxisLineChartPainter extends CustomPainter {
         style: TextStyle(fontSize: 9, color: RC.fg(Color(0xFFEA580C)), fontWeight: FontWeight.w600),
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(leftPadding + chartWidth + 6, y - textPainter.height / 2));
+      textPainter.paint(
+        canvas,
+        Offset(math.min(math.max(0.0, size.width - textPainter.width), leftPadding + chartWidth + 6), y - textPainter.height / 2),
+      );
     }
 
     final count = series.length;
+    final labelStep = ((36 * count) / chartWidth).ceil().clamp(1, count);
     final xCoords = <double>[];
     for (int i = 0; i < count; i++) {
       final x = count == 1
@@ -1416,12 +1523,17 @@ class _DualAxisLineChartPainter extends CustomPainter {
           : leftPadding + (i * chartWidth / (count - 1));
       xCoords.add(x);
 
-      textPainter.text = TextSpan(
-        text: labels[i],
-        style: TextStyle(fontSize: 9.5, color: labelColor, fontWeight: FontWeight.w700),
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(x - textPainter.width / 2, size.height - bottomPadding + 6));
+      if (i % labelStep == 0 || i == count - 1) {
+        textPainter.text = TextSpan(
+          text: labels[i],
+          style: TextStyle(fontSize: 9.5, color: labelColor, fontWeight: FontWeight.w700),
+        );
+        textPainter.layout();
+        final labelX = (x - textPainter.width / 2)
+            .clamp(0.0, math.max(0.0, size.width - textPainter.width))
+            .toDouble();
+        textPainter.paint(canvas, Offset(labelX, size.height - bottomPadding + 6));
+      }
     }
 
     final greenPoints = <Offset>[];

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 /// Shared layout breakpoints for the admin console (web + tablet + phone).
@@ -44,6 +46,8 @@ class AdminBreakpoints {
   static const double headerInline = 760;
   static const double headerCompact = 650;
 
+  static bool isPhoneWidth(double w) => w < phone;
+
   /// Horizontal page padding that works from ~320px phones up to desktop.
   static double pagePadH(BuildContext context) {
     final w = MediaQuery.sizeOf(context).width;
@@ -53,17 +57,57 @@ class AdminBreakpoints {
     return 32;
   }
 
+  /// Card inner padding scaled from compact phone to desktop.
+  static double cardPadding(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    if (w < phone) return 14;
+    if (w < desktop) return 18;
+    return 22;
+  }
+
+  /// Floored multi-column card width so IEEE-754 rounding never wraps an orphan item.
+  static double cardWidth(double availWidth, int cols, double gap) {
+    if (cols <= 1) return availWidth;
+    return ((availWidth - gap * (cols - 1)) / cols)
+        .floorToDouble()
+        .clamp(120.0, availWidth);
+  }
+
   /// Dialog / sheet content width clamped to the viewport.
   static double dialogWidth(BuildContext context, {double max = 560}) {
     final w = MediaQuery.sizeOf(context).width;
-    return (w * 0.92).clamp(280.0, max);
+    final upper = math.max(240.0, math.min(max, w - 20.0));
+    final lower = math.min(260.0, upper);
+    return (w * 0.92).clamp(lower, upper);
   }
 
   /// Prefer nearly full-screen dialogs on phone; capped fraction on larger screens.
-  static double dialogMaxHeight(BuildContext context, {double fraction = 0.92}) {
+  static double dialogMaxHeight(BuildContext context, {double fraction = 0.90}) {
     final h = MediaQuery.sizeOf(context).height;
     final inset = MediaQuery.viewInsetsOf(context).bottom;
-    return ((h - inset) * fraction).clamp(280.0, h);
+    final avail = (h - inset).clamp(0.0, h);
+    final upper = math.max(120.0, avail);
+    final lower = math.min(220.0, upper);
+    return (avail * fraction).clamp(lower, upper);
+  }
+
+  /// Maximum height for AlertDialog content after reserving title, actions & keyboard.
+  static double dialogContentMaxHeight(
+    BuildContext context, {
+    double max = 560,
+    double chromeReserve = 200,
+  }) {
+    final h = MediaQuery.sizeOf(context).height;
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    final avail = math.max(140.0, h - inset - chromeReserve);
+    return math.min(avail, max);
+  }
+
+  /// Compact contentPadding inside AlertDialogs on phones.
+  static EdgeInsets dialogContentPadding(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    if (w < phone) return const EdgeInsets.fromLTRB(16, 12, 16, 12);
+    return const EdgeInsets.fromLTRB(24, 16, 24, 16);
   }
 
   /// Horizontal inset for Dialog / AlertDialog so phone edges aren't clipped.

@@ -395,14 +395,13 @@ class _StoresScreenState extends State<StoresScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
           final mq = MediaQuery.of(ctx);
-          final screenH = mq.size.height;
           // Breakpoints from dialog content width — not full window (avoids side-by-side overflow).
           final dialogW = AdminBreakpoints.dialogWidth(ctx, max: 560);
           final isCompact = dialogW < 420;
           final stackFields = dialogW < 520;
           final padH = isCompact ? 14.0 : (stackFields ? 16.0 : 22.0);
           final padV = isCompact ? 14.0 : 18.0;
-          final maxDialogH = (screenH - mq.viewInsets.bottom - 32).clamp(320.0, screenH * 0.92);
+          final maxDialogH = AdminBreakpoints.dialogMaxHeight(ctx, fraction: 0.92);
           // Live language from Provider — never freeze Kurdish if user switched to EN.
           final lang = ctx.watch<AdminAppNotifier>().lang;
           final latLabel = AppStrings.tr('lat_label', lang);
@@ -546,6 +545,8 @@ class _StoresScreenState extends State<StoresScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               AppStrings.tr('cancel', lang),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             ),
           );
@@ -562,6 +563,8 @@ class _StoresScreenState extends State<StoresScreen> {
             icon: Icon(isEdit ? Icons.save_rounded : Icons.add_business_rounded, size: 18),
             label: Text(
               isEdit ? AppStrings.tr('save', lang) : AppStrings.tr('add_vendor', lang),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
             ),
             onPressed: isSaving ? null : () async {
@@ -688,10 +691,7 @@ class _StoresScreenState extends State<StoresScreen> {
             backgroundColor: RC.bg(Colors.white),
             surfaceTintColor: Colors.transparent,
             elevation: 16,
-            insetPadding: EdgeInsets.symmetric(
-              horizontal: isCompact ? 10 : 16,
-              vertical: isCompact ? 12 : 20,
-            ),
+            insetPadding: AdminBreakpoints.dialogInset(ctx),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(isCompact ? 18 : 24),
               side: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
@@ -1298,7 +1298,7 @@ class _StoresScreenState extends State<StoresScreen> {
         backgroundColor: RC.bg(Colors.white),
         surfaceTintColor: Colors.transparent,
         elevation: 16,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
           side: BorderSide(color: RC.bg(Color(0xFFE2E8F0))),
@@ -1311,7 +1311,7 @@ class _StoresScreenState extends State<StoresScreen> {
             return ConstrainedBox(
               constraints: BoxConstraints(
                 maxWidth: AdminBreakpoints.dialogWidth(ctx2, max: 480),
-                maxHeight: MediaQuery.sizeOf(ctx2).height * 0.9,
+                maxHeight: AdminBreakpoints.dialogMaxHeight(ctx2, fraction: 0.90),
               ),
               child: SingleChildScrollView(
                 padding: EdgeInsets.all(pad),
@@ -1362,7 +1362,7 @@ class _StoresScreenState extends State<StoresScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        _buildStatusBadge(v.status),
+                        Flexible(child: _buildStatusBadge(v.status, compact: isNarrow)),
                       ],
                     ),
                     const SizedBox(height: 18),
@@ -1383,9 +1383,9 @@ class _StoresScreenState extends State<StoresScreen> {
                           Divider(height: 16, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
                           _buildDetailRow(_t('address_label'), v.address.isNotEmpty ? v.address : AppStrings.cityLabel(v.city, _lang)),
                           Divider(height: 16, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
-                          _buildDetailRow('GPS:', '${v.lat.toStringAsFixed(5)}, ${v.lng.toStringAsFixed(5)}'),
+                          _buildDetailRow('GPS:', '${v.lat.toStringAsFixed(5)}, ${v.lng.toStringAsFixed(5)}', ltrValue: true),
                           Divider(height: 16, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
-                          _buildDetailRow('${_t('phone')}:', v.phone),
+                          _buildDetailRow('${_t('phone')}:', v.phone, ltrValue: true),
                           Divider(height: 16, thickness: 1, color: RC.bg(Color(0xFFF1F5F9))),
                           _buildDetailRow('${_t('kpi_today_orders')}:', _d(v.todayOrders)),
                         ],
@@ -1402,7 +1402,7 @@ class _StoresScreenState extends State<StoresScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         icon: const Icon(Icons.edit_outlined, size: 16),
-                        label: Text(_t('edit'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                        label: Text(_t('edit'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                         onPressed: () {
                           Navigator.pop(ctx);
                           _showAddVendorDialog(existing: v);
@@ -1418,7 +1418,7 @@ class _StoresScreenState extends State<StoresScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: () => Navigator.pop(ctx),
-                        child: Text(_t('close'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                        child: Text(_t('close'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                       ),
                     ] else
                       Row(
@@ -1433,7 +1433,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: () => Navigator.pop(ctx),
-                              child: Text(_t('close'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                              child: Text(_t('close'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -1448,7 +1448,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               icon: const Icon(Icons.edit_outlined, size: 16),
-                              label: Text(_t('edit'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                              label: Text(_t('edit'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                               onPressed: () {
                                 Navigator.pop(ctx);
                                 _showAddVendorDialog(existing: v);
@@ -1468,7 +1468,12 @@ class _StoresScreenState extends State<StoresScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(String label, String value, {bool ltrValue = false}) {
+    final valueWidget = Text(
+      tx(value),
+      textAlign: TextAlign.end,
+      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: RC.fg(Color(0xFF111827))),
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -1481,11 +1486,9 @@ class _StoresScreenState extends State<StoresScreen> {
           const SizedBox(width: 8),
           Expanded(
             flex: 3,
-            child: Text(
-              tx(value),
-              textAlign: TextAlign.end,
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: RC.fg(Color(0xFF111827))),
-            ),
+            child: ltrValue
+                ? Directionality(textDirection: TextDirection.ltr, child: valueWidget)
+                : valueWidget,
           ),
         ],
       ),
@@ -1537,7 +1540,7 @@ class _StoresScreenState extends State<StoresScreen> {
       builder: (context, constraints) {
         final w = constraints.maxWidth;
         final isCompact = w < AdminBreakpoints.headerCompact;
-        final isNarrow = w < AdminBreakpoints.headerInline;
+        final isNarrow = w < 960;
         final titleSize = w < 400 ? 18.0 : 22.0;
 
         final titleBlock = Column(
@@ -1545,6 +1548,8 @@ class _StoresScreenState extends State<StoresScreen> {
           children: [
             Text(
               AppStrings.tr('stores_title', widget.lang),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: titleSize,
                 fontWeight: FontWeight.w900,
@@ -1579,6 +1584,8 @@ class _StoresScreenState extends State<StoresScreen> {
           icon: Icon(Icons.add_rounded, size: 20, color: RC.fg(Colors.white)),
           label: Text(
             AppStrings.tr('add_vendor', widget.lang),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900),
           ),
         );
@@ -1630,7 +1637,7 @@ class _StoresScreenState extends State<StoresScreen> {
               ),
             ),
             const SizedBox(width: 16),
-            topActions,
+            Flexible(child: topActions),
           ],
         );
       },
@@ -1652,7 +1659,7 @@ class _StoresScreenState extends State<StoresScreen> {
 
         final gap = width < 400 ? 8.0 : 12.0;
         final cols = width >= AdminBreakpoints.kpiFourCol ? 4 : 2;
-        final cardW = (width - gap * (cols - 1)) / cols;
+        final cardW = AdminBreakpoints.cardWidth(width, cols, gap);
         final compact = cols == 2;
 
         Widget cell({
@@ -1723,6 +1730,7 @@ class _StoresScreenState extends State<StoresScreen> {
   }) {
     return Container(
       width: double.infinity,
+      constraints: BoxConstraints(minHeight: compact ? 74 : 94),
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 10 : 16,
         vertical: compact ? 10 : 16,
@@ -1758,15 +1766,20 @@ class _StoresScreenState extends State<StoresScreen> {
                   ),
                 ),
                 SizedBox(height: compact ? 3 : 6),
-                Text(
-                  tx(value),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: compact ? 18 : 26,
-                    fontWeight: FontWeight.w900,
-                    color: AdminSurfaces.of(context).textPrimary,
-                    letterSpacing: -0.5,
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      tx(value),
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: compact ? 18 : 26,
+                        fontWeight: FontWeight.w900,
+                        color: AdminSurfaces.of(context).textPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1799,7 +1812,7 @@ class _StoresScreenState extends State<StoresScreen> {
         final cols = w < 480 ? 1 : (w < 800 ? 2 : 3);
         final itemWidth = cols == 1
             ? w
-            : ((w - gap * (cols - 1)) / cols).clamp(140.0, w);
+            : AdminBreakpoints.cardWidth(w, cols, gap);
 
         Widget filterField({
           required String label,
@@ -1812,6 +1825,8 @@ class _StoresScreenState extends State<StoresScreen> {
               children: [
                 Text(
                   tx(label),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF64748B))),
                 ),
                 const SizedBox(height: 6),
@@ -1877,7 +1892,7 @@ class _StoresScreenState extends State<StoresScreen> {
     required ValueChanged<String?> onChanged,
   }) {
     return Container(
-      height: 40,
+      constraints: const BoxConstraints(minHeight: 40),
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
@@ -1888,6 +1903,7 @@ class _StoresScreenState extends State<StoresScreen> {
         child: DropdownButton<String>(
           value: value,
           isExpanded: true,
+          isDense: true,
           icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
           style: TextStyle(
             fontSize: 12.5,
@@ -1898,7 +1914,11 @@ class _StoresScreenState extends State<StoresScreen> {
             for (var i = 0; i < items.length; i++)
               DropdownMenuItem<String>(
                 value: items[i],
-                child: Text(tx(labels != null && i < labels.length ? labels[i] : items[i])),
+                child: Text(
+                  tx(labels != null && i < labels.length ? labels[i] : items[i]),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
           ],
           onChanged: onChanged,
@@ -1962,6 +1982,7 @@ class _StoresScreenState extends State<StoresScreen> {
           Wrap(
             spacing: 10,
             runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Directionality(
@@ -1977,21 +1998,23 @@ class _StoresScreenState extends State<StoresScreen> {
                 children: [
                   InkWell(
                     onTap: () => _showVendorDetailsDialog(v),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(8),
                     child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
-                      child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(8)),
+                      child: Icon(Icons.visibility_outlined, size: 17, color: RC.fg(Color(0xFF475569))),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   InkWell(
                     onTap: () => _showAddVendorDialog(existing: v),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(8),
                     child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
-                      child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(8)),
+                      child: Icon(Icons.edit_outlined, size: 17, color: RC.fg(Color(0xFF475569))),
                     ),
                   ),
                 ],
@@ -2009,6 +2032,7 @@ class _StoresScreenState extends State<StoresScreen> {
   Widget _buildVendorsTableCard(List<VendorItem> list) {
     // Show top 5 records for page 1
     final pagedList = list.take(5).toList();
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
 
     return Container(
       decoration: BoxDecoration(
@@ -2054,161 +2078,137 @@ class _StoresScreenState extends State<StoresScreen> {
                   ],
                 );
               }
-              final alignStart = widget.lang == 'en' ? TextAlign.left : TextAlign.right;
-              final tableWidth = constraints.maxWidth > 900 ? constraints.maxWidth : 900.0;
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: tableWidth,
-                  child: Column(
-                    children: [
-                      // Table Headers
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: AdminSurfaces.of(context).mutedFill,
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                          border: Border(bottom: BorderSide(color: AdminSurfaces.of(context).hairline)),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(flex: 3, child: Text(_t('col_vendor'), textAlign: alignStart, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text(_t('cuisine_type'), textAlign: alignStart, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(_t('city'), textAlign: alignStart, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text(_t('col_mobile'), textAlign: alignStart, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(_t('kpi_today_orders'), textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(_t('status'), textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(_t('col_action'), textAlign: widget.lang == 'en' ? TextAlign.right : TextAlign.left, style: _headerStyle)),
-                          ],
-                        ),
-                      ),
-
-                      // Table Rows
-                      if (list.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 40),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.storefront_outlined, size: 40, color: RC.fg(Color(0xFFCBD5E1))),
-                                const SizedBox(height: 10),
-                                Text(
-                                  _t('no_vendors'),
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF94A3B8))),
-                                ),
-                              ],
-                            ),
+              final tableWidth = constraints.maxWidth > 980 ? constraints.maxWidth : 980.0;
+              return Scrollbar(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(
+                      children: [
+                        // Table Headers
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AdminSurfaces.of(context).mutedFill,
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                            border: Border(bottom: BorderSide(color: AdminSurfaces.of(context).hairline)),
                           ),
-                        )
-                      else
-                        ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: pagedList.length,
-                        separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
-                        itemBuilder: (context, index) {
-                          final v = pagedList[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            child: Row(
-                              children: [
-                                // 1. Vendor Name, Subtitle, and Thumbnail
-                                Expanded(
-                                  flex: 3,
-                                  child: Row(
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                          v.imageUrl,
-                                          width: 38,
-                                          height: 38,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, _, _) => Container(
-                                            width: 38,
-                                            height: 38,
-                                            decoration: BoxDecoration(
-                                              color: AdminSurfaces.of(context).chipFill,
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Icon(Icons.storefront_rounded, size: 20, color: RC.fg(Color(0xFF94A3B8))),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Flexible(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              tx(v.name),
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 13,
-                                                color: RC.fg(Color(0xFF1E293B)),
-                                              ),
-                                            ),
-                                            if (v.subtitle.isNotEmpty) ...[
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                tx(v.subtitle),
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 10.5,
-                                                  color: AdminSurfaces.of(context).textTertiary,
-                                                  fontWeight: FontWeight.w600,
+                          child: Row(
+                            children: [
+                              Expanded(flex: 3, child: Text(_t('col_vendor'), textAlign: TextAlign.start, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 3, child: Text(_t('cuisine_type'), textAlign: TextAlign.start, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: Text(_t('city'), textAlign: TextAlign.start, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 3, child: Text(_t('col_mobile'), textAlign: TextAlign.start, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: Text(_t('kpi_today_orders'), textAlign: TextAlign.center, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: Text(_t('status'), textAlign: TextAlign.center, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: Text(_t('col_action'), textAlign: TextAlign.end, style: _headerStyle)),
+                            ],
+                          ),
+                        ),
+
+                        // Table Rows
+                        if (list.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.storefront_outlined, size: 40, color: RC.fg(Color(0xFFCBD5E1))),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    _t('no_vendors'),
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF94A3B8))),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: pagedList.length,
+                            separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
+                            itemBuilder: (context, index) {
+                              final v = pagedList[index];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    // 1. Vendor Name, Subtitle, and Thumbnail
+                                    Expanded(
+                                      flex: 3,
+                                      child: Row(
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Image.network(
+                                              v.imageUrl,
+                                              width: 38,
+                                              height: 38,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) => Container(
+                                                width: 38,
+                                                height: 38,
+                                                decoration: BoxDecoration(
+                                                  color: AdminSurfaces.of(context).chipFill,
+                                                  borderRadius: BorderRadius.circular(8),
                                                 ),
+                                                child: Icon(Icons.storefront_rounded, size: 20, color: RC.fg(Color(0xFF94A3B8))),
                                               ),
-                                            ],
-                                          ],
-                                        ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Flexible(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  tx(v.name),
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 13,
+                                                    color: RC.fg(Color(0xFF1E293B)),
+                                                  ),
+                                                ),
+                                                if (v.subtitle.isNotEmpty) ...[
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    tx(v.subtitle),
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 10.5,
+                                                      color: AdminSurfaces.of(context).textTertiary,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                                ),
-
-                                // 2. Food Type
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    tx(_vendorCuisineLabel(v)),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: alignStart,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: AdminSurfaces.of(context).textPrimary,
                                     ),
-                                  ),
-                                ),
+                                    const SizedBox(width: 8),
 
-                                // 3. City
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    tx(AppStrings.cityLabel(v.city, _lang)),
-                                    textAlign: alignStart,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: AdminSurfaces.of(context).textPrimary,
-                                    ),
-                                  ),
-                                ),
-
-                                // 4. Phone
-                                Expanded(
-                                  flex: 3,
-                                  child: Align(
-                                    alignment: widget.lang == 'en' ? Alignment.centerLeft : Alignment.centerRight,
-                                    child: Directionality(
-                                      textDirection: TextDirection.ltr,
+                                    // 2. Food Type
+                                    Expanded(
+                                      flex: 3,
                                       child: Text(
-                                        tx(v.phone),
+                                        tx(_vendorCuisineLabel(v)),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.start,
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w700,
@@ -2216,71 +2216,112 @@ class _StoresScreenState extends State<StoresScreen> {
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ),
+                                    const SizedBox(width: 8),
 
-                                // 5. Today Orders
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    tx(_d(v.todayOrders)),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: AdminSurfaces.of(context).textPrimary,
+                                    // 3. City
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        tx(AppStrings.cityLabel(v.city, _lang)),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.start,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: AdminSurfaces.of(context).textPrimary,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
+                                    const SizedBox(width: 8),
 
-                                // 6. Status
-                                Expanded(
-                                  flex: 2,
-                                  child: Center(child: _buildStatusBadge(v.status)),
-                                ),
-
-                                // 7. Actions [✏️] [👁]
-                                Expanded(
-                                  flex: 2,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      // View Details Eye Button
-                                      InkWell(
-                                        onTap: () => _showVendorDetailsDialog(v),
-                                        borderRadius: BorderRadius.circular(6),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(5),
-                                          decoration: BoxDecoration(
-                                            color: AdminSurfaces.of(context).chipFill,
-                                            borderRadius: BorderRadius.circular(6),
+                                    // 4. Phone
+                                    Expanded(
+                                      flex: 3,
+                                      child: Align(
+                                        alignment: AlignmentDirectional.centerStart,
+                                        child: Directionality(
+                                          textDirection: TextDirection.ltr,
+                                          child: Text(
+                                            tx(v.phone),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: AdminSurfaces.of(context).textPrimary,
+                                            ),
                                           ),
-                                          child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
-                                      // Edit Button
-                                      InkWell(
-                                        onTap: () => _showAddVendorDialog(existing: v),
-                                        borderRadius: BorderRadius.circular(6),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(5),
-                                          decoration: BoxDecoration(
-                                            color: AdminSurfaces.of(context).chipFill,
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 5. Today Orders
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        tx(_d(v.todayOrders)),
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: AdminSurfaces.of(context).textPrimary,
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 6. Status
+                                    Expanded(
+                                      flex: 2,
+                                      child: Center(child: _buildStatusBadge(v.status, compact: true)),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 7. Actions [✏️] [👁]
+                                    Expanded(
+                                      flex: 2,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: [
+                                          // View Details Eye Button
+                                          InkWell(
+                                            onTap: () => _showVendorDetailsDialog(v),
+                                            borderRadius: BorderRadius.circular(6),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: AdminSurfaces.of(context).chipFill,
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          // Edit Button
+                                          InkWell(
+                                            onTap: () => _showAddVendorDialog(existing: v),
+                                            borderRadius: BorderRadius.circular(6),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: AdminSurfaces.of(context).chipFill,
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                              );
+                            },
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -2324,7 +2365,10 @@ class _StoresScreenState extends State<StoresScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildPageNavBtn(icon: Icons.chevron_left_rounded, onTap: () {}),
+                          _buildPageNavBtn(
+                            icon: isRtl ? Icons.chevron_right_rounded : Icons.chevron_left_rounded,
+                            onTap: () {},
+                          ),
                           const SizedBox(width: 4),
                           _buildPageNumberBtn(page: 1, active: _currentPage == 1),
                           const SizedBox(width: 4),
@@ -2336,7 +2380,10 @@ class _StoresScreenState extends State<StoresScreen> {
                           const SizedBox(width: 4),
                           _buildPageNumberBtn(page: 5, active: _currentPage == 5),
                           const SizedBox(width: 4),
-                          _buildPageNavBtn(icon: Icons.chevron_right_rounded, onTap: () {}),
+                          _buildPageNavBtn(
+                            icon: isRtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+                            onTap: () {},
+                          ),
                         ],
                       ),
                     ),
@@ -2353,7 +2400,7 @@ class _StoresScreenState extends State<StoresScreen> {
   Widget _buildStatusBadge(String status, {bool compact = false}) {
     final isActive = status == 'active';
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 14, vertical: compact ? 3 : 4),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14, vertical: compact ? 3 : 4),
       decoration: BoxDecoration(
         color: isActive ? RC.bg(Color(0xFFDCFCE7)) : RC.bg(Color(0xFFFEF3C7)),
         borderRadius: BorderRadius.circular(14),
@@ -2374,10 +2421,10 @@ class _StoresScreenState extends State<StoresScreen> {
   Widget _buildPageNumberBtn({required int page, required bool active}) {
     return InkWell(
       onTap: () => setState(() => _currentPage = page),
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        width: 28,
-        height: 28,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           color: active ? RC.bg(Color(0xFFEA580C)) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
@@ -2399,13 +2446,13 @@ class _StoresScreenState extends State<StoresScreen> {
   Widget _buildPageNavBtn({required IconData icon, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        width: 28,
-        height: 28,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
           child: Icon(icon, size: 18, color: RC.fg(Color(0xFF94A3B8))),

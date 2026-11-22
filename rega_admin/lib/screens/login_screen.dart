@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
+import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/admin_top_header.dart';
 
@@ -80,7 +81,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.of(context).size.width >= 900;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isWide = screenW >= AdminBreakpoints.tablet;
 
     return Scaffold(
       backgroundColor: RC.bg(Color(0xFF090D16)),
@@ -90,7 +92,6 @@ class _LoginScreenState extends State<LoginScreen> {
             Expanded(
               flex: 6,
               child: Container(
-                padding: const EdgeInsets.all(56),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -102,98 +103,118 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: RC.bg(Colors.white),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Image.asset(
-                            'assets/logo2.png',
-                            width: 44,
-                            height: 44,
-                            errorBuilder: (_, _, _) => const Icon(Icons.bolt_rounded, color: RegaColors.gold, size: 36),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Column(
+                child: LayoutBuilder(
+                  builder: (context, leftConstraints) => SingleChildScrollView(
+                    padding: EdgeInsets.all(screenW < 1100 ? 28 : 48),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: (leftConstraints.maxHeight -
+                                (screenW < 1100 ? 56 : 96))
+                            .clamp(0.0, double.infinity),
+                      ),
+                      child: IntrinsicHeight(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              tx('REGA'),
-                              style: TextStyle(
-                                color: RegaColors.gold,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.4,
-                              ),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: RC.bg(Colors.white),
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  child: Image.asset(
+                                    'assets/logo2.png',
+                                    width: 44,
+                                    height: 44,
+                                    errorBuilder: (_, _, _) => const Icon(Icons.bolt_rounded, color: RegaColors.gold, size: 36),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        tx('REGA'),
+                                        style: TextStyle(
+                                          color: RegaColors.gold,
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 1.4,
+                                        ),
+                                      ),
+                                      Text(
+                                        AppStrings.tr('login_brand_sub', widget.lang),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(color: RC.fg(Colors.white70), fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
+                            const SizedBox(height: 24),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: RegaColors.gold.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(30),
+                                    border: Border.all(color: RegaColors.gold.withValues(alpha: 0.4)),
+                                  ),
+                                  child: Text(
+                                    AppStrings.tr('login_ecosystem_badge', widget.lang),
+                                    style: const TextStyle(color: RegaColors.gold, fontSize: 12, fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                Text(
+                                  AppStrings.tr('login_welcome', widget.lang),
+                                  style: TextStyle(
+                                    color: RC.fg(Colors.white),
+                                    fontSize: screenW < 1100 ? 28 : 34,
+                                    fontWeight: FontWeight.w900,
+                                    height: 1.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Text(
+                                  AppStrings.tr('login_subtitle', widget.lang),
+                                  style: TextStyle(
+                                    color: RC.fg(Color(0xFFCBD5E1)),
+                                    fontSize: 15,
+                                    height: 1.6,
+                                  ),
+                                ),
+                                const SizedBox(height: 32),
+                                Wrap(
+                                  spacing: 14,
+                                  runSpacing: 14,
+                                  children: [
+                                    _FeaturePill(icon: Icons.storage_rounded, label: AppStrings.tr('login_pill_db', widget.lang)),
+                                    _FeaturePill(icon: Icons.pin_rounded, label: AppStrings.tr('login_pill_pin', widget.lang)),
+                                    _FeaturePill(icon: Icons.percent_rounded, label: AppStrings.tr('login_pill_commission', widget.lang)),
+                                    _FeaturePill(icon: Icons.two_wheeler_rounded, label: AppStrings.tr('login_pill_fleet', widget.lang)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
                             Text(
-                              AppStrings.tr('login_brand_sub', widget.lang),
-                              style: TextStyle(color: RC.fg(Colors.white70), fontSize: 12),
+                              AppStrings.tr('login_footer', widget.lang),
+                              style: TextStyle(color: RC.fg(Colors.white38), fontSize: 12),
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: RegaColors.gold.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: RegaColors.gold.withValues(alpha: 0.4)),
-                          ),
-                          child: Text(
-                            AppStrings.tr('login_ecosystem_badge', widget.lang),
-                            style: const TextStyle(color: RegaColors.gold, fontSize: 12, fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          AppStrings.tr('login_welcome', widget.lang),
-                          style: TextStyle(
-                            color: RC.fg(Colors.white),
-                            fontSize: 34,
-                            fontWeight: FontWeight.w900,
-                            height: 1.3,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          AppStrings.tr('login_subtitle', widget.lang),
-                          style: TextStyle(
-                            color: RC.fg(Color(0xFFCBD5E1)),
-                            fontSize: 15,
-                            height: 1.6,
-                          ),
-                        ),
-                        const SizedBox(height: 36),
-                        Wrap(
-                          spacing: 14,
-                          runSpacing: 14,
-                          children: [
-                            _FeaturePill(icon: Icons.storage_rounded, label: AppStrings.tr('login_pill_db', widget.lang)),
-                            _FeaturePill(icon: Icons.pin_rounded, label: AppStrings.tr('login_pill_pin', widget.lang)),
-                            _FeaturePill(icon: Icons.percent_rounded, label: AppStrings.tr('login_pill_commission', widget.lang)),
-                            _FeaturePill(icon: Icons.two_wheeler_rounded, label: AppStrings.tr('login_pill_fleet', widget.lang)),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Text(
-                      AppStrings.tr('login_footer', widget.lang),
-                      style: TextStyle(color: RC.fg(Colors.white38), fontSize: 12),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -265,35 +286,34 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ],
                               ),
                             ),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
+                            Wrap(
+                              spacing: 4,
+                              runSpacing: 6,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 ...['ku', 'ar', 'en'].map((code) {
                                   final active = widget.lang == code;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(left: 4),
-                                    child: InkWell(
-                                      onTap: () => widget.onLangChanged(code),
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: active ? RegaColors.gold : RC.bg(Color(0xFFF1F5F9)),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          tx(code == 'ku' ? 'کوردی' : (code == 'ar' ? 'عربي' : 'EN')),
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                            color: active ? RC.bg(Color(0xFF0F172A)) : RC.bg(Color(0xFF64748B)),
-                                          ),
+                                  return InkWell(
+                                    onTap: () => widget.onLangChanged(code),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: active ? RegaColors.gold : RC.bg(Color(0xFFF1F5F9)),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        tx(code == 'ku' ? 'کوردی' : (code == 'ar' ? 'عربي' : 'EN')),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          color: active ? RC.bg(Color(0xFF0F172A)) : RC.bg(Color(0xFF64748B)),
                                         ),
                                       ),
                                     ),
                                   );
                                 }),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 4),
                                 const AdminThemeToggle(),
                               ],
                             ),

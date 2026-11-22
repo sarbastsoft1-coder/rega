@@ -6,6 +6,7 @@ import '../core/iraq_phone_formatter.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../widgets/admin_top_header.dart';
+import '../widgets/common_widgets.dart';
 import '../core/theme/app_theme.dart';
 
 import '../rega_i18n.dart';
@@ -265,6 +266,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   backgroundColor: Colors.transparent,
                   body: AlertDialog(
                   insetPadding: AdminBreakpoints.dialogInset(ctx),
+                  contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+                  actionsOverflowButtonSpacing: 8,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                   title: Row(
                     children: [
@@ -278,6 +281,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                           tx(isEdit
                               ? AppStrings.tr('edit_customer', lang)
                               : AppStrings.tr('add_customer_new', lang)),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                         ),
                       ),
@@ -285,48 +290,51 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   ),
                   content: SizedBox(
                     width: AdminBreakpoints.dialogWidth(ctx, max: 440),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (formError != null) ...[
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: RC.bg(Color(0xFFFEE2E2)),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: RC.bg(Color(0xFFFECACA))),
-                              ),
-                              child: Text(
-                                tx(formError!),
-                                style: TextStyle(
-                                  color: RC.fg(Color(0xFFB91C1C)),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12.5,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 540),
+                      ),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (formError != null) ...[
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: RC.bg(Color(0xFFFEE2E2)),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: RC.bg(Color(0xFFFECACA))),
+                                ),
+                                child: Text(
+                                  tx(formError!),
+                                  style: TextStyle(
+                                    color: RC.fg(Color(0xFFB91C1C)),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
+                                  ),
                                 ),
                               ),
+                              const SizedBox(height: 12),
+                            ],
+                            TextField(
+                              controller: nameCtrl,
+                              enabled: !saving,
+                              textInputAction: TextInputAction.next,
+                              decoration: InputDecoration(
+                                labelText: AppStrings.tr('customer_name_label', lang),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              ),
                             ),
-                            const SizedBox(height: 12),
-                          ],
-                          TextField(
-                            controller: nameCtrl,
-                            enabled: !saving,
-                            textInputAction: TextInputAction.next,
-                            decoration: InputDecoration(
-                              labelText: AppStrings.tr('customer_name_label', lang),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Directionality(
-                            textDirection: TextDirection.ltr,
-                            child: TextField(
+                            const SizedBox(height: 14),
+                            TextField(
                               controller: phoneCtrl,
                               enabled: !saving,
                               keyboardType: TextInputType.phone,
                               textInputAction: TextInputAction.next,
+                              textDirection: TextDirection.ltr,
                               textAlign: TextAlign.left,
                               inputFormatters: <TextInputFormatter>[IraqPhoneFormatter()],
                               decoration: InputDecoration(
@@ -336,72 +344,80 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 14),
-                          TextField(
-                            controller: emailCtrl,
-                            enabled: !saving,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            decoration: InputDecoration(
-                              labelText: AppStrings.tr('email_optional', lang),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          TextField(
-                            controller: passwordCtrl,
-                            enabled: !saving,
-                            obscureText: true,
-                            decoration: InputDecoration(
-                              labelText: AppStrings.tr(
-                                isEdit ? 'password_new_optional' : 'password_required_label',
-                                lang,
+                            const SizedBox(height: 14),
+                            TextField(
+                              controller: emailCtrl,
+                              enabled: !saving,
+                              keyboardType: TextInputType.emailAddress,
+                              textDirection: TextDirection.ltr,
+                              textAlign: TextAlign.left,
+                              textInputAction: TextInputAction.next,
+                              decoration: InputDecoration(
+                                labelText: AppStrings.tr('email_optional', lang),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               ),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                             ),
-                          ),
-                          const SizedBox(height: 14),
-                          DropdownButtonFormField<String>(
-                            initialValue: city,
-                            items: [
-                              for (final c in AppStrings.knownCitiesKu)
-                                DropdownMenuItem(
-                                  value: c,
-                                  child: Text(tx(AppStrings.cityLabel(c, lang))),
+                            const SizedBox(height: 14),
+                            TextField(
+                              controller: passwordCtrl,
+                              enabled: !saving,
+                              obscureText: true,
+                              decoration: InputDecoration(
+                                labelText: AppStrings.tr(
+                                  isEdit ? 'password_new_optional' : 'password_required_label',
+                                  lang,
                                 ),
-                            ],
-                            onChanged: saving
-                                ? null
-                                : (v) => setDialogState(() => city = v ?? 'کەلار'),
-                            decoration: InputDecoration(
-                              labelText: AppStrings.tr('city', lang),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 14),
-                          SwitchListTile(
-                            value: !isActive,
-                            activeTrackColor: RC.bg(Color(0xFFFECACA)),
-                            activeThumbColor: RC.bg(Color(0xFFDC2626)),
-                            onChanged: saving
-                                ? null
-                                : (v) => setDialogState(() => isActive = !v),
-                            title: Text(
-                              AppStrings.tr('block_account', lang),
-                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            const SizedBox(height: 14),
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: city,
+                              items: [
+                                for (final c in AppStrings.knownCitiesKu)
+                                  DropdownMenuItem(
+                                    value: c,
+                                    child: Text(
+                                      tx(AppStrings.cityLabel(c, lang)),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                              onChanged: saving
+                                  ? null
+                                  : (v) => setDialogState(() => city = v ?? 'کەلار'),
+                              decoration: InputDecoration(
+                                labelText: AppStrings.tr('city', lang),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              ),
                             ),
-                            subtitle: Text(
-                              tx(isActive
-                                  ? AppStrings.tr('account_active', lang)
-                                  : AppStrings.tr('account_blocked_hint', lang)),
-                              style: const TextStyle(fontSize: 11),
+                            const SizedBox(height: 14),
+                            SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              value: !isActive,
+                              activeTrackColor: RC.bg(Color(0xFFFECACA)),
+                              activeThumbColor: RC.bg(Color(0xFFDC2626)),
+                              onChanged: saving
+                                  ? null
+                                  : (v) => setDialogState(() => isActive = !v),
+                              title: Text(
+                                AppStrings.tr('block_account', lang),
+                                style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              subtitle: Text(
+                                tx(isActive
+                                    ? AppStrings.tr('account_active', lang)
+                                    : AppStrings.tr('account_blocked_hint', lang)),
+                                style: const TextStyle(fontSize: 11),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -416,8 +432,17 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                 final confirmed = await showDialog<bool>(
                                   context: ctx,
                                   builder: (confirmCtx) => AlertDialog(
-                                    title: Text(AppStrings.tr('confirm_delete_customer_title', lang)),
-                                    content: Text(AppStrings.tr('confirm_delete_customer_body', lang)),
+                                    insetPadding: AdminBreakpoints.dialogInset(confirmCtx),
+                                    contentPadding: AdminBreakpoints.dialogContentPadding(confirmCtx),
+                                    actionsOverflowButtonSpacing: 8,
+                                    title: Text(
+                                      AppStrings.tr('confirm_delete_customer_title', lang),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    content: SingleChildScrollView(
+                                      child: Text(AppStrings.tr('confirm_delete_customer_body', lang)),
+                                    ),
                                     actions: [
                                       TextButton(
                                         onPressed: () => Navigator.pop(confirmCtx, false),
@@ -590,6 +615,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         insetPadding: AdminBreakpoints.dialogInset(ctx),
+        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+        actionsOverflowButtonSpacing: 8,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Row(
           children: [
@@ -602,28 +629,47 @@ class _CustomersScreenState extends State<CustomersScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(tx(c.name), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                  Text(tx(AppStrings.cityLabel(c.city, lang)), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF9CA3AF)))),
+                  Text(
+                    tx(c.name),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                  ),
+                  Text(
+                    tx(AppStrings.cityLabel(c.city, lang)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF9CA3AF))),
+                  ),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             _buildStatusBadge(c.isActive),
           ],
         ),
-        content: SizedBox(
-          width: AdminBreakpoints.dialogWidth(ctx, max: 420),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDetailRow('📱 ${AppStrings.tr('phone', lang)}:', c.phone),
-              _buildDetailRow('🏙️ ${AppStrings.tr('city', lang)}:', AppStrings.cityLabel(c.city, lang)),
-              _buildDetailRow(
-                '🛍️ ${AppStrings.tr('total_orders_label', lang)}:',
-                '${_d(c.totalOrders)} ${AppStrings.tr('orders_count_suffix', lang)}',
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 420),
+            maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 520),
+          ),
+          child: SizedBox(
+            width: AdminBreakpoints.dialogWidth(ctx, max: 420),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDetailRow('📱 ${AppStrings.tr('phone', lang)}:', c.phone, ltrValue: true),
+                  _buildDetailRow('🏙️ ${AppStrings.tr('city', lang)}:', AppStrings.cityLabel(c.city, lang)),
+                  _buildDetailRow(
+                    '🛍️ ${AppStrings.tr('total_orders_label', lang)}:',
+                    '${_d(c.totalOrders)} ${AppStrings.tr('orders_count_suffix', lang)}',
+                  ),
+                  _buildDetailRow('📅 ${AppStrings.tr('col_register_date', lang)}:', c.registerDate, ltrValue: true),
+                ],
               ),
-              _buildDetailRow('📅 ${AppStrings.tr('col_register_date', lang)}:', c.registerDate),
-            ],
+            ),
           ),
         ),
         actions: [
@@ -668,19 +714,13 @@ class _CustomersScreenState extends State<CustomersScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(tx(label), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: RC.fg(Color(0xFF4B5563)))),
-          Text(
-            tx(value),
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: RC.fg(Color(0xFF111827))),
-          ),
-        ],
-      ),
+  Widget _buildDetailRow(String label, String value, {bool ltrValue = false}) {
+    return ResponsiveDetailRow(
+      label: label,
+      value: value,
+      ltrValue: ltrValue,
+      labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: RC.fg(Color(0xFF4B5563))),
+      valueStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: RC.fg(Color(0xFF111827))),
     );
   }
 
@@ -691,8 +731,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
   Widget build(BuildContext context) {
     final filtered = _filteredCustomers;
 
-    final width = MediaQuery.sizeOf(context).width;
-    final padH = width < AdminBreakpoints.phone ? 14.0 : (width < AdminBreakpoints.tablet ? 18.0 : 24.0);
+    final padH = AdminBreakpoints.pagePadH(context);
     return Directionality(
       textDirection: widget.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
       child: Scaffold(
@@ -729,7 +768,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
   Widget _buildTopHeader() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 760;
+        final isNarrow = constraints.maxWidth < 980;
+        final titleSize = constraints.maxWidth < 400 ? 18.0 : 22.0;
 
         final titleAndButton = Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
@@ -741,8 +781,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
               children: [
                 Text(
                   AppStrings.tr('customers_title', _lang),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: titleSize,
                     fontWeight: FontWeight.w900,
                     color: AdminSurfaces.of(context).textPrimary,
                   ),
@@ -750,6 +792,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 const SizedBox(height: 2),
                 Text(
                   AppStrings.tr('customers_subtitle', _lang),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12.5,
                     color: AdminSurfaces.of(context).textSecondary,
@@ -788,6 +832,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   icon: const Icon(Icons.notifications_active_rounded, size: 18),
                   label: Text(
                     tx('ناردنی ئاگاداری'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -803,6 +849,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   icon: Icon(Icons.add, size: 18, color: RC.fg(Colors.white)),
                   label: Text(
                     AppStrings.tr('add_customer', _lang),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
                   ),
                 ),
@@ -817,7 +865,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
           onSearchChanged: (_) => setState(() {}),
         );
 
-        if (constraints.maxWidth < 650) {
+        if (constraints.maxWidth < AdminBreakpoints.headerCompact) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -830,23 +878,18 @@ class _CustomersScreenState extends State<CustomersScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: titleAndButton),
-                ],
-              ),
+              titleAndButton,
               const SizedBox(height: 12),
               topActions,
             ],
           );
         } else {
           return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              titleAndButton,
-              topActions,
+              Expanded(child: titleAndButton),
+              const SizedBox(width: 12),
+              Flexible(child: topActions),
             ],
           );
         }
@@ -861,14 +904,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final double cardWidth;
-        if (width >= AdminBreakpoints.kpiFourCol) {
-          cardWidth = (width - 48) / 4;
-        } else if (width >= AdminBreakpoints.kpiTwoCol) {
-          cardWidth = (width - 16) / 2;
-        } else {
-          cardWidth = width;
-        }
+        final cols = width >= AdminBreakpoints.kpiFourCol
+            ? 4
+            : (width >= AdminBreakpoints.kpiTwoCol ? 2 : 1);
+        final cardWidth = AdminBreakpoints.cardWidth(width, cols, 16);
         final lang = _lang;
         return Wrap(
           spacing: 16,
@@ -942,7 +981,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Icon Box
           Container(
@@ -954,29 +992,41 @@ class _CustomersScreenState extends State<CustomersScreen> {
             ),
             child: Icon(icon, color: iconColor, size: 22),
           ),
+          const SizedBox(width: 12),
           // Value & Title
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                tx(title),
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: AdminSurfaces.of(context).textSecondary,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  tx(title),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AdminSurfaces.of(context).textSecondary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                tx(value),
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                  color: AdminSurfaces.of(context).textPrimary,
-                  letterSpacing: -0.5,
+                const SizedBox(height: 6),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      tx(value),
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: AdminSurfaces.of(context).textPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1068,7 +1118,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
     required ValueChanged<String?> onChanged,
   }) {
     return Container(
-      height: 38,
+      constraints: const BoxConstraints(minHeight: 38),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: AdminSurfaces.of(context).card,
@@ -1078,6 +1128,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
+          isDense: true,
           icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
           style: TextStyle(
             fontSize: 12,
@@ -1092,7 +1143,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 children: [
                   Icon(icon, size: 15, color: RC.fg(Color(0xFF64748B))),
                   const SizedBox(width: 6),
-                  Text(tx(item.$2)),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 160),
+                    child: Text(
+                      tx(item.$2),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -1135,10 +1193,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             AppStrings.tr('new_customers_chart', _lang),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w800,
@@ -1148,48 +1208,56 @@ class _CustomersScreenState extends State<CustomersScreen> {
           const SizedBox(height: 10),
           Directionality(
             textDirection: TextDirection.ltr,
-            child: SizedBox(
-              height: 110,
-              child: Row(
-                children: [
-                  // Y-axis labels — scaled to real max
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: yTicks
-                        .map(
-                          (v) => Text(
-                            tx(v >= 1000
-                                ? '${(v / 1000).toStringAsFixed(v % 1000 == 0 ? 0 : 1)}k'
-                                : '$v'),
-                            style: TextStyle(
-                              fontSize: 9.5,
-                              color: AdminSurfaces.of(context).textTertiary,
-                              fontWeight: FontWeight.w600,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 110, maxHeight: 130),
+              child: SizedBox(
+                height: 112,
+                child: Row(
+                  children: [
+                    // Y-axis labels — fixed width so values never push canvas unevenly
+                    SizedBox(
+                      width: 34,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: yTicks
+                            .map(
+                              (v) => Text(
+                                tx(v >= 1000
+                                    ? '${(v / 1000).toStringAsFixed(v % 1000 == 0 ? 0 : 1)}k'
+                                    : '$v'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  color: AdminSurfaces.of(context).textTertiary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: counts.isEmpty
+                          ? Center(
+                              child: Text(
+                                tx('...'),
+                                style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8))),
+                              ),
+                            )
+                          : CustomPaint(
+                              painter: _CustomersChartPainter(
+                                values: counts,
+                                yMax: yMax,
+                                gridColor: AdminSurfaces.of(context).hairline,
+                              ),
+                              size: Size.infinite,
                             ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: counts.isEmpty
-                        ? Center(
-                            child: Text(
-                              tx('...'),
-                              style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8))),
-                            ),
-                          )
-                        : CustomPaint(
-                            painter: _CustomersChartPainter(
-                              values: counts,
-                              yMax: yMax,
-                              gridColor: AdminSurfaces.of(context).hairline,
-                            ),
-                            size: Size.infinite,
-                          ),
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1198,7 +1266,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
           Directionality(
             textDirection: TextDirection.ltr,
             child: Padding(
-              padding: const EdgeInsets.only(left: 36),
+              padding: const EdgeInsets.only(left: 42),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: (labels.isEmpty
@@ -1237,7 +1305,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
         border: Border(bottom: BorderSide(color: surfaces.hairline)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1268,79 +1336,87 @@ class _CustomersScreenState extends State<CustomersScreen> {
               _buildStatusBadge(c.isActive),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 10,
-            runSpacing: 8,
+            runSpacing: 6,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Directionality(
                 textDirection: TextDirection.ltr,
                 child: Text(
                   tx(c.phone),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
                 ),
               ),
               Text(
                 tx(AppStrings.cityLabel(c.city, lang)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: surfaces.textSecondary),
               ),
               Text(
                 tx('${_d(c.totalOrders)} ${AppStrings.tr('orders_count_suffix', lang)}'),
                 style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: RC.fg(Color(0xFFEA580C))),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  InkWell(
-                    onTap: () async {
-                      final ok = await showSendCustomerNotificationDialog(
-                        context,
-                        api: widget.api,
-                        lang: _lang,
-                        preselectedIds: {c.id},
-                        preselectedLabel: '${c.name} ${c.phone}'.trim(),
-                      );
-                      if (ok && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(tx('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت')),
-                            backgroundColor: RegaColors.emeraldDark,
-                          ),
-                        );
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(6),
-                    child: Tooltip(
-                      message: tx('ناردنی ئاگاداری'),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
-                        child: Icon(Icons.notifications_active_outlined, size: 16, color: RC.fg(const Color(0xFF2563EB))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              InkWell(
+                onTap: () async {
+                  final ok = await showSendCustomerNotificationDialog(
+                    context,
+                    api: widget.api,
+                    lang: _lang,
+                    preselectedIds: {c.id},
+                    preselectedLabel: '${c.name} ${c.phone}'.trim(),
+                  );
+                  if (ok && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(tx('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت')),
+                        backgroundColor: RegaColors.emeraldDark,
                       ),
-                    ),
+                    );
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Tooltip(
+                  message: tx('ناردنی ئاگاداری'),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(8)),
+                    child: Icon(Icons.notifications_active_outlined, size: 17, color: RC.fg(const Color(0xFF2563EB))),
                   ),
-                  const SizedBox(width: 6),
-                  InkWell(
-                    onTap: () => _showCustomerDetailsDialog(c),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
-                      child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  InkWell(
-                    onTap: () => _showAddCustomerDialog(existing: c),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(6)),
-                      child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
-                    ),
-                  ),
-                ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () => _showCustomerDetailsDialog(c),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(8)),
+                  child: Icon(Icons.visibility_outlined, size: 17, color: RC.fg(Color(0xFF475569))),
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () => _showAddCustomerDialog(existing: c),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(8)),
+                  child: Icon(Icons.edit_outlined, size: 17, color: RC.fg(Color(0xFF475569))),
+                ),
               ),
             ],
           ),
@@ -1355,6 +1431,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
   Widget _buildCustomersTableCard(List<CustomerItem> list) {
     // Show top 5 records for page 1
     final pagedList = list.take(5).toList();
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
 
     return Container(
       decoration: BoxDecoration(
@@ -1370,6 +1447,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
@@ -1398,235 +1476,261 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   ],
                 );
               }
-              final tableWidth = constraints.maxWidth > 780 ? constraints.maxWidth : 780.0;
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: tableWidth,
-                  child: Column(
-                    children: [
-                      // Table Headers
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: AdminSurfaces.of(context).mutedFill,
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                          border: Border(bottom: BorderSide(color: AdminSurfaces.of(context).hairline)),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(flex: 3, child: Text(AppStrings.tr('col_customer', _lang), textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text(AppStrings.tr('col_mobile', _lang), textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(AppStrings.tr('city', _lang), textAlign: TextAlign.right, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(AppStrings.tr('col_total_orders', _lang), textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 3, child: Text(AppStrings.tr('col_register_date', _lang), textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(AppStrings.tr('col_status', _lang), textAlign: TextAlign.center, style: _headerStyle)),
-                            Expanded(flex: 2, child: Text(AppStrings.tr('col_action', _lang), textAlign: TextAlign.left, style: _headerStyle)),
-                          ],
-                        ),
-                      ),
-
-                      // Table Rows
-                      if (list.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 40),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.people_outline_rounded, size: 40, color: RC.fg(Color(0xFFCBD5E1))),
-                                const SizedBox(height: 10),
-                                Text(
-                                  AppStrings.tr('no_customers', _lang),
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF94A3B8))),
-                                ),
-                              ],
-                            ),
+              final tableWidth = constraints.maxWidth > 940 ? constraints.maxWidth : 940.0;
+              return Scrollbar(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(
+                      children: [
+                        // Table Headers
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AdminSurfaces.of(context).mutedFill,
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                            border: Border(bottom: BorderSide(color: AdminSurfaces.of(context).hairline)),
                           ),
-                        )
-                      else
-                        ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: pagedList.length,
-                        separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
-                        itemBuilder: (context, index) {
-                          final c = pagedList[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            child: Row(
-                              children: [
-                                // 1. Customer Name + Avatar
-                                Expanded(
-                                  flex: 3,
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 28,
-                                        height: 28,
-                                        decoration: BoxDecoration(
-                                          color: AdminSurfaces.of(context).chipFill,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          c.isFemale ? Icons.face_3_rounded : Icons.person_rounded,
-                                          size: 16,
-                                          color: AdminSurfaces.of(context).textTertiary,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Flexible(
-                                        child: Text(
-                                          tx(c.name),
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 12.5,
-                                            color: RC.fg(Color(0xFF1E293B)),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                          child: Row(
+                            children: [
+                              Expanded(flex: 3, child: Text(AppStrings.tr('col_customer', _lang), textAlign: TextAlign.start, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 3, child: Text(AppStrings.tr('col_mobile', _lang), textAlign: TextAlign.start, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: Text(AppStrings.tr('city', _lang), textAlign: TextAlign.start, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: Text(AppStrings.tr('col_total_orders', _lang), textAlign: TextAlign.center, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 3, child: Text(AppStrings.tr('col_register_date', _lang), textAlign: TextAlign.center, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: Text(AppStrings.tr('col_status', _lang), textAlign: TextAlign.center, style: _headerStyle)),
+                              const SizedBox(width: 8),
+                              SizedBox(width: 112, child: Text(AppStrings.tr('col_action', _lang), textAlign: TextAlign.end, style: _headerStyle)),
+                            ],
+                          ),
+                        ),
+
+                        // Table Rows
+                        if (list.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.people_outline_rounded, size: 40, color: RC.fg(Color(0xFFCBD5E1))),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    AppStrings.tr('no_customers', _lang),
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF94A3B8))),
                                   ),
-                                ),
-
-                                // 2. Phone
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    tx(c.phone),
-                                    textAlign: TextAlign.right,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: AdminSurfaces.of(context).textPrimary,
-                                    ),
-                                  ),
-                                ),
-
-                                // 3. City
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    tx(AppStrings.cityLabel(c.city, _lang)),
-                                    textAlign: TextAlign.right,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: AdminSurfaces.of(context).textPrimary,
-                                    ),
-                                  ),
-                                ),
-
-                                // 4. Total Orders
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    tx('${c.totalOrders}'),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: AdminSurfaces.of(context).textPrimary,
-                                    ),
-                                  ),
-                                ),
-
-                                // 5. Register Date
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    tx(c.registerDate),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: AdminSurfaces.of(context).textSecondary,
-                                    ),
-                                  ),
-                                ),
-
-                                // 6. Status
-                                Expanded(
-                                  flex: 2,
-                                  child: Center(child: _buildStatusBadge(c.isActive)),
-                                ),
-
-                                // 7. Actions [✏️] [👁]
-                                Expanded(
-                                  flex: 2,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      // Send Notification Button
-                                      InkWell(
-                                        onTap: () async {
-                                          final ok = await showSendCustomerNotificationDialog(
-                                            context,
-                                            api: widget.api,
-                                            lang: _lang,
-                                            preselectedIds: {c.id},
-                                            preselectedLabel: '${c.name} ${c.phone}'.trim(),
-                                          );
-                                          if (ok && context.mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(
-                                                content: Text(tx('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت')),
-                                                backgroundColor: RegaColors.emeraldDark,
-                                              ),
-                                            );
-                                          }
-                                        },
-                                        borderRadius: BorderRadius.circular(6),
-                                        child: Tooltip(
-                                          message: tx('ناردنی ئاگاداری'),
-                                          child: Container(
-                                            padding: const EdgeInsets.all(5),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: pagedList.length,
+                            separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
+                            itemBuilder: (context, index) {
+                              final c = pagedList[index];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    // 1. Customer Name + Avatar
+                                    Expanded(
+                                      flex: 3,
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 28,
+                                            height: 28,
                                             decoration: BoxDecoration(
                                               color: AdminSurfaces.of(context).chipFill,
-                                              borderRadius: BorderRadius.circular(6),
+                                              shape: BoxShape.circle,
                                             ),
-                                            child: Icon(Icons.notifications_active_outlined, size: 16, color: RC.fg(const Color(0xFF2563EB))),
+                                            child: Icon(
+                                              c.isFemale ? Icons.face_3_rounded : Icons.person_rounded,
+                                              size: 16,
+                                              color: AdminSurfaces.of(context).textTertiary,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              tx(c.name),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 12.5,
+                                                color: RC.fg(Color(0xFF1E293B)),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 2. Phone
+                                    Expanded(
+                                      flex: 3,
+                                      child: Align(
+                                        alignment: AlignmentDirectional.centerStart,
+                                        child: Directionality(
+                                          textDirection: TextDirection.ltr,
+                                          child: Text(
+                                            tx(c.phone),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: AdminSurfaces.of(context).textPrimary,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
-                                      // View Details Eye Button
-                                      InkWell(
-                                        onTap: () => _showCustomerDetailsDialog(c),
-                                        borderRadius: BorderRadius.circular(6),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(5),
-                                          decoration: BoxDecoration(
-                                            color: AdminSurfaces.of(context).chipFill,
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 3. City
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        tx(AppStrings.cityLabel(c.city, _lang)),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.start,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: AdminSurfaces.of(context).textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 4. Total Orders
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        tx('${c.totalOrders}'),
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: AdminSurfaces.of(context).textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 5. Register Date
+                                    Expanded(
+                                      flex: 3,
+                                      child: Text(
+                                        tx(c.registerDate),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: AdminSurfaces.of(context).textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 6. Status
+                                    Expanded(
+                                      flex: 2,
+                                      child: Center(child: _buildStatusBadge(c.isActive)),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // 7. Actions [🔔] [👁] [✏️]
+                                    SizedBox(
+                                      width: 112,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: [
+                                          // Send Notification Button
+                                          InkWell(
+                                            onTap: () async {
+                                              final ok = await showSendCustomerNotificationDialog(
+                                                context,
+                                                api: widget.api,
+                                                lang: _lang,
+                                                preselectedIds: {c.id},
+                                                preselectedLabel: '${c.name} ${c.phone}'.trim(),
+                                              );
+                                              if (ok && context.mounted) {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(tx('ئاگاداری نێردرا — لە سندوقی ئەپی کڕیار دەردەکەوێت')),
+                                                    backgroundColor: RegaColors.emeraldDark,
+                                                  ),
+                                                );
+                                              }
+                                            },
                                             borderRadius: BorderRadius.circular(6),
+                                            child: Tooltip(
+                                              message: tx('ناردنی ئاگاداری'),
+                                              child: Container(
+                                                padding: const EdgeInsets.all(6),
+                                                decoration: BoxDecoration(
+                                                  color: AdminSurfaces.of(context).chipFill,
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Icon(Icons.notifications_active_outlined, size: 16, color: RC.fg(const Color(0xFF2563EB))),
+                                              ),
+                                            ),
                                           ),
-                                          child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      // Edit Button
-                                      InkWell(
-                                        onTap: () => _showAddCustomerDialog(existing: c),
-                                        borderRadius: BorderRadius.circular(6),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(5),
-                                          decoration: BoxDecoration(
-                                            color: AdminSurfaces.of(context).chipFill,
+                                          const SizedBox(width: 6),
+                                          // View Details Eye Button
+                                          InkWell(
+                                            onTap: () => _showCustomerDetailsDialog(c),
                                             borderRadius: BorderRadius.circular(6),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: AdminSurfaces.of(context).chipFill,
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
+                                            ),
                                           ),
-                                          child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
-                                        ),
+                                          const SizedBox(width: 6),
+                                          // Edit Button
+                                          InkWell(
+                                            onTap: () => _showAddCustomerDialog(existing: c),
+                                            borderRadius: BorderRadius.circular(6),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: AdminSurfaces.of(context).chipFill,
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                              );
+                            },
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -1635,6 +1739,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
           // Pagination Footer
           Container(
+            width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: BoxDecoration(
               border: Border(top: BorderSide(color: AdminSurfaces.of(context).hairline)),
@@ -1654,24 +1759,32 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   ),
                 ),
 
-                // Left side: < 5 4 3 2 [1] >
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildPageNavBtn(icon: Icons.chevron_left_rounded, onTap: () {}),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 1, active: _currentPage == 1),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 2, active: _currentPage == 2),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 3, active: _currentPage == 3),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 4, active: _currentPage == 4),
-                    const SizedBox(width: 4),
-                    _buildPageNumberBtn(page: 5, active: _currentPage == 5),
-                    const SizedBox(width: 4),
-                    _buildPageNavBtn(icon: Icons.chevron_right_rounded, onTap: () {}),
-                  ],
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildPageNavBtn(
+                        icon: isRtl ? Icons.chevron_right_rounded : Icons.chevron_left_rounded,
+                        onTap: () {},
+                      ),
+                      const SizedBox(width: 4),
+                      _buildPageNumberBtn(page: 1, active: _currentPage == 1),
+                      const SizedBox(width: 4),
+                      _buildPageNumberBtn(page: 2, active: _currentPage == 2),
+                      const SizedBox(width: 4),
+                      _buildPageNumberBtn(page: 3, active: _currentPage == 3),
+                      const SizedBox(width: 4),
+                      _buildPageNumberBtn(page: 4, active: _currentPage == 4),
+                      const SizedBox(width: 4),
+                      _buildPageNumberBtn(page: 5, active: _currentPage == 5),
+                      const SizedBox(width: 4),
+                      _buildPageNavBtn(
+                        icon: isRtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1683,13 +1796,15 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
   Widget _buildStatusBadge(bool isActive) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: isActive ? RC.bg(Color(0xFFDCFCE7)) : RC.bg(Color(0xFFFEE2E2)),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
         tx(isActive ? AppStrings.tr('active', _lang) : AppStrings.tr('inactive', _lang)),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w800,
@@ -1702,13 +1817,13 @@ class _CustomersScreenState extends State<CustomersScreen> {
   Widget _buildPageNumberBtn({required int page, required bool active}) {
     return InkWell(
       onTap: () => setState(() => _currentPage = page),
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        width: 28,
-        height: 28,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           color: active ? RC.bg(Color(0xFF113E2E)) : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
           child: Text(
@@ -1727,13 +1842,13 @@ class _CustomersScreenState extends State<CustomersScreen> {
   Widget _buildPageNavBtn({required IconData icon, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        width: 28,
-        height: 28,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
           child: Icon(icon, size: 18, color: RC.fg(Color(0xFF94A3B8))),

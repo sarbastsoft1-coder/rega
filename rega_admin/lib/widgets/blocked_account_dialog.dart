@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/theme/admin_breakpoints.dart';
 import '../rega_i18n.dart';
 import '../rega_colors.dart';
 /// Shared admin preview / helper for blocked-account contact UI.
@@ -47,6 +48,9 @@ class BlockedAccountContacts {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
+        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+        actionsOverflowButtonSpacing: 8,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Row(
           children: [
@@ -55,39 +59,47 @@ class BlockedAccountContacts {
             Expanded(child: Text(tx('هەژمار مسدودکراوە'), style: TextStyle(fontWeight: FontWeight.w900))),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(tx(contacts.message), style: const TextStyle(fontWeight: FontWeight.w600, height: 1.4)),
-            const SizedBox(height: 16),
-            _ContactBtn(
-              icon: Icons.chat_rounded,
-              color: RC.bg(Color(0xFF16A34A)),
-              label: 'WhatsApp  ${contacts.whatsapp}',
-              onTap: () => Clipboard.setData(ClipboardData(text: contacts.whatsappUrl)),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 420),
+            maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 460),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(tx(contacts.message), style: const TextStyle(fontWeight: FontWeight.w600, height: 1.4)),
+                const SizedBox(height: 16),
+                _ContactBtn(
+                  icon: Icons.chat_rounded,
+                  color: RC.bg(Color(0xFF16A34A)),
+                  label: 'WhatsApp  ${contacts.whatsapp}',
+                  onTap: () => Clipboard.setData(ClipboardData(text: contacts.whatsappUrl)),
+                ),
+                const SizedBox(height: 8),
+                _ContactBtn(
+                  icon: Icons.send_rounded,
+                  color: RC.bg(Color(0xFF0284C7)),
+                  label: 'Telegram  @${contacts.telegramUsername}',
+                  onTap: () => Clipboard.setData(ClipboardData(text: contacts.telegramUrl)),
+                ),
+                const SizedBox(height: 8),
+                _ContactBtn(
+                  icon: Icons.phone_rounded,
+                  color: RC.bg(Color(0xFFEA580C)),
+                  label: 'Call  ${contacts.phone}',
+                  onTap: () => Clipboard.setData(ClipboardData(text: contacts.phone)),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  tx('کرتە بکە بۆ کۆپیکردنی لینک / ژمارە'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 11, color: RC.fg(Color(0xFF64748B))),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            _ContactBtn(
-              icon: Icons.send_rounded,
-              color: RC.bg(Color(0xFF0284C7)),
-              label: 'Telegram  @${contacts.telegramUsername}',
-              onTap: () => Clipboard.setData(ClipboardData(text: contacts.telegramUrl)),
-            ),
-            const SizedBox(height: 8),
-            _ContactBtn(
-              icon: Icons.phone_rounded,
-              color: RC.bg(Color(0xFFEA580C)),
-              label: 'Call  ${contacts.phone}',
-              onTap: () => Clipboard.setData(ClipboardData(text: contacts.phone)),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              tx('کرتە بکە بۆ کۆپیکردنی لینک / ژمارە'),
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: RC.fg(Color(0xFF64748B))),
-            ),
-          ],
+          ),
         ),
         actions: [
           TextButton(

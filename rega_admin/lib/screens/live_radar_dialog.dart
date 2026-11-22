@@ -141,6 +141,8 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
                 ),
                 child: Text(
                   tx('#$ref • ${etaSecs}s'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: RegaColors.gold,
                     fontSize: 9.5,
@@ -222,7 +224,7 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
     final screenW = MediaQuery.sizeOf(context).width;
     final isPhone = screenW < AdminBreakpoints.phone;
     final dialogW = AdminBreakpoints.dialogWidth(context, max: 1120);
-    final dialogH = AdminBreakpoints.dialogMaxHeight(context, fraction: isPhone ? 0.96 : 0.9);
+    final dialogH = AdminBreakpoints.dialogMaxHeight(context, fraction: isPhone ? 0.94 : 0.90);
 
     return Dialog(
       insetPadding: AdminBreakpoints.dialogInset(context),
@@ -230,7 +232,7 @@ class _AdminLiveRadarDialogState extends State<AdminLiveRadarDialog> {
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
         width: dialogW,
-        height: dialogH.clamp(isPhone ? 420.0 : 520.0, dialogH),
+        height: dialogH,
         child: Stack(
           children: [
             FlutterMap(

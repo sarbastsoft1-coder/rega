@@ -104,19 +104,25 @@ class _DirectRequestsScreenState extends State<DirectRequestsScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => Dialog(
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720, maxHeight: 720),
+          constraints: BoxConstraints(
+            maxWidth: AdminBreakpoints.dialogWidth(ctx, max: 720),
+            maxHeight: AdminBreakpoints.dialogMaxHeight(ctx, fraction: 0.90),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 8, 8),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
                         tx('وێنەی داواکاری'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                       ),
                     ),
@@ -143,12 +149,14 @@ class _DirectRequestsScreenState extends State<DirectRequestsScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      resolved,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(tx('نەتوانرا وێنە باربکرێت')),
+                    child: InteractiveViewer(
+                      child: Image.network(
+                        resolved,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(tx('نەتوانرا وێنە باربکرێت')),
+                        ),
                       ),
                     ),
                   ),
@@ -214,71 +222,81 @@ class _DirectRequestsScreenState extends State<DirectRequestsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         insetPadding: AdminBreakpoints.dialogInset(ctx),
+        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+        actionsOverflowButtonSpacing: 8,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Row(
           children: [
             Expanded(
               child: Text(
                 tx(ticket['subject']?.toString() ?? 'داواکاری ڕاستەوخۆ'),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
               ),
             ),
+            const SizedBox(width: 8),
             StatusBadge(status: status, lang: widget.lang),
           ],
         ),
         content: SizedBox(
           width: AdminBreakpoints.dialogWidth(ctx, max: 520),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  tx('${ticket['ticket_number'] ?? ''}  •  ${ticket['created_at'] ?? ''}'),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: RC.fg(Colors.grey.shade600),
-                    fontWeight: FontWeight.w600,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 540),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    tx('${ticket['ticket_number'] ?? ''}  •  ${ticket['created_at'] ?? ''}'),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: RC.fg(Colors.grey.shade600),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                _detailRow(tx('کڕیار'), '${user['name'] ?? '-'}'),
-                _detailRow(
-                  tx('ژمارەی مۆبایل'),
-                  IraqPhoneFormatter.display(phone.isEmpty ? '-' : phone),
-                ),
-                _detailRow(tx('ناونیشانی داواکاری'), (parsed['address'] ?? '-').toString()),
-                _detailRow(tx('تێبینی بابەت'), (parsed['notes'] ?? '-').toString()),
-                if (imageUrl != null) ...[
-                  const SizedBox(height: 12),
-                  Text(tx('وێنەی بابەت'), style: const TextStyle(fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () => _openImage(imageUrl),
-                    borderRadius: BorderRadius.circular(12),
-                    child: ClipRRect(
+                  const SizedBox(height: 14),
+                  _detailRow(tx('کڕیار'), '${user['name'] ?? '-'}'),
+                  _detailRow(
+                    tx('ژمارەی مۆبایل'),
+                    IraqPhoneFormatter.display(phone.isEmpty ? '-' : phone),
+                  ),
+                  _detailRow(tx('ناونیشانی داواکاری'), (parsed['address'] ?? '-').toString()),
+                  _detailRow(tx('تێبینی بابەت'), (parsed['notes'] ?? '-').toString()),
+                  if (imageUrl != null) ...[
+                    const SizedBox(height: 12),
+                    Text(tx('وێنەی بابەت'), style: const TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: () => _openImage(imageUrl),
                       borderRadius: BorderRadius.circular(12),
-                      child: AspectRatio(
-                        aspectRatio: 16 / 9,
-                        child: Image.network(
-                          imageUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => ColoredBox(
-                            color: AdminSurfaces.of(context).chipFill,
-                            child: Center(child: Text(tx('نەتوانرا وێنە باربکرێت'))),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => ColoredBox(
+                              color: AdminSurfaces.of(ctx).chipFill,
+                              child: Center(child: Text(tx('نەتوانرا وێنە باربکرێت'))),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextButton.icon(
-                    onPressed: () => _openImage(imageUrl),
-                    icon: const Icon(Icons.open_in_full_rounded, size: 16),
-                    label: Text(tx('کردنەوەی وێنە')),
-                  ),
+                    const SizedBox(height: 6),
+                    TextButton.icon(
+                      onPressed: () => _openImage(imageUrl),
+                      icon: const Icon(Icons.open_in_full_rounded, size: 16),
+                      label: Text(tx('کردنەوەی وێنە')),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -330,28 +348,24 @@ class _DirectRequestsScreenState extends State<DirectRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final padH = AdminBreakpoints.pagePadH(context);
+    const filters = [
+      ('open', 'کراوە'),
+      ('in_progress', 'لە کاردایە'),
+      ('resolved', 'چارەسەرکرا'),
+      ('all', 'هەموو'),
+    ];
     return Column(
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(
-            AdminBreakpoints.pagePadH(context),
-            8,
-            AdminBreakpoints.pagePadH(context),
-            0,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final f in const [
-                      ('open', 'کراوە'),
-                      ('in_progress', 'لە کاردایە'),
-                      ('resolved', 'چارەسەرکرا'),
-                      ('all', 'هەموو'),
-                    ])
+          padding: EdgeInsets.fromLTRB(padH, 8, padH, 0),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final chips = [
+                    for (final f in filters)
                       ChoiceChip(
                         label: Text(tx(f.$2)),
                         selected: _statusFilter == f.$1,
@@ -360,15 +374,40 @@ class _DirectRequestsScreenState extends State<DirectRequestsScreen> {
                           _load();
                         },
                       ),
-                  ],
-                ),
+                  ];
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: constraints.maxWidth < AdminBreakpoints.phone
+                            ? SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    for (final c in chips)
+                                      Padding(
+                                        padding: const EdgeInsetsDirectional.only(end: 8),
+                                        child: c,
+                                      ),
+                                  ],
+                                ),
+                              )
+                            : Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: chips,
+                              ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: tx('نوێکردنەوە'),
+                        onPressed: () => _load(),
+                        icon: const Icon(Icons.sync_rounded),
+                      ),
+                    ],
+                  );
+                },
               ),
-              IconButton(
-                tooltip: tx('نوێکردنەوە'),
-                onPressed: () => _load(),
-                icon: const Icon(Icons.sync_rounded),
-              ),
-            ],
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -388,15 +427,15 @@ class _DirectRequestsScreenState extends State<DirectRequestsScreen> {
                           ),
                         )
                       : ListView.separated(
-                          padding: EdgeInsets.fromLTRB(
-                            AdminBreakpoints.pagePadH(context),
-                            4,
-                            AdminBreakpoints.pagePadH(context),
-                            24,
-                          ),
+                          padding: EdgeInsets.fromLTRB(padH, 4, padH, 24),
                           itemCount: _tickets.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _buildCard(_tickets[i]),
+                          itemBuilder: (_, i) => Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1120),
+                              child: _buildCard(_tickets[i]),
+                            ),
+                          ),
                         ),
         ),
       ],
@@ -416,7 +455,7 @@ class _DirectRequestsScreenState extends State<DirectRequestsScreen> {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(AdminBreakpoints.cardPadding(context)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -466,15 +505,17 @@ class _DirectRequestsScreenState extends State<DirectRequestsScreen> {
                 borderRadius: BorderRadius.circular(12),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    height: 120,
-                    width: double.infinity,
-                    child: Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => ColoredBox(
-                        color: AdminSurfaces.of(context).chipFill,
-                        child: Center(child: Text(tx('نەتوانرا وێنە باربکرێت'))),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 380),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => ColoredBox(
+                          color: AdminSurfaces.of(context).chipFill,
+                          child: Center(child: Text(tx('نەتوانرا وێنە باربکرێت'))),
+                        ),
                       ),
                     ),
                   ),
