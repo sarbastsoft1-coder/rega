@@ -1,16 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 
-import 'map/mapbox_tiles.dart';
+import 'map/rega_standard_map.dart';
 import 'rega_mobile.dart';
 
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
+
 /// Compact live map: store + customer + assigned driver GPS for one order.
 /// Never invents fake places — markers only appear when real coords exist.
 class AssignedDriverMap extends StatefulWidget {
@@ -42,7 +44,10 @@ class AssignedDriverMap extends StatefulWidget {
 }
 
 class _AssignedDriverMapState extends State<AssignedDriverMap> {
-  final MapController _map = MapController();
+  final GlobalKey<RegaStandardMapState> _regaMapKey = GlobalKey();
+  mb.MapboxMap? _mbMap;
+  mb.PolylineAnnotationManager? _polyMgr;
+  mb.PointAnnotationManager? _pointMgr;
   Timer? _poll;
   double? _driverLat;
   double? _driverLng;
@@ -75,8 +80,130 @@ class _AssignedDriverMapState extends State<AssignedDriverMap> {
   @override
   void dispose() {
     _poll?.cancel();
-    _map.dispose();
     super.dispose();
+  }
+
+  mb.Point _mbPoint(LatLng p) =>
+      mb.Point(coordinates: mb.Position(p.longitude, p.latitude));
+
+  mb.LineString _mbLine(List<LatLng> pts) => mb.LineString(
+        coordinates: pts
+            .map((p) => mb.Position(p.longitude, p.latitude))
+            .toList(),
+      );
+
+  int _colorInt(Color c) => RC.bg(c).toARGB32();
+
+  Future<void> _onMapCreated(mb.MapboxMap map) async {
+    _mbMap = map;
+    _mapReady = true;
+    if (!kIsWeb) {
+      try {
+        _polyMgr = await map.annotations.createPolylineAnnotationManager();
+        _pointMgr = await map.annotations.createPointAnnotationManager();
+      } catch (_) {}
+    }
+    await _syncOverlays();
+    await _fitIfNeeded();
+  }
+
+  Future<void> _syncOverlays() async {
+    if (kIsWeb) return;
+    final pts = _pointMgr;
+    final lines = _polyMgr;
+    if (pts == null) return;
+
+    try {
+      await pts.deleteAll();
+      await lines?.deleteAll();
+    } catch (_) {}
+
+    final hasStore = _valid(widget.storeLat, widget.storeLng);
+    final hasCustomer = _valid(widget.customerLat, widget.customerLng);
+    final hasDriver = _valid(_driverLat, _driverLng);
+
+    if (hasStore) {
+      try {
+        await pts.create(
+          mb.PointAnnotationOptions(
+            geometry: _mbPoint(LatLng(widget.storeLat!, widget.storeLng!)),
+            iconColor: _colorInt(const Color(0xFFEA580C)),
+            iconSize: 1.0,
+          ),
+        );
+      } catch (_) {}
+    }
+    if (hasCustomer) {
+      try {
+        await pts.create(
+          mb.PointAnnotationOptions(
+            geometry: _mbPoint(LatLng(widget.customerLat!, widget.customerLng!)),
+            iconColor: _colorInt(const Color(0xFF2563EB)),
+            iconSize: 1.0,
+          ),
+        );
+      } catch (_) {}
+    }
+    if (hasDriver) {
+      try {
+        await pts.create(
+          mb.PointAnnotationOptions(
+            geometry: _mbPoint(LatLng(_driverLat!, _driverLng!)),
+            textField: tx(widget.driverName?.isNotEmpty == true ? widget.driverName! : 'شۆفێر'),
+            textSize: 9,
+            textColor: _colorInt(Colors.white),
+            textHaloColor: _colorInt(const Color(0xFF064E3B)),
+            textHaloWidth: 1,
+            textOffset: [0, -1.5],
+            iconColor: _colorInt(const Color(0xFF16A34A)),
+            iconSize: 1.1,
+          ),
+        );
+      } catch (_) {}
+    }
+
+    if (lines != null &&
+        hasStore &&
+        hasCustomer &&
+        hasDriver) {
+      try {
+        await lines.create(
+          mb.PolylineAnnotationOptions(
+            geometry: _mbLine([
+              LatLng(widget.storeLat!, widget.storeLng!),
+              LatLng(_driverLat!, _driverLng!),
+              LatLng(widget.customerLat!, widget.customerLng!),
+            ]),
+            lineColor: _colorInt(const Color(0xFF16A34A)),
+            lineWidth: 3.5,
+          ),
+        );
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _fitIfNeeded() async {
+    final points = <LatLng>[];
+    if (_valid(widget.storeLat, widget.storeLng)) {
+      points.add(LatLng(widget.storeLat!, widget.storeLng!));
+    }
+    if (_valid(widget.customerLat, widget.customerLng)) {
+      points.add(LatLng(widget.customerLat!, widget.customerLng!));
+    }
+    if (_valid(_driverLat, _driverLng)) {
+      points.add(LatLng(_driverLat!, _driverLng!));
+    }
+    final map = _mbMap;
+    if (map == null || points.length < 2) return;
+    try {
+      final camera = await map.cameraForCoordinates(
+        points.map(_mbPoint).toList(),
+        mb.MbxEdgeInsets(top: 28, left: 28, bottom: 28, right: 28),
+        null,
+        null,
+      );
+      await map.setCamera(camera);
+    } catch (_) {}
   }
 
   Future<void> _fetch() async {
@@ -100,15 +227,16 @@ class _AssignedDriverMapState extends State<AssignedDriverMap> {
         if (lat != null && lng != null) {
           _driverLat = lat;
           _driverLng = lng;
-          if (_mapReady) {
-            try {
-              _map.move(LatLng(lat, lng), _map.camera.zoom);
-            } catch (_) {}
-          }
         }
         _status = (data['status'] ?? data['driver_status'] ?? '').toString();
         _live = driver['is_live_captain'] == true;
       });
+      await _syncOverlays();
+      if (_mapReady && lat != null && lng != null) {
+        try {
+          await _regaMapKey.currentState?.moveTo(LatLng(lat, lng));
+        } catch (_) {}
+      }
     } catch (_) {}
   }
 
@@ -121,87 +249,12 @@ class _AssignedDriverMapState extends State<AssignedDriverMap> {
     final hasCustomer = _valid(widget.customerLat, widget.customerLng);
     final hasDriver = _valid(_driverLat, _driverLng);
 
-    final store = hasStore ? LatLng(widget.storeLat!, widget.storeLng!) : null;
-    final customer =
-        hasCustomer ? LatLng(widget.customerLat!, widget.customerLng!) : null;
-    final driver = hasDriver ? LatLng(_driverLat!, _driverLng!) : null;
-
     final points = <LatLng>[
-      if (store != null) store,
-      if (customer != null) customer,
-      if (driver != null) driver,
+      if (hasStore) LatLng(widget.storeLat!, widget.storeLng!),
+      if (hasCustomer) LatLng(widget.customerLat!, widget.customerLng!),
+      if (hasDriver) LatLng(_driverLat!, _driverLng!),
     ];
     final center = points.isNotEmpty ? points.first : _kalarOverview;
-
-    final markers = <Marker>[
-      if (store != null)
-        Marker(
-          point: store,
-          width: 34,
-          height: 34,
-          child: Container(
-            decoration: BoxDecoration(
-              color: RC.bg(Color(0xFFEA580C)),
-              shape: BoxShape.circle,
-              border: Border.all(color: RC.bg(Colors.white), width: 2),
-            ),
-            child: Icon(Icons.storefront_rounded, color: RC.fg(Colors.white), size: 16),
-          ),
-        ),
-      if (customer != null)
-        Marker(
-          point: customer,
-          width: 34,
-          height: 34,
-          child: Container(
-            decoration: BoxDecoration(
-              color: RC.bg(Color(0xFF2563EB)),
-              shape: BoxShape.circle,
-              border: Border.all(color: RC.bg(Colors.white), width: 2),
-            ),
-            child: Icon(Icons.home_rounded, color: RC.fg(Colors.white), size: 16),
-          ),
-        ),
-      if (driver != null)
-        Marker(
-          point: driver,
-          width: 96,
-          height: 52,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _live ? RC.bg(Color(0xFF064E3B)) : RC.bg(Color(0xFF334155)),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  tx(widget.driverName?.isNotEmpty == true ? widget.driverName! : 'شۆفێر'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: RC.fg(Colors.white),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: RC.bg(Color(0xFF16A34A)),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: RC.bg(Colors.white), width: 2),
-                ),
-                child: Icon(Icons.two_wheeler_rounded, color: RC.fg(Colors.white), size: 15),
-              ),
-            ],
-          ),
-        ),
-    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -210,43 +263,12 @@ class _AssignedDriverMapState extends State<AssignedDriverMap> {
           borderRadius: BorderRadius.circular(14),
           child: SizedBox(
             height: widget.height,
-            child: FlutterMap(
-              mapController: _map,
-              options: MapOptions(
-                initialCenter: center,
-                initialZoom: points.length > 1 ? 13.5 : 14.0,
-                onMapReady: () {
-                  _mapReady = true;
-                  if (points.length >= 2) {
-                    try {
-                      _map.fitCamera(
-                        CameraFit.bounds(
-                          bounds: LatLngBounds.fromPoints(points),
-                          padding: const EdgeInsets.all(28),
-                          maxZoom: 16,
-                        ),
-                      );
-                    } catch (_) {}
-                  }
-                },
-              ),
-              children: [
-                MapboxTiles.layer(
-                  style: MapboxStyle.streets,
-                  userAgentPackageName: 'iq.rega.vendor.order',
-                ),
-                if (store != null && driver != null && customer != null)
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: [store, driver, customer],
-                        strokeWidth: 3.5,
-                        color: RC.bg(Color(0xFF16A34A)),
-                      ),
-                    ],
-                  ),
-                MarkerLayer(markers: markers),
-              ],
+            child: RegaStandardMap(
+              key: _regaMapKey,
+              center: center,
+              zoom: points.length > 1 ? 13.5 : 14.0,
+              showLayersFab: false,
+              onMapCreated: _onMapCreated,
             ),
           ),
         ),

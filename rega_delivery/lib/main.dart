@@ -17,11 +17,17 @@ import 'state/driver_nav_notifier.dart';
 import 'state/driver_session_notifier.dart';
 import 'iraq_phone_formatter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'service_area.dart';
 
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' show MapboxOptions;
+import 'map/mapbox_tiles.dart';
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  if (MapboxTiles.accessToken.isNotEmpty) {
+    MapboxOptions.setAccessToken(MapboxTiles.accessToken);
+  }
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -41,6 +47,50 @@ class DeliveryDriverApp extends StatefulWidget {
 
 class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
   GoRouter? _router;
+  bool _isOutsideServiceArea = false;
+  bool _checkingServiceArea = false;
+  Timer? _serviceAreaTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _initServiceAreaGate();
+  }
+
+  Future<void> _initServiceAreaGate() async {
+    await _refreshServiceAreaConfig();
+    await _checkServiceArea(requestPermission: true);
+    _serviceAreaTimer?.cancel();
+    _serviceAreaTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _checkServiceArea();
+    });
+  }
+
+  Future<void> _refreshServiceAreaConfig() async {
+    final data = await DriverApiService.instance.fetchSupportContacts();
+    if (data.isNotEmpty) {
+      ServiceAreaGate.applyFromMap(data);
+    }
+  }
+
+  Future<void> _checkServiceArea({bool requestPermission = false}) async {
+    if (_checkingServiceArea) return;
+    _checkingServiceArea = true;
+    try {
+      final result =
+          await ServiceAreaGate.check(requestPermission: requestPermission);
+      if (!mounted) return;
+      setState(() => _isOutsideServiceArea = result.blocksApp);
+    } finally {
+      _checkingServiceArea = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _serviceAreaTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -84,6 +134,22 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
     RC.setDark(session.isDark);
     final router = _router;
     if (router == null) return const SizedBox.shrink();
+
+    if (_isOutsideServiceArea) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          fontFamily: 'NotoKufiArabic',
+        ),
+        home: ServiceAreaBlockedScreen(
+          onRetry: () async {
+            await _refreshServiceAreaConfig();
+            await _checkServiceArea(requestPermission: true);
+          },
+        ),
+      );
+    }
 
     return MaterialApp.router(
       title: 'REGA Delivery',

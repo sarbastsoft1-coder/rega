@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
-import '../map/mapbox_tiles.dart';
+import '../map/rega_map_annotation_helpers.dart';
+import '../map/rega_standard_map.dart';
 import '../widgets/admin_top_header.dart';
 
 import '../rega_i18n.dart';
@@ -51,7 +52,10 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final TextEditingController _topSearchCtrl = TextEditingController();
-  final MapController _mapController = MapController();
+  final GlobalKey<RegaStandardMapState> _regaMapKey = GlobalKey();
+  mb.MapboxMap? _mapboxMap;
+  mb.PointAnnotationManager? _pointMgr;
+  mb.CircleAnnotationManager? _circleMgr;
   Timer? _refreshTimer;
   bool _isLoading = true;
 
@@ -98,8 +102,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     _topSearchCtrl.dispose();
-    _mapController.dispose();
     super.dispose();
+  }
+
+  Future<void> _onDashboardMapCreated(mb.MapboxMap map) async {
+    _mapboxMap = map;
+    final ann = map.annotations;
+    _pointMgr = await ann.createPointAnnotationManager();
+    _circleMgr = await ann.createCircleAnnotationManager();
+    await _syncDashboardMapMarkers();
+  }
+
+  Future<void> _syncDashboardMapMarkers() async {
+    if (!mounted) return;
+    final labelColor = AdminSurfaces.of(context).textPrimary;
+    final points = _pointMgr;
+    final circles = _circleMgr;
+    if (points == null || circles == null) return;
+    await regaClearAnnotationLayers(points: points, circles: circles);
+    if (!mounted) return;
+
+    await circles.create(
+      mb.CircleAnnotationOptions(
+        geometry: regaMapPoint(_centerLocus),
+        circleRadius: 38,
+        circleColor: regaArgb(RC.bg(const Color(0xFFFF5722)).withValues(alpha: 0.15)),
+        circleStrokeColor: regaArgb(RC.bg(const Color(0xFFFF5722))),
+        circleStrokeWidth: 1.5,
+      ),
+    );
+
+    await points.create(
+      mb.PointAnnotationOptions(
+        geometry: regaMapPoint(_centerLocus),
+        textField: 'کەلار',
+        textSize: 10,
+        textColor: regaArgb(labelColor),
+        textHaloColor: regaArgb(RC.bg(Colors.white)),
+        textHaloWidth: 1,
+        textOffset: [0, -2.2],
+      ),
+    );
+
+    if (_courierPositions.isEmpty) return;
+    await circles.createMulti(
+      _courierPositions
+          .map(
+            (pos) => mb.CircleAnnotationOptions(
+              geometry: regaMapPoint(pos),
+              circleRadius: 10,
+              circleColor: regaArgb(RC.bg(const Color(0xFF113E2E))),
+              circleStrokeColor: regaArgb(RC.bg(Colors.white)),
+              circleStrokeWidth: 2,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Future<void> _dashboardZoomBy(double delta) async {
+    final map = _mapboxMap;
+    if (map == null) return;
+    final z = (await map.getCameraState()).zoom + delta;
+    await _regaMapKey.currentState?.moveTo(_centerLocus, zoom: z);
   }
 
   Future<void> _loadDashboardData({bool silent = false}) async {
@@ -193,6 +258,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (mappedPositions.isNotEmpty) _courierPositions = mappedPositions;
         _isLoading = false;
       });
+      _syncDashboardMapMarkers();
     } catch (e) {
       if (!mounted) return;
       if (!silent) setState(() => _isLoading = false);
@@ -586,92 +652,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
               child: Stack(
                 children: [
-                  FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter: _centerLocus,
-                      initialZoom: 14.2,
-                      minZoom: 10.0,
-                      maxZoom: 18.0,
-                    ),
-                    children: [
-                      MapboxTiles.layer(
-                        style: MapboxStyle.streets,
-                        userAgentPackageName: 'iq.rega.admin',
-                      ),
-                      // Center radar pulse zone
-                      CircleLayer(
-                        circles: [
-                          CircleMarker(
-                            point: _centerLocus,
-                            radius: 38,
-                            useRadiusInMeter: false,
-                            color: RC.bg(Color(0xFFFF5722)).withValues(alpha: 0.15),
-                            borderColor: RC.bg(Color(0xFFFF5722)),
-                            borderStrokeWidth: 1.5,
-                          ),
-                        ],
-                      ),
-                      // Couriers and Central Location Pin
-                      MarkerLayer(
-                        markers: [
-                          // Central Pin
-                          Marker(
-                            point: _centerLocus,
-                            width: 84,
-                            height: 52,
-                            alignment: Alignment.topCenter,
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.location_on_rounded, size: 22, color: RC.fg(Color(0xFFFF5722))),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AdminSurfaces.of(context).card,
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
-                                      boxShadow: [BoxShadow(color: RC.bg(Colors.black26), blurRadius: 4)],
-                                    ),
-                                    child: Text(
-                                      tx('کەلار'),
-                                      style: TextStyle(
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.w900,
-                                        // Explicit dark ink: Marker subtree can inherit light
-                                        // DefaultTextStyle (e.g. dark theme) → white-on-white.
-                                        color: AdminSurfaces.of(context).textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          // 5 Motorcycle Couriers
-                          ..._courierPositions.map(
-                            (pos) => Marker(
-                              point: pos,
-                              width: 32,
-                              height: 32,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: RC.bg(Color(0xFF113E2E)),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: RC.bg(Colors.white), width: 2),
-                                  boxShadow: [BoxShadow(color: RC.bg(Colors.black26), blurRadius: 6)],
-                                ),
-                                child: Icon(Icons.two_wheeler_rounded, size: 16, color: RC.fg(Colors.white)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  RegaStandardMap(
+                    key: _regaMapKey,
+                    center: _centerLocus,
+                    zoom: 14.2,
+                    showLayersFab: true,
+                    onMapCreated: _onDashboardMapCreated,
                   ),
-                  // Map Zoom Controls (+, -)
                   PositionedDirectional(
                     start: 12,
                     bottom: 12,
@@ -685,17 +672,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           InkWell(
-                            onTap: () => _mapController.move(_centerLocus, _mapController.camera.zoom + 1),
+                            onTap: () => _dashboardZoomBy(1),
                             child: const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.add, size: 18)),
                           ),
                           const Divider(height: 1),
                           InkWell(
-                            onTap: () => _mapController.move(_centerLocus, _mapController.camera.zoom - 1),
+                            onTap: () => _dashboardZoomBy(-1),
                             child: const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.remove, size: 18)),
                           ),
                           const Divider(height: 1),
                           InkWell(
-                            onTap: () => _mapController.move(_centerLocus, 14.2),
+                            onTap: () => _regaMapKey.currentState?.moveTo(_centerLocus, zoom: 14.2),
                             child: const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.my_location_rounded, size: 16)),
                           ),
                         ],

@@ -10,10 +10,15 @@ import 'core/theme/app_theme.dart';
 import 'state/admin_app_notifier.dart';
 import 'state/admin_domain_notifiers.dart';
 
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' show MapboxOptions;
+import 'map/mapbox_tiles.dart';
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (MapboxTiles.accessToken.isNotEmpty) {
+    MapboxOptions.setAccessToken(MapboxTiles.accessToken);
+  }
   ensureFilePickerReady();
   final api = ApiClient();
   await api.init();

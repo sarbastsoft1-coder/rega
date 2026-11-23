@@ -256,4 +256,23 @@ class DriverApiService {
       return false;
     }
   }
+
+  /// Public support + service-area settings (no auth).
+  Future<Map<String, dynamic>> fetchSupportContacts() async {
+    try {
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/public/support-contacts'),
+            headers: {'Accept': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+        final data = decoded['data'];
+        if (data is Map<String, dynamic>) return data;
+        if (data is Map) return Map<String, dynamic>.from(data);
+      }
+    } catch (_) {}
+    return const {};
+  }
 }

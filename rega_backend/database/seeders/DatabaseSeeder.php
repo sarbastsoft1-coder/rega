@@ -105,6 +105,11 @@ class DatabaseSeeder extends Seeder
             ['key' => 'telegram_number', 'group' => 'support', 'val' => '+9647700001122'],
             ['key' => 'telegram_username', 'group' => 'support', 'val' => 'rega_support'],
             ['key' => 'working_hours', 'group' => 'public', 'val' => '09:00 AM - 01:00 AM'],
+            // Service area: Kalar center + radius (km). Apps gate GPS against this.
+            ['key' => 'service_radius_km', 'group' => 'public', 'val' => 10],
+            ['key' => 'service_center_lat', 'group' => 'public', 'val' => 34.6295],
+            ['key' => 'service_center_lng', 'group' => 'public', 'val' => 45.3159],
+            ['key' => 'service_area_name', 'group' => 'public', 'val' => 'کەلار'],
             ['key' => 'enforce_anti_vpn', 'group' => 'security', 'val' => true],
             ['key' => 'maintenance_mode', 'group' => 'general', 'val' => false],
         ];

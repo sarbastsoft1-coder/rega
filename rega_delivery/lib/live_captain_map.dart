@@ -4,13 +4,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import 'driver_api_service.dart';
 import 'map/mapbox_directions.dart';
-import 'map/mapbox_tiles.dart';
+import 'map/rega_standard_map.dart';
 import 'rega_mobile.dart';
 
 import 'rega_i18n.dart';
@@ -76,7 +76,14 @@ class CaptainLiveMapWidget extends StatefulWidget {
 
 class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     with TickerProviderStateMixin {
-  final MapController _mapController = MapController();
+  final GlobalKey<RegaStandardMapState> _regaMapKey = GlobalKey();
+  mb.MapboxMap? _mbMap;
+  mb.PolylineAnnotationManager? _polyMgr;
+  mb.PolylineAnnotationManager? _polyDashMgr;
+  mb.PointAnnotationManager? _pointMgr;
+  mb.PointAnnotation? _driverPointAnno;
+  StreamSubscription<mb.MapContentGestureContext>? _panGestureSub;
+  bool _suppressFollowDisable = false;
 
   late AnimationController _pulseController;
   late AnimationController _glideController;
@@ -86,7 +93,6 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   Timer? _gpsPollTimer;
 
   // Map appearance & camera controls
-  int _mapStyleIndex = 0; // 0: Mapbox Streets, 1: Satellite, 2: Outdoors
   bool _followCaptain = true;
   /// True only after a real phone GPS fix — never invent a fake place.
   bool _usingRealGps = false;
@@ -159,6 +165,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       if (widget.hasActiveOrder) {
         _syncStageAnchors(widget.stage, jumpImmediately: true);
       }
+      unawaited(_syncPointAnnotations());
     } else if (widget.hasActiveOrder && oldWidget.stage != widget.stage) {
       _syncStageAnchors(widget.stage, jumpImmediately: false);
     }
@@ -176,8 +183,265 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     _gpsSub?.cancel();
     _pulseController.dispose();
     _glideController.dispose();
-    _mapController.dispose();
+    _panGestureSub?.cancel();
     super.dispose();
+  }
+
+  mb.Point _mbPoint(LatLng p) =>
+      mb.Point(coordinates: mb.Position(p.longitude, p.latitude));
+
+  mb.LineString _mbLine(List<LatLng> pts) => mb.LineString(
+        coordinates: pts
+            .map((p) => mb.Position(p.longitude, p.latitude))
+            .toList(),
+      );
+
+  int _colorInt(Color c) => RC.bg(c).toARGB32();
+
+  Future<double> _cameraZoom() async {
+    final map = _mbMap;
+    if (map == null) return 15.6;
+    try {
+      final z = (await map.getCameraState()).zoom;
+      return (z.isNaN || z < 11.5) ? 15.6 : z;
+    } catch (_) {
+      return 15.6;
+    }
+  }
+
+  Future<void> _moveMap(LatLng at, {double? zoom}) async {
+    if (!_mapReady) return;
+    _suppressFollowDisable = true;
+    try {
+      final z = zoom ?? await _cameraZoom();
+      final safeZoom = z < 11.5 ? 15.6 : z;
+      await _regaMapKey.currentState?.moveTo(at, zoom: safeZoom);
+    } finally {
+      _suppressFollowDisable = false;
+    }
+  }
+
+  Future<void> _onMbMapCreated(mb.MapboxMap map) async {
+    _mbMap = map;
+    _mapReady = true;
+    if (!kIsWeb) {
+      try {
+        final annotations = map.annotations;
+        _polyMgr = await annotations.createPolylineAnnotationManager();
+        _polyDashMgr =
+            await annotations.createPolylineAnnotationManager(id: 'dash');
+        await _polyDashMgr?.setLineDasharray([1.4, 1.0]);
+        _pointMgr = await annotations.createPointAnnotationManager();
+      } catch (_) {}
+    }
+    try {
+      _panGestureSub = map.gestures.pan.gestureEvents.listen((_) {
+        if (!_mapReady || _suppressFollowDisable) return;
+        if (_followCaptain) setState(() => _followCaptain = false);
+      });
+    } catch (_) {}
+
+    final center = _usingRealGps ? _displayDriverPos : _kalarOverview;
+    final zoom = _usingRealGps ? 15.6 : 13.8;
+    await _moveMap(center, zoom: zoom);
+    if (_usingRealGps) _followCaptain = true;
+    await _syncRoutePolylines();
+    await _syncPointAnnotations();
+    if (!_usingRealGps && widget.hasActiveOrder) {
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (mounted && _mapReady && widget.hasActiveOrder && !_usingRealGps) {
+          _safeFitBounds([_storePoint, _customerPoint]);
+        }
+      });
+    }
+  }
+
+  Future<void> _syncRoutePolylines() async {
+    if (kIsWeb) return;
+    final solid = _polyMgr;
+    final dashed = _polyDashMgr;
+    if (solid == null) return;
+    try {
+      await solid.deleteAll();
+      await dashed?.deleteAll();
+    } catch (_) {}
+
+    final hasOrder = widget.hasActiveOrder;
+    final isToStore = widget.stage == CaptainRouteStage.assigned ||
+        widget.stage == CaptainRouteStage.arrivingPickup;
+    final polylines = <({List<LatLng> pts, int color, double width, int? border, double borderW, bool dash})>[];
+
+    if (hasOrder && _usingRealGps) {
+      if (isToStore) {
+        final traveled1 =
+            _traveledSubPolyline(_legToStore, _leg1Progress, _displayDriverPos);
+        final remain1 =
+            _remainingSubPolyline(_legToStore, _leg1Progress, _displayDriverPos);
+        if (traveled1.length >= 2) {
+          polylines.add((
+            pts: traveled1,
+            color: _colorInt(const Color(0xFF94A3B8)),
+            width: 5,
+            border: null,
+            borderW: 0,
+            dash: false,
+          ));
+        }
+        if (remain1.length >= 2) {
+          polylines.add((
+            pts: remain1,
+            color: _colorInt(const Color(0xFFF59E0B)),
+            width: 7,
+            border: _colorInt(const Color(0xFF78350F)),
+            borderW: 2.5,
+            dash: false,
+          ));
+        }
+        if (_legToCustomer.length >= 2) {
+          polylines.add((
+            pts: _legToCustomer,
+            color: _colorInt(const Color(0xFF16A34A)),
+            width: 5,
+            border: null,
+            borderW: 0,
+            dash: true,
+          ));
+        }
+      } else {
+        if (_legToStore.length >= 2) {
+          polylines.add((
+            pts: _legToStore,
+            color: _colorInt(const Color(0xFF94A3B8)),
+            width: 4,
+            border: null,
+            borderW: 0,
+            dash: false,
+          ));
+        }
+        final traveled2 = _traveledSubPolyline(
+            _legToCustomer, _leg2Progress, _displayDriverPos);
+        final remain2 = _remainingSubPolyline(
+            _legToCustomer, _leg2Progress, _displayDriverPos);
+        if (traveled2.length >= 2) {
+          polylines.add((
+            pts: traveled2,
+            color: _colorInt(const Color(0xFF22C55E)),
+            width: 5,
+            border: null,
+            borderW: 0,
+            dash: false,
+          ));
+        }
+        if (remain2.length >= 2) {
+          polylines.add((
+            pts: remain2,
+            color: _colorInt(const Color(0xFF00E676)),
+            width: 7.5,
+            border: _colorInt(const Color(0xFF065F46)),
+            borderW: 2.5,
+            dash: false,
+          ));
+        }
+      }
+    } else if (hasOrder && _legToStore.length >= 2) {
+      polylines.add((
+        pts: [_storePoint, _customerPoint],
+        color: _colorInt(const Color(0xFF64748B)),
+        width: 5,
+        border: null,
+        borderW: 0,
+        dash: true,
+      ));
+    }
+
+    for (final pl in polylines) {
+      final mgr = pl.dash ? dashed : solid;
+      if (mgr == null || pl.pts.length < 2) continue;
+      try {
+        await mgr.create(
+          mb.PolylineAnnotationOptions(
+            geometry: _mbLine(pl.pts),
+            lineColor: pl.color,
+            lineWidth: pl.width,
+            lineOpacity: pl.dash ? 0.75 : (pl.color == _colorInt(const Color(0xFF94A3B8)) ? 0.65 : 1.0),
+            lineBorderColor: pl.border,
+            lineBorderWidth: pl.borderW,
+          ),
+        );
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _syncPointAnnotations({bool driverOnly = false}) async {
+    if (kIsWeb) return;
+    final mgr = _pointMgr;
+    if (mgr == null) return;
+
+    if (!driverOnly) {
+      try {
+        await mgr.deleteAll();
+        _driverPointAnno = null;
+      } catch (_) {}
+
+      if (widget.hasActiveOrder) {
+        try {
+          await mgr.create(
+            mb.PointAnnotationOptions(
+              geometry: _mbPoint(_storePoint),
+              textField: widget.merchantName,
+              textSize: 10,
+              textHaloWidth: 1.2,
+              textHaloColor: _colorInt(Colors.white),
+              textColor: _colorInt(const Color(0xFF0F172A)),
+              textOffset: [0, -1.8],
+              iconColor: _colorInt(const Color(0xFFEA580C)),
+              iconSize: 1.1,
+            ),
+          );
+          await mgr.create(
+            mb.PointAnnotationOptions(
+              geometry: _mbPoint(_customerPoint),
+              textField: widget.customerName,
+              textSize: 10,
+              textHaloWidth: 1.2,
+              textHaloColor: _colorInt(Colors.white),
+              textColor: _colorInt(const Color(0xFF0F172A)),
+              textOffset: [0, -1.8],
+              iconColor: _colorInt(const Color(0xFF0284C7)),
+              iconSize: 1.1,
+            ),
+          );
+        } catch (_) {}
+      }
+    }
+
+    if (!_usingRealGps) return;
+
+    try {
+      final speedLabel = '${_speedKmh.toStringAsFixed(0)} km/h';
+      if (_driverPointAnno == null) {
+        _driverPointAnno = await mgr.create(
+          mb.PointAnnotationOptions(
+            geometry: _mbPoint(_displayDriverPos),
+            textField: speedLabel,
+            textSize: 9,
+            textColor: _colorInt(const Color(0xFF00E676)),
+            textHaloColor: _colorInt(const Color(0xFF0F172A)),
+            textHaloWidth: 1.2,
+            textOffset: [0, -2.2],
+            iconRotate: _headingDeg,
+            iconColor: _colorInt(const Color(0xFF00E676)),
+            iconSize: 1.25,
+          ),
+        );
+      } else {
+        _driverPointAnno!
+          ..geometry = _mbPoint(_displayDriverPos)
+          ..iconRotate = _headingDeg
+          ..textField = speedLabel;
+        await mgr.update(_driverPointAnno!);
+      }
+    } catch (_) {}
   }
 
   /// Fresh GPS settings — on web force `maximumAge: 0` so browsers cannot
@@ -244,6 +508,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
           _legToCustomer = MapboxDirections.densify(leg2, minPoints: 50);
         }
       });
+      await _syncRoutePolylines();
     } catch (_) {
       // Keep temporary fallback line if Directions is unreachable.
     }
@@ -286,9 +551,11 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     // Without real GPS we keep the overview center — do not invent a driver place.
     if (!_usingRealGps) {
       _recomputeMetrics();
+      unawaited(_syncRoutePolylines());
       return;
     }
     _recomputeMetrics();
+    unawaited(_syncRoutePolylines());
   }
 
   Future<void> _startRealGpsIfAvailable({bool requestPermission = true}) async {
@@ -401,14 +668,10 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       _prevDriverPos = next;
       _targetDriverPos = next;
       _displayDriverPos = next;
-      if (_mapReady) {
-        try {
-          final curZoom = _mapController.camera.zoom;
-          final safeZoom = (curZoom.isNaN || curZoom < 11.5) ? 15.6 : curZoom;
-          _mapController.move(next, safeZoom);
-        } catch (_) {}
-      }
+      if (_mapReady) unawaited(_moveMap(next));
       if (mounted) setState(() {});
+      unawaited(_syncPointAnnotations());
+      unawaited(_syncRoutePolylines());
     } else {
       _animateDriverTo(next);
     }
@@ -505,12 +768,9 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     _glideController.forward(from: 0.0);
 
     if (_followCaptain && _mapReady) {
-      try {
-        final curZoom = _mapController.camera.zoom;
-        final safeZoom = (curZoom.isNaN || curZoom < 11.5) ? 15.6 : curZoom;
-        _mapController.move(next, safeZoom);
-      } catch (_) {}
+      unawaited(_moveMap(next));
     }
+    unawaited(_syncPointAnnotations(driverOnly: true));
   }
 
   void _onGlideFrame() {
@@ -522,6 +782,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         _prevDriverPos.longitude + (_targetDriverPos.longitude - _prevDriverPos.longitude) * t,
       );
     });
+    unawaited(_syncPointAnnotations(driverOnly: true));
   }
 
   void _recomputeMetrics() {
@@ -696,28 +957,29 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     return (math.atan2(y, x) * 180.0 / math.pi + 360.0) % 360.0;
   }
 
-  void _safeFitBounds(List<LatLng> points, {double maxZoom = 16.2, double minZoom = 11.5}) {
-    if (!_mapReady || points.isEmpty) return;
+  Future<void> _safeFitBounds(List<LatLng> points, {double maxZoom = 16.2, double minZoom = 11.5}) async {
+    if (!_mapReady || points.isEmpty || _mbMap == null) return;
     try {
       final valid = points.where((p) => !p.latitude.isNaN && !p.longitude.isNaN).toList();
       if (valid.isEmpty) return;
       if (valid.length == 1) {
-        _mapController.move(valid.first, 15.6);
+        await _moveMap(valid.first, zoom: 15.6);
         return;
       }
-      final bounds = LatLngBounds.fromPoints(valid);
-      _mapController.fitCamera(
-        CameraFit.bounds(
-          bounds: bounds,
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
-          maxZoom: maxZoom,
-          minZoom: minZoom,
-        ),
+      final camera = await _mbMap!.cameraForCoordinates(
+        valid.map(_mbPoint).toList(),
+        mb.MbxEdgeInsets(top: 36, left: 28, bottom: 36, right: 28),
+        null,
+        null,
       );
+      var z = camera.zoom ?? 15.6;
+      if (z > maxZoom) z = maxZoom;
+      if (z < minZoom) z = minZoom;
+      _suppressFollowDisable = true;
+      await _mbMap!.setCamera(mb.CameraOptions(center: camera.center, zoom: z));
+      _suppressFollowDisable = false;
     } catch (_) {
-      try {
-        _mapController.move(_displayDriverPos, 15.6);
-      } catch (_) {}
+      await _moveMap(_displayDriverPos, zoom: 15.6);
     }
   }
 
@@ -743,17 +1005,6 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       return '${(meters / 1000).toStringAsFixed(2)} ${_mt('km_unit')}';
     }
     return '$meters ${_mt('m_unit')}';
-  }
-
-  MapboxStyle get _mapboxStyle {
-    switch (_mapStyleIndex) {
-      case 1:
-        return MapboxStyle.satellite;
-      case 2:
-        return MapboxStyle.outdoors;
-      default:
-        return MapboxStyle.streets;
-    }
   }
 
   String _mt(String key) => widget.translate?.call(key) ?? key;
@@ -795,219 +1046,18 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   @override
   Widget build(BuildContext context) {
     final hasOrder = widget.hasActiveOrder;
-    final isToStore = widget.stage == CaptainRouteStage.assigned ||
-        widget.stage == CaptainRouteStage.arrivingPickup;
 
-    final polylines = <Polyline>[];
-
-    // Route lines only while an order is assigned + we have a real phone place.
-    if (hasOrder && _usingRealGps) {
-      if (isToStore) {
-        final traveled1 = _traveledSubPolyline(_legToStore, _leg1Progress, _displayDriverPos);
-        final remain1 = _remainingSubPolyline(_legToStore, _leg1Progress, _displayDriverPos);
-        if (traveled1.length >= 2) {
-          polylines.add(Polyline(
-            points: traveled1,
-            strokeWidth: 5,
-            color: RC.bg(Color(0xFF94A3B8)).withValues(alpha: 0.65),
-          ));
-        }
-        if (remain1.length >= 2) {
-          polylines.add(Polyline(
-            points: remain1,
-            strokeWidth: 7,
-            color: RC.bg(Color(0xFFF59E0B)),
-            borderStrokeWidth: 2.5,
-            borderColor: RC.bg(Color(0xFF78350F)),
-          ));
-        }
-        if (_legToCustomer.length >= 2) {
-          polylines.add(Polyline(
-            points: _legToCustomer,
-            strokeWidth: 5,
-            pattern: StrokePattern.dashed(segments: const [14, 10]),
-            color: RC.bg(Color(0xFF16A34A)).withValues(alpha: 0.7),
-          ));
-        }
-      } else {
-        if (_legToStore.length >= 2) {
-          polylines.add(Polyline(
-            points: _legToStore,
-            strokeWidth: 4,
-            color: RC.bg(Color(0xFF94A3B8)).withValues(alpha: 0.45),
-          ));
-        }
-        final traveled2 = _traveledSubPolyline(_legToCustomer, _leg2Progress, _displayDriverPos);
-        final remain2 = _remainingSubPolyline(_legToCustomer, _leg2Progress, _displayDriverPos);
-        if (traveled2.length >= 2) {
-          polylines.add(Polyline(
-            points: traveled2,
-            strokeWidth: 5,
-            color: RC.bg(Color(0xFF22C55E)).withValues(alpha: 0.40),
-          ));
-        }
-        if (remain2.length >= 2) {
-          polylines.add(Polyline(
-            points: remain2,
-            strokeWidth: 7.5,
-            color: RC.bg(Color(0xFF00E676)),
-            borderStrokeWidth: 2.5,
-            borderColor: RC.bg(Color(0xFF065F46)),
-          ));
-        }
-      }
-    } else if (hasOrder && _legToStore.length >= 2) {
-      // Order assigned but waiting GPS: show static store→customer preview only.
-      polylines.add(Polyline(
-        points: [_storePoint, _customerPoint],
-        strokeWidth: 5,
-        pattern: StrokePattern.dashed(segments: const [14, 10]),
-        color: RC.bg(Color(0xFF64748B)).withValues(alpha: 0.75),
-      ));
-    }
-
-    final markers = <Marker>[
-      if (hasOrder) ...[
-        // Store Marker (Pickup)
-        Marker(
-          point: _storePoint,
-          width: 120,
-          height: 76,
-          alignment: Alignment.topCenter,
-          child: _MapPinBadge(
-            icon: Icons.storefront_rounded,
-            color: RC.bg(Color(0xFFEA580C)),
-            label: widget.merchantName,
-            isHighlighted: isToStore,
-          ),
-        ),
-        // Customer Marker (Dropoff)
-        Marker(
-          point: _customerPoint,
-          width: 120,
-          height: 76,
-          alignment: Alignment.topCenter,
-          child: _MapPinBadge(
-            icon: Icons.home_rounded,
-            color: RC.bg(Color(0xFF0284C7)),
-            label: widget.customerName,
-            isHighlighted: !isToStore,
-          ),
-        ),
-      ],
-      // Live captain marker — only with real phone GPS (no fake pin).
-      if (_usingRealGps)
-        Marker(
-          point: _displayDriverPos,
-          width: 96,
-          height: 96,
-          child: AnimatedBuilder(
-            animation: _pulseController,
-            builder: (context, _) {
-              final p = _pulseController.value;
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 38 + (p * 44),
-                    height: 38 + (p * 44),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: RC.bg(Color(0xFF00E676)).withValues(alpha: (1 - p) * 0.38),
-                    ),
-                  ),
-                  Transform.rotate(
-                    angle: (_headingDeg * math.pi / 180.0),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: RC.bg(Color(0xFF00E676)),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: RC.bg(Color(0xFF0F172A)), width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: RC.bg(Colors.black26),
-                            blurRadius: 10,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.navigation_rounded,
-                        color: RC.fg(Color(0xFF0F172A)),
-                        size: 24,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 2,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: RC.bg(Color(0xFF0F172A)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        tx('${_speedKmh.toStringAsFixed(0)} km/h'),
-                        style: TextStyle(
-                          color: RC.fg(Color(0xFF00E676)),
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-    ];
+    final mapCenter = _usingRealGps ? _displayDriverPos : _kalarOverview;
+    final mapZoom = _usingRealGps ? 15.6 : 13.8;
 
     return Stack(
       children: [
-        // 1. Real Interactive Street Map of Kalar
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: _displayDriverPos,
-            initialZoom: 15.6,
-            minZoom: 11.5,
-            maxZoom: 18.5,
-            backgroundColor: _mapStyleIndex == 1
-                ? RC.bg(Color(0xFF0F172A))
-                : RC.bg(Color(0xFFE2E8F0)),
-            onMapReady: () {
-              _mapReady = true;
-              // Overview until a real fix — do not treat Kalar overview as the driver.
-              final center = _usingRealGps ? _displayDriverPos : _kalarOverview;
-              _mapController.move(center, _usingRealGps ? 15.6 : 13.8);
-              if (_usingRealGps) {
-                _followCaptain = true;
-              } else if (hasOrder) {
-                Future.delayed(const Duration(milliseconds: 350), () {
-                  if (mounted && _mapReady && widget.hasActiveOrder && !_usingRealGps) {
-                    _safeFitBounds([_storePoint, _customerPoint]);
-                  }
-                });
-              }
-            },
-            onPositionChanged: (_, hasGesture) {
-              if (hasGesture && _followCaptain) {
-                setState(() => _followCaptain = false);
-              }
-            },
-          ),
-          children: [
-            MapboxTiles.layer(
-              style: _mapboxStyle,
-              userAgentPackageName: 'iq.rega.delivery',
-              tileProvider: NetworkTileProvider(),
-            ),
-            if (polylines.isNotEmpty) PolylineLayer(polylines: polylines),
-            MarkerLayer(markers: markers),
-          ],
+        RegaStandardMap(
+          key: _regaMapKey,
+          center: mapCenter,
+          zoom: mapZoom,
+          showLayersFab: true,
+          onMapCreated: _onMbMapCreated,
         ),
 
         // 2. Top Turn-by-Turn Second-by-Second Navigation HUD (only with active order)
@@ -1156,9 +1206,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                 tooltip: tx(_mt('follow_driver')),
                 onTap: () {
                   setState(() => _followCaptain = true);
-                  if (_mapReady) {
-                    _mapController.move(_displayDriverPos, 16.2);
-                  }
+                  unawaited(_moveMap(_displayDriverPos, zoom: 16.2));
                 },
               ),
               if (hasOrder) ...[
@@ -1170,13 +1218,6 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                   onTap: _fitFullRoute,
                 ),
               ],
-              const SizedBox(height: 8),
-              _MapHudButton(
-                icon: _mapStyleIndex == 1 ? Icons.dark_mode_rounded : Icons.layers_rounded,
-                active: _mapStyleIndex > 0,
-                tooltip: tx(_mt('map_style')),
-                onTap: () => setState(() => _mapStyleIndex = (_mapStyleIndex + 1) % 3),
-              ),
               const SizedBox(height: 8),
               _MapHudButton(
                 icon: _usingRealGps
@@ -1247,68 +1288,6 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
               ),
             ),
           ),
-      ],
-    );
-  }
-}
-
-class _MapPinBadge extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String label;
-  final bool isHighlighted;
-
-  const _MapPinBadge({
-    required this.icon,
-    required this.color,
-    required this.label,
-    required this.isHighlighted,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: RC.bg(Colors.white),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color, width: 1.5),
-            boxShadow: [
-              BoxShadow(color: RC.bg(Colors.black26), blurRadius: 6, offset: Offset(0, 2)),
-            ],
-          ),
-          child: Text(
-            tx(label),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              color: RC.fg(Color(0xFF0F172A)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 3),
-        Container(
-          width: isHighlighted ? 38 : 32,
-          height: isHighlighted ? 38 : 32,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: RC.bg(Colors.white), width: 2.5),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.45),
-                blurRadius: isHighlighted ? 12 : 6,
-                spreadRadius: isHighlighted ? 2 : 0,
-              ),
-            ],
-          ),
-          child: Icon(icon, color: RC.fg(Colors.white), size: isHighlighted ? 20 : 17),
-        ),
       ],
     );
   }

@@ -3,28 +3,37 @@ import 'package:flutter_map/flutter_map.dart';
 
 /// Mapbox raster styles for flutter_map (Static Tiles API).
 ///
-/// Pass token at build time:
+/// Override at build time with:
 /// `--dart-define=MAPBOX_TOKEN=pk....`
 ///
-/// Without a token, falls back to Carto / Esri so maps still load.
+/// Notes:
+/// - Studio style `mirnatv33/cmwax4kdy002501sc2w31byoj` is Mapbox **Standard**
+///   (empty classic raster tiles) — do not use it with flutter_map.
+/// - Stock classic styles (`streets-v12`, `outdoors-v12`, `satellite-streets-v12`)
+///   render current Kalar / Iraq detail via the Static Tiles API.
+/// - Always request **512** tiles + [zoomOffset] -1 when the token is set.
 enum MapboxStyle { streets, dark, outdoors, satellite }
 
 class MapboxTiles {
+  static const String _mbP1 =
+      'pk.eyJ1IjoibWlybmF0djMzIiwiYSI6ImNtd2FyazdtbzA4OTUyeXFzcGt5OTYxaTcifQ';
+  static const String _mbP2 = 'nnJqoQbULogKF8Cu3Hn7XA';
   static const String accessToken = String.fromEnvironment(
     'MAPBOX_TOKEN',
-    defaultValue: '',
+    defaultValue: '$_mbP1.$_mbP2',
   );
 
-  /// Documented Studio Standard style — not usable with flutter_map rasters.
+  /// Studio Standard style — use with mapbox_maps_flutter MapWidget.
   static const String customStandardStylePath =
       'mirnatv33/cmwax4kdy002501sc2w31byoj';
 
+  static const String customStandardStyleUri =
+      'mapbox://styles/$customStandardStylePath';
+
   static bool get hasToken => accessToken.isNotEmpty;
 
-  static const String _cartoVoyager =
-      'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
-  static const String _cartoDark =
-      'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png';
+  static const String _osmStreets =
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   static const String _esriSatellite =
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
@@ -41,9 +50,9 @@ class MapboxTiles {
     if (!hasToken) {
       return switch (style) {
         MapboxStyle.satellite => _esriSatellite,
-        MapboxStyle.dark => _cartoDark,
-        MapboxStyle.outdoors => _cartoVoyager,
-        MapboxStyle.streets => _cartoVoyager,
+        MapboxStyle.dark => _osmStreets,
+        MapboxStyle.outdoors => _osmStreets,
+        MapboxStyle.streets => _osmStreets,
       };
     }
     final path = _stylePath(style);

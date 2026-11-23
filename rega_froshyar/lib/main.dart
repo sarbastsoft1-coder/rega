@@ -20,7 +20,10 @@ import 'app/app_router.dart';
 import 'state/vendor_nav_notifier.dart';
 import 'state/vendor_session_notifier.dart';
 import 'iraq_phone_formatter.dart';
+import 'service_area.dart';
 
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' show MapboxOptions;
+import 'map/mapbox_tiles.dart';
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
 // ==============================================================================
@@ -256,6 +259,9 @@ String t(String key) => Trans.get(key);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (MapboxTiles.accessToken.isNotEmpty) {
+    MapboxOptions.setAccessToken(MapboxTiles.accessToken);
+  }
   await Trans.loadSavedLang();
   runApp(buildVendorProviders(child: const RegaVendorApp()));
 }
@@ -272,6 +278,50 @@ class _RegaVendorAppState extends State<RegaVendorApp> {
   /// Keeps catalog/orders state alive across GoRouter shell rebuilds & tab changes.
   final GlobalKey<_MainNavigationScreenState> _shellKey =
       GlobalKey<_MainNavigationScreenState>();
+  bool _isOutsideServiceArea = false;
+  bool _checkingServiceArea = false;
+  Timer? _serviceAreaTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _initServiceAreaGate();
+  }
+
+  Future<void> _initServiceAreaGate() async {
+    await _refreshServiceAreaConfig();
+    await _checkServiceArea(requestPermission: true);
+    _serviceAreaTimer?.cancel();
+    _serviceAreaTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _checkServiceArea();
+    });
+  }
+
+  Future<void> _refreshServiceAreaConfig() async {
+    final data = await VendorApiService.instance.fetchSupportContacts();
+    if (data.isNotEmpty) {
+      ServiceAreaGate.applyFromMap(data);
+    }
+  }
+
+  Future<void> _checkServiceArea({bool requestPermission = false}) async {
+    if (_checkingServiceArea) return;
+    _checkingServiceArea = true;
+    try {
+      final result =
+          await ServiceAreaGate.check(requestPermission: requestPermission);
+      if (!mounted) return;
+      setState(() => _isOutsideServiceArea = result.blocksApp);
+    } finally {
+      _checkingServiceArea = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _serviceAreaTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -296,6 +346,21 @@ class _RegaVendorAppState extends State<RegaVendorApp> {
     final router = _router;
     if (router == null) {
       return const SizedBox.shrink();
+    }
+    if (_isOutsideServiceArea) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          fontFamily: 'NotoKufiArabic',
+        ),
+        home: ServiceAreaBlockedScreen(
+          onRetry: () async {
+            await _refreshServiceAreaConfig();
+            await _checkServiceArea(requestPermission: true);
+          },
+        ),
+      );
     }
     return ValueListenableBuilder<bool>(
       valueListenable: Trans.dark,

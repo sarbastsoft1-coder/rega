@@ -3,14 +3,15 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import '../core/api/api_client.dart';
 import '../core/iraq_phone_formatter.dart';
 import '../core/localization/app_strings.dart';
 import '../core/services/media_pick_service.dart';
 import '../core/services/open_url_io.dart' if (dart.library.html) '../core/services/open_url_web.dart';
-import '../map/mapbox_tiles.dart';
+import '../map/rega_map_annotation_helpers.dart';
+import '../map/rega_standard_map.dart';
 import '../widgets/admin_top_header.dart';
 import '../widgets/common_widgets.dart';
 import '../core/theme/admin_breakpoints.dart';
@@ -170,7 +171,10 @@ class DriversScreen extends StatefulWidget {
 
 class _DriversScreenState extends State<DriversScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
-  final MapController _mapController = MapController();
+  final GlobalKey<RegaStandardMapState> _regaMapKey = GlobalKey();
+  mb.PointAnnotationManager? _pointMgr;
+  mb.CircleAnnotationManager? _circleMgr;
+  static const LatLng _driversMapCenter = LatLng(34.6295, 45.3159);
 
   int _currentPage = 1;
   String _selectedCity = 'all';
@@ -208,8 +212,50 @@ class _DriversScreenState extends State<DriversScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     _searchCtrl.dispose();
-    _mapController.dispose();
     super.dispose();
+  }
+
+  Future<void> _onDriversMapCreated(mb.MapboxMap map) async {
+    final ann = map.annotations;
+    _pointMgr = await ann.createPointAnnotationManager();
+    _circleMgr = await ann.createCircleAnnotationManager();
+    await _syncDriversMapMarkers();
+  }
+
+  Future<void> _syncDriversMapMarkers() async {
+    final points = _pointMgr;
+    final circles = _circleMgr;
+    if (points == null || circles == null) return;
+    await regaClearAnnotationLayers(points: points, circles: circles);
+
+    await points.create(
+      mb.PointAnnotationOptions(
+        geometry: regaMapPoint(_driversMapCenter),
+        textField: 'کەلار',
+        textSize: 11,
+        textColor: regaArgb(RC.fg(const Color(0xFF0F172A))),
+        textHaloColor: regaArgb(RC.bg(Colors.white)),
+        textHaloWidth: 1,
+      ),
+    );
+
+    final active = _couriers.where((c) => c.status == 'active' || c.status == 'on_the_way');
+    if (active.isEmpty) return;
+    await circles.createMulti(
+      active
+          .map(
+            (c) => mb.CircleAnnotationOptions(
+              geometry: regaMapPoint(c.location),
+              circleRadius: 10,
+              circleColor: regaArgb(
+                c.status == 'on_the_way' ? RC.bg(const Color(0xFFEA580C)) : RC.bg(const Color(0xFF16A34A)),
+              ),
+              circleStrokeColor: regaArgb(RC.bg(Colors.white)),
+              circleStrokeWidth: 2,
+            ),
+          )
+          .toList(),
+    );
   }
 
   Future<void> _loadFromBackend({bool silent = false}) async {
@@ -286,6 +332,7 @@ class _DriversScreenState extends State<DriversScreen> {
         _pendingApprovalKPI = _toDigits(pendingCount);
         _isLoading = false;
       });
+      _syncDriversMapMarkers();
     } catch (_) {
       if (mounted && !silent) {
         setState(() => _isLoading = false);
@@ -2049,7 +2096,7 @@ class _DriversScreenState extends State<DriversScreen> {
                 const SizedBox(width: 8),
                 InkWell(
                   onTap: () {
-                    _mapController.move(const LatLng(34.6295, 45.3159), 14.2);
+                    _regaMapKey.currentState?.moveTo(_driversMapCenter, zoom: 14.2);
                   },
                   borderRadius: BorderRadius.circular(8),
                   child: Padding(
@@ -2064,78 +2111,12 @@ class _DriversScreenState extends State<DriversScreen> {
           // Interactive Map Canvas
           SizedBox(
             height: mapHeight,
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: LatLng(34.6295, 45.3159),
-                initialZoom: 13.5,
-                minZoom: 10.0,
-                maxZoom: 18.0,
-                backgroundColor: RC.bg(Color(0xFFF1F5F9)),
-              ),
-              children: [
-                MapboxTiles.layer(
-                  style: MapboxStyle.streets,
-                  userAgentPackageName: 'iq.rega.admin',
-                  tileProvider: NetworkTileProvider(),
-                ),
-                MarkerLayer(
-                  markers: [
-                    // Center label: کەلار city center (Mapbox: 34.6295, 45.3159)
-                    Marker(
-                      point: const LatLng(34.6295, 45.3159),
-                      width: 70,
-                      height: 28,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: RC.bg(Colors.white).withValues(alpha: 0.9),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
-                        ),
-                        child: Center(
-                          child: Text(
-                            tx('کەلار'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF0F172A))),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Online drivers with live GPS only
-                    ..._couriers.where((c) => c.status == 'active' || c.status == 'on_the_way').map((c) {
-                      final isDelivery = c.status == 'on_the_way';
-                      return Marker(
-                        point: c.location,
-                        width: 32,
-                        height: 32,
-                        child: Tooltip(
-                          message: c.name,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isDelivery ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFF16A34A)),
-                              border: Border.all(color: RC.bg(Colors.white), width: 2),
-                              boxShadow: [
-                                BoxShadow(color: RC.bg(Colors.black26), blurRadius: 4, offset: Offset(0, 2)),
-                              ],
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.two_wheeler_rounded,
-                                size: 16,
-                                color: AdminSurfaces.of(context).card,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ],
+            child: RegaStandardMap(
+              key: _regaMapKey,
+              center: _driversMapCenter,
+              zoom: 13.5,
+              showLayersFab: true,
+              onMapCreated: _onDriversMapCreated,
             ),
           ),
 

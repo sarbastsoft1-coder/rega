@@ -1,14 +1,16 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 
-import 'map/mapbox_tiles.dart';
+import 'map/rega_standard_map.dart';
 import 'vendor_api_service.dart';
 
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
+
 /// Live GPS of online delivery captains for the seller app.
 /// Store + driver pins only from real API coords (no fake place fallback).
 class OnlineDriversMapPage extends StatefulWidget {
@@ -19,7 +21,9 @@ class OnlineDriversMapPage extends StatefulWidget {
 }
 
 class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
-  final MapController _mapController = MapController();
+  final GlobalKey<RegaStandardMapState> _regaMapKey = GlobalKey();
+  mb.MapboxMap? _mbMap;
+  mb.PointAnnotationManager? _pointMgr;
   Timer? _poll;
   List<Map<String, dynamic>> _drivers = [];
   Map<String, dynamic>? _store;
@@ -39,12 +43,77 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
   @override
   void dispose() {
     _poll?.cancel();
-    _mapController.dispose();
     super.dispose();
   }
 
+  mb.Point _mbPoint(LatLng p) =>
+      mb.Point(coordinates: mb.Position(p.longitude, p.latitude));
+
+  int _colorInt(Color c) => RC.bg(c).toARGB32();
+
   bool _valid(double? lat, double? lng) =>
       lat != null && lng != null && lat.abs() > 0.01 && lng.abs() > 0.01;
+
+  Future<void> _onMapCreated(mb.MapboxMap map) async {
+    _mbMap = map;
+    _mapReady = true;
+    if (!kIsWeb) {
+      try {
+        _pointMgr = await map.annotations.createPointAnnotationManager();
+      } catch (_) {}
+    }
+    await _syncPointAnnotations();
+    if (_mapReady) await _fitMap();
+  }
+
+  Future<void> _syncPointAnnotations() async {
+    if (kIsWeb || _pointMgr == null) return;
+    try {
+      await _pointMgr!.deleteAll();
+    } catch (_) {}
+
+    final storeLat = (_store?['lat'] as num?)?.toDouble();
+    final storeLng = (_store?['lng'] as num?)?.toDouble();
+    if (_valid(storeLat, storeLng)) {
+      try {
+        await _pointMgr!.create(
+          mb.PointAnnotationOptions(
+            geometry: _mbPoint(LatLng(storeLat!, storeLng!)),
+            textField: tx('فرۆشگا'),
+            textSize: 10,
+            textHaloWidth: 1,
+            textHaloColor: _colorInt(Colors.white),
+            iconColor: _colorInt(const Color(0xFFEA580C)),
+            iconSize: 1.2,
+          ),
+        );
+      } catch (_) {}
+    }
+
+    for (final d in _drivers) {
+      final lat = (d['lat'] as num?)?.toDouble() ?? (d['current_lat'] as num?)?.toDouble();
+      final lng = (d['lng'] as num?)?.toDouble() ?? (d['current_lng'] as num?)?.toDouble();
+      if (!_valid(lat, lng)) continue;
+      final name = (d['name'] ?? d['driver_code'] ?? 'Captain').toString();
+      final meters = (d['distance_meters'] as num?)?.toInt();
+      final label = meters != null ? '$name • ${meters}m' : name;
+      try {
+        await _pointMgr!.create(
+          mb.PointAnnotationOptions(
+            geometry: _mbPoint(LatLng(lat!, lng!)),
+            textField: tx(label),
+            textSize: 9,
+            textColor: _colorInt(Colors.white),
+            textHaloColor: _colorInt(const Color(0xFF064E3B)),
+            textHaloWidth: 1.2,
+            textOffset: [0, -1.6],
+            iconColor: _colorInt(const Color(0xFF16A34A)),
+            iconSize: 1.1,
+          ),
+        );
+      } catch (_) {}
+    }
+  }
 
   Future<void> _load({bool silent = false}) async {
     if (!silent && mounted) setState(() => _loading = true);
@@ -66,12 +135,11 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
       _onlineCount = (data['online_count'] as num?)?.toInt() ?? _drivers.length;
     });
 
-    if (_mapReady) {
-      _fitMap();
-    }
+    await _syncPointAnnotations();
+    if (_mapReady) await _fitMap();
   }
 
-  void _fitMap() {
+  Future<void> _fitMap() async {
     final points = <LatLng>[];
     final storeLat = (_store?['lat'] as num?)?.toDouble();
     final storeLng = (_store?['lng'] as num?)?.toDouble();
@@ -83,24 +151,24 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
       final lng = (d['lng'] as num?)?.toDouble() ?? (d['current_lng'] as num?)?.toDouble();
       if (_valid(lat, lng)) points.add(LatLng(lat!, lng!));
     }
-    if (points.isEmpty) {
-      try {
-        _mapController.move(_kalarOverview, 13.2);
-      } catch (_) {}
-      return;
-    }
+    final map = _mbMap;
+    if (map == null) return;
     try {
-      if (points.length == 1) {
-        _mapController.move(points.first, 14.5);
-      } else {
-        _mapController.fitCamera(
-          CameraFit.bounds(
-            bounds: LatLngBounds.fromPoints(points),
-            padding: const EdgeInsets.all(36),
-            maxZoom: 16,
-          ),
-        );
+      if (points.isEmpty) {
+        await _regaMapKey.currentState?.moveTo(_kalarOverview, zoom: 13.2);
+        return;
       }
+      if (points.length == 1) {
+        await _regaMapKey.currentState?.moveTo(points.first, zoom: 14.5);
+        return;
+      }
+      final camera = await map.cameraForCoordinates(
+        points.map(_mbPoint).toList(),
+        mb.MbxEdgeInsets(top: 36, left: 36, bottom: 36, right: 36),
+        null,
+        null,
+      );
+      await map.setCamera(camera);
     } catch (_) {}
   }
 
@@ -110,65 +178,6 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
     final storeLng = (_store?['lng'] as num?)?.toDouble();
     final hasStore = _valid(storeLat, storeLng);
     final storePt = hasStore ? LatLng(storeLat!, storeLng!) : null;
-
-    final markers = <Marker>[
-      if (storePt != null)
-        Marker(
-          point: storePt,
-          width: 40,
-          height: 40,
-          child: Container(
-            decoration: BoxDecoration(
-              color: RC.bg(Color(0xFFEA580C)),
-              shape: BoxShape.circle,
-              border: Border.all(color: RC.bg(Colors.white), width: 2),
-              boxShadow: [BoxShadow(color: RC.bg(Colors.black26), blurRadius: 6)],
-            ),
-            child: Icon(Icons.storefront_rounded, color: RC.fg(Colors.white), size: 20),
-          ),
-        ),
-      ..._drivers.map((d) {
-        final lat = (d['lat'] as num?)?.toDouble() ?? (d['current_lat'] as num?)?.toDouble();
-        final lng = (d['lng'] as num?)?.toDouble() ?? (d['current_lng'] as num?)?.toDouble();
-        if (!_valid(lat, lng)) return null;
-        final name = (d['name'] ?? d['driver_code'] ?? 'Captain').toString();
-        final meters = (d['distance_meters'] as num?)?.toInt();
-        return Marker(
-          point: LatLng(lat!, lng!),
-          width: 110,
-          height: 58,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: RC.bg(Color(0xFF064E3B)),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  tx(meters != null ? '$name • ${meters}m' : name),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: RC.fg(Colors.white), fontSize: 9, fontWeight: FontWeight.w800),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: RC.bg(Color(0xFF16A34A)),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: RC.bg(Colors.white), width: 2),
-                ),
-                child: Icon(Icons.two_wheeler_rounded, color: RC.fg(Colors.white), size: 15),
-              ),
-            ],
-          ),
-        );
-      }).whereType<Marker>(),
-    ];
 
     return Scaffold(
       backgroundColor: RC.bg(Color(0xFFF8FAFC)),
@@ -189,23 +198,12 @@ class _OnlineDriversMapPageState extends State<OnlineDriversMapPage> {
       ),
       body: Stack(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: storePt ?? _kalarOverview,
-              initialZoom: 13.8,
-              onMapReady: () {
-                _mapReady = true;
-                _fitMap();
-              },
-            ),
-            children: [
-              MapboxTiles.layer(
-                style: MapboxStyle.streets,
-                userAgentPackageName: 'iq.rega.vendor',
-              ),
-              MarkerLayer(markers: markers),
-            ],
+          RegaStandardMap(
+            key: _regaMapKey,
+            center: storePt ?? _kalarOverview,
+            zoom: 13.8,
+            showLayersFab: true,
+            onMapCreated: _onMapCreated,
           ),
           if (_loading)
             Positioned(

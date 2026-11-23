@@ -14,8 +14,11 @@ import 'package:screen_protector/screen_protector.dart'; // 🔒 بۆ ڕێگری
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' show MapboxOptions;
 import 'live_order_tracker.dart';
 import 'map/mapbox_geocoding.dart';
+import 'map/mapbox_tiles.dart';
+import 'map/rega_map_styles.dart';
 import 'customer_api_service.dart';
 import 'blocked_account.dart';
 import 'rega_mobile.dart';
@@ -32,6 +35,7 @@ import 'state/orders_notifier.dart';
 import 'state/session_notifier.dart';
 import 'services/push_notifications.dart';
 import 'services/customer_notification_sound.dart';
+import 'services/service_area.dart';
 import 'screens/kalar_map_screen.dart';
 
 import 'direct_request_screen.dart';
@@ -42,6 +46,10 @@ export 'models/customer_models.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Mapbox Standard (2026 live cartography) — must be set before any MapWidget.
+  if (MapboxTiles.accessToken.isNotEmpty) {
+    MapboxOptions.setAccessToken(MapboxTiles.accessToken);
+  }
   // Native only — lock-screen push + 3s in-app banner.
   if (!kIsWeb) {
     await PushNotifications.instance.init();
@@ -338,9 +346,12 @@ class _MainScreenState extends State<MainScreen> {
   bool _isLocationAuthorized = kIsWeb;
   bool _isCheckingLocation = !kIsWeb;
   bool _isVpnActive = false; // 🛡️ بارودۆخی VPN
+  bool _isOutsideServiceArea = false; // 📍 دەرەوەی ناوچەی کارکردن
+  bool _isCheckingServiceArea = false;
   bool _isDeviceSafe = true; // 🔒 ئایا ئامێرەکە پارێزراوە؟
   bool _isCheckingSecurity = !kIsWeb; // 🔒 پشکنینی ئاسایش
   String _securityErrorMessage = "";
+  Timer? _serviceAreaTimer;
 
   @override
   void initState() {
@@ -512,6 +523,25 @@ class _MainScreenState extends State<MainScreen> {
 
     // 4. داواکردنی ڕێگەپێدانی شوێن (Location)
     await _requestLocationPermission();
+
+    // 5. پشکنینی ناوچەی کارکردن (کەلار + مەودا)
+    await _checkServiceArea();
+    _serviceAreaTimer?.cancel();
+    _serviceAreaTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _checkServiceArea();
+    });
+  }
+
+  Future<void> _checkServiceArea() async {
+    if (_isCheckingServiceArea) return;
+    _isCheckingServiceArea = true;
+    try {
+      final result = await ServiceAreaGate.check(requestPermission: false);
+      if (!mounted) return;
+      setState(() => _isOutsideServiceArea = result.blocksApp);
+    } finally {
+      _isCheckingServiceArea = false;
+    }
   }
 
   // 📍 فەنکشن بۆ داواکردنی ڕێگەپێدانی GPS لە مۆبایل (بە مەرجی ناچاری)
@@ -965,6 +995,7 @@ class _MainScreenState extends State<MainScreen> {
   void dispose() {
     _connectivityTimer?.cancel();
     _backendOrdersTimer?.cancel();
+    _serviceAreaTimer?.cancel();
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _passwordCtrl.dispose();
@@ -1003,6 +1034,13 @@ class _MainScreenState extends State<MainScreen> {
     try {
       final boot = await CustomerApiService.instance.fetchBootstrap();
       if (boot != null && mounted) {
+        final settings = boot['settings'];
+        if (settings is Map<String, dynamic>) {
+          ServiceAreaGate.applyFromMap(settings);
+        } else if (settings is Map) {
+          ServiceAreaGate.applyFromMap(Map<String, dynamic>.from(settings));
+        }
+
         final rawZones = boot['neighborhoods'] as List<dynamic>? ?? [];
         if (rawZones.isNotEmpty) {
           kalarNeighborhoods
@@ -2654,6 +2692,7 @@ class _MainScreenState extends State<MainScreen> {
     List<GeocodedPlaceSuggestion> searchResults = [];
     final searchCtrl = TextEditingController();
     final noteCtrl = TextEditingController(text: _deliveryPlaceNote ?? '');
+    final pickerController = KalarPickerController();
 
     String resolvedNeighborhoodLabel() {
       if (customNeighborhoodOverride != null &&
@@ -2766,8 +2805,47 @@ class _MainScreenState extends State<MainScreen> {
             }
 
             final activeAreaLabel = resolvedNeighborhoodLabel();
-            final coordsText = MapboxGeocoding.coordinatesLabel(draftPin, decimals: 5);
 
+            void confirmPin() {
+              if (!ServiceAreaGate.config.contains(
+                draftPin.latitude,
+                draftPin.longitude,
+              )) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(tx('تۆ لەدەرەوەی ناوچەی کارکردنیت')),
+                    backgroundColor: RC.bg(const Color(0xFFDC2626)),
+                  ),
+                );
+                return;
+              }
+              final note = noteCtrl.text.trim();
+              final resolvedArea = resolvedNeighborhoodLabel();
+              context.read<LocationNotifier>().setPin(
+                lat: draftPin.latitude,
+                lng: draftPin.longitude,
+                neighborhood: draftNeighborhood,
+                clearNeighborhood: draftNeighborhood == null,
+                placeNote: note.isEmpty ? null : note,
+                clearPlaceNote: note.isEmpty,
+                resolvedPlaceName: resolvedArea,
+                clearResolvedPlaceName: resolvedArea.isEmpty,
+              );
+              setState(() {});
+              Navigator.pop(context);
+              final savedLabel =
+                  context.read<LocationNotifier>().displayPlaceLabel ?? draftLabel();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    tx('📍 ${_t('شوێنی گەیاندن پاشەکەوت کرا')}: $savedLabel'),
+                  ),
+                  backgroundColor: RC.bg(const Color(0xFF059669)),
+                ),
+              );
+            }
+
+            // Map-first layout (reference UI): map ~60% + bottom address sheet.
             return Align(
               alignment: Alignment.bottomCenter,
               child: ConstrainedBox(
@@ -2777,101 +2855,11 @@ class _MainScreenState extends State<MainScreen> {
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
                   clipBehavior: Clip.antiAlias,
                   child: SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.94,
+                    height: MediaQuery.of(context).size.height * 0.96,
                     child: Column(
                       children: [
-                        // REGA brand gold header + forward search bar
-                        Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                RC.bg(const Color(0xFFFFDE59)),
-                                RC.bg(const Color(0xFFFAC800)),
-                                RC.bg(const Color(0xFFEAB308)),
-                              ],
-                            ),
-                          ),
-                          padding: EdgeInsets.only(
-                            top: MediaQuery.of(context).padding.top > 0 ? 4 : 8,
-                            bottom: 10,
-                            left: 10,
-                            right: 10,
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  IconButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    icon: Icon(Icons.close_rounded, color: RC.fg(Colors.black)),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      _t('دیاریکردنی شوێن'),
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        color: RC.fg(Colors.black),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 48),
-                                ],
-                              ),
-                              // Forward search / autocomplete for Kurdish neighborhoods & compounds
-                              SizedBox(
-                                height: 42,
-                                child: TextField(
-                                  controller: searchCtrl,
-                                  textInputAction: TextInputAction.search,
-                                  onChanged: runPlaceSearch,
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                                  decoration: InputDecoration(
-                                    hintText: tx('گەڕان بۆ گەڕەک، سیتی، کۆمەڵگا یان شوێن...'),
-                                    hintStyle: TextStyle(
-                                      fontSize: 12.5,
-                                      color: RC.fg(const Color(0xFF64748B)),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    prefixIcon: Icon(
-                                      Icons.search_rounded,
-                                      size: 19,
-                                      color: RC.fg(const Color(0xFF0F172A)),
-                                    ),
-                                    suffixIcon: searchingPlaces
-                                        ? const Padding(
-                                            padding: EdgeInsets.all(11),
-                                            child: SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(strokeWidth: 2),
-                                            ),
-                                          )
-                                        : (searchCtrl.text.isNotEmpty
-                                            ? IconButton(
-                                                icon: const Icon(Icons.clear_rounded, size: 17),
-                                                onPressed: () {
-                                                  searchCtrl.clear();
-                                                  runPlaceSearch('');
-                                                },
-                                              )
-                                            : null),
-                                    filled: true,
-                                    fillColor: RC.bg(Colors.white),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                         Expanded(
+                          flex: 6,
                           child: Stack(
                             children: [
                               KalarInteractivePickerMap(
@@ -2879,11 +2867,118 @@ class _MainScreenState extends State<MainScreen> {
                                 pinLabel: draftLabel(),
                                 pinLoading: geocoding,
                                 allowIraqWide: true,
+                                autoLocateOnStart: isLegacySayyidKhalilDefault,
+                                controller: pickerController,
+                                initialStyle: RegaMapStyles.defaultPicker,
+                                showTopChrome: false,
                                 onLocationChanged: applyPin,
+                              ),
+                              SafeArea(
+                                bottom: false,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                                  child: Row(
+                                    children: [
+                                      Material(
+                                        color: Colors.white,
+                                        elevation: 3,
+                                        shape: const CircleBorder(),
+                                        child: InkWell(
+                                          customBorder: const CircleBorder(),
+                                          onTap: () => Navigator.pop(context),
+                                          child: const SizedBox(
+                                            width: 42,
+                                            height: 42,
+                                            child: Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Material(
+                                          color: Colors.white,
+                                          elevation: 3,
+                                          borderRadius: BorderRadius.circular(22),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 11,
+                                            ),
+                                            child: Text(
+                                              _t('زیادکردنی ناونیشانی نوێ'),
+                                              textAlign: TextAlign.center,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w900,
+                                                color: RC.fg(const Color(0xFF0F172A)),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: MediaQuery.of(context).padding.top + 58,
+                                left: 12,
+                                right: 12,
+                                child: Material(
+                                  elevation: 4,
+                                  borderRadius: BorderRadius.circular(16),
+                                  color: RC.bg(Colors.white),
+                                  child: SizedBox(
+                                    height: 44,
+                                    child: TextField(
+                                      controller: searchCtrl,
+                                      textInputAction: TextInputAction.search,
+                                      onChanged: runPlaceSearch,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      decoration: InputDecoration(
+                                        hintText: tx('گەڕان بۆ گەڕەک، سیتی، کۆمەڵگا یان شوێن...'),
+                                        hintStyle: TextStyle(
+                                          fontSize: 12.5,
+                                          color: RC.fg(const Color(0xFF64748B)),
+                                        ),
+                                        prefixIcon: Icon(
+                                          Icons.search_rounded,
+                                          size: 19,
+                                          color: RC.fg(const Color(0xFF0F172A)),
+                                        ),
+                                        suffixIcon: searchingPlaces
+                                            ? const Padding(
+                                                padding: EdgeInsets.all(11),
+                                                child: SizedBox(
+                                                  width: 16,
+                                                  height: 16,
+                                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                                ),
+                                              )
+                                            : (searchCtrl.text.isNotEmpty
+                                                ? IconButton(
+                                                    icon: const Icon(Icons.clear_rounded, size: 17),
+                                                    onPressed: () {
+                                                      searchCtrl.clear();
+                                                      runPlaceSearch('');
+                                                    },
+                                                  )
+                                                : null),
+                                        border: InputBorder.none,
+                                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
                               if (searchResults.isNotEmpty)
                                 Positioned(
-                                  top: 8,
+                                  top: MediaQuery.of(context).padding.top + 108,
                                   left: 12,
                                   right: 12,
                                   child: Material(
@@ -2891,7 +2986,7 @@ class _MainScreenState extends State<MainScreen> {
                                     borderRadius: BorderRadius.circular(16),
                                     color: RC.bg(Colors.white),
                                     child: ConstrainedBox(
-                                      constraints: const BoxConstraints(maxHeight: 220),
+                                      constraints: const BoxConstraints(maxHeight: 200),
                                       child: ListView.separated(
                                         shrinkWrap: true,
                                         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -2904,19 +2999,11 @@ class _MainScreenState extends State<MainScreen> {
                                           final s = searchResults[i];
                                           return ListTile(
                                             dense: true,
-                                            leading: Container(
-                                              padding: const EdgeInsets.all(7),
-                                              decoration: BoxDecoration(
-                                                color: RC.bg(const Color(0xFFFFFBEB)),
-                                                borderRadius: BorderRadius.circular(10),
-                                              ),
-                                              child: Icon(
-                                                s.isLocalCurated
-                                                    ? Icons.location_city_rounded
-                                                    : Icons.place_rounded,
-                                                size: 18,
-                                                color: RC.fg(const Color(0xFFD97706)),
-                                              ),
+                                            leading: Icon(
+                                              s.isLocalCurated
+                                                  ? Icons.location_city_rounded
+                                                  : Icons.place_rounded,
+                                              color: RC.fg(const Color(0xFFD97706)),
                                             ),
                                             title: Text(
                                               s.title,
@@ -2957,162 +3044,197 @@ class _MainScreenState extends State<MainScreen> {
                             ],
                           ),
                         ),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: RC.bg(Colors.white),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.06),
-                                blurRadius: 16,
-                                offset: const Offset(0, -4),
-                              ),
-                            ],
-                          ),
-                          padding: EdgeInsets.fromLTRB(
-                            14,
-                            10,
-                            14,
-                            12 + MediaQuery.of(context).padding.bottom,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // Quick Kurdish neighborhood & residential compound selector chips
-                              // (never overwrites manual user text in "ناوی شوێن")
-                              SizedBox(
-                                height: 34,
-                                child: ListView.separated(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: MapboxGeocoding.localPlaces.length,
-                                  separatorBuilder: (_, __) => const SizedBox(width: 6),
-                                  itemBuilder: (ctx3, idx) {
-                                    final place = MapboxGeocoding.localPlaces[idx];
-                                    final isSelected = activeAreaLabel == place.nameKu ||
-                                        activeAreaLabel.startsWith('${place.nameKu} ·');
-                                    return InkWell(
-                                      borderRadius: BorderRadius.circular(10),
-                                      onTap: () {
-                                        final dist = MapboxGeocoding.distanceMeters(
-                                          draftPin,
-                                          place.center,
-                                        );
-                                        setModalState(() {
-                                          customNeighborhoodOverride = place.nameKu;
-                                          // If pin is far (> 2.2 km), move pin to that neighborhood;
-                                          // if already near/inside Kalar, keep exact house GPS pin!
-                                          if (dist > 2200) {
-                                            draftPin = place.center;
-                                          }
-                                          overrideAnchorPin = draftPin;
-                                          draftNeighborhood = _closestNeighborhoodTo(
-                                            draftPin.latitude,
-                                            draftPin.longitude,
-                                          );
-                                        });
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: isSelected
-                                              ? RC.bg(const Color(0xFFFAC800))
-                                              : RC.bg(const Color(0xFFF1F5F9)),
+                        Expanded(
+                          flex: 4,
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: RC.bg(Colors.white),
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, -4),
+                                ),
+                              ],
+                            ),
+                            padding: EdgeInsets.fromLTRB(
+                              16,
+                              16,
+                              16,
+                              12 + MediaQuery.of(context).padding.bottom,
+                            ),
+                            child: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text(
+                                    _t('ناوی ناونیشان *'),
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: RC.fg(const Color(0xFF0F172A)),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: noteCtrl,
+                                    textInputAction: TextInputAction.done,
+                                    onChanged: (_) => setModalState(() {}),
+                                    decoration: InputDecoration(
+                                      hintText: activeAreaLabel.isNotEmpty
+                                          ? activeAreaLabel
+                                          : _t('ناوی شوێن (پارک، ناوەند، ...)'),
+                                      prefixIcon: Icon(
+                                        Icons.bookmark_rounded,
+                                        color: RC.fg(const Color(0xFF16A34A)),
+                                      ),
+                                      filled: true,
+                                      fillColor: RC.bg(Colors.white),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: BorderSide(
+                                          color: RC.bg(const Color(0xFF16A34A)),
+                                          width: 1.4,
+                                        ),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: BorderSide(
+                                          color: RC.bg(const Color(0xFF16A34A)),
+                                          width: 1.4,
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: BorderSide(
+                                          color: RC.bg(const Color(0xFFFAC800)),
+                                          width: 1.8,
+                                        ),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    height: 34,
+                                    child: ListView.separated(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: MapboxGeocoding.localPlaces.length,
+                                      separatorBuilder: (_, __) => const SizedBox(width: 6),
+                                      itemBuilder: (ctx3, idx) {
+                                        final place = MapboxGeocoding.localPlaces[idx];
+                                        final isSelected = activeAreaLabel == place.nameKu ||
+                                            activeAreaLabel.startsWith('${place.nameKu} ·');
+                                        return InkWell(
                                           borderRadius: BorderRadius.circular(10),
-                                          border: Border.all(
-                                            color: isSelected
-                                                ? RC.bg(const Color(0xFFEAB308))
-                                                : RC.bg(const Color(0xFFE2E8F0)),
+                                          onTap: () {
+                                            final dist = MapboxGeocoding.distanceMeters(
+                                              draftPin,
+                                              place.center,
+                                            );
+                                            setModalState(() {
+                                              customNeighborhoodOverride = place.nameKu;
+                                              if (dist > 2200) {
+                                                draftPin = place.center;
+                                              }
+                                              overrideAnchorPin = draftPin;
+                                              draftNeighborhood = _closestNeighborhoodTo(
+                                                draftPin.latitude,
+                                                draftPin.longitude,
+                                              );
+                                            });
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: isSelected
+                                                  ? RC.bg(const Color(0xFFFAC800))
+                                                  : RC.bg(const Color(0xFFF1F5F9)),
+                                              borderRadius: BorderRadius.circular(10),
+                                              border: Border.all(
+                                                color: isSelected
+                                                    ? RC.bg(const Color(0xFFEAB308))
+                                                    : RC.bg(const Color(0xFFE2E8F0)),
+                                              ),
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              place.nameKu,
+                                              style: TextStyle(
+                                                fontSize: 11.5,
+                                                fontWeight:
+                                                    isSelected ? FontWeight.w900 : FontWeight.w700,
+                                                color: isSelected
+                                                    ? RC.fg(Colors.black)
+                                                    : RC.fg(const Color(0xFF334155)),
+                                              ),
+                                            ),
                                           ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    height: 48,
+                                    child: OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: RC.fg(const Color(0xFF16A34A)),
+                                        side: BorderSide(
+                                          color: RC.bg(const Color(0xFF16A34A)),
+                                          width: 1.5,
                                         ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          place.nameKu,
-                                          style: TextStyle(
-                                            fontSize: 11.5,
-                                            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-                                            color: isSelected
-                                                ? RC.fg(Colors.black)
-                                                : RC.fg(const Color(0xFF334155)),
-                                          ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(14),
                                         ),
                                       ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 9),
-                              TextField(
-                                controller: noteCtrl,
-                                textInputAction: TextInputAction.done,
-                                onChanged: (_) => setModalState(() {}),
-                                decoration: InputDecoration(
-                                  hintText: _t('ناوی شوێن (پارک، ناوەند، ...)'),
-                                  prefixIcon: Icon(Icons.location_on_rounded, color: RC.fg(Color(0xFFEAB308))),
-                                  filled: true,
-                                  fillColor: RC.bg(const Color(0xFFF8FAFC)),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    borderSide: BorderSide(color: RC.bg(Colors.grey.shade200)),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    borderSide: BorderSide(color: RC.bg(Colors.grey.shade200)),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    borderSide: BorderSide(color: RC.bg(const Color(0xFFFAC800)), width: 1.6),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 52,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: RC.bg(const Color(0xFFFAC800)),
-                                    foregroundColor: RC.fg(Colors.black),
-                                    elevation: 0,
-                                    shadowColor: RC.bg(const Color(0xFFFAC800)).withValues(alpha: 0.45),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  ),
-                                  onPressed: () {
-                                    final note = noteCtrl.text.trim();
-                                    final resolvedArea = resolvedNeighborhoodLabel();
-                                    // Always save exact GPS coordinates (lat, lng) as primary,
-                                    // while preserving both resolvedArea and manual placeNote.
-                                    context.read<LocationNotifier>().setPin(
-                                      lat: draftPin.latitude,
-                                      lng: draftPin.longitude,
-                                      neighborhood: draftNeighborhood,
-                                      clearNeighborhood: draftNeighborhood == null,
-                                      placeNote: note.isEmpty ? null : note,
-                                      clearPlaceNote: note.isEmpty,
-                                      resolvedPlaceName: resolvedArea,
-                                      clearResolvedPlaceName: resolvedArea.isEmpty,
-                                    );
-                                    setState(() {});
-                                    Navigator.pop(context);
-                                    final savedLabel =
-                                        context.read<LocationNotifier>().displayPlaceLabel ??
-                                        draftLabel();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          tx('📍 ${_t('شوێنی گەیاندن پاشەکەوت کرا')}: $savedLabel'),
+                                      onPressed: () {
+                                        pickerController.locateMe?.call(silent: false);
+                                      },
+                                      icon: const Icon(Icons.my_location_rounded, size: 20),
+                                      label: Text(
+                                        _t('شوێنی ئێستام دیاری بکە'),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13.5,
                                         ),
-                                        backgroundColor: RC.bg(Color(0xFF059669)),
                                       ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.check_rounded, size: 22),
-                                  label: Text(
-                                    _t('دیاریکردنی شوێن'),
-                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    height: 52,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: RC.bg(const Color(0xFFFAC800)),
+                                        foregroundColor: RC.fg(Colors.black),
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(14),
+                                        ),
+                                      ),
+                                      onPressed: confirmPin,
+                                      child: Text(
+                                        _t('دانان'),
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ],
@@ -3972,6 +4094,13 @@ class _MainScreenState extends State<MainScreen> {
     // 🛡️ ئەگەر VPN چالاک بوو، ڕێگری بکە
     if (_isVpnActive) {
       return _buildVpnBlockedScreen();
+    }
+
+    // 📍 دەرەوەی ناوچەی کارکردن (کەلار + مەودای ئەدمین)
+    if (_isOutsideServiceArea) {
+      return ServiceAreaBlockedScreen(onRetry: () async {
+        await _checkServiceArea();
+      });
     }
 
     return Scaffold(

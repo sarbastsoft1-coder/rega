@@ -2,14 +2,16 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import '../core/api/api_client.dart';
 import '../core/iraq_phone_formatter.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
-import '../map/mapbox_tiles.dart';
+import '../map/rega_map_annotation_helpers.dart';
+import '../map/rega_map_styles.dart';
+import '../map/rega_standard_map.dart';
 import '../widgets/common_widgets.dart';
 import 'drivers_screen.dart';
 import 'orders_screen.dart';
@@ -34,7 +36,11 @@ class DeliveryPartScreen extends StatefulWidget {
 
 class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  final MapController _mapController = MapController();
+  final GlobalKey<RegaStandardMapState> _regaMapKey = GlobalKey();
+  mb.PointAnnotationManager? _pointMgr;
+  mb.CircleAnnotationManager? _circleMgr;
+  mb.PolylineAnnotationManager? _polylineMgr;
+  static const LatLng _hubMapCenter = LatLng(34.6295, 45.3159);
   Timer? _radarOneSecondTimer;
   Timer? _hubRefreshTimer;
 
@@ -67,9 +73,134 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
   void dispose() {
     _radarOneSecondTimer?.cancel();
     _hubRefreshTimer?.cancel();
-    _mapController.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _onHubMapCreated(mb.MapboxMap map) async {
+    final ann = map.annotations;
+    _pointMgr = await ann.createPointAnnotationManager();
+    _circleMgr = await ann.createCircleAnnotationManager();
+    _polylineMgr = await ann.createPolylineAnnotationManager();
+    await _syncHubLiveMapAnnotations();
+  }
+
+  Future<void> _syncHubLiveMapAnnotations() async {
+    final points = _pointMgr;
+    final circles = _circleMgr;
+    final lines = _polylineMgr;
+    if (points == null || circles == null || lines == null) return;
+    await regaClearAnnotationLayers(points: points, circles: circles, polylines: lines);
+
+    final pointOpts = <mb.PointAnnotationOptions>[];
+    final circleOpts = <mb.CircleAnnotationOptions>[];
+    final lineOpts = <mb.PolylineAnnotationOptions>[];
+
+    for (final s in _radarSessions) {
+      final m = s as Map<String, dynamic>;
+      final rawPoly = m['route_polyline'] as List<dynamic>? ?? [];
+      final pts = <LatLng>[];
+      for (final p in rawPoly) {
+        if (p is List && p.length >= 2) {
+          pts.add(LatLng((p[0] as num).toDouble(), (p[1] as num).toDouble()));
+        }
+      }
+      if (pts.length >= 2) {
+        lineOpts.add(
+          mb.PolylineAnnotationOptions(
+            geometry: regaMapLine(pts),
+            lineColor: regaArgb(RegaColors.emerald),
+            lineWidth: 4.5,
+          ),
+        );
+      }
+
+      final sLat = (m['store_lat'] as num?)?.toDouble() ?? 34.6836;
+      final sLng = (m['store_lng'] as num?)?.toDouble() ?? 45.3189;
+      final cLat = (m['customer_lat'] as num?)?.toDouble() ?? 34.6912;
+      final cLng = (m['customer_lng'] as num?)?.toDouble() ?? 45.3264;
+      final dLat = (m['driver_lat'] as num?)?.toDouble() ?? 34.6850;
+      final dLng = (m['driver_lng'] as num?)?.toDouble() ?? 45.3210;
+      final heading = (m['driver_heading'] as num?)?.toDouble() ?? 45.0;
+      final eta = (m['eta_seconds'] as num?)?.toInt() ?? 0;
+      final orderRef = m['order_ref']?.toString() ?? '';
+
+      circleOpts.add(
+        mb.CircleAnnotationOptions(
+          geometry: regaMapPoint(LatLng(sLat, sLng)),
+          circleRadius: 9,
+          circleColor: regaArgb(RegaColors.orange),
+          circleStrokeColor: regaArgb(RC.bg(Colors.white)),
+          circleStrokeWidth: 2,
+        ),
+      );
+      circleOpts.add(
+        mb.CircleAnnotationOptions(
+          geometry: regaMapPoint(LatLng(cLat, cLng)),
+          circleRadius: 9,
+          circleColor: regaArgb(RegaColors.blue),
+          circleStrokeColor: regaArgb(RC.bg(Colors.white)),
+          circleStrokeWidth: 2,
+        ),
+      );
+      pointOpts.add(
+        mb.PointAnnotationOptions(
+          geometry: regaMapPoint(LatLng(dLat, dLng)),
+          textField: '$orderRef • ${_fmtMmSs(eta)}',
+          textSize: 10,
+          textColor: regaArgb(RegaColors.gold),
+          textHaloColor: regaArgb(RC.bg(const Color(0xFF0F172A))),
+          textHaloWidth: 1,
+          textOffset: [0, -2.0],
+        ),
+      );
+      circleOpts.add(
+        mb.CircleAnnotationOptions(
+          geometry: regaMapPoint(LatLng(dLat, dLng)),
+          circleRadius: 11,
+          circleColor: regaArgb(RegaColors.emerald),
+          circleStrokeColor: regaArgb(RC.bg(Colors.white)),
+          circleStrokeWidth: 2,
+        ),
+      );
+      if (heading != 0) {
+        pointOpts.add(
+          mb.PointAnnotationOptions(
+            geometry: regaMapPoint(LatLng(dLat, dLng)),
+            iconRotate: heading - 90,
+            textField: '›',
+            textSize: 14,
+            textColor: regaArgb(RC.fg(Colors.white)),
+          ),
+        );
+      }
+    }
+
+    for (final d in _radarDrivers) {
+      final dm = d as Map<String, dynamic>;
+      if (dm['is_online'] != true) continue;
+      final lat = (dm['current_lat'] as num?)?.toDouble() ?? (dm['lat'] as num?)?.toDouble();
+      final lng = (dm['current_lng'] as num?)?.toDouble() ?? (dm['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+      circleOpts.add(
+        mb.CircleAnnotationOptions(
+          geometry: regaMapPoint(LatLng(lat, lng)),
+          circleRadius: 8,
+          circleColor: regaArgb(RegaColors.gold),
+          circleStrokeColor: regaArgb(RC.bg(const Color(0xFF0F172A))),
+          circleStrokeWidth: 2,
+        ),
+      );
+    }
+
+    if (lineOpts.isNotEmpty) await lines.createMulti(lineOpts);
+    if (circleOpts.isNotEmpty) await circles.createMulti(circleOpts);
+    if (pointOpts.isNotEmpty) await points.createMulti(pointOpts);
+  }
+
+  Future<void> _toggleHubMapStyle() async {
+    setState(() => _darkMap = !_darkMap);
+    await _regaMapKey.currentState?.applyStyle(_darkMap ? RegaMapStyleId.dark : RegaMapStyleId.map);
   }
 
   Future<void> _fetchLiveRadarTick() async {
@@ -81,6 +212,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
         _radarDrivers = radar['drivers'] as List<dynamic>? ?? [];
         _radarSessions = radar['live_sessions'] as List<dynamic>? ?? [];
       });
+      _syncHubLiveMapAnnotations();
     } catch (_) {}
   }
 
@@ -933,149 +1065,24 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 980 && constraints.maxHeight >= 520;
         final padH = AdminBreakpoints.pagePadH(context);
-        final mapStyle = _darkMap ? MapboxStyle.dark : MapboxStyle.streets;
-
-        final polylines = <Polyline>[];
-        final markers = <Marker>[];
-
-        for (final s in _radarSessions) {
-          final m = s as Map<String, dynamic>;
-          final rawPoly = m['route_polyline'] as List<dynamic>? ?? [];
-          final pts = <LatLng>[];
-          for (final p in rawPoly) {
-            if (p is List && p.length >= 2) {
-              pts.add(LatLng((p[0] as num).toDouble(), (p[1] as num).toDouble()));
-            }
-          }
-          if (pts.length >= 2) {
-            polylines.add(Polyline(points: pts, strokeWidth: 4.5, color: RegaColors.emerald));
-          }
-
-          final sLat = (m['store_lat'] as num?)?.toDouble() ?? 34.6836;
-          final sLng = (m['store_lng'] as num?)?.toDouble() ?? 45.3189;
-          final cLat = (m['customer_lat'] as num?)?.toDouble() ?? 34.6912;
-          final cLng = (m['customer_lng'] as num?)?.toDouble() ?? 45.3264;
-          final dLat = (m['driver_lat'] as num?)?.toDouble() ?? 34.6850;
-          final dLng = (m['driver_lng'] as num?)?.toDouble() ?? 45.3210;
-          final heading = (m['driver_heading'] as num?)?.toDouble() ?? 45.0;
-          final eta = (m['eta_seconds'] as num?)?.toInt() ?? 0;
-
-          markers.add(
-            Marker(
-              point: LatLng(sLat, sLng),
-              width: 40,
-              height: 40,
-              child: CircleAvatar(
-                backgroundColor: RegaColors.orange,
-                child: Icon(Icons.storefront_rounded, color: RC.fg(Colors.white), size: 18),
-              ),
-            ),
-          );
-          markers.add(
-            Marker(
-              point: LatLng(cLat, cLng),
-              width: 40,
-              height: 40,
-              child: CircleAvatar(
-                backgroundColor: RegaColors.blue,
-                child: Icon(Icons.person_pin_circle_rounded, color: RC.fg(Colors.white), size: 20),
-              ),
-            ),
-          );
-          markers.add(
-            Marker(
-              point: LatLng(dLat, dLng),
-              width: 115,
-              height: 64,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: RC.bg(Color(0xFF0F172A)),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: RegaColors.gold),
-                    ),
-                    child: Text(
-                      tx('${m['order_ref']} • ${_fmtMmSs(eta)}'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: RegaColors.gold, fontSize: 10, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Transform.rotate(
-                    angle: (heading - 90) * math.pi / 180.0,
-                    child: Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: RegaColors.emerald,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: RC.bg(Colors.white), width: 2),
-                      ),
-                      child: Icon(Icons.two_wheeler_rounded, color: RC.fg(Colors.white), size: 18),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        for (final d in _radarDrivers) {
-          final dm = d as Map<String, dynamic>;
-          if (dm['is_online'] != true) continue;
-          final lat = (dm['current_lat'] as num?)?.toDouble() ?? (dm['lat'] as num?)?.toDouble();
-          final lng = (dm['current_lng'] as num?)?.toDouble() ?? (dm['lng'] as num?)?.toDouble();
-          if (lat == null || lng == null) continue;
-          final label = (dm['name'] ?? dm['user']?['name'] ?? dm['code'] ?? dm['driver_code'] ?? 'Captain').toString();
-          markers.add(
-            Marker(
-              point: LatLng(lat, lng),
-              width: 36,
-              height: 36,
-              child: Tooltip(
-                message: label,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: RegaColors.gold,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: RC.bg(Color(0xFF0F172A)), width: 2),
-                  ),
-                  child: Icon(Icons.navigation_rounded, size: 15, color: RC.fg(Color(0xFF0F172A))),
-                ),
-              ),
-            ),
-          );
-        }
 
         final mapCard = Card(
           clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
-              FlutterMap(
-                mapController: _mapController,
-                options: const MapOptions(
-                  initialCenter: LatLng(34.6295, 45.3159),
-                  initialZoom: 14.5,
-                ),
-                children: [
-                  MapboxTiles.layer(
-                    key: ValueKey(_darkMap),
-                    style: mapStyle,
-                    userAgentPackageName: 'iq.rega.admin.delivery',
-                  ),
-                  if (polylines.isNotEmpty) PolylineLayer(polylines: polylines),
-                  if (markers.isNotEmpty) MarkerLayer(markers: markers),
-                ],
+              RegaStandardMap(
+                key: _regaMapKey,
+                center: _hubMapCenter,
+                zoom: 14.5,
+                showLayersFab: true,
+                initialStyle: _darkMap ? RegaMapStyleId.dark : RegaMapStyleId.map,
+                onMapCreated: _onHubMapCreated,
               ),
               PositionedDirectional(
                 top: 12,
                 start: 12,
                 child: FilledButton.tonalIcon(
-                  onPressed: () => setState(() => _darkMap = !_darkMap),
+                  onPressed: _toggleHubMapStyle,
                   icon: Icon(_darkMap ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 16),
                   label: Text(tx(_darkMap ? 'ڕۆژ' : 'شەو')),
                 ),

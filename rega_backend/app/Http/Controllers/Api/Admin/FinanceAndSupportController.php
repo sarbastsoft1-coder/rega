@@ -390,10 +390,29 @@ class FinanceAndSupportController extends Controller
             'driver_hotline',
             'support_email',
         ];
+        $publicKeys = [
+            'working_hours',
+            'service_radius_km',
+            'service_center_lat',
+            'service_center_lng',
+            'service_area_name',
+        ];
 
         foreach ($validated['settings'] as $key => $value) {
-            $group = in_array((string) $key, $supportKeys, true) ? 'support' : 'general';
-            PlatformSetting::setValue((string) $key, $value, $group);
+            $keyStr = (string) $key;
+            if (in_array($keyStr, $supportKeys, true)) {
+                $group = 'support';
+            } elseif (in_array($keyStr, $publicKeys, true)) {
+                $group = 'public';
+            } else {
+                $group = 'general';
+            }
+            // Normalize radius to allowed values.
+            if ($keyStr === 'service_radius_km') {
+                $km = (int) $value;
+                $value = in_array($km, [5, 10, 15, 20], true) ? $km : 10;
+            }
+            PlatformSetting::setValue($keyStr, $value, $group);
         }
 
         return $this->settingsIndex();

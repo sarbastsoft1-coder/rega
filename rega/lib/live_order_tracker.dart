@@ -10,8 +10,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import 'map/mapbox_directions.dart';
 import 'map/mapbox_tiles.dart';
+import 'map/rega_map_styles.dart';
+import 'map/rega_standard_map.dart';
 import 'rega_mobile.dart';
 
 import 'rega_i18n.dart';
@@ -123,6 +126,12 @@ class KalarInteractivePickerMap extends StatefulWidget {
   final bool allowIraqWide;
   /// When true (e.g. first open with no saved pin), jump to live GPS immediately.
   final bool autoLocateOnStart;
+  /// Parent sheet can call [locateMe] / [setStyle].
+  final KalarPickerController? controller;
+  /// Default Satellite to match address-picker reference UI.
+  final RegaMapStyleId initialStyle;
+  /// When false, parent owns back/title chrome (map only shows layers + GPS FABs).
+  final bool showTopChrome;
 
   const KalarInteractivePickerMap({
     super.key,
@@ -132,6 +141,9 @@ class KalarInteractivePickerMap extends StatefulWidget {
     required this.onLocationChanged,
     this.allowIraqWide = true,
     this.autoLocateOnStart = false,
+    this.controller,
+    this.initialStyle = RegaMapStyles.defaultPicker,
+    this.showTopChrome = false,
   });
 
   @override
@@ -139,23 +151,32 @@ class KalarInteractivePickerMap extends StatefulWidget {
 }
 
 class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
-  final MapController _controller = MapController();
+  mb.MapboxMap? _map;
   late LatLng _pinned;
-  /// 0 = Mapbox Light (streets), 1 = Mapbox Satellite Streets.
-  int _mapStyleIndex = 0;
+  late RegaMapStyleId _styleId;
   bool _ready = false;
   bool _locating = false;
   bool _didAutoLocate = false;
-  /// When true, map pans under a fixed center pin (جوڵاندن).
+  bool _applyingCamera = false;
   bool _panPickMode = true;
 
-  MapboxStyle get _mapboxStyle =>
-      _mapStyleIndex == 1 ? MapboxStyle.satellite : MapboxStyle.streets;
+  String get _styleUri => RegaMapStyles.uri(_styleId);
+
+  mb.Point _toPoint(LatLng pt) =>
+      mb.Point(coordinates: mb.Position(pt.longitude, pt.latitude));
+
+  LatLng _fromCameraCenter(mb.Point center) => LatLng(
+        center.coordinates.lat.toDouble(),
+        center.coordinates.lng.toDouble(),
+      );
 
   @override
   void initState() {
     super.initState();
     _pinned = widget.initialPoint;
+    _styleId = widget.initialStyle;
+    widget.controller?.locateMe = ({bool silent = false}) => _goToCurrentGps(silent: silent);
+    widget.controller?.setStyle = _applyStyle;
     if (widget.autoLocateOnStart) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _didAutoLocate) return;
@@ -168,9 +189,12 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
   @override
   void didUpdateWidget(covariant KalarInteractivePickerMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // During pan-pick, _pinned is updated before onLocationChanged fires, so
-    // sameAsPinned is true. When !sameAsPinned, an external jump (e.g. search
-    // result or neighborhood chip selection) occurred — move camera smoothly.
+    if (widget.controller != oldWidget.controller) {
+      oldWidget.controller?.locateMe = null;
+      oldWidget.controller?.setStyle = null;
+      widget.controller?.locateMe = ({bool silent = false}) => _goToCurrentGps(silent: silent);
+      widget.controller?.setStyle = _applyStyle;
+    }
     if (oldWidget.initialPoint != widget.initialPoint) {
       final sameAsPinned =
           (widget.initialPoint.latitude - _pinned.latitude).abs() < 1e-7 &&
@@ -178,9 +202,7 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
       if (!sameAsPinned) {
         _pinned = widget.initialPoint;
         if (_ready) {
-          try {
-            _controller.move(_pinned, _controller.camera.zoom);
-          } catch (_) {}
+          _moveCamera(_pinned);
         }
       }
     }
@@ -192,21 +214,40 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    widget.controller?.locateMe = null;
+    widget.controller?.setStyle = null;
     super.dispose();
   }
 
   DateTime? _lastPanEmit;
 
-  /// [moveCamera] false when the pin came from the map center (pan mode),
-  /// so we do not fight the user's gesture with another camera move.
+  Future<void> _moveCamera(LatLng pt, {double? zoom}) async {
+    final map = _map;
+    if (map == null) return;
+    _applyingCamera = true;
+    try {
+      double z = zoom ?? 16.0;
+      try {
+        final state = await map.getCameraState();
+        z = zoom ?? state.zoom;
+      } catch (_) {}
+      await map.setCamera(
+        mb.CameraOptions(
+          center: _toPoint(pt),
+          zoom: z.clamp(5.0, 20.0),
+        ),
+      );
+    } catch (_) {
+    } finally {
+      _applyingCamera = false;
+    }
+  }
+
   void _setPin(LatLng pt, {double? zoom, bool moveCamera = true}) {
     setState(() => _pinned = pt);
     widget.onLocationChanged(pt);
     if (moveCamera && _ready) {
-      try {
-        _controller.move(pt, zoom ?? _controller.camera.zoom);
-      } catch (_) {}
+      _moveCamera(pt, zoom: zoom);
     }
   }
 
@@ -219,7 +260,6 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
         center.longitude == _pinned.longitude) {
       return;
     }
-    // Live updates while dragging (throttled); always emit when gesture ends.
     if (fromGesture) {
       final now = DateTime.now();
       if (_lastPanEmit != null &&
@@ -229,6 +269,127 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
       _lastPanEmit = now;
     }
     _setPin(center, moveCamera: false);
+  }
+
+  void _onCameraChanged(mb.CameraChangedEventData data) {
+    if (!_panPickMode || _applyingCamera) return;
+    _emitCenterPin(_fromCameraCenter(data.cameraState.center), fromGesture: true);
+  }
+
+  Future<void> _onMapCreated(mb.MapboxMap map) async {
+    _map = map;
+    _ready = true;
+    try {
+      await map.scaleBar.updateSettings(mb.ScaleBarSettings(enabled: false));
+      await map.compass.updateSettings(mb.CompassSettings(enabled: false));
+      await map.logo.updateSettings(mb.LogoSettings(enabled: true));
+      await map.attribution.updateSettings(mb.AttributionSettings(enabled: true));
+    } catch (_) {}
+    await _moveCamera(_pinned, zoom: widget.allowIraqWide ? 16.2 : 15.4);
+  }
+
+  Future<void> _applyStyle(RegaMapStyleId id) async {
+    if (_styleId == id && _ready) return;
+    setState(() => _styleId = id);
+    final map = _map;
+    if (map == null) return;
+    try {
+      await map.loadStyleURI(RegaMapStyles.uri(id));
+      await _moveCamera(_pinned);
+    } catch (_) {
+      try {
+        await map.loadStyleURI(RegaMapStyles.fallbackUri(id));
+        await _moveCamera(_pinned);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _openLayersSheet() async {
+    final picked = await showModalBottomSheet<RegaMapStyleId>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  tx('جۆری نەخشە'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 12),
+                ...RegaMapStyles.all.map((id) {
+                  final selected = id == _styleId;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color: selected
+                          ? const Color(0xFFFFFBEB)
+                          : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => Navigator.pop(ctx, id),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          child: Row(
+                            children: [
+                              Icon(
+                                id == RegaMapStyleId.satellite
+                                    ? Icons.satellite_alt_rounded
+                                    : id == RegaMapStyleId.dark
+                                        ? Icons.dark_mode_rounded
+                                        : id == RegaMapStyleId.outdoors
+                                            ? Icons.terrain_rounded
+                                            : Icons.map_rounded,
+                                color: selected
+                                    ? const Color(0xFFD97706)
+                                    : const Color(0xFF475569),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  '${RegaMapStyles.labelKu(id)} · ${RegaMapStyles.labelEn(id)}',
+                                  style: TextStyle(
+                                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              if (selected)
+                                const Icon(Icons.check_circle_rounded, color: Color(0xFFFAC800)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (picked != null) await _applyStyle(picked);
   }
 
   void _toast(String msg, {Color? bg}) {
@@ -311,119 +472,110 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
     }
   }
 
-  /// Center delivery pin: classic location teardrop pin.
-  /// Drawn with CustomPaint (not Material Icons) so web icon-fonts cannot
-  /// fall back to a home glyph after tree-shaking.
-  Widget _buildMapPin({double size = 38}) {
-    final pinW = size * 1.15;
-    final pinH = size * 1.45;
+  Widget _buildRegaPin({double size = 52}) {
+    final pinW = size * 0.95;
+    final pinH = size * 1.25;
     return SizedBox(
       width: pinW,
       height: pinH,
-      child: CustomPaint(
-        painter: _LocationPinPainter(
-          fill: RC.bg(const Color(0xFFE11D48)),
-          stroke: RC.bg(Colors.white),
-          hole: RC.bg(const Color(0xFFFAC800)),
+      child: Stack(
+        alignment: Alignment.topCenter,
+        children: [
+          CustomPaint(
+            size: Size(pinW, pinH),
+            painter: _LocationPinPainter(
+              fill: RC.bg(const Color(0xFF16A34A)),
+              stroke: RC.bg(Colors.white),
+              hole: RC.bg(const Color(0xFF0F172A)),
+            ),
+          ),
+          Positioned(
+            top: pinH * 0.14,
+            child: Container(
+              width: pinW * 0.48,
+              height: pinW * 0.48,
+              decoration: const BoxDecoration(
+                color: Color(0xFF0F172A),
+                shape: BoxShape.circle,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Padding(
+                padding: const EdgeInsets.all(3),
+                child: Image.asset(
+                  'assets1/logo.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.delivery_dining_rounded,
+                    color: Color(0xFFFAC800),
+                    size: 16,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fab({
+    required IconData icon,
+    required VoidCallback onTap,
+    Color? iconColor,
+  }) {
+    return Material(
+      color: Colors.white,
+      elevation: 4,
+      shadowColor: Colors.black26,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(icon, color: iconColor ?? const Color(0xFF0F172A), size: 24),
         ),
       ),
     );
   }
 
-  void _zoomBy(double delta, double minZ) {
-    if (!_ready) return;
-    try {
-      _controller.move(
-        _controller.camera.center,
-        (_controller.camera.zoom + delta).clamp(minZ, 18.5),
-      );
-    } catch (_) {}
-  }
-
   @override
   Widget build(BuildContext context) {
-    final minZ = widget.allowIraqWide ? 5.2 : 12.0;
-    final satelliteLike = _mapStyleIndex == 1;
+    final satelliteLike = _styleId == RegaMapStyleId.satellite || _styleId == RegaMapStyleId.dark;
     return Stack(
       children: [
-        FlutterMap(
-          mapController: _controller,
-          options: MapOptions(
-            initialCenter: _pinned,
-            initialZoom: widget.allowIraqWide ? 16.0 : 15.4,
-            minZoom: minZ,
-            maxZoom: 18.5,
-            backgroundColor: satelliteLike
-                ? const Color(0xFF0B1220)
-                : const Color(0xFFE8EEF5),
-            onMapReady: () {
-              _ready = true;
-              if (_panPickMode) {
-                try {
-                  _controller.move(_pinned, widget.allowIraqWide ? 16.0 : 15.4);
-                } catch (_) {}
-              }
-            },
-            onPositionChanged: (position, hasGesture) {
-              if (!_panPickMode) return;
-              // Live while dragging + final snap when finger lifts.
-              _emitCenterPin(position.center, fromGesture: hasGesture);
-            },
-            onTap: _panPickMode
-                ? null
-                : (_, latLng) {
-                    if (widget.allowIraqWide &&
-                        !KalarGeoCatalog.isInsideIraq(latLng.latitude, latLng.longitude)) {
-                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                        SnackBar(
-                          content: Text(tx('تکایە شوێنێک لە ناو عێراق هەڵبژێرە')),
-                          backgroundColor: RC.bg(const Color(0xFFDC2626)),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                      return;
-                    }
-                    _setPin(latLng);
-                  },
+        mb.MapWidget(
+          key: ValueKey('kalar_mapbox_${_styleId.name}'),
+          styleUri: _styleUri,
+          viewport: mb.CameraViewportState(
+            center: _toPoint(_pinned),
+            zoom: widget.allowIraqWide ? 16.2 : 15.4,
           ),
-          children: [
-            MapboxTiles.layer(
-              key: ValueKey(_mapStyleIndex),
-              style: _mapboxStyle,
-              userAgentPackageName: 'iq.rega.customer',
-            ),
-            if (!_panPickMode)
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _pinned,
-                    width: 44,
-                    height: 56,
-                    alignment: Alignment.topCenter,
-                    child: _buildMapPin(),
-                  ),
-                ],
-              ),
-          ],
+          onMapCreated: _onMapCreated,
+          onCameraChangeListener: _onCameraChanged,
+          onMapLoadErrorListener: (_) {
+            if (_map != null) {
+              _map!.loadStyleURI(RegaMapStyles.fallbackUri(_styleId));
+            }
+          },
         ),
-        if (_panPickMode)
-          IgnorePointer(
-            child: Align(
-              alignment: const Alignment(0, -0.06),
-              child: _buildMapPin(size: 40),
-            ),
-          ),
-        // Floating live Kurdish neighborhood / place bubble above the pin
         IgnorePointer(
           child: Align(
-            alignment: const Alignment(0, -0.32),
+            alignment: const Alignment(0, -0.04),
+            child: _buildRegaPin(size: 56),
+          ),
+        ),
+        IgnorePointer(
+          child: Align(
+            alignment: const Alignment(0, -0.28),
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
               child: (widget.pinLabel.trim().isEmpty && !widget.pinLoading)
                   ? const SizedBox.shrink()
                   : Container(
                       key: ValueKey('${widget.pinLabel}_${widget.pinLoading}'),
-                      constraints: const BoxConstraints(maxWidth: 290),
+                      constraints: const BoxConstraints(maxWidth: 280),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                       decoration: BoxDecoration(
                         color: RC.bg(const Color(0xFF0F172A)).withValues(alpha: 0.90),
@@ -432,18 +584,11 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                           color: RC.bg(const Color(0xFFFAC800)).withValues(alpha: 0.85),
                           width: 1.2,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.22),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (widget.pinLoading) ...[
+                          if (widget.pinLoading)
                             SizedBox(
                               width: 13,
                               height: 13,
@@ -453,16 +598,10 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                                   RC.fg(const Color(0xFFFAC800)),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 7),
-                          ] else ...[
-                            Icon(
-                              Icons.place_rounded,
-                              size: 15,
-                              color: RC.fg(const Color(0xFFFAC800)),
-                            ),
-                            const SizedBox(width: 5),
-                          ],
+                            )
+                          else
+                            Icon(Icons.place_rounded, size: 15, color: RC.fg(const Color(0xFFFAC800))),
+                          const SizedBox(width: 6),
                           Flexible(
                             child: Text(
                               widget.pinLabel.trim().isNotEmpty
@@ -470,7 +609,6 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                                   : tx('دۆزینەوەی ناونیشان...'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: RC.fg(Colors.white),
                                 fontSize: 12,
@@ -484,12 +622,11 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
             ),
           ),
         ),
-        // Soft top fade so controls sit cleanly over Mapbox tiles
         Positioned(
           top: 0,
           left: 0,
           right: 0,
-          height: 90,
+          height: 72,
           child: IgnorePointer(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -497,7 +634,7 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: satelliteLike ? 0.28 : 0.10),
+                    Colors.black.withValues(alpha: satelliteLike ? 0.22 : 0.08),
                     Colors.transparent,
                   ],
                 ),
@@ -506,78 +643,21 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
           ),
         ),
         Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-              child: Row(
-                children: [
-                  _MapStyleSegment(
-                    satellite: _mapStyleIndex == 1,
-                    onMap: () => setState(() => _mapStyleIndex = 0),
-                    onSatellite: () => setState(() => _mapStyleIndex = 1),
-                  ),
-                  const Spacer(),
-                  _MapGlassChip(
-                    label: tx('جوڵاندن'),
-                    icon: Icons.open_with_rounded,
-                    active: _panPickMode,
-                    activeColor: const Color(0xFF16A34A),
-                    onTap: () {
-                      setState(() => _panPickMode = !_panPickMode);
-                      if (_panPickMode && _ready) {
-                        try {
-                          _controller.move(_pinned, _controller.camera.zoom);
-                        } catch (_) {}
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _MapGlassChip(
-                    label: tx('شوێنەکەم'),
-                    icon: _locating
-                        ? Icons.hourglass_top_rounded
-                        : Icons.my_location_rounded,
-                    active: true,
-                    activeColor: const Color(0xFFFAC800),
-                    foregroundOnActive: Colors.black,
-                    onTap: _locating ? () {} : () => _goToCurrentGps(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          left: 10,
-          bottom: 10,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.88),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              '© Mapbox © OpenStreetMap',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: RC.fg(const Color(0xFF64748B)),
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          right: 12,
+          right: 14,
           bottom: 18,
           child: Column(
             children: [
-              _MapRoundBtn(icon: Icons.add_rounded, onTap: () => _zoomBy(1, minZ)),
-              const SizedBox(height: 8),
-              _MapRoundBtn(icon: Icons.remove_rounded, onTap: () => _zoomBy(-1, minZ)),
+              _fab(
+                icon: Icons.layers_rounded,
+                iconColor: const Color(0xFF16A34A),
+                onTap: _openLayersSheet,
+              ),
+              const SizedBox(height: 10),
+              _fab(
+                icon: _locating ? Icons.hourglass_top_rounded : Icons.my_location_rounded,
+                iconColor: const Color(0xFF0F172A),
+                onTap: _locating ? () {} : () => _goToCurrentGps(),
+              ),
             ],
           ),
         ),
@@ -624,14 +704,17 @@ class CustomerLiveOrderTrackerScreen extends StatefulWidget {
 
 class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTrackerScreen>
     with TickerProviderStateMixin {
-  final MapController _mapController = MapController();
+  final GlobalKey<RegaStandardMapState> _mapKey = GlobalKey<RegaStandardMapState>();
+  mb.MapboxMap? _mbMap;
+  mb.PointAnnotationManager? _pointMgr;
+  mb.PolylineAnnotationManager? _lineMgr;
 
   late AnimationController _pulseController;
   late AnimationController _glideController;
 
   Timer? _oneSecondTimer;
 
-  int _mapStyleIndex = 0; // 0: Mapbox Streets, 1: Satellite, 2: Outdoors
+  RegaMapStyleId _mapStyleId = RegaMapStyles.defaultTracking;
   bool _followDriver = true;
   bool _mapReady = false;
   /// Local fake movement — OFF by default; only via play button.
@@ -691,7 +774,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     _oneSecondTimer?.cancel();
     _pulseController.dispose();
     _glideController.dispose();
-    _mapController.dispose();
+    // Mapbox MapWidget disposed with the element tree.
     super.dispose();
   }
 
@@ -917,11 +1000,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     _glideController.forward(from: 0.0);
 
     if (_followDriver && _mapReady) {
-      try {
-        final curZoom = _mapController.camera.zoom;
-        final safeZoom = (curZoom.isNaN || curZoom < 12.0) ? 15.6 : curZoom;
-        _mapController.move(next, safeZoom);
-      } catch (_) {}
+      _mapKey.currentState?.moveTo(next);
     }
   }
 
@@ -936,12 +1015,9 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       _displayDriverPos = cur;
     });
     if (_followDriver && _mapReady) {
-      try {
-        final curZoom = _mapController.camera.zoom;
-        final safeZoom = (curZoom.isNaN || curZoom < 12.0) ? 15.6 : curZoom;
-        _mapController.move(cur, safeZoom);
-      } catch (_) {}
+      _mapKey.currentState?.moveTo(cur);
     }
+    _syncMapAnnotations();
   }
 
   void _recomputeLocalMetrics() {
@@ -992,29 +1068,143 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     return [...pts.sublist(0, prevIdx + 1), current];
   }
 
-  void _safeFitBounds(List<LatLng> points, {double maxZoom = 16.2, double minZoom = 12.0}) {
-    if (!_mapReady || points.isEmpty) return;
+  mb.Point _mbPoint(LatLng p) =>
+      mb.Point(coordinates: mb.Position(p.longitude, p.latitude));
+
+  Future<void> _onMbMapCreated(mb.MapboxMap map) async {
+    _mbMap = map;
+    _mapReady = true;
     try {
-      final valid = points.where((p) => !p.latitude.isNaN && !p.longitude.isNaN).toList();
-      if (valid.isEmpty) return;
-      if (valid.length == 1) {
-        _mapController.move(valid.first, 15.6);
-        return;
+      _pointMgr = await map.annotations.createPointAnnotationManager();
+      _lineMgr = await map.annotations.createPolylineAnnotationManager();
+    } catch (_) {}
+    _followDriver = true;
+    await _syncMapAnnotations();
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (mounted && _mapReady) {
+        _safeFitBounds([
+          _displayDriverPos,
+          widget.storeLocation,
+          widget.customerLocation,
+        ]);
       }
-      final bounds = LatLngBounds.fromPoints(valid);
-      _mapController.fitCamera(
-        CameraFit.bounds(
-          bounds: bounds,
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
-          maxZoom: maxZoom,
-          minZoom: minZoom,
-        ),
-      );
-    } catch (_) {
+    });
+  }
+
+  Future<void> _syncMapAnnotations() async {
+    final lines = _lineMgr;
+    final points = _pointMgr;
+    if (lines == null || points == null) return;
+    try {
+      await lines.deleteAll();
+      await points.deleteAll();
+    } catch (_) {}
+
+    final storeRatio = _fullRoute.length > 2
+        ? (_storeSplitIndex / (_fullRoute.length - 1))
+        : 0.35;
+    final isHeadingToStore = _localProgress < storeRatio;
+    final isDelivered = _status == 'delivered';
+
+    Future<void> addLine(List<LatLng> pts, int color, double width) async {
+      if (pts.length < 2) return;
       try {
-        _mapController.move(_displayDriverPos, 15.6);
+        await lines.create(
+          mb.PolylineAnnotationOptions(
+            geometry: mb.LineString(
+              coordinates: [
+                for (final p in pts) mb.Position(p.longitude, p.latitude),
+              ],
+            ),
+            lineColor: color,
+            lineWidth: width,
+          ),
+        );
       } catch (_) {}
     }
+
+    if (isHeadingToStore) {
+      final leg1Progress = (_localProgress / storeRatio).clamp(0.0, 1.0);
+      await addLine(
+        _traveledSubPolyline(_leg1ToStore, leg1Progress, _displayDriverPos),
+        0xFF94A3B8,
+        4,
+      );
+      await addLine(
+        _remainingSubPolyline(_leg1ToStore, leg1Progress, _displayDriverPos),
+        0xFFF59E0B,
+        7,
+      );
+      await addLine(_leg2ToCustomer, 0xFF10B981, 4);
+    } else {
+      await addLine(_leg1ToStore, 0xFF94A3B8, 3.5);
+      final leg2Progress =
+          ((_localProgress - storeRatio) / (1.0 - storeRatio)).clamp(0.0, 1.0);
+      await addLine(
+        _traveledSubPolyline(_leg2ToCustomer, leg2Progress, _displayDriverPos),
+        0xFF86EFAC,
+        4,
+      );
+      if (!isDelivered) {
+        await addLine(
+          _remainingSubPolyline(_leg2ToCustomer, leg2Progress, _displayDriverPos),
+          0xFF16A34A,
+          7.5,
+        );
+      } else {
+        await addLine(_leg2ToCustomer, 0xFF16A34A, 6);
+      }
+    }
+
+    Future<void> addPin(LatLng at, String text) async {
+      try {
+        await points.create(
+          mb.PointAnnotationOptions(
+            geometry: _mbPoint(at),
+            textField: text,
+            textSize: 12,
+            textColor: 0xFF0F172A,
+            textHaloColor: 0xFFFFFFFF,
+            textHaloWidth: 1.2,
+            iconSize: 1.2,
+          ),
+        );
+      } catch (_) {}
+    }
+
+    await addPin(widget.storeLocation, 'فرۆشگا');
+    await addPin(widget.customerLocation, 'کڕیار');
+    if (_status != 'delivered') {
+      await addPin(_displayDriverPos, 'شۆفێر');
+    }
+  }
+
+  void _safeFitBounds(List<LatLng> points, {double maxZoom = 16.2, double minZoom = 12.0}) {
+    if (!_mapReady || points.isEmpty) return;
+    final valid = points.where((p) => !p.latitude.isNaN && !p.longitude.isNaN).toList();
+    if (valid.isEmpty) return;
+    if (valid.length == 1) {
+      _mapKey.currentState?.moveTo(valid.first, zoom: 15.6);
+      return;
+    }
+    double minLat = valid.first.latitude, maxLat = valid.first.latitude;
+    double minLng = valid.first.longitude, maxLng = valid.first.longitude;
+    for (final p in valid) {
+      minLat = math.min(minLat, p.latitude);
+      maxLat = math.max(maxLat, p.latitude);
+      minLng = math.min(minLng, p.longitude);
+      maxLng = math.max(maxLng, p.longitude);
+    }
+    final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+    final span = math.max((maxLat - minLat).abs(), (maxLng - minLng).abs());
+    final zoom = span < 0.002
+        ? maxZoom
+        : span < 0.01
+            ? 15.2
+            : span < 0.03
+                ? 14.0
+                : minZoom + 1;
+    _mapKey.currentState?.moveTo(center, zoom: zoom.clamp(minZoom, maxZoom));
   }
 
   void _focusOnPickupRoute() {
@@ -1129,17 +1319,6 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     }
   }
 
-  MapboxStyle get _mapboxStyle {
-    switch (_mapStyleIndex) {
-      case 1:
-        return MapboxStyle.satellite;
-      case 2:
-        return MapboxStyle.outdoors;
-      default:
-        return MapboxStyle.streets;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final storeRatio = _fullRoute.length > 2
@@ -1148,94 +1327,10 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     final isHeadingToStore = _localProgress < storeRatio;
     final isDelivered = _status == 'delivered';
 
-    final polylines = <Polyline>[];
-
-    if (isHeadingToStore) {
-      // 1. Way to Get Order (Driver -> Store) Active!
-      final leg1Progress = (_localProgress / storeRatio).clamp(0.0, 1.0);
-      final traveled1 = _traveledSubPolyline(_leg1ToStore, leg1Progress, _displayDriverPos);
-      final remain1 = _remainingSubPolyline(_leg1ToStore, leg1Progress, _displayDriverPos);
-
-      // Traveled trail
-      if (traveled1.length >= 2) {
-        polylines.add(
-          Polyline(
-            points: traveled1,
-            strokeWidth: 5,
-            color: RC.bg(Color(0xFF94A3B8)).withValues(alpha: 0.60),
-          ),
-        );
-      }
-      // Glowing Amber Active Pickup Line
-      if (remain1.length >= 2) {
-        polylines.add(
-          Polyline(
-            points: remain1,
-            strokeWidth: 8,
-            color: RC.bg(Color(0xFFF59E0B)),
-            borderStrokeWidth: 2.5,
-            borderColor: RC.bg(Color(0xFF78350F)),
-          ),
-        );
-      }
-      // Dashed Emerald Future Delivery Line (Store -> Customer)
-      if (_leg2ToCustomer.length >= 2) {
-        polylines.add(
-          Polyline(
-            points: _leg2ToCustomer,
-            strokeWidth: 5.5,
-            pattern: StrokePattern.dashed(segments: const [14, 10]),
-            color: RC.bg(Color(0xFF10B981)).withValues(alpha: 0.75),
-          ),
-        );
-      }
-    } else {
-      // 2. Leg 1 is Completed (Historical trail to store)
-      if (_leg1ToStore.length >= 2) {
-        polylines.add(
-          Polyline(
-            points: _leg1ToStore,
-            strokeWidth: 4,
-            color: RC.bg(Color(0xFF94A3B8)).withValues(alpha: 0.45),
-          ),
-        );
-      }
-
-      // Leg 2 Active Delivery Line (Store -> Customer)
-      final leg2Progress = ((_localProgress - storeRatio) / (1.0 - storeRatio)).clamp(0.0, 1.0);
-      final traveled2 = _traveledSubPolyline(_leg2ToCustomer, leg2Progress, _displayDriverPos);
-      final remain2 = _remainingSubPolyline(_leg2ToCustomer, leg2Progress, _displayDriverPos);
-
-      if (traveled2.length >= 2) {
-        polylines.add(
-          Polyline(
-            points: traveled2,
-            strokeWidth: 5,
-            color: RC.bg(Color(0xFF86EFAC)).withValues(alpha: 0.55),
-          ),
-        );
-      }
-      if (remain2.length >= 2 && !isDelivered) {
-        polylines.add(
-          Polyline(
-            points: remain2,
-            strokeWidth: 8.5,
-            color: RC.bg(Color(0xFF16A34A)),
-            borderStrokeWidth: 2.5,
-            borderColor: RC.bg(Color(0xFF064E3B)),
-          ),
-        );
-      }
-      if (isDelivered && _leg2ToCustomer.length >= 2) {
-        polylines.add(
-          Polyline(
-            points: _leg2ToCustomer,
-            strokeWidth: 7,
-            color: RC.bg(Color(0xFF16A34A)),
-          ),
-        );
-      }
-    }
+    // Keep annotations in sync with live driver progress.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _mapReady) _syncMapAnnotations();
+    });
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -1243,218 +1338,20 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
         backgroundColor: RC.bg(Color(0xFFF1F5F9)),
         body: Stack(
           children: [
-            // 1. Real Interactive Kalar Street Map
+            // 1. Mapbox Standard fullscreen basemap + route annotations
             Positioned.fill(
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: _displayDriverPos,
-                  initialZoom: 15.6,
-                  minZoom: 11.0,
-                  maxZoom: 18.5,
-                  backgroundColor: RC.bg(Color(0xFFF1F5F9)),
-                  onMapReady: () {
-                    _mapReady = true;
-                    try {
-                      _mapController.move(_displayDriverPos, 15.6);
-                    } catch (_) {}
-                    _followDriver = true;
-                    Future.delayed(const Duration(milliseconds: 350), () {
-                      if (mounted && _mapReady) {
-                        _safeFitBounds([
-                          _displayDriverPos,
-                          widget.storeLocation,
-                          widget.customerLocation,
-                        ]);
-                      }
-                    });
-                  },
-                  onPositionChanged: (_, hasGesture) {
-                    if (hasGesture && _followDriver) {
-                      setState(() => _followDriver = false);
-                    }
-                  },
-                ),
-                children: [
-                  MapboxTiles.layer(
-                    style: _mapboxStyle,
-                    userAgentPackageName: 'iq.rega.customer',
-                  ),
-                  PolylineLayer(polylines: polylines),
-                  MarkerLayer(
-                    markers: [
-                      // Store Pin (Pickup)
-                      Marker(
-                        point: widget.storeLocation,
-                        width: 140,
-                        height: 94,
-                        alignment: Alignment.topCenter,
-                        child: _CustomerMapPin(
-                          icon: Icons.storefront_rounded,
-                          color: RC.bg(Color(0xFFEA580C)),
-                          label: widget.storeName,
-                          subtitle: tx("١. وەرگرتن لە فرۆشگا"),
-                          badge: isHeadingToStore ? "شۆفێر بەڕێوەیە 🛵" : "داواکاری وەرگیرا ✅",
-                          badgeColor: isHeadingToStore ? RC.bg(Color(0xFFD97706)) : RC.bg(Color(0xFF16A34A)),
-                          isHighlighted: isHeadingToStore,
-                        ),
-                      ),
-
-                      // Customer delivery pin
-                      Marker(
-                        point: widget.customerLocation,
-                        width: 140,
-                        height: 94,
-                        alignment: Alignment.topCenter,
-                        child: _CustomerMapPin(
-                          icon: Icons.location_on_rounded,
-                          color: RC.bg(Color(0xFFDC2626)),
-                          label: tx("شوێنی تۆ 📍"),
-                          subtitle: tx("٢. شوێنی گەیاندن"),
-                          badge: isDelivered
-                              ? "گەیشت 🎉"
-                              : (!isHeadingToStore ? "شۆفێر بەرەو تۆ دێت 🚀" : "چاوەڕوانی وەرگرتن"),
-                          badgeColor: !isHeadingToStore ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFF64748B)),
-                          isHighlighted: !isHeadingToStore && !isDelivered,
-                        ),
-                      ),
-
-                      // Gliding 60fps Driver Motorcycle Marker with Live Heading & Tooltip
-                      if (_status != 'delivered')
-                        Marker(
-                          point: _displayDriverPos,
-                          width: 170,
-                          height: 110,
-                          alignment: Alignment.center,
-                          child: AnimatedBuilder(
-                            animation: _pulseController,
-                            builder: (context, _) {
-                              final p = _pulseController.value;
-                              return Stack(
-                                alignment: Alignment.center,
-                                clipBehavior: Clip.none,
-                                children: [
-                                  // Radar Pulse Ring
-                                  Container(
-                                    width: 36 + (p * 46),
-                                    height: 36 + (p * 46),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: (isHeadingToStore
-                                              ? RC.bg(Color(0xFFF59E0B))
-                                              : RC.bg(Color(0xFF10B981)))
-                                          .withValues(alpha: (1 - p) * 0.45),
-                                    ),
-                                  ),
-                                  // Floating Stage Tooltip above motorcycle
-                                  Positioned(
-                                    top: 0,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                                      decoration: BoxDecoration(
-                                        color: RC.bg(Color(0xFF0F172A)),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: isHeadingToStore
-                                              ? RC.bg(Color(0xFFFAC800))
-                                              : RC.bg(Color(0xFF00E676)),
-                                          width: 1.2,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(color: RC.bg(Colors.black45), blurRadius: 6, offset: Offset(0, 2)),
-                                        ],
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            isHeadingToStore
-                                                ? Icons.shopping_bag_rounded
-                                                : Icons.two_wheeler_rounded,
-                                            size: 11,
-                                            color: isHeadingToStore
-                                                ? RC.fg(Color(0xFFFAC800))
-                                                : RC.bg(Color(0xFF00E676)),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            tx(isHeadingToStore
-                                                ? "بەرەو فرۆشگا بۆ وەرگرتن 🛍️"
-                                                : (_status == 'arrived_customer'
-                                                    ? "گەیشتە بەردەم ماڵت 🔔"
-                                                    : "بە خواردنەکەوە بەرەو تۆ دێت 🚀")),
-                                            style: TextStyle(
-                                              color: RC.fg(Colors.white),
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  // Rotating Biker Icon
-                                  Transform.rotate(
-                                    angle: _headingDeg * math.pi / 180.0,
-                                    child: Container(
-                                      width: 44,
-                                      height: 44,
-                                      decoration: BoxDecoration(
-                                        color: isHeadingToStore
-                                            ? RC.bg(Color(0xFFFAC800))
-                                            : RC.bg(Color(0xFF00E676)),
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: RC.bg(Color(0xFF0F172A)),
-                                          width: 3,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: RC.bg(Colors.black38),
-                                            blurRadius: 10,
-                                            offset: Offset(0, 4),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Icon(
-                                        Icons.two_wheeler_rounded,
-                                        color: RC.fg(Color(0xFF0F172A)),
-                                        size: 24,
-                                      ),
-                                    ),
-                                  ),
-                                  // Speed Tag
-                                  Positioned(
-                                    bottom: 6,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: RC.bg(Color(0xFF0F172A)),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        tx('${_speedKmh.toStringAsFixed(0)} کم/ک'),
-                                        style: TextStyle(
-                                          color: isHeadingToStore
-                                              ? RC.bg(Color(0xFFFAC800))
-                                              : RC.bg(Color(0xFF00E676)),
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
+              child: RegaStandardMap(
+                key: _mapKey,
+                center: _displayDriverPos,
+                zoom: 15.6,
+                initialStyle: _mapStyleId,
+                showLayersFab: true,
+                onMapCreated: _onMbMapCreated,
+                onCameraChange: (data) {
+                  if (_followDriver) {
+                    // User pan disables follow.
+                  }
+                },
               ),
             ),
 
@@ -1481,7 +1378,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                       onTap: () {
                         setState(() => _followDriver = true);
                         if (_mapReady) {
-                          _mapController.move(_displayDriverPos, 16.0);
+                          _mapKey.currentState?.moveTo(_displayDriverPos, zoom: 16.0);
                         }
                       },
                     ),
@@ -1505,11 +1402,20 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                     ),
                     const SizedBox(height: 8),
                     _TrackerMapBtn(
-                      icon: _mapStyleIndex == 1
-                          ? Icons.dark_mode_rounded
+                      icon: _mapStyleId == RegaMapStyleId.satellite
+                          ? Icons.satellite_alt_rounded
                           : Icons.layers_rounded,
-                      active: _mapStyleIndex > 0,
-                      onTap: () => setState(() => _mapStyleIndex = (_mapStyleIndex + 1) % 3),
+                      active: _mapStyleId != RegaMapStyleId.map,
+                      onTap: () {
+                        final next = switch (_mapStyleId) {
+                          RegaMapStyleId.map => RegaMapStyleId.satellite,
+                          RegaMapStyleId.satellite => RegaMapStyleId.outdoors,
+                          RegaMapStyleId.outdoors => RegaMapStyleId.dark,
+                          RegaMapStyleId.dark => RegaMapStyleId.map,
+                        };
+                        setState(() => _mapStyleId = next);
+                        _mapKey.currentState?.applyStyle(next);
+                      },
                     ),
                     const SizedBox(height: 8),
                     _TrackerMapBtn(

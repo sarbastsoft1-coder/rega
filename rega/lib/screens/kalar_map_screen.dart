@@ -1,15 +1,14 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
+import '../map/rega_map_styles.dart';
+import '../map/rega_standard_map.dart';
 import '../models/map_place.dart';
-import '../services/google_map_service.dart';
 import '../services/location_service.dart';
-import '../widgets/map_controls.dart';
-import '../widgets/map_search_bar.dart';
-import '../widgets/map_bottom_sheet.dart';
 
+/// Fullscreen Kalar map — Mapbox Standard (replaces Google Maps).
 class KalarMapScreen extends StatefulWidget {
-  final String language; // 'Kurdish', 'العربية', 'English'
+  final String language;
   final VoidCallback? onBack;
 
   const KalarMapScreen({
@@ -23,81 +22,85 @@ class KalarMapScreen extends StatefulWidget {
 }
 
 class _KalarMapScreenState extends State<KalarMapScreen> {
-  final GoogleMapService _mapService = GoogleMapService();
   final TextEditingController _searchCtrl = TextEditingController();
+  final GlobalKey<RegaStandardMapState> _mapKey = GlobalKey<RegaStandardMapState>();
 
-  MapType _currentMapType = MapType.hybrid;
+  mb.PointAnnotationManager? _points;
   bool _isLocating = false;
   LatLng? _currentGpsLocation;
-  String? _currentLocationAddress;
-
   MapPlace? _selectedPlace;
   String _activeCategory = 'all';
-
   List<MapPlace> _searchResults = [];
-  Set<Marker> _markers = {};
-  Set<Circle> _circles = {};
 
   bool get _isRtl => widget.language != 'English';
+
+  static const LatLng _kalarCenter = LatLng(34.6313, 45.3177);
 
   @override
   void initState() {
     super.initState();
-    _buildMarkers();
     _tryGetInitialLocation();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
-    _mapService.dispose();
     super.dispose();
   }
 
-  void _buildMarkers() {
-    final markers = <Marker>{};
+  Future<void> _onMapCreated(mb.MapboxMap map) async {
+    try {
+      _points = await map.annotations.createPointAnnotationManager();
+    } catch (_) {}
+    await _syncLandmarks();
+  }
+
+  Future<void> _syncLandmarks() async {
+    final mgr = _points;
+    if (mgr == null) return;
+    try {
+      await mgr.deleteAll();
+    } catch (_) {}
 
     for (final place in KalarLandmarks.curatedPlaces) {
-      if (_activeCategory != 'all' && place.iconKey != _activeCategory) {
-        continue;
-      }
-
-      final isSelected = _selectedPlace?.id == place.id;
-
-      markers.add(
-        Marker(
-          markerId: MarkerId(place.id),
-          position: LatLng(place.latitude, place.longitude),
-          icon: isSelected
-              ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure)
-              : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          infoWindow: InfoWindow(
-            title: place.localizedName(widget.language),
-            snippet: place.localizedCategory(widget.language),
-            onTap: () => _onPlaceSelected(place),
+      if (_activeCategory != 'all' && place.iconKey != _activeCategory) continue;
+      final selected = _selectedPlace?.id == place.id;
+      try {
+        await mgr.create(
+          mb.PointAnnotationOptions(
+            geometry: mb.Point(
+              coordinates: mb.Position(place.longitude, place.latitude),
+            ),
+            textField: place.localizedName(widget.language),
+            textSize: selected ? 13.0 : 11.0,
+            textColor: selected ? 0xFF1D4ED8 : 0xFF0F172A,
+            textHaloColor: 0xFFFFFFFF,
+            textHaloWidth: 1.1,
+            iconSize: selected ? 1.4 : 1.1,
           ),
-          onTap: () => _onPlaceSelected(place),
-        ),
-      );
+        );
+      } catch (_) {}
     }
 
-    // Add current GPS indicator if available
     if (_currentGpsLocation != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('my_current_location'),
-          position: _currentGpsLocation!,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-          infoWindow: InfoWindow(
-            title: _isRtl ? 'شوێنی ئێستای تۆ' : 'Your Current Location',
+      try {
+        await mgr.create(
+          mb.PointAnnotationOptions(
+            geometry: mb.Point(
+              coordinates: mb.Position(
+                _currentGpsLocation!.longitude,
+                _currentGpsLocation!.latitude,
+              ),
+            ),
+            textField: _isRtl ? 'شوێنی ئێستای تۆ' : 'You',
+            textSize: 12.0,
+            textColor: 0xFF2563EB,
+            textHaloColor: 0xFFFFFFFF,
+            textHaloWidth: 1.2,
           ),
-        ),
-      );
+        );
+      } catch (_) {}
     }
-
-    setState(() {
-      _markers = markers;
-    });
   }
 
   Future<void> _tryGetInitialLocation() async {
@@ -106,292 +109,208 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
       final pos = res.position!;
       setState(() {
         _currentGpsLocation = LatLng(pos.latitude, pos.longitude);
-        _currentLocationAddress = 'کەلار، دیاریکراو لە ڕێگەی GPS';
-        _circles = {
-          Circle(
-            circleId: const CircleId('gps_accuracy'),
-            center: _currentGpsLocation!,
-            radius: pos.accuracy.clamp(10, 80),
-            fillColor: const Color(0xFF3B82F6).withValues(alpha: 0.18),
-            strokeColor: const Color(0xFF2563EB),
-            strokeWidth: 2,
-          ),
-        };
       });
-      _buildMarkers();
+      await _syncLandmarks();
     }
   }
 
   Future<void> _handleMyLocationTap() async {
     if (_isLocating) return;
     setState(() => _isLocating = true);
-
     final res = await KalarLocationService.getCurrentLocation(requestIfNeeded: true);
     if (!mounted) return;
-
     setState(() => _isLocating = false);
-
     if (res.isSuccess) {
       final pos = res.position!;
       final target = LatLng(pos.latitude, pos.longitude);
-      setState(() {
-        _currentGpsLocation = target;
-        _currentLocationAddress = 'کەلار، پێگەی فەرمی کڕیار';
-        _circles = {
-          Circle(
-            circleId: const CircleId('gps_accuracy'),
-            center: target,
-            radius: pos.accuracy.clamp(10, 80),
-            fillColor: const Color(0xFF3B82F6).withValues(alpha: 0.18),
-            strokeColor: const Color(0xFF2563EB),
-            strokeWidth: 2,
-          ),
-        };
-      });
-      _buildMarkers();
-      await _mapService.animateToLocation(target, zoom: 17.0);
-    } else {
-      _showLocationErrorDialog(res.status, res.errorMessage);
+      setState(() => _currentGpsLocation = target);
+      await _mapKey.currentState?.moveTo(target, zoom: 16.5);
+      await _syncLandmarks();
     }
-  }
-
-  void _showLocationErrorDialog(LocationStatus status, String? msg) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          textDirection: _isRtl ? TextDirection.rtl : TextDirection.ltr,
-          children: [
-            const Icon(Icons.location_disabled_rounded, color: Color(0xFFDC2626)),
-            const SizedBox(width: 8),
-            Text(
-              _isRtl ? 'کێشە لە دۆزینەوەی شوێن' : 'Location Issue',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ],
-        ),
-        content: Text(
-          msg ?? (_isRtl ? 'تکایە دڵنیابە لە کاراکردنی GPS لە مۆبایلەکەتدا.' : 'Please enable GPS on your device.'),
-          textDirection: _isRtl ? TextDirection.rtl : TextDirection.ltr,
-          style: const TextStyle(fontSize: 14),
-        ),
-        actions: [
-          if (status == LocationStatus.serviceDisabled)
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                KalarLocationService.openLocationSettings();
-              },
-              child: Text(_isRtl ? 'کردنەوەی ڕێکخستنی GPS' : 'Open GPS Settings'),
-            ),
-          if (status == LocationStatus.permissionDeniedForever)
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                KalarLocationService.openAppSettings();
-              },
-              child: Text(_isRtl ? 'ڕێکخستنی بەرنامەکان' : 'App Settings'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(_isRtl ? 'داخستن' : 'Close'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _onPlaceSelected(MapPlace place) {
-    setState(() {
-      _selectedPlace = place;
-      _searchResults = [];
-    });
-    _buildMarkers();
-    _mapService.animateToLocation(
+    setState(() => _selectedPlace = place);
+    _mapKey.currentState?.moveTo(
       LatLng(place.latitude, place.longitude),
-      zoom: 17.5,
+      zoom: 16.8,
     );
+    _syncLandmarks();
   }
 
-  void _onSearchQueryChanged(String query) {
-    final clean = query.trim().toLowerCase();
-    if (clean.isEmpty) {
+  void _onSearch(String q) {
+    final query = q.trim().toLowerCase();
+    if (query.isEmpty) {
       setState(() => _searchResults = []);
       return;
     }
-
     final results = KalarLandmarks.curatedPlaces.where((p) {
-      return p.nameKu.toLowerCase().contains(clean) ||
-          p.nameAr.toLowerCase().contains(clean) ||
-          p.nameEn.toLowerCase().contains(clean) ||
-          p.categoryKu.toLowerCase().contains(clean);
+      final hay = '${p.nameKu} ${p.nameEn} ${p.nameAr}'.toLowerCase();
+      return hay.contains(query);
     }).toList();
-
     setState(() => _searchResults = results);
-  }
-
-  void _onCategoryFilter(String key) {
-    setState(() {
-      _activeCategory = key;
-    });
-    _buildMarkers();
   }
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-
     return Scaffold(
       body: Stack(
         children: [
-          // 1. Google Maps View occupying the full screen
-          GoogleMap(
-            initialCameraPosition: GoogleMapConfig.kalarInitialCamera,
-            mapType: _currentMapType,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-            compassEnabled: false,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
-            buildingsEnabled: true,
-            trafficEnabled: true,
-            indoorViewEnabled: true,
-            cameraTargetBounds: CameraTargetBounds(GoogleMapConfig.kalarBounds),
-            minMaxZoomPreference: const MinMaxZoomPreference(11.0, 20.0),
-            markers: _markers,
-            circles: _circles,
-            onMapCreated: (ctrl) {
-              _mapService.setController(ctrl);
-            },
-            onTap: (_) {
-              if (_selectedPlace != null || _searchResults.isNotEmpty) {
-                setState(() {
-                  _selectedPlace = null;
-                  _searchResults = [];
-                });
-                _buildMarkers();
-              }
-            },
+          Positioned.fill(
+            child: RegaStandardMap(
+              key: _mapKey,
+              center: _currentGpsLocation ?? _kalarCenter,
+              zoom: 14.8,
+              initialStyle: RegaMapStyles.defaultTracking,
+              showLayersFab: true,
+              onMapCreated: _onMapCreated,
+            ),
           ),
-
-          // 2. Top search bar + back button
           Positioned(
-            top: mediaQuery.padding.top + 10,
+            top: 0,
             left: 0,
             right: 0,
             child: SafeArea(
               bottom: false,
-              child: MapSearchBar(
-                controller: _searchCtrl,
-                onChanged: _onSearchQueryChanged,
-                onClear: () {
-                  _searchCtrl.clear();
-                  setState(() => _searchResults = []);
-                },
-                onFilterTap: () => _showFilterDialog(),
-                onBackTap: widget.onBack ?? (Navigator.canPop(context) ? () => Navigator.pop(context) : null),
-                language: widget.language,
-                searchResults: _searchResults,
-                onSelectPlace: _onPlaceSelected,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: Row(
+                  children: [
+                    Material(
+                      color: Colors.white,
+                      elevation: 3,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: widget.onBack ?? () => Navigator.maybePop(context),
+                        child: const SizedBox(
+                          width: 42,
+                          height: 42,
+                          child: Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Material(
+                        color: Colors.white,
+                        elevation: 3,
+                        borderRadius: BorderRadius.circular(16),
+                        child: TextField(
+                          controller: _searchCtrl,
+                          onChanged: _onSearch,
+                          decoration: InputDecoration(
+                            hintText: _isRtl
+                                ? 'گەڕان لە کەلار...'
+                                : 'Search Kalar...',
+                            prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Material(
+                      color: Colors.white,
+                      elevation: 3,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _isLocating ? null : _handleMyLocationTap,
+                        child: SizedBox(
+                          width: 42,
+                          height: 42,
+                          child: Icon(
+                            _isLocating
+                                ? Icons.hourglass_top_rounded
+                                : Icons.my_location_rounded,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-
-          // 3. Floating map controls (Layers, Compass, GPS, Zoom +/-)
-          Positioned(
-            top: mediaQuery.padding.top + 80,
-            right: _isRtl ? 16 : null,
-            left: _isRtl ? null : 16,
-            child: MapFloatingControls(
-              currentMapType: _currentMapType,
-              onMapTypeChanged: (type) => setState(() => _currentMapType = type),
-              onCompassPressed: () => _mapService.resetBearingToNorth(),
-              onMyLocationPressed: _handleMyLocationTap,
-              onZoomInPressed: () => _mapService.zoomIn(),
-              onZoomOutPressed: () => _mapService.zoomOut(),
-              isLocating: _isLocating,
-              language: widget.language,
-            ),
-          ),
-
-          // 4. Modern Expandable & Draggable Google Maps Bottom Sheet
-          MapBottomSheet(
-            selectedPlace: _selectedPlace,
-            currentLocationAddress: _currentLocationAddress,
-            currentCategory: _activeCategory,
-            onCategoryFilterSelected: _onCategoryFilter,
-            onPlaceTapped: _onPlaceSelected,
-            onDirectionsTapped: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    _isRtl ? 'ڕێڕەوی ڕاستەوخۆ دیاریکرا' : 'Route displayed for Kalar delivery',
-                    textDirection: _isRtl ? TextDirection.rtl : TextDirection.ltr,
-                  ),
-                  duration: const Duration(seconds: 2),
+          if (_searchResults.isNotEmpty)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 64,
+              left: 12,
+              right: 12,
+              child: Material(
+                elevation: 6,
+                borderRadius: BorderRadius.circular(14),
+                color: Colors.white,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _searchResults.length.clamp(0, 8),
+                  itemBuilder: (_, i) {
+                    final p = _searchResults[i];
+                    return ListTile(
+                      dense: true,
+                      title: Text(p.localizedName(widget.language)),
+                      onTap: () {
+                        _searchCtrl.clear();
+                        setState(() => _searchResults = []);
+                        _onPlaceSelected(p);
+                      },
+                    );
+                  },
                 ),
-              );
-            },
-            language: widget.language,
-          ),
+              ),
+            ),
+          if (_selectedPlace != null)
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 24,
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(18),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        _selectedPlace!.localizedName(widget.language),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _selectedPlace!.localizedCategory(widget.language),
+                        style: const TextStyle(color: Color(0xFF64748B)),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final cat in const ['all', 'hospital', 'school', 'market', 'park'])
+                            ChoiceChip(
+                              label: Text(cat),
+                              selected: _activeCategory == cat,
+                              onSelected: (_) {
+                                setState(() => _activeCategory = cat);
+                                _syncLandmarks();
+                              },
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
-    );
-  }
-
-  void _showFilterDialog() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _isRtl ? 'فلتەرکردنی شوێنەکان لە کەلار' : 'Filter Kalar Places',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.local_hospital_rounded, color: Color(0xFFDC2626)),
-                title: Text(_isRtl ? 'نەخۆشخانە و تەندروستی' : 'Hospitals & Clinics'),
-                onTap: () {
-                  _onCategoryFilter('hospital');
-                  Navigator.pop(ctx);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.storefront_rounded, color: Color(0xFFD97706)),
-                title: Text(_isRtl ? 'بازاڕ و مۆڵەکان' : 'Markets & Malls'),
-                onTap: () {
-                  _onCategoryFilter('market');
-                  Navigator.pop(ctx);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.school_rounded, color: Color(0xFF2563EB)),
-                title: Text(_isRtl ? 'زانکۆ و خوێندنگەکان' : 'Universities & Schools'),
-                onTap: () {
-                  _onCategoryFilter('school');
-                  Navigator.pop(ctx);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.park_rounded, color: Color(0xFF16A34A)),
-                title: Text(_isRtl ? 'باخچە و شوێنە گشتییەکان' : 'Parks & Public Greenery'),
-                onTap: () {
-                  _onCategoryFilter('park');
-                  Navigator.pop(ctx);
-                },
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

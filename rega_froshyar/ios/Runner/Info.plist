@@ -34,6 +34,10 @@
 	<string>REGA Vendor may save product photos to your library.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>REGA Vendor may use the microphone when recording product videos.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>REGA Vendor needs your location to confirm you are inside the Kalar service area.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>REGA Vendor needs your location to confirm you are inside the Kalar service area.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

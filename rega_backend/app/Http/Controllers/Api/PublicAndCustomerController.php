@@ -120,6 +120,12 @@ class PublicAndCustomerController extends Controller
         $out['telegram_number'] = $out['telegram_number'] ?? ($out['support_phone'] ?? '0770 000 1122');
         $out['telegram_username'] = ltrim((string) ($out['telegram_username'] ?? 'rega_support'), '@');
 
+        // Service area (Kalar + radius) — used by customer / delivery / vendor apps.
+        $out['service_radius_km'] = (int) (PlatformSetting::getValue('service_radius_km', 10) ?? 10);
+        $out['service_center_lat'] = (float) (PlatformSetting::getValue('service_center_lat', 34.6295) ?? 34.6295);
+        $out['service_center_lng'] = (float) (PlatformSetting::getValue('service_center_lng', 45.3159) ?? 45.3159);
+        $out['service_area_name'] = (string) (PlatformSetting::getValue('service_area_name', 'کەلار') ?? 'کەلار');
+
         return response()->json([
             'success' => true,
             'data' => $out,

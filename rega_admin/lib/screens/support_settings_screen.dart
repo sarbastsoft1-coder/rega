@@ -74,9 +74,29 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   bool _notifySound = true;
 
   // Dropdown States
-  String _selectedCity = 'هەولێر';
+  String _selectedCity = 'کەلار';
   String _selectedDistance = '١٠ کیلۆمەتر';
   String _selectedRole = 'بەڕێوەبەر';
+
+  static int _distanceLabelToKm(String label) {
+    if (label.contains('٢٠') || label.startsWith('20')) return 20;
+    if (label.contains('١٥') || label.startsWith('15')) return 15;
+    if (label.contains('٥') || label.startsWith('5')) return 5;
+    return 10;
+  }
+
+  static String _kmToDistanceLabel(int km) {
+    switch (km) {
+      case 5:
+        return '٥ کیلۆمەتر';
+      case 15:
+        return '١٥ کیلۆمەتر';
+      case 20:
+        return '٢٠ کیلۆمەتر';
+      default:
+        return '١٠ کیلۆمەتر';
+    }
+  }
 
   // Toggle Switches matching screenshot
   bool _acceptOrders = true;
@@ -134,6 +154,15 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         }
         if (data.containsKey('platform_name')) {
           _platformNameCtrl.text = data['platform_name'].toString();
+        }
+        if (data.containsKey('service_radius_km')) {
+          final km = int.tryParse(data['service_radius_km'].toString()) ?? 10;
+          _selectedDistance = _kmToDistanceLabel(km);
+        }
+        if (data.containsKey('service_area_name')) {
+          final city = data['service_area_name'].toString().trim();
+          const allowed = {'هەولێر', 'سلێمانی', 'دهۆک', 'کەلار'};
+          if (allowed.contains(city)) _selectedCity = city;
         }
       });
     } catch (_) {}
@@ -326,6 +355,10 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         'telegram_number': _telegramCtrl.text.trim(),
         'telegram_username': _telegramUserCtrl.text.trim().replaceAll('@', ''),
         'platform_name': _platformNameCtrl.text.trim(),
+        'service_radius_km': _distanceLabelToKm(_selectedDistance),
+        'service_center_lat': 34.6295,
+        'service_center_lng': 45.3159,
+        'service_area_name': _selectedCity.trim().isEmpty ? 'کەلار' : _selectedCity.trim(),
       });
       _showSaveFeedback('$msg و لە سێرڤەر پاشەکەوت کران ✅');
       widget.onChanged?.call();
@@ -2162,7 +2195,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     DropdownMenuItem(value: 'دهۆک', child: Text(tx('دهۆک'), maxLines: 1, overflow: TextOverflow.ellipsis)),
                     DropdownMenuItem(value: 'کەلار', child: Text(tx('کەلار'), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   ],
-                  onChanged: (v) => setState(() => _selectedCity = v ?? 'هەولێر'),
+                  onChanged: (v) => setState(() => _selectedCity = v ?? 'کەلار'),
                 ),
               ),
             ),
