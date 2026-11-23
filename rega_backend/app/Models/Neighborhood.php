@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Neighborhood extends Model
 {
     protected $fillable = [
+        'service_city_id',
         'code',
         'name_ku',
         'name_ar',
@@ -30,6 +32,11 @@ class Neighborhood extends Model
             'is_active' => 'boolean',
             'sort_order' => 'integer',
         ];
+    }
+
+    public function serviceCity(): BelongsTo
+    {
+        return $this->belongsTo(ServiceCity::class);
     }
 
     public function stores(): HasMany

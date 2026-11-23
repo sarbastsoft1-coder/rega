@@ -17,7 +17,7 @@ import 'rega_i18n.dart';
 import 'rega_colors.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb && MapboxTiles.accessToken.isNotEmpty) {
+  if (MapboxTiles.accessToken.isNotEmpty) {
     try {
       MapboxOptions.setAccessToken(MapboxTiles.accessToken);
     } catch (_) {}

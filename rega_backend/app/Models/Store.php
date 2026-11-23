@@ -12,6 +12,7 @@ class Store extends Model
         'owner_id',
         'category_id',
         'neighborhood_id',
+        'service_city_id',
         'slug',
         'name_ku',
         'name_ar',
@@ -67,6 +68,11 @@ class Store extends Model
     public function neighborhood(): BelongsTo
     {
         return $this->belongsTo(Neighborhood::class);
+    }
+
+    public function serviceCity(): BelongsTo
+    {
+        return $this->belongsTo(ServiceCity::class);
     }
 
     public function storeCategories(): HasMany

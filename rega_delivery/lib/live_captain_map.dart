@@ -582,7 +582,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       try {
         final pos = await Geolocator.getCurrentPosition(
           locationSettings: _freshLocationSettings(
-            accuracy: LocationAccuracy.high,
+            accuracy: LocationAccuracy.bestForNavigation,
             timeLimit: const Duration(seconds: 15),
           ),
         );
@@ -595,9 +595,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       // Web watchPosition is unreliable; distanceFilter:0 + poll fallback below.
       _gpsSub = Geolocator.getPositionStream(
         locationSettings: _freshLocationSettings(
-          accuracy: kIsWeb
-              ? LocationAccuracy.high
-              : LocationAccuracy.bestForNavigation,
+          accuracy: LocationAccuracy.bestForNavigation,
           distanceFilter: kIsWeb ? 0 : 2,
         ),
       ).listen(
@@ -640,7 +638,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       try {
         final pos = await Geolocator.getCurrentPosition(
           locationSettings: _freshLocationSettings(
-            accuracy: LocationAccuracy.high,
+            accuracy: LocationAccuracy.bestForNavigation,
             timeLimit: const Duration(seconds: 8),
           ),
         );

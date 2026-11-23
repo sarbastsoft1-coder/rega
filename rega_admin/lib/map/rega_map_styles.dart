@@ -1,19 +1,19 @@
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'mapbox_tiles.dart';
 
-/// Mapbox Standard + companion styles for REGA fullscreen maps.
+/// Mapbox Standard family for every REGA fullscreen map.
 enum RegaMapStyleId { map, satellite, outdoors, dark }
 
 class RegaMapStyles {
-  static const RegaMapStyleId defaultPicker = RegaMapStyleId.satellite;
+  static const RegaMapStyleId defaultPicker = RegaMapStyleId.map;
   static const RegaMapStyleId defaultTracking = RegaMapStyleId.map;
 
   static String uri(RegaMapStyleId id) {
     return switch (id) {
       RegaMapStyleId.map => MapboxTiles.customStandardStyleUri,
       RegaMapStyleId.satellite => MapboxStyles.STANDARD_SATELLITE,
-      RegaMapStyleId.outdoors => MapboxStyles.OUTDOORS,
-      RegaMapStyleId.dark => MapboxStyles.DARK,
+      RegaMapStyleId.outdoors => MapboxStyles.STANDARD,
+      RegaMapStyleId.dark => MapboxStyles.STANDARD,
     };
   }
 
@@ -21,9 +21,22 @@ class RegaMapStyles {
     return switch (id) {
       RegaMapStyleId.map => MapboxStyles.STANDARD,
       RegaMapStyleId.satellite => MapboxStyles.STANDARD_SATELLITE,
-      RegaMapStyleId.outdoors => MapboxStyles.OUTDOORS,
-      RegaMapStyleId.dark => MapboxStyles.DARK,
+      RegaMapStyleId.outdoors => MapboxStyles.STANDARD,
+      RegaMapStyleId.dark => MapboxStyles.STANDARD,
     };
+  }
+
+  static Future<void> applyConfig(MapboxMap map, RegaMapStyleId id) async {
+    if (id == RegaMapStyleId.satellite) return;
+    final preset = switch (id) {
+      RegaMapStyleId.dark => 'night',
+      RegaMapStyleId.outdoors => 'day',
+      RegaMapStyleId.map => 'day',
+      RegaMapStyleId.satellite => 'day',
+    };
+    try {
+      await map.style.setStyleImportConfigProperty('basemap', 'lightPreset', preset);
+    } catch (_) {}
   }
 
   static String labelKu(RegaMapStyleId id) {
@@ -52,7 +65,6 @@ class RegaMapStyles {
   ];
 }
 
-/// Lets the parent sheet call locate / style without a GlobalKey.
 class KalarPickerController {
   Future<void> Function({bool silent})? locateMe;
   Future<void> Function(RegaMapStyleId id)? setStyle;

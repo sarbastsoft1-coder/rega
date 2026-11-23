@@ -48,6 +48,7 @@ dependencies:
   excel: ^4.0.6
   web: ^1.1.1
   mapbox_maps_flutter: ^3.35.2
+  http_parser: ^4.1.2
 
 dev_dependencies:
   flutter_test:

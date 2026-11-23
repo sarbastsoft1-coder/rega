@@ -14,6 +14,7 @@ import 'drivers_screen.dart';
 import 'accounting_screen.dart';
 import 'order_intake_screen.dart';
 import 'orders_screen.dart';
+import 'service_areas_part_screen.dart';
 import 'stores_screen.dart';
 import 'products_screen.dart';
 import 'admin_staff_screen.dart';
@@ -148,6 +149,7 @@ class _AdminShellState extends State<AdminShell> {
         _NavItemSpec(Icons.receipt_long_outlined, AppStrings.tr('nav_orders', widget.lang)),
         _NavItemSpec(Icons.two_wheeler_outlined, AppStrings.tr('nav_drivers', widget.lang)),
         _NavItemSpec(Icons.people_outline_rounded, AppStrings.tr('nav_customers', widget.lang)),
+        _NavItemSpec(Icons.map_rounded, AppStrings.tr('nav_service_cities', widget.lang)),
         _NavItemSpec(Icons.storefront_outlined, AppStrings.tr('nav_stores', widget.lang)),
         _NavItemSpec(Icons.restaurant_menu_outlined, AppStrings.tr('nav_vendor_items', widget.lang)),
         _NavItemSpec(Icons.insert_chart_outlined_rounded, AppStrings.tr('nav_finance', widget.lang)),
@@ -182,7 +184,6 @@ class _AdminShellState extends State<AdminShell> {
       case 3:
         return DriversScreen(key: key, api: widget.api, lang: widget.lang);
       case 4:
-        // Customer hub: VIP/customers + direct requests + zones + promos
         return CustomerPartScreen(
           key: key,
           api: widget.api,
@@ -190,14 +191,20 @@ class _AdminShellState extends State<AdminShell> {
           onDataChanged: _refreshBadges,
         );
       case 5:
-        return StoresScreen(key: key, api: widget.api, lang: widget.lang);
+        return ServiceAreasPartScreen(
+          key: key,
+          api: widget.api,
+          lang: widget.lang,
+        );
       case 6:
-        return ProductsScreen(key: key, api: widget.api, lang: widget.lang);
+        return StoresScreen(key: key, api: widget.api, lang: widget.lang);
       case 7:
-        return AccountingScreen(key: key, api: widget.api, lang: widget.lang);
+        return ProductsScreen(key: key, api: widget.api, lang: widget.lang);
       case 8:
-        return AdminStaffScreen(key: key, api: widget.api, lang: widget.lang);
+        return AccountingScreen(key: key, api: widget.api, lang: widget.lang);
       case 9:
+        return AdminStaffScreen(key: key, api: widget.api, lang: widget.lang);
+      case 10:
         return SupportSettingsScreen(
           key: key,
           api: widget.api,

@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'rega_gps.dart';
+
 enum LocationStatus {
   idle,
   checking,
@@ -26,11 +28,9 @@ class LocationResult {
 }
 
 class KalarLocationService {
-  /// Acquire current device GPS coordinates with proper permission & service checks.
-  /// Never spams permission dialogs.
+  /// Acquire the best device GPS fix (shared 2026 resolver).
   static Future<LocationResult> getCurrentLocation({bool requestIfNeeded = true}) async {
     try {
-      // 1. Check if GPS service is enabled
       final isServiceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!isServiceEnabled) {
         return const LocationResult(
@@ -39,7 +39,6 @@ class KalarLocationService {
         );
       }
 
-      // 2. Check current permission status
       LocationPermission permission = await Geolocator.checkPermission();
 
       if (permission == LocationPermission.denied) {
@@ -65,13 +64,18 @@ class KalarLocationService {
         );
       }
 
-      // 3. Obtain location
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 12),
-        ),
+      final position = await regaResolveCurrentPosition(
+        requestPermission: false,
+        precise: true,
+        allowLastKnown: false,
+        refineFor: const Duration(seconds: 8),
       );
+      if (position == null) {
+        return const LocationResult(
+          status: LocationStatus.error,
+          errorMessage: 'نەتوانرا شوێن بدۆزرێتەوە',
+        );
+      }
 
       return LocationResult(
         status: LocationStatus.located,
@@ -88,12 +92,10 @@ class KalarLocationService {
     }
   }
 
-  /// Open system app settings when permission is permanently denied
   static Future<bool> openAppSettings() async {
     return await Geolocator.openAppSettings();
   }
 
-  /// Open system location settings when GPS toggle is off
   static Future<bool> openLocationSettings() async {
     return await Geolocator.openLocationSettings();
   }

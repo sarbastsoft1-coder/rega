@@ -92,6 +92,7 @@ class AdminNavNotifier extends ChangeNotifier {
     '/orders',
     '/drivers',
     '/customers',
+    '/service-cities',
     '/stores',
     '/vendor-items',
     '/finance',

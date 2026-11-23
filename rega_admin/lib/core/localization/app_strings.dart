@@ -211,6 +211,11 @@ class AppStrings {
       'ar': 'العملاء',
       'en': 'Customers',
     },
+    'nav_service_cities': {
+      'ku': 'شارەکانی کار',
+      'ar': 'مدن الخدمة',
+      'en': 'Service cities',
+    },
     'nav_zones': {
       'ku': 'گەڕەکەکان و بەشەکان',
       'ar': 'المناطق والأقسام',
@@ -1035,9 +1040,19 @@ class AppStrings {
       'en': 'Store address — e.g. Kalar bazaar center',
     },
     'vendor_map_hint': {
-      'ku': 'کاتێک فرۆشیار ماتۆرسوار دیاری دەکات، ئەم شوێنە لەسەر نەخشەی ماتۆرسوار دەردەکەوێت.',
-      'ar': 'يظهر هذا الموقع على خريطة السائق عند تعيين سائق.',
-      'en': 'This location appears on the captain map when the vendor assigns a driver.',
+      'ku': 'ئەم پینە شوێنی فرۆشگایە — ماتۆرسوار لە کاتی داواکاریدا دەیبینێت بۆ وەرگرتن، پاشان دەچێت بۆ کڕیار.',
+      'ar': 'هذه النقطة موقع المتجر — يراها السائق عند الطلب لاستلام الطلب ثم يذهب للزبون.',
+      'en': 'This pin is the store location — the captain sees it on the order map for pickup, then goes to the customer.',
+    },
+    'vendor_pick_on_map': {
+      'ku': 'هەڵبژاردنی شوێن لەسەر نەخشە',
+      'ar': 'اختيار الموقع على الخريطة',
+      'en': 'Pick location on map',
+    },
+    'vendor_pick_map_title': {
+      'ku': 'دیاریکردنی شوێنی فرۆشگا',
+      'ar': 'تحديد موقع المتجر',
+      'en': 'Set store location',
     },
     'vendor_status_label': {
       'ku': 'دۆخی فرۆشیار',

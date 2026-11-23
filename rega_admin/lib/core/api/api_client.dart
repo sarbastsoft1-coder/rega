@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../rega_mobile.dart';
 
@@ -543,6 +544,16 @@ class ApiClient {
     return res['data'] as Map<String, dynamic>? ?? {};
   }
 
+  MediaType? _mediaTypeForName(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.png')) return MediaType('image', 'png');
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return MediaType('image', 'jpeg');
+    if (lower.endsWith('.webp')) return MediaType('image', 'webp');
+    if (lower.endsWith('.gif')) return MediaType('image', 'gif');
+    if (lower.endsWith('.pdf')) return MediaType('application', 'pdf');
+    return MediaType('application', 'octet-stream');
+  }
+
   /// Upload image or PDF (max 10MB). Returns `{path, url}`.
   Future<Map<String, dynamic>> uploadMedia(List<int> bytes, String filename) async {
     final uri = _buildUri('/admin/upload');
@@ -551,7 +562,12 @@ class ApiClient {
       req.headers['Authorization'] = 'Bearer $_token';
     }
     req.headers['Accept'] = 'application/json';
-    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    req.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: filename,
+      contentType: _mediaTypeForName(filename),
+    ));
 
     late http.StreamedResponse streamed;
     try {
@@ -685,8 +701,9 @@ class ApiClient {
     return res['data'] as List<dynamic>? ?? [];
   }
 
-  Future<List<dynamic>> getNeighborhoods() async {
-    final res = await _send('GET', '/admin/neighborhoods');
+  Future<List<dynamic>> getNeighborhoods({int? serviceCityId}) async {
+    final q = serviceCityId != null ? '?service_city_id=$serviceCityId' : '';
+    final res = await _send('GET', '/admin/neighborhoods$q');
     return res['data'] as List<dynamic>? ?? [];
   }
 
@@ -700,6 +717,25 @@ class ApiClient {
 
   Future<void> deleteNeighborhood(int id) async {
     await _send('DELETE', '/admin/neighborhoods/$id');
+  }
+
+  Future<List<dynamic>> getServiceCities() async {
+    final res = await _send('GET', '/admin/service-cities');
+    return res['data'] as List<dynamic>? ?? [];
+  }
+
+  Future<Map<String, dynamic>> createServiceCity(Map<String, dynamic> payload) async {
+    final res = await _send('POST', '/admin/service-cities', body: payload);
+    return res['data'] as Map<String, dynamic>? ?? {};
+  }
+
+  Future<Map<String, dynamic>> updateServiceCity(int id, Map<String, dynamic> payload) async {
+    final res = await _send('PUT', '/admin/service-cities/$id', body: payload);
+    return res['data'] as Map<String, dynamic>? ?? {};
+  }
+
+  Future<void> deleteServiceCity(int id) async {
+    await _send('DELETE', '/admin/service-cities/$id');
   }
 
   // --- Marketing: Coupons, Banners & Notifications ---

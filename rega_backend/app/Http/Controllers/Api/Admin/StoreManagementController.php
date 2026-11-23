@@ -20,7 +20,8 @@ class StoreManagementController extends Controller
             ->with([
                 'owner:id,name,phone,email,is_active',
                 'category:id,name_ku,name_ar,name_en,icon_name',
-                'neighborhood:id,name_ku,name_en,delivery_fee',
+                'neighborhood:id,name_ku,name_en,delivery_fee,service_city_id',
+                'serviceCity:id,code,name_ku,name_en',
             ])
             ->withCount(['products', 'orders'])
             ->withSum(['orders as gross_sales' => fn ($q) => $q->where('status', 'delivered')], 'total_amount')
@@ -64,6 +65,7 @@ class StoreManagementController extends Controller
             'name_en' => ['nullable', 'string', 'max:150'],
             'category_id' => ['required', 'exists:categories,id'],
             'neighborhood_id' => ['nullable', 'exists:neighborhoods,id'],
+            'service_city_id' => ['nullable', 'exists:service_cities,id'],
             'phone' => ['required', 'string', 'max:30'],
             'address_ku' => ['required', 'string', 'max:255'],
             'address_ar' => ['nullable', 'string', 'max:255'],
@@ -121,10 +123,19 @@ class StoreManagementController extends Controller
             $baseSlug = Str::slug($validated['name_en'] ?? $validated['name_ku']) ?: 'store';
             $slug = $baseSlug . '-' . Str::lower(Str::random(5));
 
+            $neighborhoodId = $validated['neighborhood_id'] ?? null;
+            $serviceCityId = $validated['service_city_id'] ?? null;
+            if ($neighborhoodId && ! $serviceCityId) {
+                $serviceCityId = \App\Models\Neighborhood::query()
+                    ->whereKey($neighborhoodId)
+                    ->value('service_city_id');
+            }
+
             $store = Store::create([
                 'owner_id' => $owner->id,
                 'category_id' => $validated['category_id'],
-                'neighborhood_id' => $validated['neighborhood_id'] ?? null,
+                'neighborhood_id' => $neighborhoodId,
+                'service_city_id' => $serviceCityId,
                 'slug' => $slug,
                 'name_ku' => $validated['name_ku'],
                 'name_ar' => $validated['name_ar'] ?? $validated['name_ku'],
@@ -205,6 +216,7 @@ class StoreManagementController extends Controller
             'name_en' => ['nullable', 'string', 'max:150'],
             'category_id' => ['sometimes', 'exists:categories,id'],
             'neighborhood_id' => ['nullable', 'exists:neighborhoods,id'],
+            'service_city_id' => ['nullable', 'exists:service_cities,id'],
             'phone' => ['sometimes', 'string', 'max:30'],
             'address_ku' => ['sometimes', 'string', 'max:255'],
             'address_ar' => ['nullable', 'string', 'max:255'],
@@ -263,12 +275,18 @@ class StoreManagementController extends Controller
             $validated['owner_is_active']
         );
 
+        if (! empty($validated['neighborhood_id']) && empty($validated['service_city_id'])) {
+            $validated['service_city_id'] = \App\Models\Neighborhood::query()
+                ->whereKey($validated['neighborhood_id'])
+                ->value('service_city_id');
+        }
+
         $store->update($validated);
 
         return response()->json([
             'success' => true,
             'message' => 'زانیاری فرۆشگا بە سەرکەوتوویی نوێکرایەوە.',
-            'data' => $store->fresh(['owner', 'category', 'neighborhood', 'storeCategories']),
+            'data' => $store->fresh(['owner', 'category', 'neighborhood', 'serviceCity', 'storeCategories']),
         ]);
     }
 

@@ -12,6 +12,7 @@ import 'customers_screen.dart';
 import 'direct_requests_screen.dart';
 import 'live_radar_dialog.dart';
 import 'marketing_screen.dart';
+import 'service_cities_screen.dart';
 import '../widgets/send_customer_notification_dialog.dart';
 
 import '../rega_i18n.dart';
@@ -22,7 +23,13 @@ class CustomerPartScreen extends StatefulWidget {
   final VoidCallback? onDataChanged;
 
   /// Index of داواکاری ڕاستەوخۆ tab inside this hub.
-  static const int directRequestsTabIndex = 2;
+  static const int directRequestsTabIndex = 4;
+  /// Index of شارەکانی کار (add/edit/delete service cities).
+  static const int serviceCitiesTabIndex = 1;
+  /// Index of گەڕەکەکان (neighborhoods / areas).
+  static const int zonesTabIndex = 2;
+  /// Index of بەڕێوەبردنی کڕیاران.
+  static const int customersManageTabIndex = 5;
 
   const CustomerPartScreen({
     super.key,
@@ -53,7 +60,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 8, vsync: this);
+    _tabController = TabController(length: 9, vsync: this);
     _load();
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) => _load(silent: true));
   }
@@ -73,7 +80,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
   void _openPendingSubTab() {
     final sub = _nav?.takeCustomersSubTab();
     if (sub == null) return;
-    final target = sub.clamp(0, 7);
+    final target = sub.clamp(0, 8);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _tabController.index == target) return;
       _tabController.animateTo(target);
@@ -668,12 +675,13 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                     dividerColor: Colors.transparent,
                     tabs: [
                       _buildHubTab(Icons.workspace_premium_rounded, tx('پوختە و کڕیاران'), isCompactBanner),
+                      _buildHubTab(Icons.map_rounded, tx('شارەکانی کار'), isCompactBanner),
+                      _buildHubTab(Icons.location_city_rounded, tx('گەڕەکەکان'), isCompactBanner),
                       _buildHubTab(Icons.receipt_long_rounded, tx('داواکاری کڕیاران (${_kpis['total_customer_orders'] ?? 0})'), isCompactBanner),
                       _buildHubTab(Icons.handshake_rounded, tx('داواکاری ڕاستەوخۆ'), isCompactBanner),
                       _buildHubTab(Icons.groups_rounded, tx('بەڕێوەبردنی کڕیاران'), isCompactBanner),
                       _buildHubTab(Icons.grid_view_rounded, tx('بەشەکانی سەرەکی ئەپ'), isCompactBanner),
                       _buildHubTab(Icons.notifications_active_rounded, tx('ئاگاداری بۆ کڕیار'), isCompactBanner),
-                      _buildHubTab(Icons.location_city_rounded, tx('گەڕەکەکانی کەلار'), isCompactBanner),
                       _buildHubTab(Icons.campaign_rounded, tx('کۆپۆن و ڕیکلامەکان'), isCompactBanner),
                     ],
                   ),
@@ -690,6 +698,12 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                           controller: _tabController,
                           children: [
                             _buildVipOverviewTab(isDark),
+                            ServiceCitiesScreen(api: widget.api, lang: widget.lang),
+                            CatalogZonesScreen(
+                              api: widget.api,
+                              lang: widget.lang,
+                              mode: CatalogZonesMode.zones,
+                            ),
                             _buildCustomerOrdersTab(),
                             DirectRequestsScreen(
                               api: widget.api,
@@ -706,11 +720,6 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                               api: widget.api,
                               lang: widget.lang,
                               mode: MarketingMode.notifications,
-                            ),
-                            CatalogZonesScreen(
-                              api: widget.api,
-                              lang: widget.lang,
-                              mode: CatalogZonesMode.zones,
                             ),
                             MarketingScreen(api: widget.api, lang: widget.lang),
                           ],
@@ -741,7 +750,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                 accentColor: RegaColors.goldDark,
               ),
               StatKpiCard(
-                title: tx('ناونیشانەکانی کەلار'),
+                title: tx('ناونیشانە تۆمارکراوەکان'),
                 value: '${_kpis['saved_addresses_count'] ?? 0}',
                 subtitle: tx('تۆمارکراو لە GPS'),
                 icon: Icons.pin_drop_rounded,
@@ -790,6 +799,33 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
             );
           },
         ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: RegaColors.gold,
+                foregroundColor: RC.fg(const Color(0xFF0F172A)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              onPressed: () => _tabController.animateTo(CustomerPartScreen.serviceCitiesTabIndex),
+              icon: const Icon(Icons.map_rounded, size: 18),
+              label: Text(tx('شارەکانی کار (کەلار / أربيل)')),
+            ),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: RC.fg(const Color(0xFF0F172A)),
+                side: const BorderSide(color: RegaColors.gold),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              onPressed: () => _tabController.animateTo(CustomerPartScreen.zonesTabIndex),
+              icon: const Icon(Icons.location_city_rounded, size: 18),
+              label: Text(tx('گەڕەکەکان / ناوچەکان')),
+            ),
+          ],
+        ),
         const SizedBox(height: 22),
         LayoutBuilder(
           builder: (context, cardConstraints) {
@@ -816,7 +852,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                             backgroundColor: RegaColors.gold,
                             foregroundColor: RC.fg(Color(0xFF0F172A)),
                           ),
-                          onPressed: () => _tabController.animateTo(3),
+                          onPressed: () => _tabController.animateTo(CustomerPartScreen.customersManageTabIndex),
                           icon: const Icon(Icons.person_add_rounded, size: 17),
                           label: Text(tx('زیادکردنی کڕیار')),
                         ),
@@ -893,7 +929,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                                     runSpacing: 8,
                                     children: [
                                       OutlinedButton.icon(
-                                        onPressed: () => _tabController.animateTo(3),
+                                        onPressed: () => _tabController.animateTo(CustomerPartScreen.customersManageTabIndex),
                                         icon: const Icon(Icons.edit_rounded, size: 16),
                                         label: Text(tx('دەستکاری')),
                                       ),
@@ -935,7 +971,7 @@ class _CustomerPartScreenState extends State<CustomerPartScreen> with SingleTick
                               style: const TextStyle(fontWeight: FontWeight.w900, color: RegaColors.emeraldDark),
                             ),
                             OutlinedButton.icon(
-                              onPressed: () => _tabController.animateTo(3),
+                              onPressed: () => _tabController.animateTo(CustomerPartScreen.customersManageTabIndex),
                               icon: const Icon(Icons.edit_rounded, size: 16),
                               label: Text(tx('دەستکاری')),
                             ),

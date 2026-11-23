@@ -11,6 +11,7 @@ use App\Models\CustomerAddress;
 use App\Models\DriverProfile;
 use App\Models\LiveTelemetrySession;
 use App\Models\Neighborhood;
+use App\Models\ServiceCity;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderStatusLog;
@@ -27,20 +28,35 @@ use Illuminate\Support\Str;
 
 class PublicAndCustomerController extends Controller
 {
-    public function bootstrap(): JsonResponse
+    public function bootstrap(Request $request): JsonResponse
     {
-        $neighborhoods = Neighborhood::where('is_active', true)->orderBy('sort_order')->get();
+        $cityId = $request->filled('city_id') ? (int) $request->query('city_id') : null;
+
+        $serviceCities = ServiceCity::where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        $neighborhoodQuery = Neighborhood::where('is_active', true)
+            ->with('serviceCity:id,code,name_ku,name_en')
+            ->orderBy('sort_order');
+        if ($cityId) {
+            $neighborhoodQuery->where('service_city_id', $cityId);
+        }
+        $neighborhoods = $neighborhoodQuery->get();
+
         // Home grid uses is_featured_home; sort_order controls tile order in admin.
         $categories = $this->homeCategoriesQuery()->get();
         $banners = Banner::where('is_active', true)->with(['store:id,name_ku,slug', 'category:id,name_ku,name_ar,name_en,slug'])->orderBy('sort_order')->get();
-        // Load all approved stores so every home tile (سوپەرمارکێت، خواردنگە، فست فوود…)
-        // can show its vendors — products inherit the store's category_id.
-        $featuredStores = Store::where('is_approved', true)
-            ->with(['category:id,name_ku,name_ar,name_en', 'neighborhood:id,name_ku'])
+        // Load approved stores (optionally scoped to selected work city).
+        $storeQuery = Store::where('is_approved', true)
+            ->with(['category:id,name_ku,name_ar,name_en', 'neighborhood:id,name_ku,service_city_id', 'serviceCity:id,code,name_ku'])
             ->orderByDesc('is_featured')
-            ->orderByDesc('rating')
-            ->limit(200)
-            ->get();
+            ->orderByDesc('rating');
+        if ($cityId) {
+            $storeQuery->where('service_city_id', $cityId);
+        }
+        $featuredStores = $storeQuery->limit(200)->get();
 
         $settingsRows = PlatformSetting::whereIn('group', ['public', 'general', 'support'])->get();
         $publicSettings = [];
@@ -52,6 +68,7 @@ class PublicAndCustomerController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
+                'service_cities' => $serviceCities,
                 'neighborhoods' => $neighborhoods,
                 'categories' => $categories,
                 'banners' => $banners,
@@ -120,11 +137,15 @@ class PublicAndCustomerController extends Controller
         $out['telegram_number'] = $out['telegram_number'] ?? ($out['support_phone'] ?? '0770 000 1122');
         $out['telegram_username'] = ltrim((string) ($out['telegram_username'] ?? 'rega_support'), '@');
 
-        // Service area (Kalar + radius) — used by customer / delivery / vendor apps.
+        // Legacy single-circle keys (fallback) + multi-city list for GPS gate.
         $out['service_radius_km'] = (int) (PlatformSetting::getValue('service_radius_km', 10) ?? 10);
         $out['service_center_lat'] = (float) (PlatformSetting::getValue('service_center_lat', 34.6295) ?? 34.6295);
         $out['service_center_lng'] = (float) (PlatformSetting::getValue('service_center_lng', 45.3159) ?? 45.3159);
         $out['service_area_name'] = (string) (PlatformSetting::getValue('service_area_name', 'کەلار') ?? 'کەلار');
+        $out['service_cities'] = ServiceCity::where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -154,6 +175,10 @@ class PublicAndCustomerController extends Controller
         if ($request->filled('search')) {
             $s = trim((string) $request->string('search'));
             $query->where(fn ($q) => $q->where('name_ku', 'ILIKE', "%{$s}%")->orWhere('name_en', 'ILIKE', "%{$s}%"));
+        }
+
+        if ($request->filled('city_id')) {
+            $query->where('service_city_id', $request->integer('city_id'));
         }
 
         return response()->json([

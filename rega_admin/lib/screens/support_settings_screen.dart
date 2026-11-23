@@ -73,10 +73,12 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
   bool _notifySms = false;
   bool _notifySound = true;
 
-  // Dropdown States
+  // Dropdown States — legacy single-circle fallback; multi-city lives in شارەکانی کار.
   String _selectedCity = 'کەلار';
   String _selectedDistance = '١٠ کیلۆمەتر';
   String _selectedRole = 'بەڕێوەبەر';
+  List<Map<String, dynamic>> _serviceCities = [];
+  int? _legacyCityId;
 
   static int _distanceLabelToKm(String label) {
     if (label.contains('٢٠') || label.startsWith('20')) return 20;
@@ -128,9 +130,17 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
   Future<void> _loadSettings() async {
     try {
-      final data = await widget.api.getSettings();
+      final results = await Future.wait([
+        widget.api.getSettings(),
+        widget.api.getServiceCities(),
+      ]);
+      final data = results[0] as Map<String, dynamic>;
+      final cities = (results[1] as List<dynamic>)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
       if (!mounted) return;
       setState(() {
+        _serviceCities = cities;
         if (data.containsKey('default_delivery_fee')) {
           _deliveryFeeCtrl.text = data['default_delivery_fee'].toString();
         }
@@ -161,8 +171,22 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         }
         if (data.containsKey('service_area_name')) {
           final city = data['service_area_name'].toString().trim();
-          const allowed = {'هەولێر', 'سلێمانی', 'دهۆک', 'کەلار'};
-          if (allowed.contains(city)) _selectedCity = city;
+          _selectedCity = city.isNotEmpty ? city : 'کەلار';
+        }
+        // Prefer matching an active service city for legacy single-circle fallback.
+        Map<String, dynamic>? matched;
+        for (final c in cities) {
+          if (c['name_ku']?.toString() == _selectedCity) {
+            matched = c;
+            break;
+          }
+        }
+        matched ??= cities.isNotEmpty ? cities.first : null;
+        if (matched != null) {
+          _legacyCityId = (matched['id'] as num?)?.toInt();
+          _selectedCity = matched['name_ku']?.toString() ?? _selectedCity;
+          final km = (matched['radius_km'] as num?)?.toInt();
+          if (km != null) _selectedDistance = _kmToDistanceLabel(km);
         }
       });
     } catch (_) {}
@@ -346,7 +370,21 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
 
   Future<void> _saveDeliveryAndPlatformSettings(String msg) async {
     try {
-      await widget.api.updateSettings({
+      Map<String, dynamic>? city;
+      for (final c in _serviceCities) {
+        if ((c['id'] as num?)?.toInt() == _legacyCityId ||
+            c['name_ku']?.toString() == _selectedCity) {
+          city = c;
+          break;
+        }
+      }
+      final lat = (city?['center_lat'] as num?)?.toDouble();
+      final lng = (city?['center_lng'] as num?)?.toDouble();
+      final radius = (city?['radius_km'] as num?)?.toInt() ??
+          _distanceLabelToKm(_selectedDistance);
+      final areaName = (city?['name_ku']?.toString() ?? _selectedCity).trim();
+
+      final payload = <String, dynamic>{
         'default_delivery_fee': int.tryParse(_deliveryFeeCtrl.text.trim()) ?? 2500,
         'default_commission_rate': double.tryParse(_commissionCtrl.text.trim()) ?? 10.0,
         'working_hours': _hoursCtrl.text.trim(),
@@ -355,11 +393,15 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         'telegram_number': _telegramCtrl.text.trim(),
         'telegram_username': _telegramUserCtrl.text.trim().replaceAll('@', ''),
         'platform_name': _platformNameCtrl.text.trim(),
-        'service_radius_km': _distanceLabelToKm(_selectedDistance),
-        'service_center_lat': 34.6295,
-        'service_center_lng': 45.3159,
-        'service_area_name': _selectedCity.trim().isEmpty ? 'کەلار' : _selectedCity.trim(),
-      });
+        'service_radius_km': radius,
+        'service_area_name': areaName.isEmpty ? 'کەلار' : areaName,
+      };
+      // Only write lat/lng from the selected service city — never hardcode Kalar.
+      if (lat != null && lng != null) {
+        payload['service_center_lat'] = lat;
+        payload['service_center_lng'] = lng;
+      }
+      await widget.api.updateSettings(payload);
       _showSaveFeedback('$msg و لە سێرڤەر پاشەکەوت کران ✅');
       widget.onChanged?.call();
     } catch (e) {
@@ -2172,7 +2214,14 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
           _buildSettingsInputField(label: tx('ئیمەیڵ'), controller: _emailCtrl),
           const SizedBox(height: 14),
 
-          // Field 4: شار Dropdown
+          // Legacy single-circle fallback — full multi-city GPS is managed under شارەکانی کار.
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              tx('ناوەندی legacy (بۆ ئەپە کۆنەکان). شارەکانی کار لە بەشی کڕیار → شارەکانی کار ڕێکبخە.'),
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: RC.fg(Color(0xFF92400E))),
+            ),
+          ),
           _buildLabeledField(
             label: 'شار',
             field: Container(
@@ -2184,18 +2233,41 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                 border: Border.all(color: _borderColor),
               ),
               child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedCity,
+                child: DropdownButton<int?>(
+                  value: _legacyCityId,
                   isExpanded: true,
                   icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: RC.fg(Color(0xFF64748B))),
                   style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
-                  items: [
-                    DropdownMenuItem(value: 'هەولێر', child: Text(tx('هەولێر'), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    DropdownMenuItem(value: 'سلێمانی', child: Text(tx('سلێمانی'), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    DropdownMenuItem(value: 'دهۆک', child: Text(tx('دهۆک'), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    DropdownMenuItem(value: 'کەلار', child: Text(tx('کەلار'), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                  ],
-                  onChanged: (v) => setState(() => _selectedCity = v ?? 'کەلار'),
+                  items: _serviceCities.isEmpty
+                      ? [
+                          DropdownMenuItem(
+                            value: null,
+                            child: Text(tx(_selectedCity), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                        ]
+                      : _serviceCities.map((c) {
+                          return DropdownMenuItem(
+                            value: (c['id'] as num).toInt(),
+                            child: Text(
+                              tx(c['name_ku']?.toString() ?? ''),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                  onChanged: (v) {
+                    setState(() {
+                      _legacyCityId = v;
+                      for (final c in _serviceCities) {
+                        if ((c['id'] as num?)?.toInt() == v) {
+                          _selectedCity = c['name_ku']?.toString() ?? _selectedCity;
+                          final km = (c['radius_km'] as num?)?.toInt();
+                          if (km != null) _selectedDistance = _kmToDistanceLabel(km);
+                          break;
+                        }
+                      }
+                    });
+                  },
                 ),
               ),
             ),

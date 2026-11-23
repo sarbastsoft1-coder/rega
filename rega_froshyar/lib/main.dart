@@ -16,6 +16,7 @@ import 'blocked_account.dart';
 import 'assigned_driver_map.dart';
 import 'rega_mobile.dart';
 import 'image_compress_service.dart';
+import 'services/vendor_image_pick.dart';
 import 'app/providers.dart';
 import 'app/app_router.dart';
 import 'state/vendor_nav_notifier.dart';
@@ -336,7 +337,7 @@ String t(String key) => Trans.get(key);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb && MapboxTiles.accessToken.isNotEmpty) {
+  if (MapboxTiles.accessToken.isNotEmpty) {
     try {
       MapboxOptions.setAccessToken(MapboxTiles.accessToken);
     } catch (_) {}
@@ -7160,7 +7161,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
     required void Function(String? error) onError,
     required void Function(String? path, String url, Uint8List bytes) onResult,
   }) async {
-    final ImagePicker picker = ImagePicker();
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: RC.bg(Colors.white),
@@ -7381,21 +7381,22 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
     if (source == null) return;
 
-    final XFile? image = await picker.pickImage(source: source);
-    if (image == null) return;
-
     setDialogState(() {
       onBusy(true);
       onError(null);
     });
     try {
-      final raw = await image.readAsBytes();
-      if (raw.isEmpty) {
+      final picked = await pickVendorImage(fromCamera: source == ImageSource.camera);
+      if (picked == null) {
+        setDialogState(() => onBusy(false));
+        return;
+      }
+      if (picked.bytes.isEmpty) {
         throw Exception(t('بارکردنی وێنە سەرکەوتوو نەبوو'));
       }
       final compressed = await ImageCompressService.compressForUpload(
-        name: image.name.isNotEmpty ? image.name : 'product.jpg',
-        bytes: Uint8List.fromList(raw),
+        name: picked.name.isNotEmpty ? picked.name : 'product.jpg',
+        bytes: picked.bytes,
       );
       final up = await VendorApiService.instance.uploadMedia(
         compressed.bytes,
@@ -7407,7 +7408,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       }
       if (!mounted) return;
       setDialogState(() {
-        onResult(kIsWeb ? null : image.path, url, compressed.bytes);
+        onResult(null, url, compressed.bytes);
         onBusy(false);
         onError(null);
       });
@@ -8902,269 +8903,141 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController nameController;
   TimeOfDay _openTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _closeTime = const TimeOfDay(hour: 23, minute: 0);
-  
-  final ImagePicker _picker = ImagePicker();
-  XFile? _coverImage;
-  XFile? _logoImage;
 
-  Future<void> _pickImage(bool isCover) async {
+  String? _coverUrl;
+  String? _logoUrl;
+  Uint8List? _coverPreview;
+  Uint8List? _logoPreview;
+  bool _coverBusy = false;
+  bool _logoBusy = false;
+  bool _saving = false;
+
+  Future<void> _pickStoreImage({required bool isCover}) async {
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: RC.bg(Colors.white),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) => Directionality(
         textDirection: Trans.direction,
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 540),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                child: Column(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: RC.bgn(Colors.grey[300]),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      t('هەڵبژاردنی وێنە'),
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: RC.fg(Color(0xFF1E293B))),
-                    ),
-                    InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: RC.bgn(Colors.grey[100]),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.close_rounded, size: 18, color: RC.fg(Colors.grey)),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                InkWell(
-                  onTap: () => Navigator.of(context).pop(ImageSource.camera),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: RC.bg(Color(0xFFF8FAFC)),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [RC.bg(Color(0xFFFF9800)), RC.bg(Color(0xFFF57C00))],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: RC.bg(Color(0xFFFF9800)).withOpacity(0.35),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Icon(Icons.camera_alt_rounded, color: RC.fg(Colors.white), size: 26),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                t('کامێرا'),
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: RC.fg(Color(0xFF1E293B))),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                t('وێنەی نوێ وەبگرە'),
-                                style: TextStyle(color: RC.fgn(Colors.grey[600]), fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: RC.bg(Color(0xFFFFF3E0)),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Trans.direction == TextDirection.rtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
-                            color: RC.fg(Color(0xFFFF9800)),
-                            size: 22,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                Text(t('هەڵبژاردنی وێنە'), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: RC.fg(Color(0xFF1E293B)))),
                 const SizedBox(height: 12),
-                InkWell(
-                  onTap: () => Navigator.of(context).pop(ImageSource.gallery),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: RC.bg(Color(0xFFF8FAFC)),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [RC.bg(Color(0xFFFF9800)), RC.bg(Color(0xFFF57C00))],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: RC.bg(Color(0xFFFF9800)).withOpacity(0.35),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Icon(Icons.photo_library_rounded, color: RC.fg(Colors.white), size: 26),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                t('گالەری'),
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: RC.fg(Color(0xFF1E293B))),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                t('وێنەیەک لە موبایلەکەت هەڵبژێرە'),
-                                style: TextStyle(color: RC.fgn(Colors.grey[600]), fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: RC.bg(Color(0xFFFFF3E0)),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Trans.direction == TextDirection.rtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
-                            color: RC.fg(Color(0xFFFF9800)),
-                            size: 22,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                ListTile(
+                  leading: Icon(Icons.camera_alt_rounded, color: RC.fg(Color(0xFFFF9800))),
+                  title: Text(t('کامێرا')),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
                 ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      backgroundColor: RC.bg(Color(0xFFE50010)),
-                      foregroundColor: RC.fg(Colors.white),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(
-                      t('پاشگەزبوونەوە'),
-                      style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
-                  ),
+                ListTile(
+                  leading: Icon(Icons.photo_library_rounded, color: RC.fg(Color(0xFFFF9800))),
+                  title: Text(t('گالەری')),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
                 ),
               ],
             ),
           ),
         ),
       ),
-    ),
-  ),
-);
-
-    if (source != null) {
-      final XFile? pickedFile = await _picker.pickImage(source: source);
-      if (pickedFile != null) {
-        setState(() {
-          if (isCover) {
-            _coverImage = pickedFile;
-          } else {
-            _logoImage = pickedFile;
-          }
-        });
+    );
+    if (source == null || !mounted) return;
+    setState(() {
+      if (isCover) {
+        _coverBusy = true;
+      } else {
+        _logoBusy = true;
       }
-    }
-  }
-
-  Widget _buildImagePreview(XFile? file, IconData defaultIcon, {bool isWide = false}) {
-    final double width = isWide ? 64 : 48;
-    const double height = 48;
-    if (file != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(11),
-        child: kIsWeb 
-            ? Image.network(
-                file.path,
-                fit: BoxFit.cover,
-                width: width,
-                height: height,
-                errorBuilder: (context, error, stackTrace) => Icon(defaultIcon, color: RC.fgn(Colors.grey[400]), size: isWide ? 26 : 22),
-              )
-            : Image.file(
-                File(file.path),
-                fit: BoxFit.cover,
-                width: width,
-                height: height,
-                errorBuilder: (context, error, stackTrace) => Icon(defaultIcon, color: RC.fgn(Colors.grey[400]), size: isWide ? 26 : 22),
-              ),
+    });
+    try {
+      final picked = await pickVendorImage(fromCamera: source == ImageSource.camera);
+      if (picked == null || !mounted) {
+        if (mounted) {
+          setState(() {
+            if (isCover) {
+              _coverBusy = false;
+            } else {
+              _logoBusy = false;
+            }
+          });
+        }
+        return;
+      }
+      final compressed = await ImageCompressService.compressForUpload(
+        name: picked.name.isNotEmpty ? picked.name : (isCover ? 'cover.jpg' : 'logo.jpg'),
+        bytes: picked.bytes,
+      );
+      final up = await VendorApiService.instance.uploadMedia(compressed.bytes, compressed.name);
+      final url = up['url']?.toString();
+      if (url == null || url.isEmpty) throw Exception(t('بارکردنی وێنە سەرکەوتوو نەبوو'));
+      if (!mounted) return;
+      setState(() {
+        if (isCover) {
+          _coverUrl = url;
+          _coverPreview = compressed.bytes;
+          _coverBusy = false;
+        } else {
+          _logoUrl = url;
+          _logoPreview = compressed.bytes;
+          _logoBusy = false;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (isCover) {
+          _coverBusy = false;
+        } else {
+          _logoBusy = false;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tx(e.toString())), backgroundColor: RC.bg(const Color(0xFFD32F2F))),
       );
     }
-    return Icon(defaultIcon, color: RC.fgn(Colors.grey[400]), size: isWide ? 26 : 22);
   }
 
   Widget _buildImageSubCard({
     required String title,
     required String buttonText,
-    required XFile? imageFile,
+    required Uint8List? previewBytes,
+    required String? existingUrl,
     required IconData defaultIcon,
     required VoidCallback onPick,
+    required bool busy,
     bool isWide = false,
   }) {
+    final double width = isWide ? 72 : 52;
+    const double height = 52;
+    Widget preview;
+    if (busy) {
+      preview = const SizedBox(
+        width: 22,
+        height: 22,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    } else if (previewBytes != null) {
+      preview = ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: Image.memory(previewBytes, fit: BoxFit.cover, width: width, height: height),
+      );
+    } else if (existingUrl != null && existingUrl.trim().isNotEmpty) {
+      preview = ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: Image.network(
+          VendorApiService.instance.resolveMediaUrl(existingUrl),
+          fit: BoxFit.cover,
+          width: width,
+          height: height,
+          errorBuilder: (_, __, ___) => Icon(defaultIcon, color: RC.fgn(Colors.grey[400]), size: 22),
+        ),
+      );
+    } else {
+      preview = Icon(defaultIcon, color: RC.fgn(Colors.grey[400]), size: isWide ? 26 : 22);
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -9184,24 +9057,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Row(
             children: [
               GestureDetector(
-                onTap: onPick,
+                onTap: busy ? null : onPick,
                 child: Container(
-                  width: isWide ? 64 : 48,
-                  height: 48,
+                  width: width,
+                  height: height,
                   decoration: BoxDecoration(
                     color: RC.bg(Colors.white),
                     border: Border.all(color: RC.bg(Colors.grey[300]!)),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Center(
-                    child: _buildImagePreview(imageFile, defaultIcon, isWide: isWide),
-                  ),
+                  child: Center(child: preview),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: onPick,
+                  onPressed: busy ? null : onPick,
                   icon: Icon(Icons.upload_outlined, size: 16, color: RC.fg(Color(0xFF00897B))),
                   label: Text(
                     tx(buttonText),
@@ -9230,6 +9101,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     nameController = TextEditingController(text: widget.businessName);
+    _loadStoreImages();
+  }
+
+  Future<void> _loadStoreImages() async {
+    try {
+      final store = await VendorApiService.instance.fetchStoreProfile();
+      if (!mounted || store == null) return;
+      setState(() {
+        _coverUrl = store['cover_url']?.toString();
+        _logoUrl = store['logo_url']?.toString();
+      });
+    } catch (_) {}
   }
 
   @override
@@ -9380,7 +9263,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
 
-            // 2. App Language Card (زمانی بەرنامە)
+            // 2. Store images (cover + logo)
+            _buildSectionCard(
+              title: t('وێنەی فرۆشگا'),
+              icon: Icons.image_outlined,
+              iconColor: RC.fg(Color(0xFF00897B)),
+              children: [
+                _buildImageSubCard(
+                  title: t('وێنەی بەرگ (Cover)'),
+                  buttonText: t('هەڵبژاردنی وێنە'),
+                  previewBytes: _coverPreview,
+                  existingUrl: _coverUrl,
+                  defaultIcon: Icons.image_outlined,
+                  busy: _coverBusy,
+                  isWide: true,
+                  onPick: () => _pickStoreImage(isCover: true),
+                ),
+                const SizedBox(height: 10),
+                _buildImageSubCard(
+                  title: t('لۆگۆ'),
+                  buttonText: t('هەڵبژاردنی وێنە'),
+                  previewBytes: _logoPreview,
+                  existingUrl: _logoUrl,
+                  defaultIcon: Icons.storefront_rounded,
+                  busy: _logoBusy,
+                  onPick: () => _pickStoreImage(isCover: false),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // 3. App Language Card (زمانی بەرنامە)
             _buildSectionCard(
               title: t('زمانی بەرنامە'),
               icon: Icons.translate,
@@ -9400,7 +9313,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
 
-            // 3. Appearance (light / dark)
+            // 4. Appearance (light / dark)
             ValueListenableBuilder<bool>(
               valueListenable: Trans.dark,
               builder: (context, isDark, _) => _buildSectionCard(
@@ -9421,27 +9334,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 24),
             
-            // 4. Save Button
+            // 5. Save Button
             ElevatedButton.icon(
-              onPressed: () {
-                widget.onNameChange(nameController.text);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('گۆڕانکارییەکان پاشەکەوت کران'))));
-              }, 
+              onPressed: _saving
+                  ? null
+                  : () async {
+                      setState(() => _saving = true);
+                      try {
+                        final name = nameController.text.trim();
+                        widget.onNameChange(name);
+                        await VendorApiService.instance.updateStoreInfo(
+                          nameKu: name.isEmpty ? widget.businessName : name,
+                          openTime: formatTime(_openTime),
+                          closeTime: formatTime(_closeTime),
+                          coverUrl: _coverUrl,
+                          logoUrl: _logoUrl,
+                        );
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(t('گۆڕانکارییەکان پاشەکەوت کران'))),
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(tx(e.toString())),
+                            backgroundColor: RC.bg(const Color(0xFFD32F2F)),
+                          ),
+                        );
+                      } finally {
+                        if (mounted) setState(() => _saving = false);
+                      }
+                    },
               icon: Icon(Icons.save_outlined, color: RC.fg(Colors.white), size: 20),
               label: Text(
-                t('پاشەکەوتکردنی گۆڕانکارییەکان'),
+                _saving ? t('چاوەڕوان بە...') : t('پاشەکەوتکردنی گۆڕانکارییەکان'),
                 style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.bold, fontSize: 14),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: RC.bg(Color(0xFF00897B)), 
+                backgroundColor: RC.bg(Color(0xFF00897B)),
                 minimumSize: const Size(double.infinity, 52),
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ), 
+              ),
             ),
             const SizedBox(height: 12),
-            
-            // 5. Logout Button
+
+            // 6. Logout Button
             ElevatedButton.icon(
               onPressed: () async {
                 await context.read<VendorSessionNotifier>().logout();

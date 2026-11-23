@@ -1,12 +1,10 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:latlong2/latlong.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
-import 'mapbox_tiles.dart';
 import 'rega_map_styles.dart';
 
 /// Fullscreen Mapbox Standard host used by tracking / admin / vendor maps.
+/// Always uses [MapWidget] (web + native) — never classic streets rasters.
 class RegaStandardMap extends StatefulWidget {
   final LatLng center;
   final double zoom;
@@ -52,14 +50,20 @@ class RegaStandardMapState extends State<RegaStandardMap> {
 
   Future<void> applyStyle(RegaMapStyleId id) async {
     if (_styleId == id && map != null) return;
+    final prevUri = RegaMapStyles.uri(_styleId);
     setState(() => _styleId = id);
     final m = map;
     if (m == null) return;
+    final nextUri = RegaMapStyles.uri(id);
     try {
-      await m.loadStyleURI(RegaMapStyles.uri(id));
+      if (nextUri != prevUri) {
+        await m.loadStyleURI(nextUri);
+      }
+      await RegaMapStyles.applyConfig(m, id);
     } catch (_) {
       try {
         await m.loadStyleURI(RegaMapStyles.fallbackUri(id));
+        await RegaMapStyles.applyConfig(m, id);
       } catch (_) {}
     }
   }
@@ -78,7 +82,7 @@ class RegaStandardMapState extends State<RegaStandardMap> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'جۆری نەخشە',
+                'جۆری نەخشە · Mapbox Standard',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 12),
@@ -110,51 +114,6 @@ class RegaStandardMapState extends State<RegaStandardMap> {
 
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb) {
-      final mbStyle = switch (_styleId) {
-        RegaMapStyleId.map => MapboxStyle.streets,
-        RegaMapStyleId.satellite => MapboxStyle.satellite,
-        RegaMapStyleId.outdoors => MapboxStyle.outdoors,
-        RegaMapStyleId.dark => MapboxStyle.dark,
-      };
-      return Stack(
-        children: [
-          fm.FlutterMap(
-            key: ValueKey('rega_std_web_${_styleId.name}'),
-            options: fm.MapOptions(
-              initialCenter: widget.center,
-              initialZoom: widget.zoom,
-            ),
-            children: [
-              fm.TileLayer(
-                urlTemplate: MapboxTiles.url(mbStyle),
-                userAgentPackageName: 'com.rega.customer',
-                maxZoom: 19,
-              ),
-            ],
-          ),
-          if (widget.showLayersFab)
-            Positioned(
-              right: 12,
-              bottom: 16,
-              child: Material(
-                color: Colors.white,
-                elevation: 4,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: _openLayers,
-                  child: const SizedBox(
-                    width: 46,
-                    height: 46,
-                    child: Icon(Icons.layers_rounded, color: Color(0xFF16A34A)),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      );
-    }
     return Stack(
       children: [
         MapWidget(
@@ -170,11 +129,19 @@ class RegaStandardMapState extends State<RegaStandardMap> {
               await m.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
               await m.compass.updateSettings(CompassSettings(enabled: false));
             } catch (_) {}
+            try {
+              await RegaMapStyles.applyConfig(m, _styleId);
+            } catch (_) {}
             widget.onMapCreated?.call(m);
           },
           onCameraChangeListener: widget.onCameraChange,
-          onMapLoadErrorListener: (_) {
-            map?.loadStyleURI(RegaMapStyles.fallbackUri(_styleId));
+          onMapLoadErrorListener: (_) async {
+            final m = map;
+            if (m == null) return;
+            try {
+              await m.loadStyleURI(RegaMapStyles.fallbackUri(_styleId));
+              await RegaMapStyles.applyConfig(m, _styleId);
+            } catch (_) {}
           },
         ),
         if (widget.showLayersFab)

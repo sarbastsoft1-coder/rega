@@ -29,6 +29,9 @@ class RegaApiHost {
         final origin = Uri.base.origin;
         if (origin.isNotEmpty) return origin.replaceAll(RegExp(r'/+$'), '');
       }
+      // Local HTTPS stack (serve_all.py) — match page scheme to avoid mixed content.
+      final scheme = Uri.base.scheme == 'https' ? 'https' : 'http';
+      return '$scheme://127.0.0.1:$apiPort';
     }
     return 'http://127.0.0.1:$apiPort';
   }

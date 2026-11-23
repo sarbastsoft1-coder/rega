@@ -442,7 +442,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 icon: Icons.storefront_rounded,
                 iconBg: RC.bg(Color(0xFFF3E8FF)),
                 iconColor: RC.fg(Color(0xFF9333EA)),
-                onTap: () => widget.onNavigateTab(5),
+                onTap: () => widget.onNavigateTab(6), // فرۆشیاران (after شارەکانی کار)
               ),
             ),
           ],

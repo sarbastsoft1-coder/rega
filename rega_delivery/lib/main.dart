@@ -25,7 +25,7 @@ import 'rega_i18n.dart';
 import 'rega_colors.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb && MapboxTiles.accessToken.isNotEmpty) {
+  if (MapboxTiles.accessToken.isNotEmpty) {
     try {
       MapboxOptions.setAccessToken(MapboxTiles.accessToken);
     } catch (_) {}
@@ -839,10 +839,18 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           tip: (active['driver_tip'] as num?)?.toInt() ?? 0,
           handoverPin: (active['handover_pin'] ?? '7392').toString(),
           deliveryPin: _activeOrder.deliveryPin,
-          storeLat: (store['lat'] as num?)?.toDouble() ?? 34.6836,
-          storeLng: (store['lng'] as num?)?.toDouble() ?? 45.3189,
-          customerLat: (active['delivery_lat'] as num?)?.toDouble() ?? 34.6912,
-          customerLng: (active['delivery_lng'] as num?)?.toDouble() ?? 45.3264,
+          storeLat: (store['lat'] as num?)?.toDouble() ??
+              (active['store_lat'] as num?)?.toDouble() ??
+              34.6836,
+          storeLng: (store['lng'] as num?)?.toDouble() ??
+              (active['store_lng'] as num?)?.toDouble() ??
+              45.3189,
+          customerLat: (active['delivery_lat'] as num?)?.toDouble() ??
+              (active['customer_lat'] as num?)?.toDouble() ??
+              34.6912,
+          customerLng: (active['delivery_lng'] as num?)?.toDouble() ??
+              (active['customer_lng'] as num?)?.toDouble() ??
+              45.3264,
         );
         if (_lastNotifiedOrderNum != orderNum) {
           _lastNotifiedOrderNum = orderNum;
@@ -995,10 +1003,18 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         deliveryFee: (data['delivery_fee'] as num?)?.toInt() ?? 1500,
         tip: (data['driver_tip'] as num?)?.toInt() ?? 500,
         deliveryPin: (data['delivery_pin'] ?? '4821').toString(),
-        storeLat: (store['lat'] as num?)?.toDouble() ?? 34.6836,
-        storeLng: (store['lng'] as num?)?.toDouble() ?? 45.3189,
-        customerLat: (cust['lat'] as num?)?.toDouble() ?? 34.6912,
-        customerLng: (cust['lng'] as num?)?.toDouble() ?? 45.3264,
+        storeLat: (store['lat'] as num?)?.toDouble() ??
+            (data['store_lat'] as num?)?.toDouble() ??
+            34.6836,
+        storeLng: (store['lng'] as num?)?.toDouble() ??
+            (data['store_lng'] as num?)?.toDouble() ??
+            45.3189,
+        customerLat: (cust['lat'] as num?)?.toDouble() ??
+            (data['customer_lat'] as num?)?.toDouble() ??
+            34.6912,
+        customerLng: (cust['lng'] as num?)?.toDouble() ??
+            (data['customer_lng'] as num?)?.toDouble() ??
+            45.3264,
       );
     });
     _showSuccessSnackBar('داواکاری زیندووی کڕیار (#$ref) هێنرایە سەر نەخشە!');
@@ -1239,13 +1255,13 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: kIsWeb
             ? WebSettings(
-                accuracy: LocationAccuracy.high,
+                accuracy: LocationAccuracy.bestForNavigation,
                 maximumAge: Duration.zero,
-                timeLimit: const Duration(seconds: 3),
+                timeLimit: const Duration(seconds: 12),
               )
             : const LocationSettings(
-                accuracy: LocationAccuracy.high,
-                timeLimit: Duration(seconds: 3),
+                accuracy: LocationAccuracy.bestForNavigation,
+                timeLimit: Duration(seconds: 12),
               ),
       );
       return (pos.latitude, pos.longitude, false);

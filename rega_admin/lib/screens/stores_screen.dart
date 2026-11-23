@@ -11,8 +11,11 @@ import '../widgets/admin_top_header.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 
+import 'package:latlong2/latlong.dart';
+
 import '../rega_i18n.dart';
 import '../rega_colors.dart';
+import '../widgets/vendor_location_picker.dart';
 /// Representation of a vendor item matching the exact design in the screenshot
 class VendorItem {
   final int id;
@@ -30,6 +33,8 @@ class VendorItem {
   final double rating;
   final double lat;
   final double lng;
+  final int? serviceCityId;
+  final int? neighborhoodId;
 
   VendorItem({
     required this.id,
@@ -47,6 +52,8 @@ class VendorItem {
     this.rating = 9.6,
     this.lat = 34.6836,
     this.lng = 45.3189,
+    this.serviceCityId,
+    this.neighborhoodId,
   });
 
   VendorItem copyWith({
@@ -65,6 +72,8 @@ class VendorItem {
     double? rating,
     double? lat,
     double? lng,
+    int? serviceCityId,
+    int? neighborhoodId,
   }) {
     return VendorItem(
       id: id ?? this.id,
@@ -82,6 +91,8 @@ class VendorItem {
       rating: rating ?? this.rating,
       lat: lat ?? this.lat,
       lng: lng ?? this.lng,
+      serviceCityId: serviceCityId ?? this.serviceCityId,
+      neighborhoodId: neighborhoodId ?? this.neighborhoodId,
     );
   }
 }
@@ -226,7 +237,10 @@ class _StoresScreenState extends State<StoresScreen> {
             (cat?['id'] as num?)?.toInt() ??
             0;
         final zone = map['neighborhood'] as Map<String, dynamic>?;
-        final city = zone?['city']?.toString() ?? AppStrings.cityDbValue('city_kalar');
+        final svcCity = map['service_city'] as Map<String, dynamic>?;
+        final city = svcCity?['name_ku']?.toString() ??
+            zone?['city']?.toString() ??
+            AppStrings.cityDbValue('city_kalar');
         final isApproved = map['is_approved'] == true;
         final activeOrders = (map['active_orders_count'] as num?)?.toInt() ?? 0;
         final rawRating = (map['rating'] as num?)?.toDouble() ?? 9.6;
@@ -246,6 +260,11 @@ class _StoresScreenState extends State<StoresScreen> {
           rating: rawRating <= 5.01 ? rawRating * 2 : rawRating,
           lat: (map['lat'] as num?)?.toDouble() ?? 34.6836,
           lng: (map['lng'] as num?)?.toDouble() ?? 45.3189,
+          serviceCityId: (map['service_city_id'] as num?)?.toInt() ??
+              (svcCity?['id'] as num?)?.toInt() ??
+              (zone?['service_city_id'] as num?)?.toInt(),
+          neighborhoodId: (map['neighborhood_id'] as num?)?.toInt() ??
+              (zone?['id'] as num?)?.toInt(),
         );
       }).toList();
 
@@ -296,11 +315,19 @@ class _StoresScreenState extends State<StoresScreen> {
   Future<void> _showAddVendorDialog({VendorItem? existing}) async {
     // Always re-fetch home parts so newly added customer-home tiles appear here.
     List<Map<String, dynamic>> dialogCategories = List<Map<String, dynamic>>.from(_homeCategories);
+    List<Map<String, dynamic>> serviceCities = [];
+    List<Map<String, dynamic>> cityNeighborhoods = [];
     try {
-      final fresh = await _fetchHomeCategories();
+      final results = await Future.wait([
+        _fetchHomeCategories(),
+        widget.api.getServiceCities(),
+      ]);
       if (!mounted) return;
-      dialogCategories = fresh;
-      setState(() => _homeCategories = fresh);
+      dialogCategories = results[0] as List<Map<String, dynamic>>;
+      serviceCities = (results[1] as List<dynamic>)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      setState(() => _homeCategories = dialogCategories);
     } catch (_) {
       // Keep last known list if refresh fails.
     }
@@ -326,6 +353,31 @@ class _StoresScreenState extends State<StoresScreen> {
         : (dialogCategories.isNotEmpty
             ? (dialogCategories.first['id'] as num?)?.toInt()
             : null);
+    int? selectedCityId = existing?.serviceCityId ??
+        (serviceCities.isNotEmpty ? (serviceCities.first['id'] as num?)?.toInt() : null);
+    int? selectedNeighborhoodId = existing?.neighborhoodId;
+
+    Future<void> loadNeighborhoodsForCity(int? cityId, void Function(void Function()) setDialogState) async {
+      if (cityId == null) {
+        setDialogState(() {
+          cityNeighborhoods = [];
+          selectedNeighborhoodId = null;
+        });
+        return;
+      }
+      try {
+        final raw = await widget.api.getNeighborhoods(serviceCityId: cityId);
+        setDialogState(() {
+          cityNeighborhoods = raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          if (selectedNeighborhoodId != null &&
+              cityNeighborhoods.every((n) => (n['id'] as num?)?.toInt() != selectedNeighborhoodId)) {
+            selectedNeighborhoodId = null;
+          }
+        });
+      } catch (_) {
+        setDialogState(() => cityNeighborhoods = []);
+      }
+    }
     // If editing a store whose category is missing from the home list, keep a chip for it.
     final initialCatId = selectedCategoryId;
     if (initialCatId != null &&
@@ -353,6 +405,13 @@ class _StoresScreenState extends State<StoresScreen> {
         }
       }
     }
+    if (selectedCityId != null) {
+      try {
+        final raw = await widget.api.getNeighborhoods(serviceCityId: selectedCityId);
+        cityNeighborhoods = raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      } catch (_) {}
+    }
+
     const feePresets = [0, 1000, 1500, 2000, 2500, 3000];
     final locationPresets = <Map<String, dynamic>>[
       {'nameKey': 'loc_kalar_bazaar', 'lat': 34.6836, 'lng': 45.3189},
@@ -632,6 +691,9 @@ class _StoresScreenState extends State<StoresScreen> {
                               'name_ku': name,
                               if (subtitle.isNotEmpty) 'name_en': subtitle,
                               'category_id': selectedCategoryId,
+                              if (selectedCityId != null) 'service_city_id': selectedCityId,
+                              if (selectedNeighborhoodId != null)
+                                'neighborhood_id': selectedNeighborhoodId,
                               'phone': phone.isNotEmpty ? phone : '0750 000 0000',
                               'address_ku': address,
                               'address_ar': address,
@@ -1071,6 +1133,49 @@ class _StoresScreenState extends State<StoresScreen> {
                                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF334155))),
                               ),
                               const SizedBox(height: 6),
+                              if (serviceCities.isNotEmpty) ...[
+                                DropdownButtonFormField<int>(
+                                  value: selectedCityId,
+                                  decoration: InputDecoration(
+                                    labelText: tx('شاری کار'),
+                                    isDense: true,
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                  items: serviceCities.map((c) {
+                                    return DropdownMenuItem(
+                                      value: (c['id'] as num).toInt(),
+                                      child: Text(tx(c['name_ku']?.toString() ?? '')),
+                                    );
+                                  }).toList(),
+                                  onChanged: (v) async {
+                                    setDialogState(() => selectedCityId = v);
+                                    await loadNeighborhoodsForCity(v, setDialogState);
+                                  },
+                                ),
+                                const SizedBox(height: 10),
+                                DropdownButtonFormField<int?>(
+                                  value: selectedNeighborhoodId,
+                                  decoration: InputDecoration(
+                                    labelText: tx('گەڕەک'),
+                                    isDense: true,
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                  items: [
+                                    DropdownMenuItem<int?>(
+                                      value: null,
+                                      child: Text(tx('— هەڵبژێرە —')),
+                                    ),
+                                    ...cityNeighborhoods.map((n) {
+                                      return DropdownMenuItem<int?>(
+                                        value: (n['id'] as num).toInt(),
+                                        child: Text(tx(n['name_ku']?.toString() ?? '')),
+                                      );
+                                    }),
+                                  ],
+                                  onChanged: (v) => setDialogState(() => selectedNeighborhoodId = v),
+                                ),
+                                const SizedBox(height: 10),
+                              ],
                               _buildDialogInput(
                                 controller: addressCtrl,
                                 label: '',
@@ -1145,6 +1250,40 @@ class _StoresScreenState extends State<StoresScreen> {
                                     ),
                                   ],
                                 ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 46,
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: RC.fg(const Color(0xFF0F172A)),
+                                    side: BorderSide(color: RC.bg(const Color(0xFFFAC800)), width: 1.6),
+                                    backgroundColor: RC.bg(const Color(0xFFFFFBEB)),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  onPressed: () async {
+                                    final initial = LatLng(
+                                      double.tryParse(latCtrl.text.trim()) ?? 34.6836,
+                                      double.tryParse(lngCtrl.text.trim()) ?? 45.3189,
+                                    );
+                                    final picked = await showVendorLocationPicker(
+                                      ctx,
+                                      initial: initial,
+                                      title: AppStrings.tr('vendor_pick_map_title', lang),
+                                    );
+                                    if (picked == null) return;
+                                    setDialogState(() {
+                                      latCtrl.text = picked.latitude.toStringAsFixed(6);
+                                      lngCtrl.text = picked.longitude.toStringAsFixed(6);
+                                    });
+                                  },
+                                  icon: const Icon(Icons.map_rounded, size: 20),
+                                  label: Text(
+                                    AppStrings.tr('vendor_pick_on_map', lang),
+                                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
+                                  ),
+                                ),
+                              ),
                               const SizedBox(height: 6),
                               Text(
                                 AppStrings.tr('vendor_map_hint', lang),

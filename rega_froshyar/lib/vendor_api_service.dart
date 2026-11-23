@@ -259,6 +259,8 @@ class VendorApiService {
     String? phone,
     String? openTime,
     String? closeTime,
+    String? coverUrl,
+    String? logoUrl,
   }) async {
     if (!await ensureAuthenticated()) return;
     await http
@@ -270,9 +272,11 @@ class VendorApiService {
             if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
             if (openTime != null) 'open_time': openTime,
             if (closeTime != null) 'close_time': closeTime,
+            if (coverUrl != null && coverUrl.trim().isNotEmpty) 'cover_url': coverUrl.trim(),
+            if (logoUrl != null && logoUrl.trim().isNotEmpty) 'logo_url': logoUrl.trim(),
           }),
         )
-        .timeout(const Duration(seconds: 5));
+        .timeout(const Duration(seconds: 8));
   }
 
   Future<bool> acceptOrder(int dbOrderId) async {

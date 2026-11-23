@@ -310,11 +310,14 @@ class CustomerApiService {
     return const {};
   }
 
-  Future<Map<String, dynamic>?> fetchBootstrap() async {
+  Future<Map<String, dynamic>?> fetchBootstrap({int? cityId}) async {
     await initToken();
     try {
+      final uri = Uri.parse('$baseUrl/public/bootstrap').replace(
+        queryParameters: cityId != null ? {'city_id': '$cityId'} : null,
+      );
       final res = await http
-          .get(Uri.parse('$baseUrl/public/bootstrap'), headers: _headers())
+          .get(uri, headers: _headers())
           .timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final body = regaJsonDecode(res.body) as Map<String, dynamic>;

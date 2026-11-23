@@ -6,15 +6,19 @@ import '../map/rega_standard_map.dart';
 import '../models/map_place.dart';
 import '../services/location_service.dart';
 
-/// Fullscreen Kalar map — Mapbox Standard (replaces Google Maps).
+/// Fullscreen work-city map — Mapbox Standard (replaces Google Maps).
 class KalarMapScreen extends StatefulWidget {
   final String language;
   final VoidCallback? onBack;
+  final LatLng? initialCenter;
+  final String? cityLabel;
 
   const KalarMapScreen({
     super.key,
     this.language = 'Kurdish',
     this.onBack,
+    this.initialCenter,
+    this.cityLabel,
   });
 
   @override
@@ -35,6 +39,8 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
   bool get _isRtl => widget.language != 'English';
 
   static const LatLng _kalarCenter = LatLng(34.6313, 45.3177);
+
+  LatLng get _mapCenter => widget.initialCenter ?? _kalarCenter;
 
   @override
   void initState() {
@@ -159,7 +165,7 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
           Positioned.fill(
             child: RegaStandardMap(
               key: _mapKey,
-              center: _currentGpsLocation ?? _kalarCenter,
+              center: _currentGpsLocation ?? _mapCenter,
               zoom: 14.8,
               initialStyle: RegaMapStyles.defaultTracking,
               showLayersFab: true,
@@ -201,7 +207,7 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
                           onChanged: _onSearch,
                           decoration: InputDecoration(
                             hintText: _isRtl
-                                ? 'گەڕان لە کەلار...'
+                                ? 'گەڕان لە ${widget.cityLabel ?? 'کەلار'}...'
                                 : 'Search Kalar...',
                             prefixIcon: const Icon(Icons.search_rounded, size: 20),
                             border: InputBorder.none,
@@ -212,20 +218,38 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
                     ),
                     const SizedBox(width: 10),
                     Material(
-                      color: Colors.white,
-                      elevation: 3,
-                      shape: const CircleBorder(),
+                      color: Colors.transparent,
                       child: InkWell(
                         customBorder: const CircleBorder(),
                         onTap: _isLocating ? null : _handleMyLocationTap,
-                        child: SizedBox(
-                          width: 42,
-                          height: 42,
-                          child: Icon(
-                            _isLocating
-                                ? Icons.hourglass_top_rounded
-                                : Icons.my_location_rounded,
-                            size: 20,
+                        child: Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.all(4),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFAC800),
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              _isLocating
+                                  ? Icons.hourglass_top_rounded
+                                  : Icons.gps_fixed_rounded,
+                              size: 22,
+                              color: const Color(0xFF0F172A),
+                            ),
                           ),
                         ),
                       ),

@@ -118,15 +118,16 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
   Future<void> _pickCategoryImage() async {
     final source = await _showImageSourceSheet();
     if (source == null || !mounted) return;
-    final picker = ImagePicker();
-    final file = await picker.pickImage(source: source);
-    if (file == null || !mounted) return;
     setState(() => _imageBusy = true);
     try {
-      final raw = await file.readAsBytes();
+      final picked = await pickVendorImage(fromCamera: source == ImageSource.camera);
+      if (picked == null || !mounted) {
+        if (mounted) setState(() => _imageBusy = false);
+        return;
+      }
       final compressed = await ImageCompressService.compressForUpload(
-        name: file.name.isNotEmpty ? file.name : 'category.jpg',
-        bytes: Uint8List.fromList(raw),
+        name: picked.name.isNotEmpty ? picked.name : 'category.jpg',
+        bytes: picked.bytes,
       );
       final up = await VendorApiService.instance.uploadMedia(compressed.bytes, compressed.name);
       final url = up['url']?.toString();
@@ -916,15 +917,16 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
             Future<void> pickImage() async {
               final source = await _showImageSourceSheet();
               if (source == null) return;
-              final picker = ImagePicker();
-              final file = await picker.pickImage(source: source);
-              if (file == null) return;
               setSheet(() => imageBusy = true);
               try {
-                final raw = await file.readAsBytes();
+                final picked = await pickVendorImage(fromCamera: source == ImageSource.camera);
+                if (picked == null) {
+                  setSheet(() => imageBusy = false);
+                  return;
+                }
                 final compressed = await ImageCompressService.compressForUpload(
-                  name: file.name.isNotEmpty ? file.name : 'product.jpg',
-                  bytes: Uint8List.fromList(raw),
+                  name: picked.name.isNotEmpty ? picked.name : 'product.jpg',
+                  bytes: picked.bytes,
                 );
                 final up = await VendorApiService.instance.uploadMedia(compressed.bytes, compressed.name);
                 final url = up['url']?.toString();

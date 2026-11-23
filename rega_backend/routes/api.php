@@ -221,6 +221,11 @@ Route::prefix('v1')->group(function () {
         Route::put('/categories/{category}', [CatalogAndZonesController::class, 'categoriesUpdate']);
         Route::delete('/categories/{category}', [CatalogAndZonesController::class, 'categoriesDestroy']);
 
+        Route::get('/service-cities', [CatalogAndZonesController::class, 'serviceCitiesIndex']);
+        Route::post('/service-cities', [CatalogAndZonesController::class, 'serviceCitiesStore']);
+        Route::put('/service-cities/{serviceCity}', [CatalogAndZonesController::class, 'serviceCitiesUpdate']);
+        Route::delete('/service-cities/{serviceCity}', [CatalogAndZonesController::class, 'serviceCitiesDestroy']);
+
         Route::get('/neighborhoods', [CatalogAndZonesController::class, 'neighborhoodsIndex']);
         Route::post('/neighborhoods', [CatalogAndZonesController::class, 'neighborhoodsStore']);
         Route::put('/neighborhoods/{neighborhood}', [CatalogAndZonesController::class, 'neighborhoodsUpdate']);

@@ -89,6 +89,7 @@ GoRouter createAdminRouter({required Listenable refreshListenable}) {
           GoRoute(path: '/orders', name: 'orders', builder: (_, __) => const SizedBox.shrink()),
           GoRoute(path: '/drivers', name: 'drivers', builder: (_, __) => const SizedBox.shrink()),
           GoRoute(path: '/customers', name: 'customers', builder: (_, __) => const SizedBox.shrink()),
+          GoRoute(path: '/service-cities', name: 'service-cities', builder: (_, __) => const SizedBox.shrink()),
           GoRoute(path: '/stores', name: 'stores', builder: (_, __) => const SizedBox.shrink()),
           GoRoute(path: '/vendor-items', name: 'vendor-items', builder: (_, __) => const SizedBox.shrink()),
           GoRoute(path: '/finance', name: 'finance', builder: (_, __) => const SizedBox.shrink()),

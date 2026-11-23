@@ -37,6 +37,8 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
   String? _error;
   List<dynamic> _zones = [];
   List<dynamic> _categories = [];
+  List<dynamic> _cities = [];
+  int? _filterCityId;
 
   bool get _showZones =>
       widget.mode == CatalogZonesMode.both || widget.mode == CatalogZonesMode.zones;
@@ -71,16 +73,25 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
       _error = null;
     });
     try {
-      final futures = <Future>[];
-      if (_showZones) futures.add(widget.api.getNeighborhoods());
-      if (_showCategories) futures.add(widget.api.getCategories());
-      final results = await Future.wait(futures);
-      if (!mounted) return;
-      setState(() {
-        var i = 0;
-        if (_showZones) _zones = results[i++] as List<dynamic>;
-        if (_showCategories) _categories = results[i++] as List<dynamic>;
-      });
+      if (_showZones) {
+        final cities = await widget.api.getServiceCities();
+        var cityId = _filterCityId;
+        if (cityId == null && cities.isNotEmpty) {
+          cityId = ((cities.first as Map)['id'] as num?)?.toInt();
+        }
+        final zones = await widget.api.getNeighborhoods(serviceCityId: cityId);
+        if (!mounted) return;
+        setState(() {
+          _cities = cities;
+          _filterCityId = cityId;
+          _zones = zones;
+        });
+      }
+      if (_showCategories) {
+        final cats = await widget.api.getCategories();
+        if (!mounted) return;
+        setState(() => _categories = cats);
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -104,91 +115,141 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
     final enCtrl = TextEditingController(text: existing?['name_en']?.toString() ?? '');
     final feeCtrl = TextEditingController(text: (existing?['delivery_fee'] ?? 1500).toString());
     final minCtrl = TextEditingController(text: (existing?['estimated_minutes'] ?? 25).toString());
+    final latCtrl = TextEditingController(
+      text: (existing?['center_lat'] as num?)?.toString() ?? '',
+    );
+    final lngCtrl = TextEditingController(
+      text: (existing?['center_lng'] as num?)?.toString() ?? '',
+    );
+    int? cityId = (existing?['service_city_id'] as num?)?.toInt() ?? _filterCityId;
+    if (cityId == null && _cities.isNotEmpty) {
+      cityId = ((_cities.first as Map)['id'] as num?)?.toInt();
+    }
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        insetPadding: AdminBreakpoints.dialogInset(ctx),
-        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
-        actionsOverflowButtonSpacing: 8,
-        title: Text(
-          tx(isEdit ? 'دەستکاریکردنی گەڕەک' : 'زیادکردنی گەڕەکی نوێ لە کەلار'),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        content: SizedBox(
-          width: AdminBreakpoints.dialogWidth(ctx, max: 420),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 480),
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(controller: kuCtrl, decoration: InputDecoration(labelText: tx('ناوی گەڕەک (کوردی) *'))),
-                  const SizedBox(height: 12),
-                  TextField(controller: enCtrl, decoration: InputDecoration(labelText: AppStrings.tr('name_en_field', widget.lang))),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: feeCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: tx('نرخی گەیاندنی ماتۆرسوار (د.ع) *')),
-                  ),
-                  const SizedBox(height: 8),
-                  StatefulBuilder(
-                    builder: (ctx2, setChipState) {
-                      const presets = [1000, 1500, 2000, 2500, 3000];
-                      return Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: presets.map((p) {
-                          final selected = feeCtrl.text.trim() == p.toString();
-                          return ChoiceChip(
-                            label: Text(tx('$p')),
-                            selected: selected,
-                            onSelected: (_) {
-                              feeCtrl.text = p.toString();
-                              setChipState(() {});
-                            },
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          insetPadding: AdminBreakpoints.dialogInset(ctx),
+          contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+          actionsOverflowButtonSpacing: 8,
+          title: Text(
+            tx(isEdit ? 'دەستکاریکردنی گەڕەک' : 'زیادکردنی گەڕەکی نوێ'),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          content: SizedBox(
+            width: AdminBreakpoints.dialogWidth(ctx, max: 420),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: AdminBreakpoints.dialogContentMaxHeight(ctx, max: 520),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_cities.isNotEmpty)
+                      DropdownButtonFormField<int>(
+                        value: cityId,
+                        decoration: InputDecoration(labelText: tx('شاری کار *')),
+                        items: _cities.map((raw) {
+                          final c = raw as Map<String, dynamic>;
+                          return DropdownMenuItem(
+                            value: (c['id'] as num).toInt(),
+                            child: Text(tx(c['name_ku']?.toString() ?? '')),
                           );
                         }).toList(),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: minCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: tx('کاتی خەمڵێنراوی گەیاندن (خولەک)')),
-                  ),
-                ],
+                        onChanged: (v) => setDialogState(() => cityId = v),
+                      ),
+                    if (_cities.isNotEmpty) const SizedBox(height: 12),
+                    TextField(controller: kuCtrl, decoration: InputDecoration(labelText: tx('ناوی گەڕەک (کوردی) *'))),
+                    const SizedBox(height: 12),
+                    TextField(controller: enCtrl, decoration: InputDecoration(labelText: AppStrings.tr('name_en_field', widget.lang))),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: feeCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(labelText: tx('نرخی گەیاندنی ماتۆرسوار (د.ع) *')),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [1000, 1500, 2000, 2500, 3000].map((p) {
+                        final selected = feeCtrl.text.trim() == p.toString();
+                        return ChoiceChip(
+                          label: Text(tx('$p')),
+                          selected: selected,
+                          onSelected: (_) {
+                            feeCtrl.text = p.toString();
+                            setDialogState(() {});
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: minCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(labelText: tx('کاتی خەمڵێنراوی گەیاندن (خولەک)')),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: latCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: InputDecoration(labelText: tx('Lat (ئارەزوومەندانە)')),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: lngCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: InputDecoration(labelText: tx('Lng (ئارەزوومەندانە)')),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
+            ElevatedButton(
+              onPressed: () async {
+                if (kuCtrl.text.trim().isEmpty) return;
+                final payload = <String, dynamic>{
+                  'name_ku': kuCtrl.text.trim(),
+                  'name_en': enCtrl.text.trim().isEmpty ? kuCtrl.text.trim() : enCtrl.text.trim(),
+                  'delivery_fee': int.tryParse(feeCtrl.text) ?? 1500,
+                  'estimated_minutes': int.tryParse(minCtrl.text) ?? 25,
+                  if (cityId != null) 'service_city_id': cityId,
+                };
+                final lat = double.tryParse(latCtrl.text.trim());
+                final lng = double.tryParse(lngCtrl.text.trim());
+                if (lat != null) payload['center_lat'] = lat;
+                if (lng != null) payload['center_lng'] = lng;
+                Navigator.pop(ctx);
+                try {
+                  if (isEdit) {
+                    await widget.api.updateNeighborhood(existing['id'] as int, payload);
+                  } else {
+                    await widget.api.createNeighborhood(payload);
+                  }
+                  _load();
+                } catch (e) {
+                  _showSnack(e.toString(), error: true);
+                }
+              },
+              child: Text(AppStrings.tr('save', widget.lang)),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
-          ElevatedButton(
-            onPressed: () async {
-              if (kuCtrl.text.trim().isEmpty) return;
-              final payload = {
-                'name_ku': kuCtrl.text.trim(),
-                'name_en': enCtrl.text.trim().isEmpty ? kuCtrl.text.trim() : enCtrl.text.trim(),
-                'delivery_fee': int.tryParse(feeCtrl.text) ?? 1500,
-                'estimated_minutes': int.tryParse(minCtrl.text) ?? 25,
-              };
-              Navigator.pop(ctx);
-              if (isEdit) {
-                await widget.api.updateNeighborhood(existing['id'] as int, payload);
-              } else {
-                await widget.api.createNeighborhood(payload);
-              }
-              _load();
-            },
-            child: Text(AppStrings.tr('save', widget.lang)),
-          ),
-        ],
       ),
     );
   }
@@ -835,13 +896,13 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
   Widget build(BuildContext context) {
     final headerTitle = switch (widget.mode) {
       CatalogZonesMode.categories => 'بەشەکانی سەرەکی ئەپی کڕیار',
-      CatalogZonesMode.zones => 'گەڕەکەکانی کەلار',
+      CatalogZonesMode.zones => 'گەڕەکەکان',
       CatalogZonesMode.both => AppStrings.tr('nav_zones', widget.lang),
     };
     final headerSubtitle = switch (widget.mode) {
       CatalogZonesMode.categories => 'ناو و وێنەی بەش زیاد بکە — ڕاستەوخۆ لە شاشەی سەرەکی ئەپی کڕیار دەردەکەوێت',
-      CatalogZonesMode.zones => 'ڕێکخستنی گەڕەکەکانی کەلار و کرێی گەیاندن',
-      CatalogZonesMode.both => 'ڕێکخستنی گەڕەکەکانی کەلار و کرێی گەیاندن + بەشە سەرەکییەکانی ئەپی کڕیار',
+      CatalogZonesMode.zones => 'ڕێکخستنی گەڕەک و کرێی گەیاندن بەپێی شاری کار',
+      CatalogZonesMode.both => 'ڕێکخستنی گەڕەک و کرێی گەیاندن + بەشە سەرەکییەکانی ئەپی کڕیار',
     };
 
     final padH = AdminBreakpoints.pagePadH(context);
@@ -860,7 +921,7 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             tabs: [
-              Tab(text: tx('📍 گەڕەکەکانی کەلار (${_zones.length})')),
+              Tab(text: tx('📍 گەڕەکەکان (${_zones.length})')),
               Tab(text: tx('🗂️ بەشەکانی بازاڕ (${_categories.length})')),
             ],
           ),
@@ -893,6 +954,30 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
         return ListView(
           padding: EdgeInsets.all(pad),
           children: [
+            if (_cities.isNotEmpty) ...[
+              DropdownButtonFormField<int>(
+                value: _filterCityId,
+                decoration: InputDecoration(
+                  labelText: tx('فلتەری شاری کار'),
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: [
+                  ..._cities.map((raw) {
+                    final c = raw as Map<String, dynamic>;
+                    return DropdownMenuItem(
+                      value: (c['id'] as num).toInt(),
+                      child: Text(tx(c['name_ku']?.toString() ?? '')),
+                    );
+                  }),
+                ],
+                onChanged: (v) {
+                  setState(() => _filterCityId = v);
+                  _load();
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
             Align(
               alignment: AlignmentDirectional.centerEnd,
               child: ElevatedButton.icon(
