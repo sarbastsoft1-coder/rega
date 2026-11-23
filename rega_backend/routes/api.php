@@ -111,6 +111,7 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/categories', [VendorAppController::class, 'categories']);
         Route::post('/categories', [VendorAppController::class, 'addCategory']);
+        Route::put('/categories/{storeCategory}', [VendorAppController::class, 'updateCategory']);
         Route::delete('/categories/{storeCategory}', [VendorAppController::class, 'deleteCategory']);
 
         Route::get('/products', [VendorAppController::class, 'products']);

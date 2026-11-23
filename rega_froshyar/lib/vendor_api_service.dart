@@ -283,10 +283,20 @@ class VendorApiService {
     return res.statusCode >= 200 && res.statusCode < 300;
   }
 
-  Future<bool> rejectOrder(int dbOrderId) async {
+  Future<bool> rejectOrder(int dbOrderId, {String? reason}) async {
     if (!await ensureAuthenticated()) return false;
     final res = await http
-        .post(Uri.parse('$baseUrl/vendor/orders/$dbOrderId/reject'), headers: _headers())
+        .post(
+          Uri.parse('$baseUrl/vendor/orders/$dbOrderId/reject'),
+          headers: {
+            ..._headers(),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+            if (reason != null && reason.trim().isNotEmpty) 'note': reason.trim(),
+          }),
+        )
         .timeout(const Duration(seconds: 5));
     return res.statusCode >= 200 && res.statusCode < 300;
   }
@@ -401,6 +411,46 @@ class VendorApiService {
     return null;
   }
 
+  Future<(bool, String)> updateCategory({
+    required String oldNameKu,
+    required String newNameKu,
+    String? imageUrl,
+    String? secondaryImageUrl,
+  }) async {
+    final id = categoryNameToId[oldNameKu];
+    if (id == null) {
+      return (false, 'بەش نەدۆزرایەوە');
+    }
+    if (!await ensureAuthenticated()) {
+      return (false, 'پەیوەندی بە سێرڤەرەوە نییە');
+    }
+    try {
+      final res = await http
+          .put(
+            Uri.parse('$baseUrl/vendor/categories/$id'),
+            headers: _headers(),
+            body: jsonEncode({
+              'name_ku': newNameKu,
+              if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
+              if (secondaryImageUrl != null && secondaryImageUrl.isNotEmpty)
+                'secondary_image_url': secondaryImageUrl,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
+      final body = res.body.isNotEmpty
+          ? (regaJsonDecode(res.body) as Map<String, dynamic>)
+          : <String, dynamic>{};
+      if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] != false) {
+        categoryNameToId.remove(oldNameKu);
+        categoryNameToId[newNameKu] = id;
+        return (true, body['message']?.toString() ?? 'بەش نوێکرایەوە');
+      }
+      return (false, body['message']?.toString() ?? 'نوێکردنەوەی بەش سەرکەوتوو نەبوو');
+    } catch (_) {
+      return (false, 'نوێکردنەوەی بەش سەرکەوتوو نەبوو');
+    }
+  }
+
   Future<void> deleteCategoryByName(String nameKu) async {
     final id = categoryNameToId[nameKu];
     if (id == null || !await ensureAuthenticated()) return;
@@ -496,7 +546,7 @@ class VendorApiService {
     return null;
   }
 
-  Future<void> updateProduct({
+  Future<(bool, String)> updateProduct({
     required int productId,
     required String nameKu,
     required String categoryName,
@@ -507,38 +557,77 @@ class VendorApiService {
     String? imageUrl,
     required bool isAvailable,
   }) async {
-    if (!await ensureAuthenticated()) return;
+    if (!await ensureAuthenticated()) {
+      return (false, 'پەیوەندی بە سێرڤەرەوە نییە');
+    }
     final catId = categoryNameToId[categoryName];
-    await http
-        .put(
-          Uri.parse('$baseUrl/vendor/products/$productId'),
-          headers: _headers(),
-          body: jsonEncode({
-            'store_category_id': catId,
-            'name_ku': nameKu,
-            'price': price,
-            'cost_price': costPrice,
-            'discount_price': discountPrice,
-            'description_ku': descriptionKu,
-            'image_url': imageUrl,
-            'is_available': isAvailable,
-          }),
-        )
-        .timeout(const Duration(seconds: 5));
+    try {
+      final res = await http
+          .put(
+            Uri.parse('$baseUrl/vendor/products/$productId'),
+            headers: _headers(),
+            body: jsonEncode({
+              'store_category_id': catId,
+              'name_ku': nameKu,
+              'price': price,
+              'cost_price': costPrice,
+              'discount_price': discountPrice,
+              'description_ku': descriptionKu,
+              'image_url': imageUrl,
+              'is_available': isAvailable,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
+      final body = res.body.isNotEmpty
+          ? (regaJsonDecode(res.body) as Map<String, dynamic>)
+          : <String, dynamic>{};
+      if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] != false) {
+        return (true, body['message']?.toString() ?? 'بەرهەم نوێکرایەوە');
+      }
+      return (false, body['message']?.toString() ?? 'نوێکردنەوەی بەرهەم سەرکەوتوو نەبوو');
+    } catch (_) {
+      return (false, 'نوێکردنەوەی بەرهەم سەرکەوتوو نەبوو');
+    }
   }
 
-  Future<void> toggleProductAvailability(int productId) async {
-    if (!await ensureAuthenticated()) return;
-    await http
-        .patch(Uri.parse('$baseUrl/vendor/products/$productId/availability'), headers: _headers())
-        .timeout(const Duration(seconds: 5));
+  Future<(bool, String)> toggleProductAvailability(int productId) async {
+    if (!await ensureAuthenticated()) {
+      return (false, 'پەیوەندی بە سێرڤەرەوە نییە');
+    }
+    try {
+      final res = await http
+          .patch(Uri.parse('$baseUrl/vendor/products/$productId/availability'), headers: _headers())
+          .timeout(const Duration(seconds: 5));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        return (true, 'دۆخی بەرهەم نوێکرایەوە');
+      }
+      final body = res.body.isNotEmpty
+          ? (regaJsonDecode(res.body) as Map<String, dynamic>)
+          : <String, dynamic>{};
+      return (false, body['message']?.toString() ?? 'گۆڕینی دۆخی بەرهەم سەرکەوتوو نەبوو');
+    } catch (_) {
+      return (false, 'گۆڕینی دۆخی بەرهەم سەرکەوتوو نەبوو');
+    }
   }
 
-  Future<void> deleteProduct(int productId) async {
-    if (!await ensureAuthenticated()) return;
-    await http
-        .delete(Uri.parse('$baseUrl/vendor/products/$productId'), headers: _headers())
-        .timeout(const Duration(seconds: 5));
+  Future<(bool, String)> deleteProduct(int productId) async {
+    if (!await ensureAuthenticated()) {
+      return (false, 'پەیوەندی بە سێرڤەرەوە نییە');
+    }
+    try {
+      final res = await http
+          .delete(Uri.parse('$baseUrl/vendor/products/$productId'), headers: _headers())
+          .timeout(const Duration(seconds: 5));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        return (true, 'بەرهەم سڕایەوە');
+      }
+      final body = res.body.isNotEmpty
+          ? (regaJsonDecode(res.body) as Map<String, dynamic>)
+          : <String, dynamic>{};
+      return (false, body['message']?.toString() ?? 'سڕینەوەی بەرهەم سەرکەوتوو نەبوو');
+    } catch (_) {
+      return (false, 'سڕینەوەی بەرهەم سەرکەوتوو نەبوو');
+    }
   }
 
 

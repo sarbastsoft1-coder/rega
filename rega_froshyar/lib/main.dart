@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -26,6 +27,9 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' show MapboxOptions
 import 'map/mapbox_tiles.dart';
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
+
+part 'products_menu_screen.dart';
+
 // ==============================================================================
 // 🔔 خزمەتگوزاری دەنگی موزیک و ئاگادارکردنەوە بۆ داواکارییە نوێیەکان (Order Sound Service)
 // ئەم بەشە بەرپرسە لە لێدانی زەنگی گەورە و بەهێز بۆ داواکاری نوێ
@@ -170,12 +174,56 @@ class Trans {
      'REGA - LIVE': {'en': 'REGA - LIVE', 'ar': 'ريجا - مباشر'},
      'داواکارییە چالاکەکان': {'en': 'Active Orders', 'ar': 'الطلبات النشطة'},
      'چاوەڕوانکراو': {'en': 'Pending', 'ar': 'قيد الانتظار'},
+     'داواکاری نوێ': {'en': 'New Order', 'ar': 'طلب جديد'},
+     'قبوڵکراو': {'en': 'Accepted', 'ar': 'مقبول'},
      'لە ئامادەکردندایە': {'en': 'Preparing', 'ar': 'جاري التجهيز'},
      'ئامادەیە بۆ شۆفێر': {'en': 'Ready for Driver', 'ar': 'جاهز للسائق'},
+     'تەواوبوو': {'en': 'Completed', 'ar': 'مكتمل'},
      'تەواو': {'en': 'Completed', 'ar': 'مكتمل'},
      'پاشگەزبوونەوە': {'en': 'Cancelled', 'ar': 'ملغى'},
      'ڕەتکردنەوە': {'en': 'Reject', 'ar': 'رفض'},
+     'رەتکردنەوە': {'en': 'Reject', 'ar': 'رفض'},
      'قبولکردن': {'en': 'Accept', 'ar': 'قبول'},
+     'قبوڵکردن': {'en': 'Accept', 'ar': 'قبول'},
+     'تاقیکردنەوەی داواکاری نوێ': {'en': 'Test New Order', 'ar': 'تجربة طلب جديد'},
+     'تاقیکردنەوەی داواکاری': {'en': 'Test Order', 'ar': 'تجربة طلب'},
+     'ناوی کڕیار': {'en': 'Customer Name', 'ar': 'اسم الزبون'},
+     'ناونیشانی کڕیار': {'en': 'Customer Address', 'ar': 'عنوان الزبون'},
+     'دەستپێکردنی ئامادەکردن': {'en': 'Start Preparing', 'ar': 'بدء التجهيز'},
+     'کۆی گشتی :': {'en': 'Total :', 'ar': 'الإجمالي :'},
+     'کاتی پێچوون :': {'en': 'Prep time :', 'ar': 'وقت التجهيز :'},
+     'کاتی ماوە :': {'en': 'Time left :', 'ar': 'الوقت المتبقي :'},
+     'مۆبایلی کڕیار': {'en': 'Customer Mobile', 'ar': 'موبايل الزبون'},
+     'دۆخ': {'en': 'Status', 'ar': 'الحالة'},
+     'شۆفێر': {'en': 'Driver', 'ar': 'السائق'},
+     'دینار': {'en': 'IQD', 'ar': 'دينار'},
+     'خولەک': {'en': 'min', 'ar': 'دقيقة'},
+     'چرکە': {'en': 'sec', 'ar': 'ثانية'},
+     'چاوەڕوانی شۆفێر': {'en': 'Waiting for driver', 'ar': 'بانتظار السائق'},
+     'تێبینی : کڕیار لە': {'en': 'Note: Customer ordering from', 'ar': 'ملاحظة: الزبون يطلب من'},
+     'داوای دەکات': {'en': 'is ordering', 'ar': 'يطلب'},
+     'سرینەوەی داواکاری': {'en': 'Delete Order', 'ar': 'حذف الطلب'},
+     'سڕینەوەی داواکاری': {'en': 'Delete Order', 'ar': 'حذف الطلب'},
+     'سرینەوەی تەواوبووەکان': {'en': 'Clear Completed', 'ar': 'حذف المكتملة'},
+     'وردەکاری': {'en': 'Details', 'ar': 'التفاصيل'},
+     'دڵنیایت لە سڕینەوەی ئەم داواکارییە؟': {'en': 'Delete this order?', 'ar': 'هل تريد حذف هذا الطلب؟'},
+     'ئایا دڵنیایت لە سڕینەوەی ئەم داواکارییە؟': {'en': 'Are you sure you want to delete this order?', 'ar': 'هل أنت متأكد من حذف هذا الطلب؟'},
+     'دڵنیایت لە سڕینەوەی هەموو داواکاری تەواوبووەکان؟': {'en': 'Clear all completed orders?', 'ar': 'هل تريد حذف كل الطلبات المكتملة؟'},
+     'بەڵێ، بسڕەوە': {'en': 'Yes, delete', 'ar': 'نعم، احذف'},
+     'سڕینەوە': {'en': 'Delete', 'ar': 'حذف'},
+     'تێبینی': {'en': 'Note', 'ar': 'ملاحظة'},
+     'تکایە هۆکاری ڕەتکردنەوە بنووسە': {'en': 'Please write a rejection reason', 'ar': 'يرجى كتابة سبب الرفض'},
+     'قبوڵکردنی داواکاری سەرکەوتوو نەبوو': {'en': 'Failed to accept order', 'ar': 'فشل قبول الطلب'},
+     'ڕەتکردنەوە سەرکەوتوو نەبوو': {'en': 'Failed to reject order', 'ar': 'فشل رفض الطلب'},
+     'نوێکردنەوەی بەش سەرکەوتوو نەبوو': {'en': 'Failed to update category', 'ar': 'فشل تحديث القسم'},
+     'بەش نوێکرایەوە': {'en': 'Category updated', 'ar': 'تم تحديث القسم'},
+     'بەش نەدۆزرایەوە': {'en': 'Category not found', 'ar': 'القسم غير موجود'},
+     'بەرهەم نوێکرایەوە': {'en': 'Product updated', 'ar': 'تم تحديث المنتج'},
+     'نوێکردنەوەی بەرهەم سەرکەوتوو نەبوو': {'en': 'Failed to update product', 'ar': 'فشل تحديث المنتج'},
+     'دۆخی بەرهەم نوێکرایەوە': {'en': 'Product status updated', 'ar': 'تم تحديث حالة المنتج'},
+     'گۆڕینی دۆخی بەرهەم سەرکەوتوو نەبوو': {'en': 'Failed to update product status', 'ar': 'فشل تحديث حالة المنتج'},
+     'بەرهەم سڕایەوە': {'en': 'Product deleted', 'ar': 'تم حذف المنتج'},
+     'سڕینەوەی بەرهەم سەرکەوتوو نەبوو': {'en': 'Failed to delete product', 'ar': 'فشل حذف المنتج'},
      'ڕادەستکردنی داواکاری': {'en': 'Deliver Order', 'ar': 'تسليم الطلب'},
      'هیچ داواکارییەک نییە': {'en': 'No Orders', 'ar': 'لا توجد طلبات'},
      'لە کاتی هاتنی داواکاری لە ئەپی کڕیاران لێرە دەردەکەوێت': {'en': 'When orders arrive from the customer app, they will appear here.', 'ar': 'عند وصول الطلبات من تطبيق العملاء ستظهر هنا'},
@@ -229,6 +277,35 @@ class Trans {
      'بەردەست': {'en': 'Available', 'ar': 'متاح'},
      'بەردەستە': {'en': 'Available', 'ar': 'متاح'},
      'نابەردەست': {'en': 'Unavailable', 'ar': 'غير متاح'},
+     'نەماوە': {'en': 'Out of stock', 'ar': 'غير متوفر'},
+     'داشکاندن': {'en': 'Discounted', 'ar': 'مخفض'},
+     'بەرهەمی نوێ': {'en': 'New Product', 'ar': 'منتج جديد'},
+     'مێنۆ و بەرهەمەکان': {'en': 'Menu & Products', 'ar': 'القائمة والمنتجات'},
+     'بەشەکان': {'en': 'Categories', 'ar': 'الأقسام'},
+     'بەڕێوەبردنی بەشەکان': {'en': 'Manage Categories', 'ar': 'إدارة الأقسام'},
+     'بەشەکانی مێنۆ': {'en': 'Menu Categories', 'ar': 'أقسام القائمة'},
+     'زیادکردنی بەش': {'en': 'Add section', 'ar': 'إضافة قسم'},
+     'هیچ بەشێک زیاد نەکراوە': {'en': 'No sections have been added', 'ar': 'لم تتم إضافة أي أقسام'},
+     '...ناوی بەش بنووسە': {'en': '...Write section name', 'ar': '...اكتب اسم القسم'},
+     'هەڵبژاردنی وێنە': {'en': 'Select image', 'ar': 'اختيار صورة'},
+     'هیچ بابەتێک لەم بەشەدا نییە': {'en': 'No items in this section', 'ar': 'لا توجد عناصر في هذا القسم'},
+     'دەستکاری بابەت': {'en': 'Edit item', 'ar': 'تعديل العنصر'},
+     'ناوی بابەت بە کوردی': {'en': 'Item name in Kurdish', 'ar': 'اسم العنصر بالكردية'},
+     'ناوی بابەت بە عەرەبی': {'en': 'Item name in Arabic', 'ar': 'اسم العنصر بالعربية'},
+     'وەسف': {'en': 'Description', 'ar': 'الوصف'},
+     'داشکان': {'en': 'Discount', 'ar': 'الخصم'},
+     'کاتی پێچوون (خولەک)': {'en': 'Prep time (min)', 'ar': 'وقت التحضير (دقيقة)'},
+     'نرخی گەیاندن': {'en': 'Delivery price', 'ar': 'سعر التوصيل'},
+     'زیادکردنی تایبەتمەندی +': {'en': 'Add feature +', 'ar': 'إضافة ميزة +'},
+     'سڕینەوەی بەش': {'en': 'Delete section', 'ar': 'حذف القسم'},
+     'نرخ': {'en': 'Price', 'ar': 'السعر'},
+     'تاقیکردنەوەی دەنگ': {'en': 'Sound test', 'ar': 'اختبار الصوت'},
+     'گالەری': {'en': 'Gallery', 'ar': 'المعرض'},
+     'گۆڕینی ناوی بەش': {'en': 'Rename Category', 'ar': 'تعديل اسم القسم'},
+     'هیچ بەشێک نییە': {'en': 'No categories yet', 'ar': 'لا توجد أقسام بعد'},
+     'پاشەکەوتکردن': {'en': 'Save', 'ar': 'حفظ'},
+     '...گەڕان': {'en': '...Search', 'ar': '...بحث'},
+     'دەستکاری': {'en': 'Edit', 'ar': 'تعديل'},
      'تۆمارکردنی بەرهەم': {'en': 'Save Product', 'ar': 'حفظ المنتج'},
      'هیچ بەرهەمێک نەدۆزرایەوە': {'en': 'No Products Found', 'ar': 'لم يتم العثور على منتجات'},
      'دەتوانیت بە کلیک لەسەر دوگمەی (بەرهەمی نوێ) یەکەمین کاڵا زیادبکەیت.': {'en': 'You can add your first item by clicking (Add Product).', 'ar': 'يمكنك إضافة العنصر الأول بالنقر على (إضافة منتج).'},
@@ -788,7 +865,7 @@ class Product {
   });
 }
 
-enum OrderStatus { pending, preparing, ready, completed, rejected }
+enum OrderStatus { pending, accepted, preparing, ready, completed, rejected }
 
 class Order {
   final String id;
@@ -802,6 +879,8 @@ class Order {
   final String handoverPin;
   final String? customerNotes;
   final int? dbId;
+  String? rejectReason;
+  DateTime? acceptedAt;
   String? driverName;
   String? driverPhone;
   String? driverVehicle;
@@ -824,6 +903,8 @@ class Order {
     this.handoverPin = '',
     this.customerNotes,
     this.dbId,
+    this.rejectReason,
+    this.acceptedAt,
     this.driverName,
     this.driverPhone,
     this.driverVehicle,
@@ -854,6 +935,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   String _businessName = t('فرۆشگا');
   Timer? _backendPollTimer;
   final Set<int> _seenBackendOrderIds = {};
+  /// Preserves UI stages (accepted vs preparing) when backend collapses both to `preparing`.
+  final Map<int, OrderStatus> _localOrderStages = {};
   
   @override
   void initState() {
@@ -880,6 +963,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   
   // Central Dynamic State (Synchronized 100% dynamically with PostgreSQL Backend)
   final List<String> _categories = [];
+  final Map<String, String> _categoryImages = {};
   final List<Product> _products = [];
   final List<Order> _orders = [];
 
@@ -893,6 +977,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   OrderStatus _mapBackendVendorStatus(String raw) {
     switch (raw) {
+      case 'accepted':
+        return OrderStatus.accepted;
       case 'preparing':
         return OrderStatus.preparing;
       case 'ready':
@@ -908,6 +994,68 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       default:
         return OrderStatus.pending;
     }
+  }
+
+  OrderStatus _resolveSyncedStatus(int? dbId, String raw) {
+    final backend = _mapBackendVendorStatus(raw);
+    if (dbId == null) return backend;
+
+    if (backend == OrderStatus.ready ||
+        backend == OrderStatus.completed ||
+        backend == OrderStatus.rejected ||
+        backend == OrderStatus.pending) {
+      _localOrderStages.remove(dbId);
+      return backend;
+    }
+
+    final local = _localOrderStages[dbId];
+    if (backend == OrderStatus.preparing) {
+      if (local == OrderStatus.accepted || local == OrderStatus.preparing) {
+        return local!;
+      }
+      // Fresh from server after accept elsewhere → treat as preparing.
+      return OrderStatus.preparing;
+    }
+    return backend;
+  }
+
+  void _rememberLocalStage(int? dbId, OrderStatus status) {
+    if (dbId == null) return;
+    if (status == OrderStatus.accepted || status == OrderStatus.preparing) {
+      _localOrderStages[dbId] = status;
+    } else {
+      _localOrderStages.remove(dbId);
+    }
+  }
+
+  void _simulateNewOrder() {
+    final demo = Order(
+      id: 'T-${DateTime.now().millisecondsSinceEpoch % 100000}#',
+      items: const ['2x پیتزا پێپەرۆنی'],
+      total: 16800,
+      status: OrderStatus.pending,
+      timestamp: DateTime.now(),
+      customerName: 'بەڵێن قادر',
+      customerPhone: '07718829911',
+      deliveryAddress: 'گەڕەکی کەلاری کۆن - شەقامی سەرەکی، کۆڵانی بەرامبەر',
+      driverName: 'کاروان محەمەد',
+    );
+    setState(() {
+      _orders.insert(0, demo);
+      _selectedIndex = 3;
+    });
+    context.read<VendorNavNotifier>().setTabIndex(3);
+    if (_soundEnabled) {
+      OrderSoundService.playNewOrderAlert(soundEnabled: true);
+    }
+  }
+
+  void _deleteOrderById(String id) {
+    setState(() => _orders.removeWhere((o) => o.id == id));
+  }
+
+  void _clearCompletedOrders() {
+    setState(() => _orders.removeWhere((o) => o.status == OrderStatus.completed));
   }
 
   Future<void> _initBackendVendorSync({bool forceRelogin = false}) async {
@@ -954,11 +1102,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         }
         // Replace catalog only when the API succeeded (non-null). Empty list is valid.
         if (cats != null) {
-          _categories
-            ..clear()
-            ..addAll(cats
-                .map((c) => (c as Map<String, dynamic>)['name_ku']?.toString() ?? '')
-                .where((s) => s.isNotEmpty));
+          _categories.clear();
+          _categoryImages.clear();
+          for (final raw in cats) {
+            final c = raw as Map<String, dynamic>;
+            final name = c['name_ku']?.toString() ?? '';
+            if (name.isEmpty) continue;
+            _categories.add(name);
+            final img = VendorApiService.instance.resolveMediaUrl(c['image_url']?.toString());
+            if (img.isNotEmpty) _categoryImages[name] = img;
+          }
         }
         if (prods != null) {
           _products
@@ -1020,14 +1173,21 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             })
             .toList();
 
+        final resolved = _resolveSyncedStatus(dbId, vStatus);
+        final acceptedAt = DateTime.tryParse(m['accepted_at']?.toString() ?? '')?.toLocal() ??
+            (resolved == OrderStatus.accepted || resolved == OrderStatus.preparing
+                ? DateTime.tryParse(m['created_at']?.toString() ?? '')?.toLocal()
+                : null);
+
         parsed.add(
           Order(
             id: '${m['order_number'] ?? 'RA-$dbId'}#',
             dbId: dbId,
             items: itemsList.isEmpty ? ['1x داواکاری'] : itemsList,
             total: ((m['subtotal'] ?? m['total_amount'] ?? 0) as num).toDouble(),
-            status: _mapBackendVendorStatus(vStatus),
+            status: resolved,
             timestamp: DateTime.tryParse(m['created_at']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
+            acceptedAt: acceptedAt,
             customerName: m['customer_name']?.toString() ?? m['customer']?['name']?.toString() ?? 'کڕیار',
             customerPhone: m['customer_phone']?.toString() ?? m['customer']?['phone']?.toString() ?? '',
             deliveryAddress: m['delivery_address']?.toString() ?? '',
@@ -1053,9 +1213,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
       if (!mounted) return;
       setState(() {
+        final localOnly = _orders.where((o) => o.dbId == null).toList();
         _orders
           ..clear()
-          ..addAll(parsed);
+          ..addAll(parsed)
+          ..addAll(localOnly);
       });
 
       if (hasBrandNewPending && _soundEnabled) {
@@ -1071,27 +1233,79 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   void _toggleProductAvailability(String id) {
-    setState(() {
-      final product = _products.firstWhere((p) => p.id == id);
-      product.isAvailable = !product.isAvailable;
-      final pid = int.tryParse(id);
-      if (pid != null) {
-        VendorApiService.instance.toggleProductAvailability(pid);
+    final product = _products.firstWhere((p) => p.id == id);
+    final previous = product.isAvailable;
+    setState(() => product.isAvailable = !previous);
+    final pid = int.tryParse(id);
+    if (pid == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx('دۆخی بەرهەم نوێکرایەوە'), textAlign: TextAlign.center),
+          backgroundColor: RC.bg(const Color(0xFF00894C)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    VendorApiService.instance.toggleProductAvailability(pid).then((res) {
+      if (!mounted) return;
+      final (ok, msg) = res;
+      if (!ok) {
+        setState(() => product.isAvailable = previous);
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(msg), textAlign: TextAlign.center),
+          backgroundColor: ok ? RC.bg(const Color(0xFF00894C)) : RC.bg(const Color(0xFFE50010)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     });
   }
 
   void _deleteProduct(String id) {
-    setState(() {
-      _products.removeWhere((p) => p.id == id);
-      final pid = int.tryParse(id);
-      if (pid != null) {
-        VendorApiService.instance.deleteProduct(pid);
+    final index = _products.indexWhere((p) => p.id == id);
+    if (index == -1) return;
+    final removed = _products[index];
+    setState(() => _products.removeAt(index));
+    final pid = int.tryParse(id);
+    if (pid == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx('بەرهەم سڕایەوە'), textAlign: TextAlign.center),
+          backgroundColor: RC.bg(const Color(0xFF00894C)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    VendorApiService.instance.deleteProduct(pid).then((res) {
+      if (!mounted) return;
+      final (ok, msg) = res;
+      if (!ok) {
+        setState(() {
+          if (index <= _products.length) {
+            _products.insert(index, removed);
+          } else {
+            _products.add(removed);
+          }
+        });
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(msg), textAlign: TextAlign.center),
+          backgroundColor: ok ? RC.bg(const Color(0xFF00894C)) : RC.bg(const Color(0xFFE50010)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     });
   }
 
-  void _updateOrderStatus(String id, OrderStatus newStatus) {
+  void _updateOrderStatus(String id, OrderStatus newStatus, {String? reason}) {
     final order = _orders.firstWhere((o) => o.id == id);
     final dbId = order.dbId;
 
@@ -1106,36 +1320,110 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
         );
         if (ok) {
-          setState(() => order.status = OrderStatus.completed);
+          setState(() {
+            order.status = OrderStatus.completed;
+            _rememberLocalStage(dbId, OrderStatus.completed);
+          });
           _syncVendorOrdersOnly(initialLoad: false);
         }
       });
       return;
     }
 
+    // Local-only demo orders (no dbId) update immediately.
+    if (dbId == null) {
+      setState(() {
+        order.status = newStatus;
+        if (newStatus == OrderStatus.accepted) {
+          order.acceptedAt ??= DateTime.now();
+        }
+        if (newStatus == OrderStatus.rejected && reason != null && reason.trim().isNotEmpty) {
+          order.rejectReason = reason.trim();
+        }
+      });
+      return;
+    }
+
+    if (newStatus == OrderStatus.accepted) {
+      VendorApiService.instance.acceptOrder(dbId).then((ok) {
+        if (!mounted) return;
+        if (!ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(tx('قبوڵکردنی داواکاری سەرکەوتوو نەبوو')),
+              backgroundColor: RC.bg(Color(0xFFE50010)),
+            ),
+          );
+          return;
+        }
+        setState(() {
+          order.status = OrderStatus.accepted;
+          order.acceptedAt ??= DateTime.now();
+          _rememberLocalStage(dbId, OrderStatus.accepted);
+        });
+      });
+      return;
+    }
+
+    if (newStatus == OrderStatus.preparing) {
+      // Backend already set preparing on accept; advance local UI stage only.
+      setState(() {
+        order.status = OrderStatus.preparing;
+        order.acceptedAt ??= DateTime.now();
+        _rememberLocalStage(dbId, OrderStatus.preparing);
+      });
+      return;
+    }
+
+    if (newStatus == OrderStatus.ready) {
+      VendorApiService.instance.markReady(dbId).then((res) {
+        final (ok, msg, data) = res;
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tx(msg)),
+            backgroundColor: ok ? RC.bg(Color(0xFF00894C)) : RC.bg(Color(0xFFEA580C)),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        if (ok) {
+          setState(() {
+            order.status = OrderStatus.ready;
+            _rememberLocalStage(dbId, OrderStatus.ready);
+          });
+          _syncVendorOrdersOnly(initialLoad: false);
+        }
+      });
+      return;
+    }
+
+    if (newStatus == OrderStatus.rejected) {
+      VendorApiService.instance.rejectOrder(dbId, reason: reason).then((ok) {
+        if (!mounted) return;
+        if (!ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(tx('ڕەتکردنەوە سەرکەوتوو نەبوو')),
+              backgroundColor: RC.bg(Color(0xFFE50010)),
+            ),
+          );
+          return;
+        }
+        setState(() {
+          order.status = OrderStatus.rejected;
+          if (reason != null && reason.trim().isNotEmpty) {
+            order.rejectReason = reason.trim();
+          }
+          _rememberLocalStage(dbId, OrderStatus.rejected);
+        });
+        _syncVendorOrdersOnly(initialLoad: false);
+      });
+      return;
+    }
+
     setState(() {
       order.status = newStatus;
-      if (dbId != null) {
-        if (newStatus == OrderStatus.preparing) {
-          VendorApiService.instance.acceptOrder(dbId);
-        } else if (newStatus == OrderStatus.ready) {
-          VendorApiService.instance.markReady(dbId).then((res) {
-            final (ok, msg, data) = res;
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(tx(msg)),
-                  backgroundColor: ok ? RC.bg(Color(0xFF00894C)) : RC.bg(Color(0xFFEA580C)),
-                  duration: const Duration(seconds: 4),
-                ),
-              );
-              _syncVendorOrdersOnly(initialLoad: false);
-            }
-          });
-        } else if (newStatus == OrderStatus.rejected) {
-          VendorApiService.instance.rejectOrder(dbId);
-        }
-      }
+      _rememberLocalStage(dbId, newStatus);
     });
   }
 
@@ -1176,11 +1464,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   Future<void> _addCategory(String category, {String? imageUrl}) async {
     if (_categories.contains(category)) return;
-    setState(() => _categories.add(category));
+    setState(() {
+      _categories.add(category);
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        _categoryImages[category] = imageUrl;
+      }
+    });
     final id = await VendorApiService.instance.addCategory(category, imageUrl: imageUrl);
     if (!mounted) return;
     if (id == null) {
-      setState(() => _categories.remove(category));
+      setState(() {
+        _categories.remove(category);
+        _categoryImages.remove(category);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(tx('پاشەکەوتکردنی بەش سەرکەوتوو نەبوو — تکایە دووبارە هەوڵ بدە'), textAlign: TextAlign.center),
@@ -1192,33 +1488,94 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     await _initBackendVendorSync();
   }
 
+  Future<void> _updateCategory(String oldName, String newName, {String? imageUrl}) async {
+    final (ok, msg) = await VendorApiService.instance.updateCategory(
+      oldNameKu: oldName,
+      newNameKu: newName,
+      imageUrl: imageUrl,
+    );
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(msg), textAlign: TextAlign.center),
+          backgroundColor: RC.bg(const Color(0xFFE50010)),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      final idx = _categories.indexOf(oldName);
+      if (idx != -1) _categories[idx] = newName;
+      final prevImg = _categoryImages.remove(oldName);
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        _categoryImages[newName] = imageUrl;
+      } else if (prevImg != null) {
+        _categoryImages[newName] = prevImg;
+      }
+      for (final p in _products) {
+        if (p.category.trim() == oldName.trim()) p.category = newName;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tx('بەش نوێکرایەوە'), textAlign: TextAlign.center),
+        backgroundColor: RC.bg(const Color(0xFF00894C)),
+      ),
+    );
+  }
+
   void _deleteCategory(String category) {
     setState(() {
       _categories.remove(category);
+      _categoryImages.remove(category);
       VendorApiService.instance.deleteCategoryByName(category);
     });
   }
 
   void _editProduct(Product product) {
-    setState(() {
-      final index = _products.indexWhere((p) => p.id == product.id);
-      if (index != -1) {
-        _products[index] = product;
-        final pid = int.tryParse(product.id);
-        if (pid != null) {
-          VendorApiService.instance.updateProduct(
-            productId: pid,
-            nameKu: product.name,
-            categoryName: product.category,
-            price: product.price.round(),
-            costPrice: product.costPrice.round(),
-            discountPrice: product.discountPrice?.round(),
-            descriptionKu: product.description,
-            imageUrl: product.imageUrl,
-            isAvailable: product.isAvailable,
-          );
-        }
+    final index = _products.indexWhere((p) => p.id == product.id);
+    if (index == -1) return;
+    final previous = _products[index];
+    setState(() => _products[index] = product);
+    final pid = int.tryParse(product.id);
+    if (pid == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx('بەرهەم نوێکرایەوە'), textAlign: TextAlign.center),
+          backgroundColor: RC.bg(const Color(0xFF00894C)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    VendorApiService.instance
+        .updateProduct(
+          productId: pid,
+          nameKu: product.name,
+          categoryName: product.category,
+          price: product.price.round(),
+          costPrice: product.costPrice.round(),
+          discountPrice: product.discountPrice?.round(),
+          descriptionKu: product.description,
+          imageUrl: product.imageUrl,
+          isAvailable: product.isAvailable,
+        )
+        .then((res) {
+      if (!mounted) return;
+      final (ok, msg) = res;
+      if (!ok) {
+        setState(() => _products[index] = previous);
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(msg), textAlign: TextAlign.center),
+          backgroundColor: ok ? RC.bg(const Color(0xFF00894C)) : RC.bg(const Color(0xFFE50010)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     });
   }
 
@@ -1236,60 +1593,87 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
-  /// Online/Offline Capsule Switch styled exactly after reference (Image 2)
+  /// Online/Offline pill switch: green ON / coral OFF with label (header style).
   Widget _buildOnlineOfflineSwitch() {
-    return Semantics(
-      button: true,
-      toggled: _isOnline,
-      label: _isOnline ? 'Online' : 'Offline',
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _isOnline = !_isOnline;
-            VendorApiService.instance.updateOnlineStatus(_isOnline);
-          });
-        },
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-          decoration: BoxDecoration(
-            color: RC.bg(Colors.black).withOpacity(0.18),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: RC.bg(Colors.white).withOpacity(0.25),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 40,
-                height: 22,
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: _isOnline ? RC.bg(const Color(0xFF10B981)) : RC.bg(Colors.black45),
-                  borderRadius: BorderRadius.circular(12),
+    const onGreen = Color(0xFF22C55E);
+    const offCoral = Color(0xFFFF7272);
+    // Keep LTR so thumb/label positions match the design regardless of app RTL.
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Semantics(
+        button: true,
+        toggled: _isOnline,
+        label: _isOnline ? 'ON' : 'OFF',
+        child: GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            setState(() {
+              _isOnline = !_isOnline;
+              VendorApiService.instance.updateOnlineStatus(_isOnline);
+            });
+          },
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            width: 72,
+            height: 32,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: RC.bg(_isOnline ? onGreen : offCoral),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
                 ),
-                alignment: _isOnline ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    color: RC.bg(Colors.white),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: RC.bg(Colors.black26),
-                        blurRadius: 3,
-                        offset: const Offset(0, 1),
+              ],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Align(
+                  alignment: _isOnline ? Alignment.centerLeft : Alignment.centerRight,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: _isOnline ? 8 : 0,
+                      right: _isOnline ? 0 : 8,
+                    ),
+                    child: Text(
+                      _isOnline ? 'ON' : 'OFF',
+                      style: TextStyle(
+                        color: RC.fg(Colors.white),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 11,
+                        letterSpacing: 0.4,
+                        height: 1,
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+                AnimatedAlign(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  alignment: _isOnline ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: RC.bg(Colors.white),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.18),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1312,50 +1696,141 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         orders: _orders,
         onRefresh: () => _syncVendorOrdersOnly(initialLoad: false),
       ),
-      ProductsScreen(
-        products: _products, 
+      ProductsMenuScreen(
+        products: _products,
         categories: _categories,
+        categoryImages: _categoryImages,
         onToggle: _toggleProductAvailability,
         onDelete: _deleteProduct,
         onAdd: _addProduct,
         onEdit: _editProduct,
         onAddCategory: _addCategory,
         onDeleteCategory: _deleteCategory,
-        onStoreDiscount: _applyStoreWideDiscount,
+        onUpdateCategory: _updateCategory,
       ),
       OrdersScreen(
         orders: _orders,
         onUpdateStatus: _updateOrderStatus,
         onOrdersChanged: () => _syncVendorOrdersOnly(initialLoad: false),
+        onSimulateNewOrder: _simulateNewOrder,
+        onDeleteOrder: _deleteOrderById,
+        onClearCompletedOrders: _clearCompletedOrders,
       ),
     ];
 
     bool isRtl = _language != 'en';
-    final bool isOrdersTab = _selectedIndex == 3;
+    final bool isProductsTab = _selectedIndex == 2;
 
     return Directionality(
       textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
         backgroundColor: RC.bg(Colors.white),
         appBar: PreferredSize(
-          preferredSize: Size.fromHeight(isOrdersTab ? 56 : 80),
-          child: isOrdersTab
+          preferredSize: Size.fromHeight(isProductsTab ? 64 : 80),
+          child: isProductsTab
               ? AppBar(
                   backgroundColor: RC.bg(Colors.white),
                   elevation: 0,
                   scrolledUnderElevation: 0,
                   surfaceTintColor: Colors.transparent,
                   automaticallyImplyLeading: false,
-                  centerTitle: false,
-                  titleSpacing: 20,
-                  title: Text(
-                    t('داواکارییەکان'),
-                    style: TextStyle(
-                      color: RC.fg(const Color(0xFF1E293B)),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 20,
-                      fontFamily: kAppFontFamily,
-                      letterSpacing: -0.2,
+                  toolbarHeight: 64,
+                  titleSpacing: 12,
+                  title: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            // Right in RTL: store status
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: RC.bg(const Color(0xFFFFF7ED)),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.storefront_rounded, color: RC.fg(const Color(0xFFFF6418)), size: 20),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    tx(_businessName),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: RC.fg(const Color(0xFF0F172A)),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14,
+                                      fontFamily: kAppFontFamily,
+                                    ),
+                                  ),
+                                  Text(
+                                    _isOnline ? t('کراوەیە') : t('داخراوە'),
+                                    style: TextStyle(
+                                      color: RC.fg(_isOnline ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11,
+                                      fontFamily: kAppFontFamily,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() => _soundEnabled = !_soundEnabled);
+                                if (_soundEnabled) OrderSoundService.playTestTone();
+                              },
+                              child: Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: RC.bg(const Color(0xFFFF6418)), width: 1.2),
+                                ),
+                                child: Icon(
+                                  _soundEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                                  color: RC.fg(const Color(0xFFFF6418)),
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Switch.adaptive(
+                                  value: _isOnline,
+                                  activeColor: const Color(0xFF16A34A),
+                                  onChanged: (v) {
+                                    setState(() {
+                                      _isOnline = v;
+                                      VendorApiService.instance.updateOnlineStatus(v);
+                                    });
+                                  },
+                                ),
+                                Text(
+                                  _isOnline ? t('کراوەیە') : t('داخراوە'),
+                                  style: TextStyle(
+                                    color: RC.fg(_isOnline ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 10,
+                                    fontFamily: kAppFontFamily,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        IgnorePointer(child: _buildTopLogo()),
+                      ],
                     ),
                   ),
                 )
@@ -2012,14 +2487,20 @@ void showFullScreenImageDialog(BuildContext context, {String? imageUrl, ImagePro
 
 class OrdersScreen extends StatefulWidget {
   final List<Order> orders;
-  final Function(String, OrderStatus) onUpdateStatus;
+  final void Function(String id, OrderStatus status, {String? reason}) onUpdateStatus;
   final VoidCallback? onOrdersChanged;
+  final VoidCallback? onSimulateNewOrder;
+  final ValueChanged<String>? onDeleteOrder;
+  final VoidCallback? onClearCompletedOrders;
 
   const OrdersScreen({
     super.key,
     required this.orders,
     required this.onUpdateStatus,
     this.onOrdersChanged,
+    this.onSimulateNewOrder,
+    this.onDeleteOrder,
+    this.onClearCompletedOrders,
   });
 
   @override
@@ -2028,17 +2509,36 @@ class OrdersScreen extends StatefulWidget {
 
 class _OrdersScreenState extends State<OrdersScreen> {
   List<Order> get orders => widget.orders;
-  Function(String, OrderStatus) get onUpdateStatus => widget.onUpdateStatus;
+  void Function(String id, OrderStatus status, {String? reason}) get onUpdateStatus => widget.onUpdateStatus;
 
   List<Map<String, dynamic>> _drivers = [];
   String? _selectedOrderId;
   Timer? _driversTimer;
+  int _statusTab = 0; // 0 new, 1 accepted, 2 preparing, 3 ready, 4 completed
+
+  static const _statusTabs = <({OrderStatus status, String label})>[
+    (status: OrderStatus.pending, label: 'داواکاری نوێ'),
+    (status: OrderStatus.accepted, label: 'قبوڵکراو'),
+    (status: OrderStatus.preparing, label: 'لە ئامادەکردندایە'),
+    (status: OrderStatus.ready, label: 'ئامادەیە بۆ شۆفێر'),
+    (status: OrderStatus.completed, label: 'تەواوبوو'),
+  ];
 
   @override
   void initState() {
     super.initState();
     _loadDrivers();
     _driversTimer = Timer.periodic(const Duration(seconds: 5), (_) => _loadDrivers());
+  }
+
+  @override
+  void didUpdateWidget(covariant OrdersScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldPending = oldWidget.orders.where((o) => o.status == OrderStatus.pending).length;
+    final newPending = orders.where((o) => o.status == OrderStatus.pending).length;
+    if (newPending > oldPending && _statusTab != 0) {
+      _statusTab = 0;
+    }
   }
 
   @override
@@ -2248,11 +2748,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
+  List<Order> get _filteredOrders {
+    final status = _statusTabs[_statusTab].status;
+    final list = orders.where((o) => o.status == status).toList();
+    list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return list;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final activeOrders = orders
-        .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.rejected)
-        .toList();
+    final filtered = _filteredOrders;
+    final padH = RegaResponsive.pagePadding(context);
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -2261,12 +2767,62 @@ class _OrdersScreenState extends State<OrdersScreen> {
           constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
             children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(padH, 12, padH, 8),
+                child: Row(
+                  textDirection: TextDirection.rtl,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        t('داواکارییە چالاکەکان'),
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          color: RC.fg(const Color(0xFF0F172A)),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 20,
+                          fontFamily: kAppFontFamily,
+                        ),
+                      ),
+                    ),
+                    Material(
+                      color: RC.bg(const Color(0xFFFF6418)),
+                      borderRadius: BorderRadius.circular(14),
+                      child: InkWell(
+                        onTap: () {
+                          OrderSoundService.playTestTone();
+                          widget.onSimulateNewOrder?.call();
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.notifications_active_rounded, color: RC.fg(Colors.white), size: 18),
+                              const SizedBox(width: 6),
+                              Text(
+                                t('تاقیکردنەوەی دەنگ'),
+                                style: TextStyle(
+                                  color: RC.fg(Colors.white),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 12.5,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildStatusTabs(),
               Expanded(
-                child: activeOrders.isEmpty
+                child: filtered.isEmpty
                     ? _buildEmptyState()
                     : LayoutBuilder(
                         builder: (context, constraints) {
-                          final padH = RegaResponsive.pagePadding(context);
                           final crossAxisCount = RegaResponsive.gridCountForWidth(
                             constraints.maxWidth,
                             phone: 1,
@@ -2275,36 +2831,36 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           );
                           if (crossAxisCount == 1) {
                             return ListView.builder(
-                              padding: EdgeInsets.symmetric(horizontal: padH, vertical: 6),
-                              itemCount: activeOrders.length,
+                              padding: EdgeInsets.symmetric(horizontal: padH, vertical: 8),
+                              itemCount: filtered.length,
                               itemBuilder: (context, index) {
-                                return _buildOrderCard(context, activeOrders[index]);
+                                return _buildOrderCard(context, filtered[index]);
                               },
                             );
                           }
-                          if (activeOrders.length == 1) {
+                          if (filtered.length == 1) {
                             return Align(
                               alignment: Alignment.topCenter,
                               child: ConstrainedBox(
                                 constraints: const BoxConstraints(maxWidth: 540),
                                 child: SingleChildScrollView(
-                                  padding: EdgeInsets.symmetric(horizontal: padH, vertical: 6),
-                                  child: _buildOrderCard(context, activeOrders.first),
+                                  padding: EdgeInsets.symmetric(horizontal: padH, vertical: 8),
+                                  child: _buildOrderCard(context, filtered.first),
                                 ),
                               ),
                             );
                           }
                           return GridView.builder(
-                            padding: EdgeInsets.symmetric(horizontal: padH, vertical: 6),
+                            padding: EdgeInsets.symmetric(horizontal: padH, vertical: 8),
                             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: crossAxisCount,
                               crossAxisSpacing: 10,
                               mainAxisSpacing: 10,
                               mainAxisExtent: crossAxisCount >= 3 ? 420 : 440,
                             ),
-                            itemCount: activeOrders.length,
+                            itemCount: filtered.length,
                             itemBuilder: (context, index) {
-                              return _buildOrderCard(context, activeOrders[index]);
+                              return _buildOrderCard(context, filtered[index]);
                             },
                           );
                         },
@@ -2317,7 +2873,100 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
+  Widget _buildStatusTabs() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: RC.bg(Colors.white),
+        border: Border(
+          bottom: BorderSide(color: RC.bg(const Color(0xFFF1F5F9)), width: 1),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          children: List.generate(_statusTabs.length, (i) {
+            final tab = _statusTabs[i];
+            final selected = _statusTab == i;
+            final count = orders.where((o) => o.status == tab.status).length;
+            return InkWell(
+              onTap: () => setState(() => _statusTab = i),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: selected ? RC.bg(const Color(0xFF16A34A)) : Colors.transparent,
+                      width: 3,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      t(tab.label),
+                      style: TextStyle(
+                        color: selected
+                            ? RC.fg(const Color(0xFF0F172A))
+                            : RC.fg(const Color(0xFF94A3B8)),
+                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                        fontSize: 13,
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                    if (count > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? RC.bg(const Color(0xFF16A34A))
+                              : RC.bg(const Color(0xFFE2E8F0)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$count',
+                          style: TextStyle(
+                            color: selected ? RC.fg(Colors.white) : RC.fg(const Color(0xFF64748B)),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  String _extractNeighborhood(String address) {
+    final m = RegExp(r'گەڕەکی\s*[^\s\-–،,]+').firstMatch(address);
+    if (m != null) return m.group(0)!.trim();
+    final parts = address.split(RegExp(r'[\-–،,]'));
+    if (parts.isNotEmpty && parts.first.trim().isNotEmpty) return parts.first.trim();
+    return address.trim().isEmpty ? 'ناونیشان' : address.trim();
+  }
+
   Widget _buildOrderCard(BuildContext context, Order order) {
+    if (order.status == OrderStatus.pending) {
+      return _buildNewOrderArrivalCard(order);
+    }
+    if (order.status == OrderStatus.completed) {
+      return _buildCompletedOrderCard(order);
+    }
+    if (order.status == OrderStatus.accepted ||
+        order.status == OrderStatus.preparing ||
+        order.status == OrderStatus.ready) {
+      return _buildActiveStageOrderCard(order);
+    }
+
     final formattedPrice = '${order.total.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} د.ع';
     String idDisplay = order.id;
     if (!idDisplay.endsWith('#') && !idDisplay.startsWith('#')) {
@@ -2326,7 +2975,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final selected = _selectedOrderId == order.id;
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedOrderId = order.id),
+      onTap: () {
+        setState(() => _selectedOrderId = order.id);
+        _openOrderActionBox(order);
+      },
       child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
       decoration: BoxDecoration(
@@ -2794,13 +3446,1298 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
+  Future<void> _showRejectReasonDialog(Order order) async {
+    final noteCtrl = TextEditingController();
+    String? errorText;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return Directionality(
+              textDirection: TextDirection.rtl,
+              child: Dialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        textDirection: TextDirection.rtl,
+                        children: [
+                          Icon(Icons.warning_amber_rounded, color: RC.fg(const Color(0xFFE11D48)), size: 26),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              t('ڕەتکردنەوە'),
+                              style: TextStyle(
+                                color: RC.fg(const Color(0xFFE11D48)),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 17,
+                                fontFamily: kAppFontFamily,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: noteCtrl,
+                        maxLines: 4,
+                        minLines: 3,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontFamily: kAppFontFamily,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: RC.fg(const Color(0xFF0F172A)),
+                        ),
+                        decoration: InputDecoration(
+                          hintText: t('تێبینی'),
+                          hintStyle: TextStyle(
+                            color: RC.fg(const Color(0xFF94A3B8)),
+                            fontFamily: kAppFontFamily,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          errorText: errorText,
+                          filled: true,
+                          fillColor: RC.bg(Colors.white),
+                          contentPadding: const EdgeInsets.all(14),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: RC.bg(const Color(0xFFE2E8F0)), width: 1.4),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: RC.bg(const Color(0xFFE11D48)), width: 1.6),
+                          ),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: RC.bg(const Color(0xFFE11D48)), width: 1.4),
+                          ),
+                          focusedErrorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: RC.bg(const Color(0xFFE11D48)), width: 1.6),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                final note = noteCtrl.text.trim();
+                                if (note.isEmpty) {
+                                  setDialogState(() {
+                                    errorText = t('تکایە هۆکاری ڕەتکردنەوە بنووسە');
+                                  });
+                                  return;
+                                }
+                                Navigator.pop(ctx, true);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: RC.bg(const Color(0xFFE55B5B)),
+                                foregroundColor: RC.fg(Colors.white),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(vertical: 13),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              child: Text(
+                                t('ڕەتکردنەوە'),
+                                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, fontFamily: kAppFontFamily),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: RC.bg(const Color(0xFFF1F5F9)),
+                                foregroundColor: RC.fg(const Color(0xFF0F172A)),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(vertical: 13),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              child: Text(
+                                t('پاشگەزبوونەوە'),
+                                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, fontFamily: kAppFontFamily),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    final reason = noteCtrl.text.trim();
+    noteCtrl.dispose();
+    if (confirmed == true && reason.isNotEmpty) {
+      onUpdateStatus(order.id, OrderStatus.rejected, reason: reason);
+    }
+  }
+
+  Future<void> _confirmDeleteOrder(Order order) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    textDirection: TextDirection.rtl,
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: RC.fg(const Color(0xFFE11D48)), size: 26),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          t('سڕینەوەی داواکاری'),
+                          style: TextStyle(
+                            color: RC.fg(const Color(0xFFE11D48)),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 17,
+                            fontFamily: kAppFontFamily,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    t('ئایا دڵنیایت لە سڕینەوەی ئەم داواکارییە؟'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: RC.fg(const Color(0xFF334155)),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14.5,
+                      fontFamily: kAppFontFamily,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: RC.bg(const Color(0xFFE55B5B)),
+                            foregroundColor: RC.fg(Colors.white),
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: Text(
+                            t('سڕینەوە'),
+                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, fontFamily: kAppFontFamily),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: RC.bg(const Color(0xFFF1F5F9)),
+                            foregroundColor: RC.fg(const Color(0xFF0F172A)),
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: Text(
+                            t('پاشگەزبوونەوە'),
+                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, fontFamily: kAppFontFamily),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (ok == true) {
+      widget.onDeleteOrder?.call(order.id);
+    }
+  }
+
+  Widget _buildActiveStageOrderCard(Order order) {
+    const green = Color(0xFF0F8A5F);
+    const orange = Color(0xFFFF6418);
+    const redPrice = Color(0xFFE11D48);
+    final neighborhood = _extractNeighborhood(order.deliveryAddress);
+    final phone = order.customerPhone.trim().isEmpty
+        ? '—'
+        : IraqPhoneFormatter.display(order.customerPhone);
+    final address = order.deliveryAddress.trim().isEmpty ? '—' : order.deliveryAddress;
+    final driverName = (order.driverName != null && order.driverName!.trim().isNotEmpty)
+        ? order.driverName!.trim()
+        : t('چاوەڕوانی شۆفێر');
+    final priceStr = '${formatAmountOnly(order.total.toInt())} ${t('دینار')}';
+    final statusLabel = _statusLabelForActionBox(order.status);
+    final actionLabel = _actionButtonLabel(order.status);
+    final next = _nextStatusAfterAction(order.status);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+      decoration: BoxDecoration(
+        color: RC.bg(Colors.white),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0)), width: 1.3),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Tappable info area → opens داواکاری نوێ detail box
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                setState(() => _selectedOrderId = order.id);
+                _openOrderActionBox(order);
+              },
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      textDirection: TextDirection.rtl,
+                      children: [
+                        Text(
+                          statusLabel,
+                          style: TextStyle(
+                            color: RC.fg(green),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                            fontFamily: kAppFontFamily,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          tx(priceStr),
+                          style: TextStyle(
+                            color: RC.fg(redPrice),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                            fontFamily: kAppFontFamily,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    _completedInfoRow(
+                      Icons.person_outline_rounded,
+                      t('ناوی کڕیار'),
+                      order.customerName.trim().isEmpty ? 'کڕیار' : order.customerName,
+                    ),
+                    const SizedBox(height: 10),
+                    _completedInfoRow(Icons.phone_outlined, t('ژمارەی مۆبایل'), phone, valueLtr: true),
+                    const SizedBox(height: 10),
+                    _completedInfoRow(Icons.location_on_outlined, t('ناونیشانی کڕیار'), address),
+                    const SizedBox(height: 12),
+                    Row(
+                      textDirection: TextDirection.rtl,
+                      children: [
+                        Text(
+                          t('شۆفێر'),
+                          style: TextStyle(
+                            color: RC.fg(const Color(0xFF64748B)),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13.5,
+                            fontFamily: kAppFontFamily,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            tx(driverName),
+                            textAlign: TextAlign.left,
+                            style: TextStyle(
+                              color: RC.fg(green),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              fontFamily: kAppFontFamily,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+            child: Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: RC.bg(orange),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.chat_bubble_outline_rounded, color: RC.fg(Colors.white), size: 17),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          tx('کڕیار لە $neighborhood داوا دەکات'),
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            color: RC.fg(Colors.white),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            fontFamily: kAppFontFamily,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      if (next != null) {
+                        onUpdateStatus(order.id, next);
+                        setState(() => _statusTab = _tabIndexForStatus(next));
+                      } else {
+                        _openOrderActionBox(order);
+                      }
+                    },
+                    icon: Icon(
+                      order.status == OrderStatus.accepted
+                          ? Icons.local_fire_department_rounded
+                          : Icons.arrow_forward_rounded,
+                      size: 18,
+                    ),
+                    label: Text(
+                      actionLabel,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14.5,
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: RC.bg(green),
+                      foregroundColor: RC.fg(Colors.white),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompletedOrderCard(Order order) {
+    const green = Color(0xFF0F8A5F);
+    const orange = Color(0xFFFF6418);
+    const redPrice = Color(0xFFE11D48);
+    final neighborhood = _extractNeighborhood(order.deliveryAddress);
+    final phone = order.customerPhone.trim().isEmpty
+        ? '—'
+        : IraqPhoneFormatter.display(order.customerPhone);
+    final address = order.deliveryAddress.trim().isEmpty ? '—' : order.deliveryAddress;
+    final driverName = (order.driverName != null && order.driverName!.trim().isNotEmpty)
+        ? order.driverName!.trim()
+        : t('چاوەڕوانی شۆفێر');
+    final priceStr = '${formatAmountOnly(order.total.toInt())} ${t('دینار')}';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: RC.bg(Colors.white),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0)), width: 1.3),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            textDirection: TextDirection.rtl,
+            children: [
+              Text(
+                t('تەواوبوو'),
+                style: TextStyle(
+                  color: RC.fg(green),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                  fontFamily: kAppFontFamily,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                tx(priceStr),
+                style: TextStyle(
+                  color: RC.fg(redPrice),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                  fontFamily: kAppFontFamily,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _completedInfoRow(Icons.person_outline_rounded, t('ناوی کڕیار'), order.customerName.trim().isEmpty ? 'کڕیار' : order.customerName),
+          const SizedBox(height: 10),
+          _completedInfoRow(Icons.phone_outlined, t('ژمارەی مۆبایل'), phone, valueLtr: true),
+          const SizedBox(height: 10),
+          _completedInfoRow(Icons.location_on_outlined, t('ناونیشانی کڕیار'), address),
+          const SizedBox(height: 12),
+          Row(
+            textDirection: TextDirection.rtl,
+            children: [
+              Text(
+                t('شۆفێر'),
+                style: TextStyle(
+                  color: RC.fg(const Color(0xFF64748B)),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                  fontFamily: kAppFontFamily,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  tx(driverName),
+                  textAlign: TextAlign.left,
+                  style: TextStyle(
+                    color: RC.fg(green),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    fontFamily: kAppFontFamily,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            decoration: BoxDecoration(
+              color: RC.bg(orange),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.chat_bubble_outline_rounded, color: RC.fg(Colors.white), size: 17),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tx('کڕیار لە $neighborhood داوا دەکات'),
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: RC.fg(Colors.white),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      fontFamily: kAppFontFamily,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Material(
+                  color: RC.bg(const Color(0xFFFEE2E2)),
+                  borderRadius: BorderRadius.circular(14),
+                  child: InkWell(
+                    onTap: () => _confirmDeleteOrder(order),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.delete_outline_rounded, color: RC.fg(const Color(0xFFDC2626)), size: 18),
+                          const SizedBox(width: 6),
+                          Text(
+                            t('سرینەوەی داواکاری'),
+                            style: TextStyle(
+                              color: RC.fg(const Color(0xFFDC2626)),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                              fontFamily: kAppFontFamily,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Material(
+                  color: RC.bg(Colors.white),
+                  borderRadius: BorderRadius.circular(14),
+                  child: InkWell(
+                    onTap: () => _openOrderActionBox(order),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.chevron_left_rounded, color: RC.fg(const Color(0xFF334155)), size: 20),
+                          const SizedBox(width: 2),
+                          Text(
+                            t('وردەکاری'),
+                            style: TextStyle(
+                              color: RC.fg(const Color(0xFF0F172A)),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                              fontFamily: kAppFontFamily,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _completedInfoRow(IconData icon, String label, String value, {bool valueLtr = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      textDirection: TextDirection.rtl,
+      children: [
+        Icon(icon, size: 18, color: RC.fg(const Color(0xFF64748B))),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 108,
+          child: Text(
+            tx(label),
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: RC.fg(const Color(0xFF64748B)),
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              fontFamily: kAppFontFamily,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            tx(value),
+            textAlign: TextAlign.left,
+            textDirection: valueLtr ? TextDirection.ltr : TextDirection.rtl,
+            style: TextStyle(
+              color: RC.fg(const Color(0xFF0F172A)),
+              fontWeight: FontWeight.w800,
+              fontSize: 13.5,
+              fontFamily: kAppFontFamily,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNewOrderArrivalCard(Order order) {
+    const orange = Color(0xFFFF6418);
+    final neighborhood = _extractNeighborhood(order.deliveryAddress);
+    final phone = order.customerPhone.trim().isEmpty
+        ? '—'
+        : IraqPhoneFormatter.display(order.customerPhone);
+    final address = order.deliveryAddress.trim().isEmpty ? '—' : order.deliveryAddress;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
+      decoration: BoxDecoration(
+        color: RC.bg(Colors.white),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: RC.bg(orange), width: 1.6),
+        boxShadow: [
+          BoxShadow(
+            color: RC.bg(orange).withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            t('داواکاری نوێ'),
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: RC.fg(orange),
+              fontWeight: FontWeight.w900,
+              fontSize: 22,
+              fontFamily: kAppFontFamily,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildNewOrderInfoRow(t('ناوی کڕیار'), order.customerName.trim().isEmpty ? 'کڕیار' : order.customerName),
+          const SizedBox(height: 12),
+          _buildNewOrderInfoRow(t('ژمارەی مۆبایل'), phone, valueLtr: true),
+          const SizedBox(height: 12),
+          _buildNewOrderInfoRow(t('ناونیشانی کڕیار'), address),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: RC.bg(orange),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.chat_bubble_outline_rounded, color: RC.fg(Colors.white), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    tx('کڕیار لە $neighborhood داوا دەکات'),
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: RC.fg(Colors.white),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13.5,
+                      fontFamily: kAppFontFamily,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _buildGreenButton(
+                  label: t('قبوڵکردن'),
+                  icon: Icons.check_rounded,
+                  onTap: () => _acceptOrderAndOpenBox(order),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildRedButton(
+                  label: t('رەتکردنەوە'),
+                  onTap: () => _showRejectReasonDialog(order),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _acceptOrderAndOpenBox(Order order) {
+    onUpdateStatus(order.id, OrderStatus.accepted);
+    setState(() => _statusTab = 1);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _openOrderActionBox(order);
+    });
+  }
+
+  (int qty, String name) _parseOrderItem(String itemText) {
+    int qtyNumber = 1;
+    String name = itemText.trim();
+    final regex = RegExp(r'^([0-9١-٩]+)\s*[xX*×]\s*(.*)$');
+    final match = regex.firstMatch(itemText.trim());
+    if (match != null) {
+      String numPart = match.group(1)!;
+      const arabicToStandard = {
+        '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5',
+        '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+      };
+      arabicToStandard.forEach((k, v) {
+        numPart = numPart.replaceAll(k, v);
+      });
+      qtyNumber = int.tryParse(numPart) ?? 1;
+      name = match.group(2)!.trim();
+    }
+    return (qtyNumber, name);
+  }
+
+  String _statusLabelForActionBox(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return t('داواکاری نوێ');
+      case OrderStatus.accepted:
+        return t('قبوڵکراو');
+      case OrderStatus.preparing:
+        return t('لە ئامادەکردندایە');
+      case OrderStatus.ready:
+        return t('ئامادەیە بۆ شۆفێر');
+      case OrderStatus.completed:
+        return t('تەواوبوو');
+      case OrderStatus.rejected:
+        return t('ڕەتکردنەوە');
+    }
+  }
+
+  String _actionButtonLabel(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.accepted:
+        return t('دەستپێکردنی ئامادەکردن');
+      case OrderStatus.preparing:
+        return t('ئامادەیە بۆ شۆفێر');
+      case OrderStatus.ready:
+        return t('ڕادەستکردن بە شۆفێر');
+      case OrderStatus.completed:
+        return t('تەواوبوو');
+      default:
+        return t('تەواوبوو');
+    }
+  }
+
+  int _tabIndexForStatus(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return 0;
+      case OrderStatus.accepted:
+        return 1;
+      case OrderStatus.preparing:
+        return 2;
+      case OrderStatus.ready:
+        return 3;
+      case OrderStatus.completed:
+        return 4;
+      case OrderStatus.rejected:
+        return 0;
+    }
+  }
+
+  OrderStatus? _nextStatusAfterAction(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.accepted:
+        return OrderStatus.preparing;
+      case OrderStatus.preparing:
+        return OrderStatus.ready;
+      case OrderStatus.ready:
+        return OrderStatus.completed;
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _openOrderActionBox(Order order) async {
+    const green = Color(0xFF0F8A5F);
+    const softGreen = Color(0xFFE8F6EF);
+    const softGreenBtn = Color(0xFF7BC49A);
+    const orange = Color(0xFFFF6418);
+    final neighborhood = _extractNeighborhood(order.deliveryAddress);
+    final phone = order.customerPhone.trim().isEmpty
+        ? '—'
+        : IraqPhoneFormatter.display(order.customerPhone);
+    final totalStr = '${formatAmountOnly(order.total.toInt())} ${t('دینار')}';
+    final driverName = (order.driverName != null && order.driverName!.trim().isNotEmpty)
+        ? order.driverName!.trim()
+        : t('چاوەڕوانی شۆفێر');
+    const prepMinutes = 20;
+    var liveStatus = order.status;
+    if (liveStatus == OrderStatus.pending) {
+      liveStatus = OrderStatus.accepted;
+    }
+    final deadline = (order.acceptedAt ?? order.timestamp).add(const Duration(minutes: prepMinutes));
+    Timer? countdownTimer;
+
+    String remainingLabel() {
+      if (liveStatus == OrderStatus.completed) return '-';
+      final left = deadline.difference(DateTime.now());
+      if (left.inSeconds <= 0) return '-';
+      final mins = left.inMinutes;
+      final secs = left.inSeconds % 60;
+      if (mins >= 1) return '$mins ${t('خولەک')}';
+      return '$secs ${t('چرکە')}';
+    }
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'order-action',
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      transitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (dialogCtx, anim, secondary) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            countdownTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+              if (dialogCtx.mounted) setDialogState(() {});
+            });
+            final remaining = remainingLabel();
+            final next = _nextStatusAfterAction(liveStatus);
+            final btnLabel = _actionButtonLabel(liveStatus);
+            final isDone = liveStatus == OrderStatus.completed;
+
+            return Directionality(
+              textDirection: TextDirection.rtl,
+              child: SafeArea(
+                child: Align(
+                  alignment: Alignment.center,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      width: math.min(MediaQuery.sizeOf(dialogCtx).width - 24, 440),
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.sizeOf(dialogCtx).height * 0.92,
+                      ),
+                      decoration: BoxDecoration(
+                        color: RC.bg(Colors.white),
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 28,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            top: -40,
+                            right: -30,
+                            child: Container(
+                              width: 120,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                color: softGreen.withValues(alpha: 0.55),
+                                borderRadius: BorderRadius.circular(60),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 80,
+                            left: -36,
+                            child: Container(
+                              width: 110,
+                              height: 110,
+                              decoration: BoxDecoration(
+                                color: softGreen.withValues(alpha: 0.45),
+                                borderRadius: BorderRadius.circular(55),
+                              ),
+                            ),
+                          ),
+                          Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(8, 10, 8, 4),
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      onPressed: () => Navigator.pop(dialogCtx),
+                                      icon: Icon(Icons.arrow_forward_ios_rounded, color: RC.fg(orange), size: 20),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        t('داواکاری نوێ'),
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: RC.fg(const Color(0xFF0F172A)),
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 18,
+                                          fontFamily: kAppFontFamily,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 48),
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                                  child: Column(
+                                    children: [
+                                      ...order.items.map((raw) {
+                                        final (qty, name) = _parseOrderItem(raw);
+                                        final price = getEstimatedItemPrice(name, qty);
+                                        final imgUrl = getProductImageUrl(name);
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 10),
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: RC.bg(Colors.white),
+                                            borderRadius: BorderRadius.circular(18),
+                                            border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+                                          ),
+                                          child: Row(
+                                            textDirection: TextDirection.rtl,
+                                            children: [
+                                              ClipRRect(
+                                                borderRadius: BorderRadius.circular(14),
+                                                child: Image.network(
+                                                  imgUrl,
+                                                  width: 64,
+                                                  height: 64,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, __, ___) => Container(
+                                                    width: 64,
+                                                    height: 64,
+                                                    color: RC.bg(const Color(0xFFFFF2E8)),
+                                                    child: Icon(Icons.fastfood_rounded, color: RC.fg(orange)),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  tx(name),
+                                                  textAlign: TextAlign.right,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 15,
+                                                    color: RC.fg(const Color(0xFF0F172A)),
+                                                    fontFamily: kAppFontFamily,
+                                                  ),
+                                                ),
+                                              ),
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.end,
+                                                children: [
+                                                  Text(
+                                                    tx('${formatAmountOnly(price)} ${t('دینار')}'),
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.w800,
+                                                      fontSize: 13.5,
+                                                      color: RC.fg(const Color(0xFF0F172A)),
+                                                      fontFamily: kAppFontFamily,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                    decoration: BoxDecoration(
+                                                      color: RC.bg(orange),
+                                                      borderRadius: BorderRadius.circular(8),
+                                                    ),
+                                                    child: Text(
+                                                      '${qty}X',
+                                                      style: TextStyle(
+                                                        color: RC.fg(Colors.white),
+                                                        fontWeight: FontWeight.w900,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
+                                      Container(
+                                        width: double.infinity,
+                                        margin: const EdgeInsets.only(bottom: 12),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          color: RC.bg(orange),
+                                          borderRadius: BorderRadius.circular(14),
+                                        ),
+                                        child: Text(
+                                          tx('${t('تێبینی : کڕیار لە')} $neighborhood ${t('داوای دەکات')}'),
+                                          textAlign: TextAlign.right,
+                                          style: TextStyle(
+                                            color: RC.fg(Colors.white),
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13.5,
+                                            fontFamily: kAppFontFamily,
+                                          ),
+                                        ),
+                                      ),
+                                      _actionBoxTwoColCard(
+                                        softGreen: softGreen,
+                                        rows: [
+                                          (t('کۆی گشتی :'), totalStr, green, false, false),
+                                          (t('کاتی پێچوون :'), '$prepMinutes ${t('خولەک')}', const Color(0xFF0F172A), false, false),
+                                          (t('کاتی ماوە :'), remaining, const Color(0xFF0F172A), false, false),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _actionBoxTwoColCard(
+                                        softGreen: softGreen,
+                                        rows: [
+                                          (
+                                            t('ناوی کڕیار'),
+                                            order.customerName.trim().isEmpty ? 'کڕیار' : order.customerName,
+                                            green,
+                                            false,
+                                            false,
+                                          ),
+                                          (t('مۆبایلی کڕیار'), phone, const Color(0xFF0F172A), true, false),
+                                          (t('دۆخ'), _statusLabelForActionBox(liveStatus), green, false, false),
+                                          (t('شۆفێر'), driverName, green, false, true),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  height: 52,
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      if (isDone || next == null) {
+                                        Navigator.pop(dialogCtx);
+                                        return;
+                                      }
+                                      onUpdateStatus(order.id, next);
+                                      setState(() => _statusTab = _tabIndexForStatus(next));
+                                      setDialogState(() => liveStatus = next);
+                                      if (next == OrderStatus.completed) {
+                                        // Keep box open so status/button show تەواوبوو like the design.
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: RC.bg(isDone ? softGreenBtn : green),
+                                      foregroundColor: RC.fg(Colors.white),
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    ),
+                                    child: Text(
+                                      btnLabel,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 16,
+                                        fontFamily: kAppFontFamily,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+      transitionBuilder: (ctx, anim, secondary, child) {
+        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+    countdownTimer?.cancel();
+  }
+
+  Widget _actionBoxTwoColCard({
+    required Color softGreen,
+    required List<(String label, String value, Color valueColor, bool valueLtr, bool pill)> rows,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: softGreen,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          textDirection: TextDirection.rtl,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Labels column (right in RTL)
+            Expanded(
+              flex: 5,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (int i = 0; i < rows.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 12),
+                    Text(
+                      tx(rows[i].$1),
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        color: RC.fg(const Color(0xFF475569)),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Container(width: 1, color: RC.bg(const Color(0xFFCBD5E1))),
+            ),
+            // Values column (left in RTL)
+            Expanded(
+              flex: 6,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (int i = 0; i < rows.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: rows[i].$5
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: RC.bg(Colors.white).withValues(alpha: 0.75),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                tx(rows[i].$2),
+                                style: TextStyle(
+                                  color: RC.fg(rows[i].$3),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              tx(rows[i].$2),
+                              textAlign: TextAlign.left,
+                              textDirection: rows[i].$4 ? TextDirection.ltr : TextDirection.rtl,
+                              style: TextStyle(
+                                color: RC.fg(rows[i].$3),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                                fontFamily: kAppFontFamily,
+                              ),
+                            ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewOrderInfoRow(String label, String value, {bool valueLtr = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      textDirection: TextDirection.rtl,
+      children: [
+        SizedBox(
+          width: 118,
+          child: Text(
+            tx(label),
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: RC.fg(const Color(0xFF64748B)),
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+              fontFamily: kAppFontFamily,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            tx(value),
+            textAlign: TextAlign.left,
+            textDirection: valueLtr ? TextDirection.ltr : TextDirection.rtl,
+            style: TextStyle(
+              color: RC.fg(const Color(0xFF0F172A)),
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              fontFamily: kAppFontFamily,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildStatusBadge(OrderStatus status) {
     Color color;
     String text;
     switch (status) {
       case OrderStatus.pending:
         color = RC.bg(Color(0xFFEA580C)); // REGA Prime Orange
-        text = t('چاوەڕوانکراو');
+        text = t('داواکاری نوێ');
+        break;
+      case OrderStatus.accepted:
+        color = RC.bg(Color(0xFF16A34A));
+        text = t('قبوڵکراو');
         break;
       case OrderStatus.preparing:
         color = RC.bg(Color(0xFFD97706)); // Warm Amber Orange
@@ -2809,6 +4746,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
       case OrderStatus.ready:
         color = RC.bg(Color(0xFF16A34A)); // Clean Ready Green
         text = t('ئامادەیە بۆ شۆفێر');
+        break;
+      case OrderStatus.completed:
+        color = RC.bg(Color(0xFF64748B));
+        text = t('تەواوبوو');
         break;
       default:
         color = RC.bg(Color(0xFF64748B));
@@ -2836,37 +4777,30 @@ class _OrdersScreenState extends State<OrdersScreen> {
     if (order.status == OrderStatus.pending) {
       return [
         Expanded(
+          flex: 2,
           child: _buildGreenButton(
-            label: t('قبولکردن'),
-            icon: Icons.check_circle_outline,
-            onTap: () => onUpdateStatus(order.id, OrderStatus.preparing),
+            label: t('قبوڵکردن'),
+            icon: Icons.check_rounded,
+            onTap: () => _acceptOrderAndOpenBox(order),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: _buildRedButton(
-            label: t('ڕەتکردنەوە'),
-            onTap: () => onUpdateStatus(order.id, OrderStatus.rejected),
+            label: t('رەتکردنەوە'),
+            onTap: () => _showRejectReasonDialog(order),
           ),
         ),
       ];
-    } else if (order.status == OrderStatus.preparing) {
+    } else if (order.status == OrderStatus.accepted ||
+        order.status == OrderStatus.preparing ||
+        order.status == OrderStatus.ready) {
       return [
         Expanded(
           child: _buildGreenButton(
-            label: t('ئامادەیە بۆ شۆفێر'),
-            icon: Icons.check_circle_outline,
-            onTap: () => onUpdateStatus(order.id, OrderStatus.ready),
-          ),
-        ),
-      ];
-    } else if (order.status == OrderStatus.ready) {
-      return [
-        Expanded(
-          child: _buildGreenButton(
-            label: t('ڕادەستکردن بە شۆفێر'),
-            icon: Icons.delivery_dining_outlined,
-            onTap: () => onUpdateStatus(order.id, OrderStatus.completed),
+            label: _actionButtonLabel(order.status),
+            icon: Icons.arrow_forward_rounded,
+            onTap: () => _openOrderActionBox(order),
           ),
         ),
       ];
@@ -2974,9 +4908,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     switch (order.status) {
       case OrderStatus.pending:
-        statusLabel = 'چاوەڕوانی قبوڵکردن';
+        statusLabel = 'داواکاری نوێ';
         statusBg = RC.bg(Color(0xFFFFEDD5));
         statusTextColor = RC.bg(Color(0xFF9A3412));
+        break;
+      case OrderStatus.accepted:
+        statusLabel = 'قبوڵکراو';
+        statusBg = RC.bg(Color(0xFFDCFCE7));
+        statusTextColor = RC.bg(Color(0xFF166534));
         break;
       case OrderStatus.preparing:
         statusLabel = 'لە ئامادەکردندایە';
@@ -3423,6 +5362,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         Row(
                           children: [
                             Expanded(
+                              flex: 2,
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: RC.bg(Color(0xFF16A34A)),
@@ -3433,9 +5373,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 ),
                                 onPressed: () {
                                   Navigator.pop(dialogCtx);
-                                  onUpdateStatus(order.id, OrderStatus.preparing);
+                                  _acceptOrderAndOpenBox(order);
                                 },
-                                child: Text(t('قبولکردن'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
+                                child: Text(t('قبوڵکردن'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -3450,12 +5390,29 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 ),
                                 onPressed: () {
                                   Navigator.pop(dialogCtx);
-                                  onUpdateStatus(order.id, OrderStatus.rejected);
+                                  _showRejectReasonDialog(order);
                                 },
-                                child: Text(t('ڕەتکردنەوە'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
+                                child: Text(t('رەتکردنەوە'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 6),
+                      ] else if (order.status == OrderStatus.accepted) ...[
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: RC.bg(Color(0xFF16A34A)),
+                            foregroundColor: RC.fg(Colors.white),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(dialogCtx);
+                            onUpdateStatus(order.id, OrderStatus.preparing);
+                            setState(() => _statusTab = 2);
+                          },
+                          child: Text(t('دەستپێکردنی ئامادەکردن'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
                         ),
                         const SizedBox(height: 6),
                       ] else if (order.status == OrderStatus.preparing) ...[
@@ -3470,6 +5427,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           onPressed: () {
                             Navigator.pop(dialogCtx);
                             onUpdateStatus(order.id, OrderStatus.ready);
+                            setState(() => _statusTab = 3);
                           },
                           child: Text(t('ئامادەیە بۆ شۆفێر'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900)),
                         ),
@@ -3549,10 +5507,14 @@ class ProductsScreen extends StatefulWidget {
   State<ProductsScreen> createState() => _ProductsScreenState();
 }
 
+enum _ProductAvailFilter { all, available, unavailable, discounted }
+
 class _ProductsScreenState extends State<ProductsScreen> {
   String? _selectedCategory;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  _ProductAvailFilter _availFilter = _ProductAvailFilter.all;
+  final Set<String> _disabledCategories = {};
 
   @override
   void dispose() {
@@ -3749,13 +5711,106 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
+  bool _productHasDiscount(Product p) =>
+      p.discountPrice != null && p.discountPrice! > 0 && p.discountPrice! < p.price;
+
   @override
   Widget build(BuildContext context) {
-    // Filter products
-    List<Product> filteredProducts = widget.products.where((p) {
+    const orange = Color(0xFFFF6418);
+    const teal = Color(0xFF0D9488);
+    final padH = RegaResponsive.pagePadding(context);
+
+    // Empty categories: match T.B empty menu landing.
+    if (widget.categories.isEmpty) {
+      return Directionality(
+        textDirection: TextDirection.rtl,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1080),
+            child: Column(
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(padH, 14, padH, 8),
+                  child: Row(
+                    textDirection: TextDirection.rtl,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          t('بەشەکانی مێنۆ'),
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            color: RC.fg(const Color(0xFF0F172A)),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 22,
+                            fontFamily: kAppFontFamily,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Material(
+                        color: RC.bg(orange),
+                        borderRadius: BorderRadius.circular(14),
+                        child: InkWell(
+                          onTap: () async {
+                            await _showAddCategoryDialog(context);
+                            if (mounted) setState(() {});
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add_rounded, color: RC.fg(Colors.white), size: 20),
+                                const SizedBox(width: 4),
+                                Text(
+                                  t('زیادکردنی بەش'),
+                                  style: TextStyle(
+                                    color: RC.fg(Colors.white),
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 13.5,
+                                    fontFamily: kAppFontFamily,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      t('هیچ بەشێک زیاد نەکراوە'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: RC.fg(const Color(0xFFCBD5E1)),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final filteredProducts = widget.products.where((p) {
       final matchesCategory = _selectedCategory == null || p.category == _selectedCategory;
       final matchesSearch = p.name.toLowerCase().contains(_searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
+      final matchesAvail = switch (_availFilter) {
+        _ProductAvailFilter.all => true,
+        _ProductAvailFilter.available => p.isAvailable,
+        _ProductAvailFilter.unavailable => !p.isAvailable,
+        _ProductAvailFilter.discounted => _productHasDiscount(p),
+      };
+      return matchesCategory && matchesSearch && matchesAvail;
     }).toList();
 
     return Directionality(
@@ -3765,424 +5820,264 @@ class _ProductsScreenState extends State<ProductsScreen> {
           constraints: const BoxConstraints(maxWidth: 1080),
           child: Column(
             children: [
-              // 1. Search Bar
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              RegaResponsive.pagePadding(context),
-              12,
-              RegaResponsive.pagePadding(context),
-              6,
-            ),
-            child: Container(
-              height: 48,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: RC.bg(Colors.white),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: RC.bg(Color(0xFFE5E7EB)), width: 1),
-                boxShadow: [
-                  BoxShadow(
-                    color: RC.bg(Colors.black).withOpacity(0.02),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.search, color: RC.fg(Color(0xFF4A4A4A)), size: 22),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      textAlign: TextAlign.right,
-                      onChanged: (val) => setState(() => _searchQuery = val),
-                      decoration: InputDecoration(
-                        hintText: t('مێنۆ و بەرهەم'),
-                        hintStyle: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: RC.fg(Color(0xFF262626)),
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: RC.fg(Colors.black),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // 2. Action & Categories Box (Header Card)
-          Container(
-            margin: EdgeInsets.fromLTRB(
-              RegaResponsive.pagePadding(context),
-              4,
-              RegaResponsive.pagePadding(context),
-              8,
-            ),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: RC.bg(Colors.white),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: RC.bg(Color(0xFFE5E7EB)), width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: RC.bg(Colors.black).withOpacity(0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Two Action Buttons Row
-                Row(
+              // Header: title + new product
+              Padding(
+                padding: EdgeInsets.fromLTRB(padH, 10, padH, 8),
+                child: Row(
                   children: [
-                    // Action 1: Add New Category (Right in RTL)
                     Expanded(
-                      child: GestureDetector(
-                        onTap: () => _showAddCategoryDialog(context),
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: RC.bg(Color(0xFFFFF7ED)),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: RC.bg(Color(0xFFFED7AA)), width: 1.5),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.add_rounded, color: RC.fg(Color(0xFFEA580C)), size: 19),
-                                  SizedBox(width: 5),
-                                  Text(
-                                    tx('زیادکردنی بەشی نوێ'),
-                                    style: TextStyle(
-                                      color: RC.fg(Color(0xFFEA580C)),
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                      child: Text(
+                        t('مێنۆ و بەرهەمەکان'),
+                        style: TextStyle(
+                          color: RC.fg(const Color(0xFF1E293B)),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 20,
+                          fontFamily: kAppFontFamily,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // Action 2: Add Product (Left in RTL)
-                    Expanded(
-                      child: GestureDetector(
+                    Material(
+                      color: RC.bg(orange),
+                      borderRadius: BorderRadius.circular(14),
+                      child: InkWell(
                         onTap: () => _showAddProductDialog(context),
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: RC.bg(Color(0xFFEA580C)),
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.28),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add_rounded, color: RC.fg(Colors.white), size: 20),
+                              const SizedBox(width: 4),
+                              Text(
+                                t('بەرهەمی نوێ'),
+                                style: TextStyle(
+                                  color: RC.fg(Colors.white),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 13,
+                                  fontFamily: kAppFontFamily,
+                                ),
                               ),
                             ],
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.add_rounded, color: RC.fg(Colors.white), size: 20),
-                                  SizedBox(width: 5),
-                                  Text(
-                                    tx('زیادکردنی بەرهەم'),
-                                    style: TextStyle(
-                                      color: RC.fg(Colors.white),
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
                           ),
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                // Store-wide discount
-                GestureDetector(
-                  onTap: () => _showStoreDiscountDialog(context),
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    width: double.infinity,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: RC.bg(Color(0xFFFEF2F2)),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: RC.bg(Color(0xFFFECACA)), width: 1.5),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 6,
-                        runSpacing: 2,
-                        children: [
-                          Icon(Icons.local_offer_rounded, color: RC.fg(Color(0xFFE11D48)), size: 20),
-                          Text(
-                            t('داشکاندنی دوکان'),
-                            style: TextStyle(
-                              color: RC.fg(Color(0xFFE11D48)),
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13.5,
-                            ),
-                          ),
-                          if (!RegaResponsive.isPhone(context))
-                            Text(
-                              tx('(${t('داشکاندن بۆ هەموو دوکانەکە')})'),
-                              style: TextStyle(
-                                color: RC.fg(Colors.red.shade300),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 11,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
+              ),
 
-                // Categories Filter Chips
-                if (widget.categories.isNotEmpty)
-                  SizedBox(
-                    height: 40,
-                    child: ListView.builder(
-                       scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: widget.categories.length + 1,
-                      itemBuilder: (context, index) {
-                        // First Chip is "All" (هەمووی)
-                        if (index == 0) {
-                          final isAllSelected = _selectedCategory == null;
-                          final totalCount = widget.products.length;
-                          return GestureDetector(
-                            onTap: () => setState(() => _selectedCategory = null),
-                            behavior: HitTestBehavior.opaque,
-                            child: Container(
-                              margin: const EdgeInsets.only(left: 8),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isAllSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFF8FAFC)),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isAllSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFE2E8F0)),
-                                  width: isAllSelected ? 1.5 : 1,
-                                ),
-                                boxShadow: isAllSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.25),
-                                          blurRadius: 6,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ]
-                                    : null,
-                              ),
+              // Categories row
+              Padding(
+                padding: EdgeInsets.fromLTRB(padH, 0, padH, 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: RC.bg(Colors.white),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+                  ),
+                  child: SizedBox(
+                    height: 38,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        Material(
+                          color: RC.bg(const Color(0xFFF8FAFC)),
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            onTap: () => _showCategoriesManageSheet(context),
+                            onLongPress: () => _showStoreDiscountDialog(context),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               child: Row(
-                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(
-                                    tx('هەمووی'),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 13,
-                                      color: isAllSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF1E293B)),
-                                    ),
-                                  ),
+                                  Icon(Icons.tune_rounded, size: 16, color: RC.fg(const Color(0xFF64748B))),
                                   const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: isAllSelected ? RC.bg(Colors.white).withValues(alpha: 0.25) : RC.bg(Color(0xFFE2E8F0)),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      tx('$totalCount'),
-                                      style: TextStyle(
-                                        color: isAllSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF475569)),
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 11,
-                                      ),
+                                  Text(
+                                    t('بەشەکان'),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                      color: RC.fg(const Color(0xFF334155)),
+                                      fontFamily: kAppFontFamily,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          );
-                        }
-
-                        final catIndex = index - 1;
-                        final cat = widget.categories[catIndex];
-                        final count = widget.products.where((p) => p.category.trim() == cat.trim()).length;
-                        final isSelected = _selectedCategory == cat;
-                        return Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          decoration: BoxDecoration(
-                            color: isSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFF8FAFC)),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected ? RC.bg(Color(0xFFEA580C)) : RC.bg(Color(0xFFE2E8F0)),
-                              width: isSelected ? 1.5 : 1,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _categoryChip(
+                          label: '${t('هەمووی')} ${widget.products.length}',
+                          selected: _selectedCategory == null,
+                          onTap: () => setState(() => _selectedCategory = null),
+                          orange: orange,
+                        ),
+                        ...widget.categories.where((c) => !_disabledCategories.contains(c)).map((cat) {
+                          final count = widget.products.where((p) => p.category.trim() == cat.trim()).length;
+                          final selected = _selectedCategory == cat;
+                          return Padding(
+                            padding: const EdgeInsetsDirectional.only(start: 8),
+                            child: _categoryChip(
+                              label: '$cat $count',
+                              selected: selected,
+                              onTap: () => setState(() => _selectedCategory = selected ? null : cat),
+                              onLongPress: () => _confirmDeleteCategory(context, cat),
+                              orange: orange,
                             ),
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.25),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  setState(() {
-                                    if (_selectedCategory == cat) {
-                                      _selectedCategory = null;
-                                    } else {
-                                      _selectedCategory = cat;
-                                    }
-                                  });
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(4, 7, 12, 7),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        tx(cat),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 13,
-                                          color: isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF1E293B)),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: isSelected ? RC.bg(Colors.white).withValues(alpha: 0.25) : RC.bg(Color(0xFFE2E8F0)),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          tx('$count'),
-                                          style: TextStyle(
-                                            color: isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF475569)),
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () => _confirmDeleteCategory(context, cat),
-                                child: Container(
-                                  margin: const EdgeInsets.fromLTRB(8, 0, 4, 0),
-                                  width: 20,
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    color: isSelected ? RC.bg(Colors.white).withValues(alpha: 0.25) : RC.bg(Color(0xFFE2E8F0)),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    Icons.close_rounded,
-                                    size: 13,
-                                    color: isSelected ? RC.fg(Colors.white) : RC.bg(Color(0xFF64748B)),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                          );
+                        }),
+                      ],
                     ),
                   ),
-              ],
-            ),
-          ),
+                ),
+              ),
 
-          const SizedBox(height: 6),
+              // Availability filters
+              Padding(
+                padding: EdgeInsets.fromLTRB(padH, 0, padH, 10),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _availChip(t('هەمووی'), _ProductAvailFilter.all, orange),
+                      const SizedBox(width: 8),
+                      _availChip(t('بەردەستە'), _ProductAvailFilter.available, orange),
+                      const SizedBox(width: 8),
+                      _availChip(t('نەماوە'), _ProductAvailFilter.unavailable, orange),
+                      const SizedBox(width: 8),
+                      _availChip(t('داشکاندن'), _ProductAvailFilter.discounted, orange),
+                    ],
+                  ),
+                ),
+              ),
 
-          // 3. Products Grid (Responsive for Phone, iPad & Tablet)
-          Expanded(
-            child: filteredProducts.isEmpty
-                ? _buildEmptyState()
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      final w = constraints.maxWidth;
-                      final crossAxisCount = w < 400
-                          ? 1
-                          : RegaResponsive.gridCountForWidth(
-                              w,
-                              phone: 2,
-                              tablet: 3,
-                              desktop: 4,
-                            );
-                      return GridView.builder(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: RegaResponsive.pagePadding(context),
-                          vertical: 6,
+              // Search
+              Padding(
+                padding: EdgeInsets.fromLTRB(padH, 0, padH, 10),
+                child: Container(
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: RC.bg(Colors.white),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.search_rounded, color: RC.fg(const Color(0xFF94A3B8)), size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          textAlign: TextAlign.right,
+                          onChanged: (val) => setState(() => _searchQuery = val),
+                          decoration: InputDecoration(
+                            hintText: t('...گەڕان'),
+                            hintStyle: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: RC.fg(const Color(0xFF94A3B8)),
+                              fontFamily: kAppFontFamily,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: RC.fg(const Color(0xFF0F172A)),
+                            fontFamily: kAppFontFamily,
+                          ),
                         ),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          mainAxisExtent: crossAxisCount >= 3 ? 280 : 260,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Product list
+              Expanded(
+                child: filteredProducts.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        padding: EdgeInsets.fromLTRB(padH, 0, padH, 16),
                         itemCount: filteredProducts.length,
                         itemBuilder: (context, index) {
-                          return _buildProductCard(context, filteredProducts[index]);
+                          return _buildProductCard(context, filteredProducts[index], teal: teal);
                         },
-                      );
-                    },
-                  ),
+                      ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-    ),
-  ),
-);
+    );
+  }
+
+  Widget _categoryChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    VoidCallback? onLongPress,
+    required Color orange,
+  }) {
+    return Material(
+      color: selected ? RC.bg(const Color(0xFFFFF7ED)) : RC.bg(const Color(0xFFF1F5F9)),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? orange : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+          child: Text(
+            tx(label),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              color: selected ? RC.fg(orange) : RC.fg(const Color(0xFF334155)),
+              fontFamily: kAppFontFamily,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _availChip(String label, _ProductAvailFilter filter, Color orange) {
+    final selected = _availFilter == filter;
+    return Material(
+      color: selected ? RC.bg(orange) : RC.bg(const Color(0xFFF1F5F9)),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => setState(() => _availFilter = filter),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 12.5,
+              color: selected ? RC.fg(Colors.white) : RC.fg(const Color(0xFF475569)),
+              fontFamily: kAppFontFamily,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildEmptyState() {
@@ -4200,7 +6095,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
-  Widget _buildProductCard(BuildContext context, Product product) {
+  Widget _buildProductCard(BuildContext context, Product product, {required Color teal}) {
     final resolvedUrl = VendorApiService.instance.resolveMediaUrl(product.imageUrl);
     ImageProvider imageProvider;
     if (!kIsWeb && product.imagePath != null && product.imagePath!.isNotEmpty) {
@@ -4211,204 +6106,110 @@ class _ProductsScreenState extends State<ProductsScreen> {
         } else if (resolvedUrl.isNotEmpty) {
           imageProvider = NetworkImage(resolvedUrl);
         } else {
-          imageProvider = const NetworkImage('https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&auto=format&fit=crop');
+          imageProvider = NetworkImage(getProductImageUrl(product.name));
         }
       } catch (_) {
         imageProvider = resolvedUrl.isNotEmpty
             ? NetworkImage(resolvedUrl)
-            : const NetworkImage('https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&auto=format&fit=crop');
+            : NetworkImage(getProductImageUrl(product.name));
       }
     } else if (resolvedUrl.isNotEmpty) {
       imageProvider = NetworkImage(resolvedUrl);
     } else {
-      imageProvider = const NetworkImage('https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&auto=format&fit=crop');
+      imageProvider = NetworkImage(getProductImageUrl(product.name));
     }
 
-    final hasDiscount = product.discountPrice != null && product.discountPrice! > 0 && product.discountPrice! < product.price;
-    final priceFormatted = '${product.price.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} د.ع';
-    final discountPriceFormatted = hasDiscount ? '${product.discountPrice!.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} د.ع' : '';
+    final hasDiscount = _productHasDiscount(product);
+    final displayPrice = hasDiscount ? product.discountPrice!.toInt() : product.price.toInt();
+    final priceStr = '${formatAmountOnly(displayPrice)} ${t('دینار')}';
 
     return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: RC.bg(Color(0xFFE5E7EB)), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: RC.bg(Colors.black).withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
       ),
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        textDirection: TextDirection.rtl,
         children: [
-          // Product Image
           GestureDetector(
             onTap: () => showFullScreenImageDialog(context, imageProvider: imageProvider, title: product.name),
-            child: Stack(
+            child: ClipOval(
+              child: Image(
+                image: imageProvider,
+                width: 64,
+                height: 64,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 64,
+                  height: 64,
+                  color: RC.bg(const Color(0xFFFFF7ED)),
+                  child: Icon(Icons.fastfood_rounded, color: RC.fg(const Color(0xFFFF6418))),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    height: 115,
-                    width: double.infinity,
-                    child: Image(
-                      image: imageProvider,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: RC.bgn(Colors.grey[200]),
-                        child: Icon(Icons.fastfood, color: RC.fg(Colors.grey), size: 36),
-                      ),
-                    ),
+                Text(
+                  tx(product.name),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    color: RC.fg(const Color(0xFF0F172A)),
+                    fontFamily: kAppFontFamily,
                   ),
                 ),
-                if (hasDiscount)
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: RC.bg(Color(0xFFEF4444)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        tx('داشکاندن'),
-                        style: TextStyle(
-                          color: RC.fg(Colors.white),
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                const SizedBox(height: 6),
+                Text(
+                  tx(priceStr),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: RC.fg(teal),
+                    fontFamily: kAppFontFamily,
                   ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
-
-          // Name
-          Text(
-            tx(product.name),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 14.5,
-              color: RC.fg(Color(0xFF1E2024)),
-            ),
-          ),
-          const SizedBox(height: 2),
-
-          // Description
-          Text(
-            tx(product.description ?? 'بەرهەمی فرێش...'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: RC.fg(Color(0xFF8E8E93)),
-              fontSize: 10.5,
-            ),
-          ),
-          const SizedBox(height: 6),
-
-          // Price
-          hasDiscount
-              ? Row(
-                  children: [
-                    Text(
-                      tx(discountPriceFormatted),
-                      style: TextStyle(
-                        color: RC.fg(Color(0xFFEA580C)),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      tx(priceFormatted),
-                      style: TextStyle(
-                        color: RC.fg(Color(0xFFDC2626)),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11.5,
-                        decoration: TextDecoration.lineThrough,
-                        decorationColor: RC.bg(Color(0xFFDC2626)),
-                        decorationThickness: 1.6,
-                      ),
-                    ),
-                  ],
-                )
-              : Text(
-                  tx(priceFormatted),
-                  style: TextStyle(
-                    color: RC.fg(Color(0xFFEA580C)),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14,
-                  ),
-                ),
-
-          const Spacer(),
-
-          // Bottom Bar Actions
-          Row(
+          const SizedBox(width: 8),
+          Column(
             children: [
-              Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: product.isAvailable ? RC.bg(Color(0xFFE8FAF0)) : RC.bg(Color(0xFFFFEBEE)),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          tx(product.isAvailable ? t('بەردەستە') : t('نابەردەست')),
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: product.isAvailable ? RC.bg(Color(0xFF00894C)) : RC.bg(Color(0xFFD32F2F)),
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: product.isAvailable ? RC.bg(Color(0xFF00894C)) : RC.bg(Color(0xFFD32F2F)),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              IconButton(
+                onPressed: () => _showEditProductDialog(context, product),
+                onLongPress: () => _confirmDeleteProduct(context, product),
+                icon: Icon(Icons.edit_square, color: RC.fg(teal), size: 22),
+                tooltip: t('دەستکاری'),
+                visualDensity: VisualDensity.compact,
               ),
-              const SizedBox(width: 4),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  GestureDetector(
-                    onTap: () => _showEditProductDialog(context, product),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(Icons.edit_outlined, color: RC.fg(Color(0xFF9E9E9E)), size: 18),
+                  Text(
+                    product.isAvailable ? t('بەردەستە') : t('نەماوە'),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: product.isAvailable ? RC.fg(teal) : RC.fg(const Color(0xFF94A3B8)),
+                      fontFamily: kAppFontFamily,
                     ),
                   ),
                   const SizedBox(width: 4),
-                  GestureDetector(
-                    onTap: () => _confirmDeleteProduct(context, product),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(Icons.delete_outline_rounded, color: RC.fg(Color(0xFF9E9E9E)), size: 18),
-                    ),
+                  Switch.adaptive(
+                    value: product.isAvailable,
+                    activeColor: teal,
+                    onChanged: (_) => widget.onToggle(product.id),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ],
               ),
@@ -4419,110 +6220,552 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
-  void _showAddCategoryDialog(BuildContext context) {
-    final categoryController = TextEditingController();
-    String? localImagePath;
-    String? uploadedImageUrl;
-    Uint8List? previewBytes;
-    var imageBusy = false;
-    String? imageError;
+  void _applyCategoryRename(String oldName, String newName) {
+    if (newName.isEmpty || newName == oldName) return;
+    if (widget.categories.contains(newName) && newName != oldName) return;
+    setState(() {
+      final idx = widget.categories.indexOf(oldName);
+      if (idx != -1) widget.categories[idx] = newName;
+      for (final p in widget.products) {
+        if (p.category.trim() == oldName.trim()) {
+          p.category = newName;
+        }
+      }
+      if (_selectedCategory == oldName) _selectedCategory = newName;
+      if (_disabledCategories.remove(oldName)) {
+        _disabledCategories.add(newName);
+      }
+    });
+  }
 
-    showDialog(
+  Future<void> _showCategoriesManageSheet(BuildContext context) async {
+    const orange = Color(0xFFFF6418);
+    const teal = Color(0xFF0D9488);
+
+    String? editingCategory;
+    TextEditingController? editCtrl;
+    String? editImageUrl;
+    String? editLocalPath;
+    Uint8List? editPreviewBytes;
+    var editImageBusy = false;
+
+    void disposeEdit() {
+      editCtrl?.dispose();
+      editCtrl = null;
+      editingCategory = null;
+      editImageUrl = null;
+      editLocalPath = null;
+      editPreviewBytes = null;
+      editImageBusy = false;
+    }
+
+    await showGeneralDialog<void>(
       context: context,
-      builder: (BuildContext context) {
+      barrierDismissible: true,
+      barrierLabel: 'categories-manage',
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (dialogCtx, anim, secondary) {
         return StatefulBuilder(
-          builder: (context, setDialogState) {
+          builder: (dialogCtx, setSheetState) {
+            void startEdit(String cat) {
+              editCtrl?.dispose();
+              editingCategory = cat;
+              editCtrl = TextEditingController(text: cat);
+              editImageUrl = null;
+              editLocalPath = null;
+              editPreviewBytes = null;
+              editImageBusy = false;
+              setSheetState(() {});
+            }
+
+            void cancelEdit() {
+              disposeEdit();
+              setSheetState(() {});
+            }
+
+            Future<void> saveEdit() async {
+              final oldName = editingCategory;
+              final newName = editCtrl?.text.trim() ?? '';
+              if (oldName == null || newName.isEmpty) return;
+              if (editImageBusy) return;
+              final imageToSave = editImageUrl;
+              final hasServerId = VendorApiService.instance.categoryNameToId.containsKey(oldName);
+              if (hasServerId) {
+                final (ok, msg) = await VendorApiService.instance.updateCategory(
+                  oldNameKu: oldName,
+                  newNameKu: newName,
+                  imageUrl: imageToSave,
+                );
+                if (!mounted) return;
+                if (!ok) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(tx(msg), textAlign: TextAlign.center),
+                      backgroundColor: RC.bg(const Color(0xFFE50010)),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  return;
+                }
+              }
+              _applyCategoryRename(oldName, newName);
+              disposeEdit();
+              setSheetState(() {});
+              setState(() {});
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(tx('بەش نوێکرایەوە'), textAlign: TextAlign.center),
+                  backgroundColor: RC.bg(const Color(0xFF00894C)),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+
             return Directionality(
-              textDirection: TextDirection.ltr,
-              child: Dialog(
-                insetPadding: RegaResponsive.dialogInset(context, cap: 380),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Container(
-                  padding: const EdgeInsets.all(18),
-                  constraints: BoxConstraints(
-                    maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 380),
-                  ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(t('زیادکردنی بەشی نوێ'),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(t('تکایە ناوی ئەو بەشە بنووسە کە دەتەوێت زیادی بکەیت'),
-                          style: TextStyle(color: RC.fg(Colors.grey), fontSize: 12),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildLabel(t('ناوی بەش')),
-                        _buildTextField(categoryController, 'بۆ نموونە: پیتزاکان'),
-                        const SizedBox(height: 14),
-                        _buildLabel(t('وێنەی بەش')),
-                        _buildImagePicker(
-                          thumbnail: uploadedImageUrl,
-                          localImagePath: localImagePath,
-                          previewBytes: previewBytes,
-                          busy: imageBusy,
-                          errorText: txn(imageError),
-                          onTap: imageBusy
-                              ? null
-                              : () => _pickCompressUploadProductImage(
-                                    setDialogState,
-                                    onBusy: (v) => imageBusy = v,
-                                    onError: (e) => imageError = e,
-                                    onResult: (path, url, bytes) {
-                                      localImagePath = path;
-                                      uploadedImageUrl = url;
-                                      previewBytes = bytes;
+              textDirection: TextDirection.rtl,
+              child: SafeArea(
+                child: Align(
+                  alignment: Alignment.center,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      width: math.min(MediaQuery.sizeOf(dialogCtx).width - 20, 440),
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.sizeOf(dialogCtx).height * 0.92,
+                      ),
+                      decoration: BoxDecoration(
+                        color: RC.bg(Colors.white),
+                        borderRadius: BorderRadius.circular(26),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () {
+                                    disposeEdit();
+                                    Navigator.pop(dialogCtx);
+                                  },
+                                  icon: Icon(Icons.arrow_forward_ios_rounded, color: RC.fg(orange), size: 20),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    t('بەڕێوەبردنی بەشەکان'),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: RC.fg(const Color(0xFF0F172A)),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 17,
+                                      fontFamily: kAppFontFamily,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 48),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  await _showAddCategoryDialog(context);
+                                  setSheetState(() {});
+                                  setState(() {});
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: RC.bg(orange),
+                                  foregroundColor: RC.fg(Colors.white),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                ),
+                                child: Text(
+                                  '+ ${t('زیادکردنی بەشی نوێ')}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 14.5,
+                                    fontFamily: kAppFontFamily,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                t('بەشەکانی مێنۆ'),
+                                style: TextStyle(
+                                  color: RC.fg(const Color(0xFF334155)),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: widget.categories.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      t('هیچ بەشێک نییە'),
+                                      style: TextStyle(
+                                        color: RC.fg(const Color(0xFF94A3B8)),
+                                        fontFamily: kAppFontFamily,
+                                      ),
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                                    itemCount: widget.categories.length,
+                                    itemBuilder: (context, index) {
+                                      final cat = widget.categories[index];
+                                      final enabled = !_disabledCategories.contains(cat);
+                                      final isEditing = editingCategory == cat;
+
+                                      if (isEditing) {
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 10),
+                                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                                          decoration: BoxDecoration(
+                                            color: RC.bg(Colors.white),
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                                            children: [
+                                              Row(
+                                                textDirection: TextDirection.rtl,
+                                                children: [
+                                                  Expanded(
+                                                    child: TextField(
+                                                      controller: editCtrl,
+                                                      textAlign: TextAlign.right,
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.w800,
+                                                        fontSize: 15,
+                                                        fontFamily: kAppFontFamily,
+                                                        color: RC.fg(const Color(0xFF0F172A)),
+                                                      ),
+                                                      decoration: InputDecoration(
+                                                        isDense: true,
+                                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                                        enabledBorder: OutlineInputBorder(
+                                                          borderRadius: BorderRadius.circular(12),
+                                                          borderSide: BorderSide(color: RC.bg(orange), width: 1.5),
+                                                        ),
+                                                        focusedBorder: OutlineInputBorder(
+                                                          borderRadius: BorderRadius.circular(12),
+                                                          borderSide: BorderSide(color: RC.bg(orange), width: 1.8),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Material(
+                                                    color: RC.bg(teal),
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    child: InkWell(
+                                                      onTap: saveEdit,
+                                                      borderRadius: BorderRadius.circular(10),
+                                                      child: SizedBox(
+                                                        width: 40,
+                                                        height: 40,
+                                                        child: Icon(Icons.check_rounded, color: RC.fg(Colors.white), size: 22),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Material(
+                                                    color: RC.bg(const Color(0xFFF1F5F9)),
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    child: InkWell(
+                                                      onTap: cancelEdit,
+                                                      borderRadius: BorderRadius.circular(10),
+                                                      child: SizedBox(
+                                                        width: 40,
+                                                        height: 40,
+                                                        child: Icon(Icons.close_rounded, color: RC.fg(const Color(0xFF64748B)), size: 22),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 10),
+                                              Align(
+                                                alignment: Alignment.centerRight,
+                                                child: Material(
+                                                  color: RC.bg(const Color(0xFFFFF7ED)),
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  child: InkWell(
+                                                    onTap: editImageBusy
+                                                        ? null
+                                                        : () => _pickCompressUploadProductImage(
+                                                              setSheetState,
+                                                              onBusy: (v) {
+                                                                editImageBusy = v;
+                                                                setSheetState(() {});
+                                                              },
+                                                              onError: (_) {},
+                                                              onResult: (path, url, bytes) {
+                                                                editLocalPath = path;
+                                                                editImageUrl = url;
+                                                                editPreviewBytes = bytes;
+                                                                setSheetState(() {});
+                                                              },
+                                                            ),
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    child: Padding(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                      child: Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          if (editPreviewBytes != null) ...[
+                                                            ClipRRect(
+                                                              borderRadius: BorderRadius.circular(6),
+                                                              child: Image.memory(editPreviewBytes!, width: 22, height: 22, fit: BoxFit.cover),
+                                                            ),
+                                                            const SizedBox(width: 8),
+                                                          ] else
+                                                            Icon(Icons.image_outlined, size: 18, color: RC.fg(orange)),
+                                                          const SizedBox(width: 6),
+                                                          Text(
+                                                            t('وێنەی بەش'),
+                                                            style: TextStyle(
+                                                              color: RC.fg(orange),
+                                                              fontWeight: FontWeight.w800,
+                                                              fontSize: 12.5,
+                                                              fontFamily: kAppFontFamily,
+                                                            ),
+                                                          ),
+                                                          if (editImageBusy) ...[
+                                                            const SizedBox(width: 8),
+                                                            SizedBox(
+                                                              width: 14,
+                                                              height: 14,
+                                                              child: CircularProgressIndicator(strokeWidth: 2, color: RC.fg(orange)),
+                                                            ),
+                                                          ],
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+
+                                      return Container(
+                                        margin: const EdgeInsets.only(bottom: 10),
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                        decoration: BoxDecoration(
+                                          color: RC.bg(Colors.white),
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+                                        ),
+                                        child: Row(
+                                          textDirection: TextDirection.rtl,
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                tx(cat),
+                                                textAlign: TextAlign.right,
+                                                style: TextStyle(
+                                                  color: RC.fg(const Color(0xFF0F172A)),
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 15,
+                                                  fontFamily: kAppFontFamily,
+                                                ),
+                                              ),
+                                            ),
+                                            Switch.adaptive(
+                                              value: enabled,
+                                              activeColor: teal,
+                                              onChanged: (v) {
+                                                setSheetState(() {
+                                                  if (v) {
+                                                    _disabledCategories.remove(cat);
+                                                  } else {
+                                                    _disabledCategories.add(cat);
+                                                    if (_selectedCategory == cat) {
+                                                      _selectedCategory = null;
+                                                    }
+                                                  }
+                                                });
+                                                setState(() {});
+                                              },
+                                            ),
+                                            IconButton(
+                                              onPressed: () => startEdit(cat),
+                                              icon: Icon(Icons.edit_square, color: RC.fg(teal), size: 22),
+                                              visualDensity: VisualDensity.compact,
+                                            ),
+                                            IconButton(
+                                              onPressed: () {
+                                                if (editingCategory == cat) cancelEdit();
+                                                _confirmDeleteCategory(context, cat);
+                                                Future.delayed(const Duration(milliseconds: 300), () {
+                                                  if (dialogCtx.mounted) setSheetState(() {});
+                                                  if (mounted) setState(() {});
+                                                });
+                                              },
+                                              icon: Icon(Icons.delete_outline_rounded, color: RC.fg(const Color(0xFF0F172A)), size: 22),
+                                              visualDensity: VisualDensity.compact,
+                                            ),
+                                          ],
+                                        ),
+                                      );
                                     },
                                   ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextButton(
-                                onPressed: imageBusy ? null : () => Navigator.pop(context),
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                                child: Text(t('پاشگەزبونەوە'), style: TextStyle(color: RC.fg(Colors.grey), fontSize: 13)),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 50,
                               child: ElevatedButton(
-                                onPressed: imageBusy
-                                    ? null
-                                    : () {
-                                        final name = categoryController.text.trim();
-                                        if (name.isNotEmpty) {
-                                          widget.onAddCategory(name, imageUrl: uploadedImageUrl);
-                                          Navigator.pop(context);
-                                        }
-                                      },
+                                onPressed: () {
+                                  disposeEdit();
+                                  Navigator.pop(dialogCtx);
+                                },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: RC.bg(Color(0xFF00C853)),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  backgroundColor: RC.bg(const Color(0xFFE11D48)),
+                                  foregroundColor: RC.fg(Colors.white),
                                   elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                 ),
-                                child: Text(t('زیادکردن'),
-                                  style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.w900, fontSize: 13.5),
+                                child: Text(
+                                  t('داخستن'),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 15,
+                                    fontFamily: kAppFontFamily,
+                                  ),
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             );
           },
+        );
+      },
+      transitionBuilder: (ctx, anim, secondary, child) {
+        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+
+    disposeEdit();
+  }
+
+  Future<void> _showAddCategoryDialog(BuildContext context) async {
+    final categoryController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Dialog(
+            insetPadding: RegaResponsive.dialogInset(context, cap: 380),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              constraints: BoxConstraints(
+                maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 380),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      t('زیادکردنی بەشی نوێ'),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      t('تکایە ناوی ئەو بەشە بنووسە کە دەتەوێت زیادی بکەیت'),
+                      textAlign: TextAlign.right,
+                      style: TextStyle(color: RC.fg(Colors.grey), fontSize: 12),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildLabel(t('ناوی بەش')),
+                    _buildTextField(categoryController, 'بۆ نموونە: پیتزاکان'),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: Text(t('پاشگەزبونەوە'), style: TextStyle(color: RC.fg(Colors.grey), fontSize: 13)),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              final name = categoryController.text.trim();
+                              if (name.isNotEmpty) {
+                                widget.onAddCategory(name);
+                                Navigator.pop(context);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: RC.bg(Color(0xFFFF6418)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              t('زیادکردن'),
+                              style: TextStyle(color: RC.fg(Colors.white), fontWeight: FontWeight.w900, fontSize: 13.5),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         );
       },
     );

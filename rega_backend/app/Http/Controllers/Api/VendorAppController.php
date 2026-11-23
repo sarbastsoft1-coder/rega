@@ -160,6 +160,35 @@ class VendorAppController extends Controller
         return response()->json(['success' => true, 'data' => $cat], 201);
     }
 
+    public function updateCategory(Request $request, StoreCategory $storeCategory): JsonResponse
+    {
+        $store = $this->resolveStore($request);
+        if ($storeCategory->store_id !== $store->id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'name_ku' => ['sometimes', 'string', 'max:100'],
+            'name_ar' => ['nullable', 'string', 'max:100'],
+            'name_en' => ['nullable', 'string', 'max:100'],
+            'image_url' => ['nullable', 'string', 'max:500'],
+            'secondary_image_url' => ['nullable', 'string', 'max:500'],
+            'sort_order' => ['nullable', 'integer'],
+        ]);
+
+        if (array_key_exists('name_ku', $validated) && ! array_key_exists('name_ar', $validated)) {
+            $validated['name_ar'] = $validated['name_ku'];
+        }
+
+        $storeCategory->update($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'بەش نوێکرایەوە',
+            'data' => $storeCategory->fresh()->loadCount('products'),
+        ]);
+    }
+
     public function deleteCategory(Request $request, StoreCategory $storeCategory): JsonResponse
     {
         $store = $this->resolveStore($request);
