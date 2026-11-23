@@ -42,6 +42,7 @@ import 'direct_request_screen.dart';
 import 'onboarding/onboarding_notifier.dart';
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
+import 'widgets/profile_preferences_card.dart';
 export 'models/customer_models.dart';
 
 void main() async {
@@ -332,9 +333,6 @@ class _MainScreenState extends State<MainScreen> {
   bool _isLanguageExpanded = false;
 
   bool get _profileLtr => _currentLanguage == 'English';
-
-  IconData get _settingsChevronIcon =>
-      _isLanguageExpanded ? Icons.expand_more_rounded : (_profileLtr ? Icons.chevron_right_rounded : Icons.chevron_left_rounded);
 
   // Profile Controllers
   late TextEditingController _nameCtrl;
@@ -8186,43 +8184,8 @@ class _MainScreenState extends State<MainScreen> {
 
         const SizedBox(height: 16),
 
-        // 3. LANGUAGES MENU ITEM
-        Container(
-          decoration: BoxDecoration(
-            color: RC.bg(Colors.white),
-            borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-            border: Border.all(color: RC.bg(Colors.grey.shade100)),
-          ),
-          child: Column(
-            children: [
-              GestureDetector(
-                onTap: () => setState(() => _isLanguageExpanded = !_isLanguageExpanded),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  child: _buildSettingsLanguageHeader(),
-                ),
-              ),
-              
-              if (_isLanguageExpanded) ...[
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    children: [
-                      _buildLanguageOption('کوردی', isSelected: _currentLanguage == 'کوردی'),
-                      const SizedBox(height: 10),
-                      _buildLanguageOption('العربية', isSelected: _currentLanguage == 'العربية'),
-                      const SizedBox(height: 10),
-                      _buildLanguageOption('English', isSelected: _currentLanguage == 'English'),
-                      const SizedBox(height: 14),
-                      _buildSettingsDarkModeSwitch(),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
+        // 3. LANGUAGE & APPEARANCE PREFERENCES CARD
+        _buildPreferencesCard(),
 
         const SizedBox(height: 12),
 
@@ -8448,88 +8411,34 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildSettingsLanguageHeader() {
-    final ltr = _profileLtr;
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: RC.bg(Colors.amber.shade50),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(Icons.translate_rounded, color: RC.fg(Color(0xFFB45309)), size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: ltr ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-            children: [
-              Text(_t('زمانەکان'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14, fontWeight: FontWeight.bold)),
-              Text(tx(_currentLanguage), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11, color: RC.fg(Colors.grey))),
-            ],
-          ),
-        ),
-        Icon(_settingsChevronIcon, color: RC.fg(Colors.grey), size: 20),
-      ],
+  Widget _buildPreferencesCard() {
+    final isDark = context.watch<LocaleNotifier>().isDark;
+    return ProfilePreferencesCard(
+      currentLanguage: _currentLanguage,
+      isDark: isDark,
+      isExpanded: _isLanguageExpanded,
+      onExpandedChanged: (expanded) => setState(() => _isLanguageExpanded = expanded),
+      onLanguageSelected: _selectLanguage,
+      onDarkModeChanged: (v) => context.read<LocaleNotifier>().setDark(v),
     );
   }
 
-  Widget _buildLanguageOption(String lang, {required bool isSelected}) {
-    return GestureDetector(
-      onTap: () async {
-        setState(() {
-          _currentLanguage = lang;
-        });
+  Future<void> _selectLanguage(String lang) async {
+    setState(() {
+      _currentLanguage = lang;
+    });
 
-        // 💾 پاشەکەوتکردنی زمان لەناو SharedPreferences بۆ ئەوەی لە کاتی دەرچوون و گەڕانەوە نەگۆڕێت
-        await _saveLanguage(lang);
+    // 💾 پاشەکەوتکردنی زمان لەناو SharedPreferences بۆ ئەوەی لە کاتی دەرچوون و گەڕانەوە نەگۆڕێت
+    await _saveLanguage(lang);
 
-        // Notify parent and update global text direction
-        if (lang == 'English') {
-          widget.onLanguageChange('en');
-        } else if (lang == 'العربية') {
-          widget.onLanguageChange('ar');
-        } else {
-          widget.onLanguageChange('ku');
-        }
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? RC.bg(Colors.white) : RC.bg(Colors.grey.shade50),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? RC.bg(Color(0xFFF59E0B)) : RC.bg(Colors.grey.shade100),
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: isSelected ? [BoxShadow(color: RC.bg(Colors.amber).withOpacity(0.1), blurRadius: 10)] : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              tx(lang),
-              textAlign: _profileLtr ? TextAlign.left : TextAlign.right,
-              style: TextStyle(fontFamily: 'NotoKufiArabic', 
-                fontSize: 16,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? RC.bg(Color(0xFFB45309)) : RC.bg(Colors.black87),
-              ),
-            ),
-            if (isSelected)
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: RC.bg(Color(0xFFF59E0B)), shape: BoxShape.circle),
-                child: Icon(Icons.check, size: 12, color: RC.fg(Colors.white)),
-              )
-            else
-              const SizedBox(width: 20),
-          ],
-        ),
-      ),
-    );
+    // Notify parent and update global text direction
+    if (lang == 'English') {
+      widget.onLanguageChange('en');
+    } else if (lang == 'العربية') {
+      widget.onLanguageChange('ar');
+    } else {
+      widget.onLanguageChange('ku');
+    }
   }
 
   // Simple Translation Helper with Static Map for better performance
@@ -8854,26 +8763,6 @@ class _MainScreenState extends State<MainScreen> {
       if (localized.isNotEmpty) return localized;
     }
     return _t(key);
-  }
-
-  Widget _buildSettingsDarkModeSwitch() {
-    final ltr = _profileLtr;
-    final isDark = context.watch<LocaleNotifier>().isDark;
-    return SwitchListTile.adaptive(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
-        tx(isDark ? _t('دۆخی تاریک') : _t('دۆخی ڕووناک')),
-        textAlign: ltr ? TextAlign.left : TextAlign.right,
-        style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 13, fontWeight: FontWeight.bold),
-      ),
-      secondary: Icon(
-        isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-        color: RC.fg(Color(0xFFB45309)),
-      ),
-      value: isDark,
-      activeColor: RC.bg(Color(0xFFFAC800)),
-      onChanged: (v) => context.read<LocaleNotifier>().setDark(v),
-    );
   }
 
   Widget _buildMenuItem(String title, IconData icon, {bool isLogout = false}) {
@@ -9217,46 +9106,8 @@ class _MainScreenState extends State<MainScreen> {
           ),
           const SizedBox(height: 16),
 
-          // 3. LANGUAGES CARD (AVAILABLE BEFORE LOGIN)
-          Container(
-            decoration: BoxDecoration(
-              color: RC.bg(Colors.white),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: RC.bg(Colors.grey.shade100)),
-              boxShadow: [
-                BoxShadow(color: RC.bg(Colors.black).withOpacity(0.03), blurRadius: 10, spreadRadius: 1),
-              ],
-            ),
-            child: Column(
-              children: [
-                GestureDetector(
-                  onTap: () => setState(() => _isLanguageExpanded = !_isLanguageExpanded),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    child: _buildSettingsLanguageHeader(),
-                  ),
-                ),
-                
-                if (_isLanguageExpanded) ...[
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        _buildLanguageOption('کوردی', isSelected: _currentLanguage == 'کوردی'),
-                        const SizedBox(height: 10),
-                        _buildLanguageOption('العربية', isSelected: _currentLanguage == 'العربية'),
-                        const SizedBox(height: 10),
-                        _buildLanguageOption('English', isSelected: _currentLanguage == 'English'),
-                        const SizedBox(height: 14),
-                        _buildSettingsDarkModeSwitch(),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          // 3. LANGUAGE & APPEARANCE CARD (AVAILABLE BEFORE LOGIN)
+          _buildPreferencesCard(),
           const SizedBox(height: 20),
         ],
       ),
