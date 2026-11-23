@@ -46,9 +46,11 @@ export 'models/customer_models.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Mapbox Standard (2026 live cartography) — must be set before any MapWidget.
-  if (MapboxTiles.accessToken.isNotEmpty) {
-    MapboxOptions.setAccessToken(MapboxTiles.accessToken);
+  // Mapbox Standard (2026 live cartography) — native Android/iOS only (not on web).
+  if (!kIsWeb && MapboxTiles.accessToken.isNotEmpty) {
+    try {
+      MapboxOptions.setAccessToken(MapboxTiles.accessToken);
+    } catch (_) {}
   }
   // Native only — lock-screen push + 3s in-app banner.
   if (!kIsWeb) {

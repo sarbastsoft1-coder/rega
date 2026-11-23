@@ -259,8 +259,10 @@ String t(String key) => Trans.get(key);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (MapboxTiles.accessToken.isNotEmpty) {
-    MapboxOptions.setAccessToken(MapboxTiles.accessToken);
+  if (!kIsWeb && MapboxTiles.accessToken.isNotEmpty) {
+    try {
+      MapboxOptions.setAccessToken(MapboxTiles.accessToken);
+    } catch (_) {}
   }
   await Trans.loadSavedLang();
   runApp(buildVendorProviders(child: const RegaVendorApp()));
@@ -1325,266 +1327,278 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         orders: _orders,
         onUpdateStatus: _updateOrderStatus,
         onOrdersChanged: () => _syncVendorOrdersOnly(initialLoad: false),
-        onSimulate: () {
-          OrderSoundService.playNewOrderAlert(soundEnabled: true);
-        },
       ),
     ];
 
     bool isRtl = _language != 'en';
+    final bool isOrdersTab = _selectedIndex == 3;
 
     return Directionality(
       textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
+        backgroundColor: RC.bg(Colors.white),
         appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(80),
-          child: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            automaticallyImplyLeading: false,
-            toolbarHeight: 80,
-            titleSpacing: 14,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-            ),
-            flexibleSpace: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [RC.bg(Color(0xFFD97706)), RC.bg(Color(0xFFEA580C))],
-                  begin: Alignment.centerRight,
-                  end: Alignment.centerLeft,
-                ),
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
-                boxShadow: [
-                  BoxShadow(
-                    color: RC.bg(Color(0x33000000)),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-            ),
-            title: SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1080),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final storeLeading = Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Stack(
-                            clipBehavior: Clip.none,
-                            alignment: Alignment.bottomRight,
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: RC.bg(Colors.white).withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: RC.bg(Colors.white).withOpacity(0.4),
-                                    width: 1.5,
-                                  ),
-                                ),
-                                child: Icon(
-                                  Icons.storefront_outlined,
-                                  color: RC.fg(Colors.white),
-                                  size: 24,
-                                ),
-                              ),
-                              Positioned(
-                                bottom: -1,
-                                right: -1,
-                                child: Container(
-                                  width: 13,
-                                  height: 13,
-                                  decoration: BoxDecoration(
-                                    color: _isOnline ? RC.bg(const Color(0xFF10B981)) : RC.bg(const Color(0xFFF43F5E)),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: RC.bg(const Color(0xFFD97706)), width: 2),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 10),
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.sizeOf(context).width < RegaBreakpoints.phone ? 120 : 260,
-                            ),
-                            child: Text(
-                              tx(_businessName),
-                              style: TextStyle(
-                                color: RC.fg(Colors.white),
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.3,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      );
-
-                      final actionTrailing = Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Sound Button
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _soundEnabled = !_soundEnabled;
-                              });
-                              if (_soundEnabled) {
-                                OrderSoundService.playTestTone();
-                                ScaffoldMessenger.of(context).clearSnackBars();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(tx('دەنگی ئاگادارکردنەوەی داواکاری چالاک کرا 🔔'), textAlign: TextAlign.center),
-                                    duration: const Duration(seconds: 1),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              } else {
-                                ScaffoldMessenger.of(context).clearSnackBars();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(tx('دەنگی ئاگادارکردنەوە بێدەنگ کرا 🔕'), textAlign: TextAlign.center),
-                                    duration: const Duration(seconds: 1),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              }
-                            },
-                            child: Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: _soundEnabled
-                                    ? RC.bg(Colors.white).withOpacity(0.2)
-                                    : RC.bg(Colors.black).withOpacity(0.25),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: _soundEnabled
-                                      ? RC.bg(Colors.white).withOpacity(0.35)
-                                      : RC.bg(Colors.white).withOpacity(0.15),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Icon(
-                                _soundEnabled ? Icons.volume_up : Icons.volume_off,
-                                color: _soundEnabled ? RC.fg(Colors.white) : RC.bg(Colors.white70),
-                                size: 19,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Online/Offline Capsule Switch
-                          _buildOnlineOfflineSwitch(),
-                        ],
-                      );
-
-                      return Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              storeLeading,
-                              actionTrailing,
-                            ],
-                          ),
-                          _buildTopLogo(),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-    body: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1080),
-        child: IndexedStack(
-          index: _selectedIndex,
-          children: screens,
-        ),
-      ),
-    ),
-    bottomNavigationBar: Container(
-      decoration: BoxDecoration(
-        color: RC.bg(Colors.white),
-        border: Border(
-          top: BorderSide(
-            color: RC.bg(Color(0xFFF1F5F9)),
-            width: 1.0,
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: RC.bg(Color(0xFF0F172A)).withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        bottom: true,
-        child: Center(
-          heightFactor: 1.0,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 620),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              child: Row(
-                children: [
-                  // 1. Far Right in RTL: داواکارییەکان (Orders) - index 3
-                  _buildNavItem(
-                    3,
-                    Icons.receipt_long_rounded,
-                    Icons.receipt_long_outlined,
+          preferredSize: Size.fromHeight(isOrdersTab ? 56 : 80),
+          child: isOrdersTab
+              ? AppBar(
+                  backgroundColor: RC.bg(Colors.white),
+                  elevation: 0,
+                  scrolledUnderElevation: 0,
+                  surfaceTintColor: Colors.transparent,
+                  automaticallyImplyLeading: false,
+                  centerTitle: false,
+                  titleSpacing: 20,
+                  title: Text(
                     t('داواکارییەکان'),
-                    hasNotification: true,
+                    style: TextStyle(
+                      color: RC.fg(const Color(0xFF1E293B)),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20,
+                      fontFamily: kAppFontFamily,
+                      letterSpacing: -0.2,
+                    ),
                   ),
-                  // 2. Next in RTL: مێنۆ و بەرهەم (Menu & Products) - index 2
-                  _buildNavItem(
-                    2,
-                    Icons.restaurant_menu_rounded,
-                    Icons.restaurant_menu_outlined,
-                    t('مێنۆ و بەرهەم'),
+                )
+              : AppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  automaticallyImplyLeading: false,
+                  toolbarHeight: 80,
+                  titleSpacing: 14,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
                   ),
-                  // 3. Next in RTL: داهاتی فرۆشیار (Seller Revenue) - index 1
-                  _buildNavItem(
-                    1,
-                    Icons.trending_up_rounded,
-                    Icons.trending_up_rounded,
-                    t('داهاتی فرۆشیار'),
+                  flexibleSpace: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [RC.bg(Color(0xFFD97706)), RC.bg(Color(0xFFEA580C))],
+                        begin: Alignment.centerRight,
+                        end: Alignment.centerLeft,
+                      ),
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: RC.bg(Color(0x33000000)),
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
                   ),
-                  // 4. Far Left in RTL: ڕێکخستن (Settings) - index 0
-                  _buildNavItem(
-                    0,
-                    Icons.tune_rounded,
-                    Icons.tune_rounded,
-                    t('ڕێکخستن'),
+                  title: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1080),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final storeLeading = Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Stack(
+                                  clipBehavior: Clip.none,
+                                  alignment: Alignment.bottomRight,
+                                  children: [
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        color: RC.bg(Colors.white).withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: RC.bg(Colors.white).withOpacity(0.4),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.storefront_outlined,
+                                        color: RC.fg(Colors.white),
+                                        size: 24,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: -1,
+                                      right: -1,
+                                      child: Container(
+                                        width: 13,
+                                        height: 13,
+                                        decoration: BoxDecoration(
+                                          color: _isOnline ? RC.bg(const Color(0xFF10B981)) : RC.bg(const Color(0xFFF43F5E)),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: RC.bg(const Color(0xFFD97706)), width: 2),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(width: 10),
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: MediaQuery.sizeOf(context).width < RegaBreakpoints.phone ? 120 : 260,
+                                  ),
+                                  child: Text(
+                                    tx(_businessName),
+                                    style: TextStyle(
+                                      color: RC.fg(Colors.white),
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -0.3,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            );
+
+                            final actionTrailing = Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Sound Button
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _soundEnabled = !_soundEnabled;
+                                    });
+                                    if (_soundEnabled) {
+                                      OrderSoundService.playTestTone();
+                                      ScaffoldMessenger.of(context).clearSnackBars();
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(tx('دەنگی ئاگادارکردنەوەی داواکاری چالاک کرا 🔔'), textAlign: TextAlign.center),
+                                          duration: const Duration(seconds: 1),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    } else {
+                                      ScaffoldMessenger.of(context).clearSnackBars();
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(tx('دەنگی ئاگادارکردنەوە بێدەنگ کرا 🔕'), textAlign: TextAlign.center),
+                                          duration: const Duration(seconds: 1),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  child: Container(
+                                    width: 38,
+                                    height: 38,
+                                    decoration: BoxDecoration(
+                                      color: _soundEnabled
+                                          ? RC.bg(Colors.white).withOpacity(0.2)
+                                          : RC.bg(Colors.black).withOpacity(0.25),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: _soundEnabled
+                                            ? RC.bg(Colors.white).withOpacity(0.35)
+                                            : RC.bg(Colors.white).withOpacity(0.15),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      _soundEnabled ? Icons.volume_up : Icons.volume_off,
+                                      color: _soundEnabled ? RC.fg(Colors.white) : RC.bg(Colors.white70),
+                                      size: 19,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+
+                                // Online/Offline Capsule Switch
+                                _buildOnlineOfflineSwitch(),
+                              ],
+                            );
+
+                            return Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    storeLeading,
+                                    actionTrailing,
+                                  ],
+                                ),
+                                _buildTopLogo(),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
                   ),
-                ],
+                ),
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1080),
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: screens,
+            ),
+          ),
+        ),
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: RC.bg(Colors.white),
+            border: Border(
+              top: BorderSide(
+                color: RC.bg(const Color(0xFFF1F5F9)),
+                width: 1.0,
+              ),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            bottom: true,
+            child: Center(
+              heightFactor: 1.0,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 620),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
+                  child: Row(
+                    children: [
+                      // 1. Far Right in RTL: داواکارییەکان (Orders) - index 3
+                      _buildNavItem(
+                        3,
+                        Icons.shopping_bag_rounded,
+                        Icons.shopping_bag_outlined,
+                        t('داواکارییەکان'),
+                        hasNotification: true,
+                      ),
+                      // 2. Next in RTL: مێنۆ و بەرهەم (Menu & Products) - index 2
+                      _buildNavItem(
+                        2,
+                        Icons.restaurant_rounded,
+                        Icons.restaurant_outlined,
+                        t('مێنۆ و بەرهەم'),
+                      ),
+                      // 3. Next in RTL: داهاتی فرۆشیار (Seller Revenue) - index 1
+                      _buildNavItem(
+                        1,
+                        Icons.bar_chart_rounded,
+                        Icons.bar_chart_rounded,
+                        t('داهاتی فرۆشیار'),
+                      ),
+                      // 4. Far Left in RTL: ڕێکخستن (Settings) - index 0
+                      _buildNavItem(
+                        0,
+                        Icons.tune_rounded,
+                        Icons.tune_rounded,
+                        t('ڕێکخستن'),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
         ),
       ),
-    ),
-    ),
     );
   }
 
@@ -1597,109 +1611,98 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }) {
     final bool isSelected = _selectedIndex == index;
     const primeOrange = Color(0xFFEA580C);
-    final iconColor = isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF64748B));
-    final textColor = isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF64748B));
+    const softOrange = Color(0xFFFFEDD5);
+    final iconColor = isSelected ? primeOrange : RC.bg(const Color(0xFF94A3B8));
+    final textColor = isSelected ? primeOrange : RC.bg(const Color(0xFF94A3B8));
 
-    // Notification badge on orders (index 3)
     final pendingCount = _orders.where((o) => o.status == OrderStatus.pending).length;
     final int badgeCount = pendingCount > 0 ? pendingCount : 1;
     final bool showBadge = hasNotification && pendingCount > 0;
 
     return Expanded(
-      flex: isSelected ? 2 : 1,
       child: InkWell(
         onTap: () {
           HapticFeedback.selectionClick();
           _onItemTapped(index);
         },
-        splashColor: primeOrange.withValues(alpha: 0.15),
+        splashColor: primeOrange.withValues(alpha: 0.12),
         highlightColor: Colors.transparent,
-        borderRadius: BorderRadius.circular(50),
-        child: Align(
-          alignment: Alignment.center,
-          heightFactor: 1.0,
-          child: Stack(
-            clipBehavior: Clip.none,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
+              // Active indicator line above icon
               AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isSelected ? 14 : 8,
-                  vertical: 9,
-                ),
+                duration: const Duration(milliseconds: 200),
+                width: isSelected ? 22 : 0,
+                height: 3,
+                margin: const EdgeInsets.only(bottom: 6),
                 decoration: BoxDecoration(
                   color: isSelected ? primeOrange : Colors.transparent,
-                  borderRadius: BorderRadius.circular(50),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: primeOrange.withValues(alpha: 0.35),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      isSelected ? activeIcon : inactiveIcon,
-                      color: iconColor,
-                      size: 20,
-                    ),
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      child: isSelected
-                          ? Padding(
-                              padding: const EdgeInsetsDirectional.only(start: 6),
-                              child: Text(
-                                tx(label),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.2,
-                                  fontFamily: kAppFontFamily,
-                                ),
-                              ),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ],
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              if (showBadge)
-                Positioned(
-                  top: -2,
-                  right: isSelected ? 4 : -4,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(
-                      color: RC.bg(Color(0xFFEF4444)),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: RC.bg(Colors.white), width: 2),
+                      color: isSelected ? softOrange : Colors.transparent,
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                    child: Center(
-                      child: Text(
-                        tx('$badgeCount'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: RC.fg(Colors.white),
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
+                    child: Icon(
+                      isSelected ? activeIcon : inactiveIcon,
+                      color: iconColor,
+                      size: 22,
+                    ),
+                  ),
+                  if (showBadge)
+                    Positioned(
+                      top: -3,
+                      left: -4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: RC.bg(const Color(0xFFEF4444)),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: RC.bg(Colors.white), width: 2),
+                        ),
+                        constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                        child: Center(
+                          child: Text(
+                            tx('$badgeCount'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: RC.fg(Colors.white),
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              height: 1,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                tx(label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  letterSpacing: -0.2,
+                  fontFamily: kAppFontFamily,
                 ),
+              ),
             ],
           ),
         ),
@@ -2010,14 +2013,12 @@ void showFullScreenImageDialog(BuildContext context, {String? imageUrl, ImagePro
 class OrdersScreen extends StatefulWidget {
   final List<Order> orders;
   final Function(String, OrderStatus) onUpdateStatus;
-  final VoidCallback onSimulate;
   final VoidCallback? onOrdersChanged;
 
   const OrdersScreen({
     super.key,
     required this.orders,
     required this.onUpdateStatus,
-    required this.onSimulate,
     this.onOrdersChanged,
   });
 
@@ -2028,7 +2029,6 @@ class OrdersScreen extends StatefulWidget {
 class _OrdersScreenState extends State<OrdersScreen> {
   List<Order> get orders => widget.orders;
   Function(String, OrderStatus) get onUpdateStatus => widget.onUpdateStatus;
-  VoidCallback get onSimulate => widget.onSimulate;
 
   List<Map<String, dynamic>> _drivers = [];
   String? _selectedOrderId;
@@ -2261,43 +2261,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
           constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
             children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  RegaResponsive.pagePadding(context),
-                  16,
-                  RegaResponsive.pagePadding(context),
-                  8,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      t('داواکارییە چالاکەکان'),
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: onSimulate,
-                      icon: Icon(Icons.notifications_active_rounded, size: 18, color: RC.fg(Colors.white)),
-                      label: Text(
-                        tx('تاقیکردنەوەی دەنگ'),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          color: RC.fg(Colors.white),
-                          letterSpacing: 0,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: RC.bg(const Color(0xFFFF6418)),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               Expanded(
                 child: activeOrders.isEmpty
                     ? _buildEmptyState()
@@ -2816,56 +2779,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: RC.bg(Colors.white),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: RC.bg(Colors.grey[200]!)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: RC.bgn(Colors.orange[50]),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.shopping_bag_outlined, color: RC.fgn(Colors.orange[800]), size: 32),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                t('هیچ داواکارییەک نییە'),
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1A1A1A))),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                t('لە کاتی هاتنی داواکاری لە ئەپی کڕیاران لێرە دەردەکەوێت'),
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: RC.fg(Colors.grey), height: 1.5),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: onSimulate,
-                icon: Icon(Icons.notifications_active_rounded, size: 18, color: RC.fg(Colors.white)),
-                label: Text(
-                  tx('تاقیکردنەوەی دەنگی داواکاری نوێ'),
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: RC.fg(Colors.white)),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: RC.bg(Color(0xFFFF6418)),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
-                ),
-              ),
-            ],
-          ),
+    return Center(
+      child: Text(
+        t('هیچ داواکارییەک نییە'),
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+          color: RC.fg(const Color(0xFFCBD5E1)),
+          fontFamily: kAppFontFamily,
+          letterSpacing: -0.1,
         ),
       ),
     );

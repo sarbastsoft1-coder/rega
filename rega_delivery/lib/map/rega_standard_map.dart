@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:latlong2/latlong.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'mapbox_tiles.dart';
 import 'rega_map_styles.dart';
 
 /// Fullscreen Mapbox Standard host used by tracking / admin / vendor maps.
@@ -107,6 +110,51 @@ class RegaStandardMapState extends State<RegaStandardMap> {
 
   @override
   Widget build(BuildContext context) {
+    if (kIsWeb) {
+      final mbStyle = switch (_styleId) {
+        RegaMapStyleId.map => MapboxStyle.streets,
+        RegaMapStyleId.satellite => MapboxStyle.satellite,
+        RegaMapStyleId.outdoors => MapboxStyle.outdoors,
+        RegaMapStyleId.dark => MapboxStyle.dark,
+      };
+      return Stack(
+        children: [
+          fm.FlutterMap(
+            key: ValueKey('rega_std_web_${_styleId.name}'),
+            options: fm.MapOptions(
+              initialCenter: widget.center,
+              initialZoom: widget.zoom,
+            ),
+            children: [
+              fm.TileLayer(
+                urlTemplate: MapboxTiles.url(mbStyle),
+                userAgentPackageName: 'com.rega.delivery',
+                maxZoom: 19,
+              ),
+            ],
+          ),
+          if (widget.showLayersFab)
+            Positioned(
+              right: 12,
+              bottom: 16,
+              child: Material(
+                color: Colors.white,
+                elevation: 4,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _openLayers,
+                  child: const SizedBox(
+                    width: 46,
+                    height: 46,
+                    child: Icon(Icons.layers_rounded, color: Color(0xFF16A34A)),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
     return Stack(
       children: [
         MapWidget(

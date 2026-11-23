@@ -25,8 +25,10 @@ import 'rega_i18n.dart';
 import 'rega_colors.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  if (MapboxTiles.accessToken.isNotEmpty) {
-    MapboxOptions.setAccessToken(MapboxTiles.accessToken);
+  if (!kIsWeb && MapboxTiles.accessToken.isNotEmpty) {
+    try {
+      MapboxOptions.setAccessToken(MapboxTiles.accessToken);
+    } catch (_) {}
   }
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
