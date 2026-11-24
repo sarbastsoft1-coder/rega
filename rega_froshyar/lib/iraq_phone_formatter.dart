@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'rega_i18n.dart';
-/// Formats Iraqi mobile numbers as `0750 000 0000` (11 digits, always LTR).
+/// Formats Iraqi mobile numbers as `0770 000 0000` (11 digits, always LTR).
 class IraqPhoneFormatter extends TextInputFormatter {
-  static const String hint = '0750 000 0000';
+  static const String hint = '0770 000 0000';
   static final RegExp iraqMobile = RegExp(r'^07[0-9]{9}$');
 
   /// Digits only, normalized from +964 / 964.
@@ -19,7 +19,7 @@ class IraqPhoneFormatter extends TextInputFormatter {
     return digits;
   }
 
-  /// Display as `0750 000 0000`.
+  /// Display as `0770 000 0000`.
   static String format(String raw) {
     var digits = digitsOnly(raw);
     if (digits.length > 11) digits = digits.substring(0, 11);

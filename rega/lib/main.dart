@@ -819,12 +819,12 @@ class _MainScreenState extends State<MainScreen> {
         return false;
       }
 
-      // High-accuracy + refine — same path as map «شوێنەکەم» (avoids city-center / IP pins).
+      // Fast first fix so UI does not stick on loading; refine after if needed.
       final pos = await regaResolveCurrentPosition(
-        precise: true,
-        allowLastKnown: false,
-        refineFor: const Duration(seconds: 8),
-        timeLimit: const Duration(seconds: 22),
+        precise: false,
+        allowLastKnown: true,
+        refineFor: const Duration(seconds: 2),
+        timeLimit: const Duration(seconds: 10),
       );
 
       if (pos == null) {
@@ -1336,6 +1336,10 @@ class _MainScreenState extends State<MainScreen> {
                   ? cover
                   : 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600';
             }(),
+            logoUrl: () {
+              final logo = RegaApiHost.resolveMediaUrl(sm['logo_url']?.toString());
+              return logo.isNotEmpty ? logo : null;
+            }(),
             address: sm['address_ku']?.toString() ?? 'کەلار',
             isOpen: sm['is_online'] == true,
             phone: sm['phone']?.toString() ?? '',
@@ -1413,6 +1417,7 @@ class _MainScreenState extends State<MainScreen> {
             deliveryTime: mappedStore.deliveryTime,
             deliveryFee: mappedStore.deliveryFee,
             imageUrl: mappedStore.imageUrl,
+            logoUrl: mappedStore.logoUrl,
             address: mappedStore.address,
             isOpen: mappedStore.isOpen,
             phone: mappedStore.phone,
@@ -1484,6 +1489,10 @@ class _MainScreenState extends State<MainScreen> {
                 ? cover
                 : 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600';
           }(),
+          logoUrl: () {
+            final logo = RegaApiHost.resolveMediaUrl(sm['logo_url']?.toString());
+            return logo.isNotEmpty ? logo : null;
+          }(),
           address: sm['address_ku']?.toString() ?? 'کەلار',
           isOpen: sm['is_online'] == true,
           phone: sm['phone']?.toString() ?? '',
@@ -1503,6 +1512,7 @@ class _MainScreenState extends State<MainScreen> {
             deliveryTime: mappedStore.deliveryTime,
             deliveryFee: mappedStore.deliveryFee,
             imageUrl: mappedStore.imageUrl,
+            logoUrl: mappedStore.logoUrl,
             address: mappedStore.address,
             isOpen: mappedStore.isOpen,
             phone: mappedStore.phone,
@@ -1581,6 +1591,7 @@ class _MainScreenState extends State<MainScreen> {
               deliveryTime: mappedStore.deliveryTime,
               deliveryFee: mappedStore.deliveryFee,
               imageUrl: mappedStore.imageUrl,
+              logoUrl: mappedStore.logoUrl,
               address: mappedStore.address,
               isOpen: mappedStore.isOpen,
               phone: mappedStore.phone,
@@ -2590,8 +2601,28 @@ class _MainScreenState extends State<MainScreen> {
                     final matchedStore = cartItems.isNotEmpty
                         ? allStores.where((s) => s.id == cartItems.first.product.storeId).firstOrNull
                         : null;
+                    // Prefer store list match; fall back to product.storeId (db_store_N)
+                    // so checkout still hits the API if the store row was city-filtered out.
+                    int? resolvedStoreId;
+                    if (matchedStore != null && matchedStore.id.startsWith('db_store_')) {
+                      resolvedStoreId = int.tryParse(matchedStore.id.replaceFirst('db_store_', ''));
+                    }
+                    if (resolvedStoreId == null && cartItems.isNotEmpty) {
+                      final sid = cartItems.first.product.storeId;
+                      if (sid.startsWith('db_store_')) {
+                        resolvedStoreId = int.tryParse(sid.replaceFirst('db_store_', ''));
+                      } else {
+                        resolvedStoreId = int.tryParse(sid);
+                      }
+                    }
                     final storeName = matchedStore?.name ??
-                        (cartItems.isNotEmpty ? cartItems.first.product.name : 'کەبابخانەی کەلار');
+                        (cartItems.isNotEmpty
+                            ? allStores
+                                .where((s) => s.id == cartItems.first.product.storeId)
+                                .map((s) => s.name)
+                                .firstOrNull
+                            : null) ??
+                        (cartItems.isNotEmpty ? 'فرۆشگا' : 'کەبابخانەی کەلار');
                     final newOrder = OrderItem(
                       id: orderCode,
                       storeName: storeName,
@@ -2623,6 +2654,7 @@ class _MainScreenState extends State<MainScreen> {
                       orderCode,
                       grandTotal,
                       cartItems,
+                      forcedStoreId: resolvedStoreId,
                     );
                   },
                   child: FittedBox(
@@ -2643,11 +2675,20 @@ class _MainScreenState extends State<MainScreen> {
     StoreItem? matchedStore,
     String fallbackCode,
     int grandTotal,
-    List<CartEntry> cartItems,
-  ) async {
-    int? dbStoreId;
-    if (matchedStore != null && matchedStore.id.startsWith('db_store_')) {
+    List<CartEntry> cartItems, {
+    int? forcedStoreId,
+  }) async {
+    int? dbStoreId = forcedStoreId;
+    if (dbStoreId == null && matchedStore != null && matchedStore.id.startsWith('db_store_')) {
       dbStoreId = int.tryParse(matchedStore.id.replaceFirst('db_store_', ''));
+    }
+    if (dbStoreId == null && cartItems.isNotEmpty) {
+      final sid = cartItems.first.product.storeId;
+      if (sid.startsWith('db_store_')) {
+        dbStoreId = int.tryParse(sid.replaceFirst('db_store_', ''));
+      } else {
+        dbStoreId = int.tryParse(sid);
+      }
     }
 
     final mappedItems = cartItems
@@ -2667,6 +2708,9 @@ class _MainScreenState extends State<MainScreen> {
 
     if (dbStoreId == null) {
       if (!mounted) return;
+      setState(() {
+        _orders.removeWhere((o) => o.id == localOrder.id);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -5678,21 +5722,35 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
 
-          // 2. Store Title Bar (Name + Open Status Badge)
+          // 2. Store Title Bar (logo + Name + Open Status Badge)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: RC.bg(Colors.white),
               border: Border(bottom: BorderSide(color: RC.bg(Colors.grey.shade200))),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              textDirection: TextDirection.rtl,
               children: [
+                if (store.logoUrl != null && store.logoUrl!.isNotEmpty) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      store.logoUrl!,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: Text(
                     tx(store.name),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: RC.fg(Colors.black)),
                   ),
                 ),

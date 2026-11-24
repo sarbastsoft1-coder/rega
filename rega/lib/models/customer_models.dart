@@ -49,6 +49,8 @@ class StoreItem {
   final String deliveryTime;
   final int deliveryFee;
   final String imageUrl;
+  /// Shop/logo image shown on store page avatar (from store.logo_url).
+  final String? logoUrl;
   final String address;
   final bool isOpen;
   final String phone;
@@ -66,6 +68,7 @@ class StoreItem {
     required this.deliveryTime,
     required this.deliveryFee,
     required this.imageUrl,
+    this.logoUrl,
     required this.address,
     this.isOpen = true,
     required this.phone,

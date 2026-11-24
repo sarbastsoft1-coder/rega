@@ -339,6 +339,7 @@ class Trans {
      'داهات': {'en': 'Revenue', 'ar': 'الإيرادات'},
      'ژمارەی مۆبایل': {'en': 'Mobile Number', 'ar': 'رقم الموبايل'},
      'وشەی تێپەڕ': {'en': 'Password', 'ar': 'كلمة المرور'},
+     'وشەی نهێنی': {'en': 'Password', 'ar': 'كلمة السر'},
      'چوونە ژوورەوە': {'en': 'Log In', 'ar': 'تسجيل الدخول'},
      'هێشتا نەبوویتە فرۆشیار لە ئەپی ڕێگا': {'en': 'Not a vendor in REGA App yet?', 'ar': 'لست بائعاً في تطبيق ريجا بعد؟'},
      'خۆت تۆمار بکە': {'en': 'Register', 'ar': 'سجل الآن'},
@@ -679,7 +680,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             Icon(Icons.lock_outline_rounded, size: 17, color: RC.fg(const Color(0xFFFF6418))),
                             const SizedBox(width: 6),
                             Text(
-                              t('وشەی تێپەڕ'),
+                              t('وشەی نهێنی'),
                               style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 14,
@@ -772,59 +773,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontWeight: FontWeight.w900,
                               fontFamily: kAppFontFamily,
                             ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 26),
-
-                      // 6. Register Section
-                      Text(
-                        t('هێشتا نەبوویتە فرۆشیار لە ئەپی ڕێگا'),
-                        style: TextStyle(
-                          color: RC.fg(Color(0xFF64748B)),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // 7. Register Button — opens support WhatsApp / Telegram dialog
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: OutlinedButton(
-                          onPressed: () async {
-                            Map<String, dynamic> contacts = const {};
-                            try {
-                              contacts = await VendorApiService.instance.fetchSupportContacts();
-                            } catch (_) {}
-                            if (!context.mounted) return;
-                            await BlockedAccountContacts.showSellerRegistrationDialog(
-                              context,
-                              contactMap: contacts,
-                              title: t('تۆمارکردنی فرۆشگای نوێ'),
-                              body: t('بۆ بەشداریکردن و کردنەوەی هەژماری فرۆشیار لە ڕێگا، تکایە پەیوەندی بە تیمی پشتگیرییەوە بکە لە ڕێگەی WhatsApp یان Telegram، یان سەردانی نووسینگەمان بکە.'),
-                              okLabel: t('باشە'),
-                            );
-                          },
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: RC.bg(Color(0xFFCBD5E1)), width: 1.2),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.storefront_outlined, color: RC.fg(Color(0xFFEA580C)), size: 20),
-                              const SizedBox(width: 8),
-                              Text(
-                                t('خۆت تۆمار بکە'),
-                                style: TextStyle(
-                                  color: RC.fg(Color(0xFFEA580C)),
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                       ),
@@ -967,7 +915,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<String> _categories = [];
   final Map<String, String> _categoryImages = {};
   final List<Product> _products = [];
-  final List<Order> _orders = [];
+  List<Order> _orders = [];
 
   void _onItemTapped(int index) {
     setState(() {
@@ -1155,11 +1103,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       if (!mounted) return;
       // Empty list is valid (no orders) — still clear backend-synced rows.
       if (list.isEmpty) {
+        final localOnly = _orders.where((o) => o.dbId == null).toList();
         setState(() {
-          final localOnly = _orders.where((o) => o.dbId == null).toList();
-          _orders
-            ..clear()
-            ..addAll(localOnly);
+          _orders = List<Order>.from(localOnly);
         });
         return;
       }
@@ -1224,16 +1170,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       }
 
       if (!mounted) return;
+      final localOnly = _orders.where((o) => o.dbId == null).toList();
+      // Replace with a NEW list so OrdersScreen didUpdateWidget sees pending growth
+      // and can auto-switch to «داواکاری نوێ».
       setState(() {
-        final localOnly = _orders.where((o) => o.dbId == null).toList();
-        _orders
-          ..clear()
-          ..addAll(parsed)
-          ..addAll(localOnly);
+        _orders = [...parsed, ...localOnly];
+        if (hasBrandNewPending) {
+          _selectedIndex = 3; // Orders tab
+        }
       });
 
-      if (hasBrandNewPending && _soundEnabled) {
-        OrderSoundService.playNewOrderAlert(soundEnabled: _soundEnabled);
+      if (hasBrandNewPending) {
+        try {
+          context.read<VendorNavNotifier>().setTabIndex(3);
+          context.go(VendorNavNotifier.pathForIndex(3));
+        } catch (_) {}
+        if (_soundEnabled) {
+          OrderSoundService.playNewOrderAlert(soundEnabled: _soundEnabled);
+        }
       }
     } catch (_) {}
   }
@@ -1722,6 +1676,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         },
         language: Trans.lang.value,
         onLangChange: (val) { Trans.setLang(val); setState(() => _language = val); },
+        isOnline: _isOnline,
+        onOnlineChange: (val) {
+          setState(() => _isOnline = val);
+        },
       ),
       RevenueScreen(
         orders: _orders,
@@ -1740,7 +1698,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         onUpdateCategory: _updateCategory,
       ),
       OrdersScreen(
-        orders: _orders,
+        // Fresh list instance each rebuild so pending-count diffs work.
+        orders: List<Order>.unmodifiable(_orders),
         onUpdateStatus: _updateOrderStatus,
         onOrdersChanged: () => _syncVendorOrdersOnly(initialLoad: false),
         onSimulateNewOrder: _simulateNewOrder,
@@ -2911,7 +2870,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final oldPending = oldWidget.orders.where((o) => o.status == OrderStatus.pending).length;
     final newPending = orders.where((o) => o.status == OrderStatus.pending).length;
     if (newPending > oldPending && _statusTab != 0) {
-      _statusTab = 0;
+      // Schedule so we don't call setState during build of parent.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _statusTab != 0) setState(() => _statusTab = 0);
+      });
     }
   }
 
@@ -4012,93 +3974,134 @@ class _OrdersScreenState extends State<OrdersScreen> {
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.45),
       builder: (ctx) {
+        final narrow = MediaQuery.sizeOf(ctx).width < 360;
+        final compactH = RegaResponsive.isCompactHeight(ctx);
+        final pad = RegaResponsive.scale(ctx, 20).clamp(14.0, 22.0);
+        final titleSize = RegaResponsive.scale(ctx, 18).clamp(15.0, 18.0);
+        final bodySize = RegaResponsive.scale(ctx, 14).clamp(12.5, 14.0);
+        final btnH = RegaResponsive.scale(ctx, compactH ? 42 : 48).clamp(40.0, 50.0);
+        final iconSize = RegaResponsive.scale(ctx, 28).clamp(22.0, 28.0);
+        final radius = RegaResponsive.scale(ctx, 22).clamp(16.0, 24.0);
+
+        Widget cancelBtn() => SizedBox(
+              height: btnH,
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: RC.bg(const Color(0xFFF1F5F9)),
+                  foregroundColor: RC.fg(const Color(0xFF0F172A)),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: Text(
+                  t('پاشگەزبوونەوە'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: RegaResponsive.scale(ctx, 14).clamp(12.0, 14.0),
+                    fontFamily: kAppFontFamily,
+                  ),
+                ),
+              ),
+            );
+
+        Widget deleteBtn() => SizedBox(
+              height: btnH,
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: RC.bg(coral),
+                  foregroundColor: RC.fg(Colors.white),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: Text(
+                  t('سڕینەوە'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: RegaResponsive.scale(ctx, 15).clamp(13.0, 15.0),
+                    fontFamily: kAppFontFamily,
+                  ),
+                ),
+              ),
+            );
+
         return Directionality(
           textDirection: TextDirection.rtl,
           child: Dialog(
             backgroundColor: RC.bg(Colors.white),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            insetPadding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    textDirection: TextDirection.rtl,
-                    mainAxisAlignment: MainAxisAlignment.center,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+            insetPadding: RegaResponsive.dialogInset(ctx, cap: 400, vertical: compactH ? 12 : 24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: RegaResponsive.dialogMaxWidth(ctx, cap: 400),
+              ),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(pad, pad + 2, pad, pad - 2),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: RC.fg(coral), size: 28),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          t('سرینەوەی داواکاری'),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: RC.fg(coral),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 18,
-                            fontFamily: kAppFontFamily,
+                      Row(
+                        textDirection: TextDirection.rtl,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.warning_amber_rounded, color: RC.fg(coral), size: iconSize),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              t('سڕینەوەی داواکاری'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: RC.fg(coral),
+                                fontWeight: FontWeight.w900,
+                                fontSize: titleSize,
+                                fontFamily: kAppFontFamily,
+                              ),
+                            ),
                           ),
+                        ],
+                      ),
+                      SizedBox(height: RegaResponsive.scale(ctx, 14).clamp(10.0, 14.0)),
+                      Text(
+                        t('ئایا دڵنیایت لە سڕینەوەی ئەم داواکارییە؟'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: RC.fg(const Color(0xFF64748B)),
+                          fontWeight: FontWeight.w600,
+                          fontSize: bodySize,
+                          fontFamily: kAppFontFamily,
+                          height: 1.5,
                         ),
                       ),
+                      SizedBox(height: RegaResponsive.scale(ctx, 22).clamp(14.0, 22.0)),
+                      if (narrow)
+                        Column(
+                          children: [
+                            deleteBtn(),
+                            const SizedBox(height: 8),
+                            cancelBtn(),
+                          ],
+                        )
+                      else
+                        Row(
+                          textDirection: TextDirection.rtl,
+                          children: [
+                            Expanded(child: cancelBtn()),
+                            const SizedBox(width: 10),
+                            Expanded(child: deleteBtn()),
+                          ],
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  Text(
-                    t('ئایا دڵنیایت لە سرینەوەی ئەم داواکارییە؟'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: RC.fg(const Color(0xFF64748B)),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      fontFamily: kAppFontFamily,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Row(
-                    textDirection: TextDirection.rtl,
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 48,
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: RC.bg(const Color(0xFFF1F5F9)),
-                              foregroundColor: RC.fg(const Color(0xFF0F172A)),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            child: Text(
-                              t('پاشگەزبوونەوە'),
-                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, fontFamily: kAppFontFamily),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: SizedBox(
-                          height: 48,
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: RC.bg(coral),
-                              foregroundColor: RC.fg(Colors.white),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            child: Text(
-                              t('سرینەوە'),
-                              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, fontFamily: kAppFontFamily),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -4596,7 +4599,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
       decoration: BoxDecoration(
         color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(22),
@@ -4618,21 +4621,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
             style: TextStyle(
               color: RC.fg(orange),
               fontWeight: FontWeight.w900,
-              fontSize: 20,
+              fontSize: 26,
               fontFamily: kAppFontFamily,
               letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           _buildNewOrderIconRow(Icons.person_outline_rounded, t('ناوی کڕیار'), name),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           _buildNewOrderIconRow(Icons.phone_outlined, t('ژمارەی مۆبایل'), phone, valueLtr: true),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           _buildNewOrderIconRow(Icons.location_on_outlined, t('ناونیشانی کڕیار'), address),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
               color: RC.bg(orange),
               borderRadius: BorderRadius.circular(14),
@@ -4640,8 +4643,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
             child: Row(
               textDirection: TextDirection.rtl,
               children: [
-                Icon(Icons.chat_bubble_outline_rounded, color: RC.fg(Colors.white), size: 18),
-                const SizedBox(width: 8),
+                Icon(Icons.chat_bubble_outline_rounded, color: RC.fg(Colors.white), size: 22),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     tx('کڕیار لە $neighborhood داوای دەکات'),
@@ -4649,15 +4652,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     style: TextStyle(
                       color: RC.fg(Colors.white),
                       fontWeight: FontWeight.w800,
-                      fontSize: 13.5,
+                      fontSize: 16,
                       fontFamily: kAppFontFamily,
+                      height: 1.35,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           // TB: ڕەتکردنەوە (right) + قبوڵکردن wide (left) in RTL
           Row(
             textDirection: TextDirection.rtl,
@@ -4666,6 +4670,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 child: _buildRedButton(
                   label: t('ڕەتکردنەوە'),
                   onTap: () => _showRejectReasonDialog(order),
+                  height: 52,
+                  fontSize: 17,
                 ),
               ),
               const SizedBox(width: 10),
@@ -4675,6 +4681,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   label: t('قبوڵکردن'),
                   icon: Icons.check_rounded,
                   onTap: () => _acceptOrderAndOpenBox(order),
+                  height: 52,
+                  fontSize: 18,
+                  iconSize: 22,
                 ),
               ),
             ],
@@ -4689,17 +4698,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
       textDirection: TextDirection.rtl,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: RC.fg(const Color(0xFF64748B))),
-        const SizedBox(width: 8),
+        Icon(icon, size: 24, color: RC.fg(const Color(0xFF64748B))),
+        const SizedBox(width: 10),
         SizedBox(
-          width: 110,
+          width: 118,
           child: Text(
             tx(label),
             textAlign: TextAlign.right,
             style: TextStyle(
               color: RC.fg(const Color(0xFF64748B)),
               fontWeight: FontWeight.w700,
-              fontSize: 13.5,
+              fontSize: 15,
               fontFamily: kAppFontFamily,
             ),
           ),
@@ -4711,10 +4720,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
             textDirection: valueLtr ? TextDirection.ltr : TextDirection.rtl,
             style: TextStyle(
               color: RC.fg(const Color(0xFF0F172A)),
-              fontWeight: FontWeight.w800,
-              fontSize: 14.5,
+              fontWeight: FontWeight.w900,
+              fontSize: 19,
               fontFamily: kAppFontFamily,
-              height: 1.35,
+              height: 1.4,
             ),
           ),
         ),
@@ -4883,7 +4892,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                         t('داواکاری نوێ'),
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
-                                          color: RC.fg(const Color(0xFF0F172A)),
+                                          color: RC.fg(orange),
                                           fontWeight: FontWeight.w900,
                                           fontSize: 18,
                                           fontFamily: kAppFontFamily,
@@ -5263,12 +5272,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
     required String label,
     required IconData icon,
     required VoidCallback onTap,
+    double height = 44,
+    double fontSize = 14,
+    double iconSize = 18,
   }) {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        height: 44,
+        height: height,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: RC.bg(Color(0xFF16A34A)),
@@ -5284,7 +5296,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: RC.fg(Colors.white), size: 18),
+            Icon(icon, color: RC.fg(Colors.white), size: iconSize),
             const SizedBox(width: 6),
             Flexible(
               child: FittedBox(
@@ -5294,8 +5306,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   style: TextStyle(
                     color: RC.fg(Colors.white),
                     fontWeight: FontWeight.w900,
-                    fontSize: 14,
+                    fontSize: fontSize,
                     letterSpacing: 0,
+                    fontFamily: kAppFontFamily,
                   ),
                 ),
               ),
@@ -5309,12 +5322,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
   Widget _buildRedButton({
     required String label,
     required VoidCallback onTap,
+    double height = 44,
+    double fontSize = 14,
   }) {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        height: 44,
+        height: height,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: RC.bg(Color(0xFFE50010)), // Red from screenshot
@@ -5328,8 +5343,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
               style: TextStyle(
                 color: RC.fg(Colors.white),
                 fontWeight: FontWeight.w900,
-                fontSize: 14,
+                fontSize: fontSize,
                 letterSpacing: 0,
+                fontFamily: kAppFontFamily,
               ),
             ),
           ),
@@ -9605,13 +9621,17 @@ class SettingsScreen extends StatefulWidget {
   final Function(String) onNameChange;
   final String language;
   final Function(String) onLangChange;
+  final bool isOnline;
+  final ValueChanged<bool> onOnlineChange;
 
   const SettingsScreen({
-    super.key, 
-    required this.businessName, 
+    super.key,
+    required this.businessName,
     required this.onNameChange,
     required this.language,
     required this.onLangChange,
+    required this.isOnline,
+    required this.onOnlineChange,
   });
 
   @override
@@ -9630,6 +9650,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _coverBusy = false;
   bool _logoBusy = false;
   bool _saving = false;
+  bool _togglingOnline = false;
 
   Future<void> _pickStoreImage({required bool isCover}) async {
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
@@ -9703,6 +9724,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _logoBusy = false;
         }
       });
+      // Persist immediately so customer app sees the new image.
+      await VendorApiService.instance.updateStoreInfo(
+        nameKu: nameController.text.trim().isEmpty ? widget.businessName : nameController.text.trim(),
+        coverUrl: isCover ? url : _coverUrl,
+        logoUrl: isCover ? _logoUrl : url,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t('وێنەکە پاشەکەوت کرا'), textAlign: TextAlign.center)),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -9718,94 +9749,213 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Widget _buildImageSubCard({
+  Widget _buildLargeImageBox({
     required String title,
-    required String buttonText,
+    required String hint,
     required Uint8List? previewBytes,
     required String? existingUrl,
     required IconData defaultIcon,
     required VoidCallback onPick,
     required bool busy,
-    bool isWide = false,
+    required double height,
   }) {
-    final double width = isWide ? 72 : 52;
-    const double height = 52;
-    Widget preview;
+    Widget body;
     if (busy) {
-      preview = const SizedBox(
-        width: 22,
-        height: 22,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      );
+      body = const Center(child: CircularProgressIndicator(color: Color(0xFFFF6418)));
     } else if (previewBytes != null) {
-      preview = ClipRRect(
-        borderRadius: BorderRadius.circular(11),
-        child: Image.memory(previewBytes, fit: BoxFit.cover, width: width, height: height),
-      );
+      body = Image.memory(previewBytes, fit: BoxFit.cover, width: double.infinity, height: height);
     } else if (existingUrl != null && existingUrl.trim().isNotEmpty) {
-      preview = ClipRRect(
-        borderRadius: BorderRadius.circular(11),
-        child: Image.network(
-          VendorApiService.instance.resolveMediaUrl(existingUrl),
-          fit: BoxFit.cover,
-          width: width,
-          height: height,
-          errorBuilder: (_, __, ___) => Icon(defaultIcon, color: RC.fgn(Colors.grey[400]), size: 22),
-        ),
+      body = Image.network(
+        VendorApiService.instance.resolveMediaUrl(existingUrl),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: height,
+        errorBuilder: (_, __, ___) => _imagePlaceholder(defaultIcon, hint),
       );
     } else {
-      preview = Icon(defaultIcon, color: RC.fgn(Colors.grey[400]), size: isWide ? 26 : 22);
+      body = _imagePlaceholder(defaultIcon, hint);
     }
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          tx(title),
+          textAlign: TextAlign.right,
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+            color: RC.fg(const Color(0xFF0F172A)),
+            fontFamily: kAppFontFamily,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Material(
+          color: RC.bg(const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: busy ? null : onPick,
+            child: SizedBox(
+              height: height,
+              width: double.infinity,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  body,
+                  if (!busy && (previewBytes != null || (existingUrl != null && existingUrl.trim().isNotEmpty)))
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        width: double.infinity,
+                        color: Colors.black.withValues(alpha: 0.5),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          t('گۆڕینی وێنە'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: RC.fg(Colors.white),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            fontFamily: kAppFontFamily,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _imagePlaceholder(IconData icon, String hint) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 40, color: RC.fg(const Color(0xFFFF6418))),
+          const SizedBox(height: 8),
+          Text(
+            tx(hint),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: RC.fg(const Color(0xFF16A34A)),
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              fontFamily: kAppFontFamily,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOpenClosedCard() {
+    final open = widget.isOnline;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: BoxDecoration(
-        color: RC.bg(Color(0xFFF9FAFB)),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: RC.bg(Colors.grey[200]!)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            tx(title),
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: RC.fg(Color(0xFF1F2937))),
+        color: RC.bg(Colors.white),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: RC.bg(open ? const Color(0xFF86EFAC) : const Color(0xFFFECACA)),
+          width: 1.4,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              GestureDetector(
-                onTap: busy ? null : onPick,
-                child: Container(
-                  width: width,
-                  height: height,
-                  decoration: BoxDecoration(
-                    color: RC.bg(Colors.white),
-                    border: Border.all(color: RC.bg(Colors.grey[300]!)),
-                    borderRadius: BorderRadius.circular(12),
+        ],
+      ),
+      child: Row(
+        textDirection: TextDirection.rtl,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  t('دۆخی فرۆشگا'),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: RC.fg(const Color(0xFF0F172A)),
+                    fontFamily: kAppFontFamily,
                   ),
-                  child: Center(child: preview),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  open ? t('کراوە — کڕیار دەتوانێت داوا بکات') : t('داخراوە — داواکاری وەرناگیرێت'),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: RC.fg(open ? const Color(0xFF15803D) : const Color(0xFFB91C1C)),
+                    fontFamily: kAppFontFamily,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            children: [
+              Text(
+                open ? t('کراوە') : t('داخراوە'),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  color: RC.fg(open ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
+                  fontFamily: kAppFontFamily,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: busy ? null : onPick,
-                  icon: Icon(Icons.upload_outlined, size: 16, color: RC.fg(Color(0xFF00897B))),
-                  label: Text(
-                    tx(buttonText),
-                    style: TextStyle(
-                      color: RC.fg(Color(0xFF1F2937)),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: _togglingOnline
+                    ? null
+                    : () async {
+                        final next = !open;
+                        setState(() => _togglingOnline = true);
+                        widget.onOnlineChange(next);
+                        try {
+                          await VendorApiService.instance.updateOnlineStatus(next);
+                        } finally {
+                          if (mounted) setState(() => _togglingOnline = false);
+                        }
+                      },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 58,
+                  height: 32,
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: RC.bg(open ? const Color(0xFF16A34A) : const Color(0xFFCBD5E1)),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: RC.bg(Colors.white),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    side: BorderSide(color: RC.bg(Colors.grey[300]!)),
+                  child: AnimatedAlign(
+                    duration: const Duration(milliseconds: 200),
+                    alignment: open ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      width: 26,
+                      height: 26,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: _togglingOnline
+                          ? const Padding(
+                              padding: EdgeInsets.all(5),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : null,
+                    ),
                   ),
                 ),
               ),
@@ -9827,9 +9977,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final store = await VendorApiService.instance.fetchStoreProfile();
       if (!mounted || store == null) return;
+      TimeOfDay? parseTime(String? raw) {
+        if (raw == null || raw.trim().isEmpty) return null;
+        final m = RegExp(r'(\d{1,2}):(\d{2})').firstMatch(raw);
+        if (m == null) return null;
+        var h = int.tryParse(m.group(1)!) ?? 9;
+        final min = int.tryParse(m.group(2)!) ?? 0;
+        final upper = raw.toUpperCase();
+        if (upper.contains('PM') && h < 12) h += 12;
+        if (upper.contains('AM') && h == 12) h = 0;
+        return TimeOfDay(hour: h.clamp(0, 23), minute: min.clamp(0, 59));
+      }
       setState(() {
         _coverUrl = store['cover_url']?.toString();
         _logoUrl = store['logo_url']?.toString();
+        _openTime = parseTime(store['open_time']?.toString()) ?? _openTime;
+        _closeTime = parseTime(store['close_time']?.toString()) ?? _closeTime;
+        if (store['name_ku'] != null && store['name_ku'].toString().trim().isNotEmpty) {
+          nameController.text = store['name_ku'].toString();
+        }
       });
     } catch (_) {}
   }
@@ -9894,10 +10060,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // TB: title inside white card
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
               decoration: BoxDecoration(
                 color: RC.bg(Colors.white),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: RC.bg(const Color(0xFFFFE4D4))),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
@@ -9911,19 +10078,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
-                  fontSize: 20,
-                  color: RC.fg(const Color(0xFF0F172A)),
+                  fontSize: 24,
+                  color: RC.fg(const Color(0xFFFF6418)),
                   fontFamily: kAppFontFamily,
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
+
+            _buildOpenClosedCard(),
+            const SizedBox(height: 14),
+
+            // Cover + shop images (large boxes → customer cover/logo)
+            _buildSectionCard(
+              title: t('وێنەکانی فرۆشگا'),
+              children: [
+                _buildLargeImageBox(
+                  title: t('وێنەی بەرگ'),
+                  hint: t('هەڵبژاردنی وێنەی بەرگ'),
+                  previewBytes: _coverPreview,
+                  existingUrl: _coverUrl,
+                  defaultIcon: Icons.image_outlined,
+                  onPick: () => _pickStoreImage(isCover: true),
+                  busy: _coverBusy,
+                  height: 150,
+                ),
+                const SizedBox(height: 16),
+                _buildLargeImageBox(
+                  title: t('وێنەی دوکان'),
+                  hint: t('هەڵبژاردنی وێنەی دوکان'),
+                  previewBytes: _logoPreview,
+                  existingUrl: _logoUrl,
+                  defaultIcon: Icons.storefront_outlined,
+                  onPick: () => _pickStoreImage(isCover: false),
+                  busy: _logoBusy,
+                  height: 130,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
 
             // Working Hours
             _buildSectionCard(
               title: t('کاتی کارکردن'),
-              icon: Icons.access_time,
-              iconColor: RC.fg(Color(0xFF00897B)),
               children: [
                 Row(
                   textDirection: TextDirection.rtl,
@@ -9996,8 +10193,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Language
             _buildSectionCard(
               title: t('زمانی بەرنامە'),
-              icon: Icons.translate,
-              iconColor: RC.fg(Color(0xFFF06400)),
               children: [
                 Row(
                   textDirection: TextDirection.rtl,
@@ -10171,7 +10366,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildSectionCard({
     required String title,
-    required IconData icon,
+    IconData? icon,
     Color? iconColor,
     String? badge,
     required List<Widget> children,
@@ -10207,13 +10402,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           LayoutBuilder(
             builder: (context, constraints) {
               final titleRow = Row(
+                textDirection: TextDirection.rtl,
                 children: [
-                  Icon(icon, color: iconColor ?? RC.fg(Color(0xFF00897B)), size: 20),
-                  const SizedBox(width: 8),
+                  if (icon != null) ...[
+                    Icon(icon, color: iconColor ?? RC.fg(Color(0xFF00897B)), size: 20),
+                    const SizedBox(width: 8),
+                  ],
                   Expanded(
                     child: Text(
                       tx(title),
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: RC.fg(Color(0xFF111827))),
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        color: RC.fg(Color(0xFF111827)),
+                        fontFamily: kAppFontFamily,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

@@ -194,8 +194,9 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
       _mapCtrl.move(pt, z);
     } catch (_) {
     } finally {
-      // Let MapEventMove from programmatic move settle before pan emit.
-      Future<void>.delayed(const Duration(milliseconds: 50), () {
+      // Hold long enough that MapEventMove/End from this move are ignored
+      // (50ms was too short — GPS jump was treated as user pan and cancelled).
+      Future<void>.delayed(const Duration(milliseconds: 450), () {
         _applyingCamera = false;
       });
     }
@@ -204,10 +205,19 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
   void _setPin(LatLng pt, {double? zoom, bool moveCamera = true}) {
     setState(() => _pinned = pt);
     widget.onLocationChanged(pt);
-    if (moveCamera && _ready) {
-      _moveCamera(pt, zoom: zoom);
+    if (moveCamera) {
+      if (_ready) {
+        _moveCamera(pt, zoom: zoom);
+      } else {
+        // Map not ready yet — apply as soon as onMapReady fires.
+        _pendingGpsTarget = pt;
+        _pendingGpsZoom = zoom;
+      }
     }
   }
+
+  LatLng? _pendingGpsTarget;
+  double? _pendingGpsZoom;
 
   void _emitCenterPin(LatLng center, {required bool fromGesture}) {
     if (widget.allowIraqWide &&
@@ -219,6 +229,7 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
       return;
     }
     if (fromGesture) {
+      if (_applyingCamera || _locating) return;
       final now = DateTime.now();
       if (_lastPanEmit != null &&
           now.difference(_lastPanEmit!) < const Duration(milliseconds: 120)) {
@@ -236,7 +247,7 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
     if (!_ready) {
       _ready = true;
     }
-    if (!_panPickMode || _applyingCamera) return;
+    if (!_panPickMode || _applyingCamera || _locating) return;
     if (event is MapEventMove || event is MapEventMoveEnd) {
       _emitCenterPin(event.camera.center, fromGesture: true);
     }
@@ -306,13 +317,15 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
         return;
       }
 
-      final pos = await regaResolveCurrentPosition(
-        precise: true,
-        allowLastKnown: false,
-        refineFor: const Duration(seconds: 8),
-        timeLimit: const Duration(seconds: 22),
+      // Fast first fix so the map jumps immediately (long precise refine was
+      // leaving the button stuck on loading for 20s+).
+      var pos = await regaResolveCurrentPosition(
+        precise: false,
+        allowLastKnown: true,
+        refineFor: const Duration(seconds: 2),
+        timeLimit: const Duration(seconds: 10),
       );
-      if (!mounted || gen != _gpsGeneration || _userMovedPin) return;
+      if (!mounted || gen != _gpsGeneration) return;
       if (pos == null) {
         if (!silent) {
           _toast(
@@ -323,7 +336,7 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
         }
         return;
       }
-      final pt = LatLng(pos.latitude, pos.longitude);
+      var pt = LatLng(pos.latitude, pos.longitude);
       if (widget.allowIraqWide &&
           !KalarGeoCatalog.isInsideIraq(pt.latitude, pt.longitude)) {
         if (!silent) {
@@ -333,15 +346,19 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
       }
       if (!mounted || gen != _gpsGeneration || _userMovedPin) return;
 
+      // Wait briefly if tiles/controller not ready yet.
+      for (var i = 0; i < 30 && mounted && !_ready; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      if (!mounted || gen != _gpsGeneration || _userMovedPin) return;
+
       _applyingCamera = true;
       _setPin(pt, zoom: regaZoomForAccuracy(pos.accuracy));
-      Future<void>.delayed(const Duration(milliseconds: 120), () {
-        if (!mounted || gen != _gpsGeneration || _userMovedPin) return;
+      if (_ready) {
         _moveCamera(pt, zoom: regaZoomForAccuracy(pos.accuracy));
-        Future<void>.delayed(const Duration(milliseconds: 400), () {
-          if (gen == _gpsGeneration) _applyingCamera = false;
-        });
-      });
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (gen == _gpsGeneration) _applyingCamera = false;
 
       if (!silent) {
         final acc = pos.accuracy;
@@ -363,6 +380,33 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
           );
         }
       }
+
+      // Background refine — update pin if a tighter fix arrives.
+      final first = pos;
+      () async {
+        final better = await regaResolveCurrentPosition(
+          precise: true,
+          allowLastKnown: false,
+          refineFor: const Duration(seconds: 5),
+          timeLimit: const Duration(seconds: 12),
+        );
+        if (!mounted || gen != _gpsGeneration || _userMovedPin || better == null) {
+          return;
+        }
+        if (!regaIsCoarseFix(better, maxMeters: 120) &&
+            (!first.accuracy.isFinite ||
+                (better.accuracy.isFinite && better.accuracy < first.accuracy - 5))) {
+          final next = LatLng(better.latitude, better.longitude);
+          if (widget.allowIraqWide &&
+              !KalarGeoCatalog.isInsideIraq(next.latitude, next.longitude)) {
+            return;
+          }
+          _applyingCamera = true;
+          _setPin(next, zoom: regaZoomForAccuracy(better.accuracy));
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          if (gen == _gpsGeneration) _applyingCamera = false;
+        }
+      }();
     } catch (_) {
       if (!silent) {
         _toast('هەڵەی GPS. تکایە دووبارە هەوڵبدەرەوە');
@@ -490,6 +534,15 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
             backgroundColor: const Color(0xFFE8EEF4),
             onMapReady: () {
               _ready = true;
+              // Prefer pending GPS target over city-center initial pin.
+              final pending = _pendingGpsTarget;
+              if (pending != null) {
+                _pendingGpsTarget = null;
+                final z = _pendingGpsZoom;
+                _pendingGpsZoom = null;
+                _moveCamera(pending, zoom: z ?? regaZoomForAccuracy(50));
+                return;
+              }
               // Don't yank back to city center while GPS is still resolving.
               if (_locating) return;
               _moveCamera(_pinned, zoom: _initialZoom);

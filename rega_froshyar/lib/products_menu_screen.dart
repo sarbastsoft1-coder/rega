@@ -397,14 +397,15 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
 
   Widget _buildCategoryDraftCard() {
     final hasImage = _draftPreviewBytes != null || (_draftImageUrl != null && _draftImageUrl!.isNotEmpty);
+    const imageBox = 120.0;
     return Align(
       alignment: Alignment.centerRight,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 260),
+        constraints: const BoxConstraints(maxWidth: 240),
         child: Container(
           decoration: BoxDecoration(
             color: RC.bg(Colors.white),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
             boxShadow: [
               BoxShadow(
@@ -414,158 +415,161 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
               ),
             ],
           ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AspectRatio(
-                aspectRatio: 1,
-                child: Material(
-                  color: RC.bg(const Color(0xFFF8FAFC)),
-                  child: InkWell(
-                    onTap: _imageBusy ? null : _pickCategoryImage,
-                    child: hasImage
-                        ? Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              if (_draftPreviewBytes != null)
-                                Image.memory(
-                                  _draftPreviewBytes!,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover,
-                                  alignment: Alignment.center,
-                                )
-                              else
-                                Image.network(
-                                  VendorApiService.instance.resolveMediaUrl(_draftImageUrl!),
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover,
-                                  alignment: Alignment.center,
-                                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                                ),
-                              Align(
-                                alignment: Alignment.bottomCenter,
-                                child: Container(
-                                  width: double.infinity,
-                                  color: Colors.black.withValues(alpha: 0.55),
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
-                                  child: Text(
-                                    t('گۆڕینی وێنە'),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: RC.fg(Colors.white),
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 13,
-                                      fontFamily: kAppFontFamily,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: SizedBox(
+                    width: imageBox,
+                    height: imageBox,
+                    child: Material(
+                      color: RC.bg(const Color(0xFFF8FAFC)),
+                      borderRadius: BorderRadius.circular(14),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: _imageBusy ? null : _pickCategoryImage,
+                        child: hasImage
+                            ? Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  if (_draftPreviewBytes != null)
+                                    Image.memory(
+                                      _draftPreviewBytes!,
+                                      fit: BoxFit.cover,
+                                      alignment: Alignment.center,
+                                    )
+                                  else
+                                    Image.network(
+                                      VendorApiService.instance.resolveMediaUrl(_draftImageUrl!),
+                                      fit: BoxFit.cover,
+                                      alignment: Alignment.center,
+                                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                    ),
+                                  Align(
+                                    alignment: Alignment.bottomCenter,
+                                    child: Container(
+                                      width: double.infinity,
+                                      color: Colors.black.withValues(alpha: 0.55),
+                                      padding: const EdgeInsets.symmetric(vertical: 4),
+                                      child: Text(
+                                        t('گۆڕینی وێنە'),
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: RC.fg(Colors.white),
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 11,
+                                          fontFamily: kAppFontFamily,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
+                                  if (_imageBusy)
+                                    const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                                ],
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (_imageBusy)
+                                    const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(color: _orange, strokeWidth: 2),
+                                    )
+                                  else ...[
+                                    Icon(Icons.image_outlined, size: 32, color: RC.fg(_orange)),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      t('هەڵبژاردنی وێنە'),
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: RC.fg(_green),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12,
+                                        fontFamily: kAppFontFamily,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
-                              if (_imageBusy)
-                                const Center(child: CircularProgressIndicator(color: Colors.white)),
-                            ],
-                          )
-                        : Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (_imageBusy)
-                                const CircularProgressIndicator(color: _orange)
-                              else ...[
-                                Icon(Icons.image_outlined, size: 48, color: RC.fg(_orange)),
-                                const SizedBox(height: 10),
-                                Text(
-                                  t('هەڵبژاردنی وێنە'),
-                                  style: TextStyle(
-                                    color: RC.fg(_green),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 15,
-                                    fontFamily: kAppFontFamily,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                child: Column(
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _catNameCtrl,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    fontFamily: kAppFontFamily,
+                    color: RC.fg(const Color(0xFF0F172A)),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: t('...ناوی بەش بنووسە'),
+                    hintStyle: TextStyle(
+                      color: RC.fg(const Color(0xFF94A3B8)),
+                      fontFamily: kAppFontFamily,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    isDense: true,
+                    filled: true,
+                    fillColor: RC.bg(Colors.white),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: RC.bg(_orange), width: 1.6),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: RC.bg(_orange), width: 1.9),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  textDirection: TextDirection.rtl,
                   children: [
-                    TextField(
-                      controller: _catNameCtrl,
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                        fontFamily: kAppFontFamily,
-                        color: RC.fg(const Color(0xFF0F172A)),
-                      ),
-                      decoration: InputDecoration(
-                        hintText: t('...ناوی بەش بنووسە'),
-                        hintStyle: TextStyle(
-                          color: RC.fg(const Color(0xFF94A3B8)),
-                          fontFamily: kAppFontFamily,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        isDense: true,
-                        filled: true,
-                        fillColor: RC.bg(Colors.white),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: RC.bg(_orange), width: 1.6),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: RC.bg(_orange), width: 1.9),
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: ElevatedButton(
+                          onPressed: _saveDraft,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: RC.bg(_green),
+                            foregroundColor: RC.fg(Colors.white),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text(
+                            t('پاشەکەوتکردن'),
+                            style: TextStyle(fontWeight: FontWeight.w900, fontFamily: kAppFontFamily),
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      textDirection: TextDirection.rtl,
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 44,
-                            child: ElevatedButton(
-                              onPressed: _saveDraft,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: RC.bg(_green),
-                                foregroundColor: RC.fg(Colors.white),
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              child: Text(
-                                t('پاشەکەوتکردن'),
-                                style: TextStyle(fontWeight: FontWeight.w900, fontFamily: kAppFontFamily),
-                              ),
-                            ),
-                          ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Material(
+                        color: RC.bg(_red),
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          onTap: _cancelDraft,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Icon(Icons.close_rounded, color: RC.fg(Colors.white)),
                         ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Material(
-                            color: RC.bg(_red),
-                            borderRadius: BorderRadius.circular(12),
-                            child: InkWell(
-                              onTap: _cancelDraft,
-                              borderRadius: BorderRadius.circular(12),
-                              child: Icon(Icons.close_rounded, color: RC.fg(Colors.white)),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -577,7 +581,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
     return Align(
       alignment: Alignment.centerRight,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 260),
+        constraints: const BoxConstraints(maxWidth: 180),
         child: Material(
           color: RC.bg(Colors.white),
           borderRadius: BorderRadius.circular(18),
@@ -1044,12 +1048,16 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
     final nameKu = TextEditingController(text: existing?.name ?? '');
     final nameAr = TextEditingController();
     final desc = TextEditingController(text: _stripFeaturesBlock(existing?.description));
-    final price = TextEditingController(text: (existing?.price.toInt() ?? 0).toString());
-    final discount = TextEditingController(
-      text: (existing?.discountPrice?.toInt() ?? 0).toString(),
+    final price = TextEditingController(
+      text: (existing != null && existing.price > 0) ? existing.price.toInt().toString() : '',
     );
-    final prep = TextEditingController(text: '0');
-    final delivery = TextEditingController(text: '0');
+    final discount = TextEditingController(
+      text: (existing?.discountPrice != null && existing!.discountPrice! > 0)
+          ? existing.discountPrice!.toInt().toString()
+          : '',
+    );
+    final prep = TextEditingController();
+    final delivery = TextEditingController();
     String? imageUrl = existing?.imageUrl;
     Uint8List? previewBytes;
     var imageBusy = false;
@@ -1096,9 +1104,16 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
               }
             }
 
-            InputDecoration fieldDeco() => InputDecoration(
+            InputDecoration fieldDeco({String? hint}) => InputDecoration(
                   filled: true,
                   fillColor: RC.bg(const Color(0xFFF1F5F9)),
+                  hintText: hint,
+                  hintStyle: TextStyle(
+                    color: RC.fg(const Color(0xFF94A3B8)),
+                    fontWeight: FontWeight.w600,
+                    fontFamily: kAppFontFamily,
+                    fontSize: 13,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -1106,7 +1121,13 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 );
 
-            Widget labeledField(String label, TextEditingController c, {int maxLines = 1, TextInputType? type}) {
+            Widget labeledField(
+              String label,
+              TextEditingController c, {
+              int maxLines = 1,
+              TextInputType? type,
+              String? hint,
+            }) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1127,7 +1148,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                     keyboardType: type,
                     textAlign: TextAlign.right,
                     style: TextStyle(fontWeight: FontWeight.w700, fontFamily: kAppFontFamily),
-                    decoration: fieldDeco(),
+                    decoration: fieldDeco(hint: hint),
                   ),
                 ],
               );
@@ -1164,14 +1185,27 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                                       ),
                                     ),
                                   ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(sheetCtx),
-                                    child: Text(
-                                      t('داخستن'),
-                                      style: TextStyle(
-                                        color: RC.fg(_red),
-                                        fontWeight: FontWeight.w900,
-                                        fontFamily: kAppFontFamily,
+                                  Material(
+                                    color: RC.bg(const Color(0xFFFEE2E2)),
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: InkWell(
+                                      onTap: () => Navigator.pop(sheetCtx),
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(color: RC.bg(_red), width: 1.4),
+                                        ),
+                                        child: Text(
+                                          t('داخستن'),
+                                          style: TextStyle(
+                                            color: RC.fg(_red),
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 13,
+                                            fontFamily: kAppFontFamily,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -1256,9 +1290,23 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                               Row(
                                 textDirection: TextDirection.rtl,
                                 children: [
-                                  Expanded(child: labeledField(t('نرخ'), price, type: TextInputType.number)),
+                                  Expanded(
+                                    child: labeledField(
+                                      t('نرخ'),
+                                      price,
+                                      type: TextInputType.number,
+                                      hint: t('نرخ بنووسە'),
+                                    ),
+                                  ),
                                   const SizedBox(width: 10),
-                                  Expanded(child: labeledField(t('داشکان'), discount, type: TextInputType.number)),
+                                  Expanded(
+                                    child: labeledField(
+                                      t('داشکان'),
+                                      discount,
+                                      type: TextInputType.number,
+                                      hint: t('داشکان (ئارەزوومەندانە)'),
+                                    ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 10),
@@ -1266,10 +1314,22 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                                 textDirection: TextDirection.rtl,
                                 children: [
                                   Expanded(
-                                    child: labeledField(t('کاتی پێچوون (خولەک)'), prep, type: TextInputType.number),
+                                    child: labeledField(
+                                      t('کاتی پێچوون (خولەک)'),
+                                      prep,
+                                      type: TextInputType.number,
+                                      hint: t('خولەک'),
+                                    ),
                                   ),
                                   const SizedBox(width: 10),
-                                  Expanded(child: labeledField(t('نرخی گەیاندن'), delivery, type: TextInputType.number)),
+                                  Expanded(
+                                    child: labeledField(
+                                      t('نرخی گەیاندن'),
+                                      delivery,
+                                      type: TextInputType.number,
+                                      hint: t('نرخی گەیاندن'),
+                                    ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 12),
