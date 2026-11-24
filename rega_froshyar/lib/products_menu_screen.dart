@@ -914,11 +914,136 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
     );
   }
 
+  static final _featureLineRe = RegExp(r'^[•\-\*]\s*(.+?)(?:\s*\(\+(\d+)\))?\s*$');
+
+  List<({String name, int extraPrice})> _parseFeatures(String? raw) {
+    if (raw == null || raw.isEmpty) return [];
+    final idx = raw.indexOf('تایبەتمەندییەکان:');
+    if (idx < 0) return [];
+    final out = <({String name, int extraPrice})>[];
+    for (final line in raw.substring(idx).split('\n').skip(1)) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      final m = _featureLineRe.firstMatch(trimmed);
+      if (m == null) break;
+      final name = (m.group(1) ?? '').trim();
+      if (name.isEmpty) continue;
+      final extra = int.tryParse(m.group(2) ?? '') ?? 0;
+      out.add((name: name, extraPrice: extra < 0 ? 0 : extra));
+    }
+    return out;
+  }
+
+  String _stripFeaturesBlock(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    final idx = raw.indexOf('تایبەتمەندییەکان:');
+    if (idx < 0) return raw.trim();
+    return raw.substring(0, idx).trim();
+  }
+
+  String? _composeDescription(String base, List<({String name, int extraPrice})> features) {
+    final clean = base.trim();
+    if (features.isEmpty) return clean.isEmpty ? null : clean;
+    final buf = StringBuffer();
+    if (clean.isNotEmpty) {
+      buf.writeln(clean);
+      buf.writeln();
+    }
+    buf.writeln('تایبەتمەندییەکان:');
+    for (final f in features) {
+      if (f.extraPrice > 0) {
+        buf.writeln('• ${f.name} (+${f.extraPrice})');
+      } else {
+        buf.writeln('• ${f.name}');
+      }
+    }
+    return buf.toString().trim();
+  }
+
+  Future<({String name, int extraPrice})?> _promptAddFeature(BuildContext parentCtx) async {
+    final nameCtrl = TextEditingController();
+    final priceCtrl = TextEditingController(text: '0');
+    final result = await showDialog<({String name, int extraPrice})>(
+      context: parentCtx,
+      builder: (dlgCtx) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text(
+              t('زیادکردنی تایبەتمەندی'),
+              style: TextStyle(fontWeight: FontWeight.w900, fontFamily: kAppFontFamily),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  textAlign: TextAlign.right,
+                  decoration: InputDecoration(
+                    labelText: t('ناوی تایبەتمەندی'),
+                    filled: true,
+                    fillColor: RC.bg(const Color(0xFFF1F5F9)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  style: TextStyle(fontFamily: kAppFontFamily),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: priceCtrl,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.right,
+                  decoration: InputDecoration(
+                    labelText: t('نرخی زیادە (ئارەزوومەندانە)'),
+                    filled: true,
+                    fillColor: RC.bg(const Color(0xFFF1F5F9)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  style: TextStyle(fontFamily: kAppFontFamily),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dlgCtx),
+                child: Text(t('پاشگەزبوونەوە'), style: TextStyle(fontFamily: kAppFontFamily)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final name = nameCtrl.text.trim();
+                  if (name.isEmpty) return;
+                  final extra = int.tryParse(priceCtrl.text.trim()) ?? 0;
+                  Navigator.pop(dlgCtx, (name: name, extraPrice: extra < 0 ? 0 : extra));
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: RC.bg(_green),
+                  foregroundColor: RC.fg(Colors.white),
+                ),
+                child: Text(t('زیادکردن'), style: TextStyle(fontFamily: kAppFontFamily, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    nameCtrl.dispose();
+    priceCtrl.dispose();
+    return result;
+  }
+
   Future<void> _openProductForm({required String category, Product? existing}) async {
     final isEdit = existing != null;
+    final parsedFeatures = _parseFeatures(existing?.description);
     final nameKu = TextEditingController(text: existing?.name ?? '');
     final nameAr = TextEditingController();
-    final desc = TextEditingController(text: existing?.description ?? '');
+    final desc = TextEditingController(text: _stripFeaturesBlock(existing?.description));
     final price = TextEditingController(text: (existing?.price.toInt() ?? 0).toString());
     final discount = TextEditingController(
       text: (existing?.discountPrice?.toInt() ?? 0).toString(),
@@ -928,6 +1053,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
     String? imageUrl = existing?.imageUrl;
     Uint8List? previewBytes;
     var imageBusy = false;
+    final features = List<({String name, int extraPrice})>.from(parsedFeatures);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1146,29 +1272,81 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                                   Expanded(child: labeledField(t('نرخی گەیاندن'), delivery, type: TextInputType.number)),
                                 ],
                               ),
-                              if (!isEdit) ...[
-                                const SizedBox(height: 12),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 48,
-                                  child: ElevatedButton(
-                                    onPressed: () {},
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: RC.bg(const Color(0xFFF1F5F9)),
-                                      foregroundColor: RC.fg(const Color(0xFF334155)),
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    child: Text(
-                                      t('+ زیادکردنی تایبەتمەندی'),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontFamily: kAppFontFamily,
-                                      ),
+                              const SizedBox(height: 12),
+                              if (features.isNotEmpty) ...[
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    t('تایبەتمەندییەکان'),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13,
+                                      color: RC.fg(const Color(0xFF0F172A)),
+                                      fontFamily: kAppFontFamily,
                                     ),
                                   ),
                                 ),
+                                const SizedBox(height: 8),
+                                ...features.asMap().entries.map((entry) {
+                                  final i = entry.key;
+                                  final f = entry.value;
+                                  final priceLabel = f.extraPrice > 0 ? ' (+${f.extraPrice})' : '';
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: RC.bg(const Color(0xFFF8FAFC)),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+                                    ),
+                                    child: Row(
+                                      textDirection: TextDirection.rtl,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            '${f.name}$priceLabel',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontFamily: kAppFontFamily,
+                                              color: RC.fg(const Color(0xFF334155)),
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          tooltip: t('سڕینەوە'),
+                                          onPressed: () => setSheet(() => features.removeAt(i)),
+                                          icon: Icon(Icons.close_rounded, color: RC.fg(_red), size: 20),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
                               ],
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: ElevatedButton(
+                                  onPressed: () async {
+                                    final added = await _promptAddFeature(sheetCtx);
+                                    if (added == null) return;
+                                    setSheet(() => features.add(added));
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: RC.bg(const Color(0xFFF1F5F9)),
+                                    foregroundColor: RC.fg(const Color(0xFF334155)),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  child: Text(
+                                    t('+ زیادکردنی تایبەتمەندی'),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontFamily: kAppFontFamily,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -1212,7 +1390,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                                     costPrice: existing?.costPrice ??
                                         (p > 1 ? (p - 1).clamp(0, p - 1).toDouble() : 0),
                                     discountPrice: d > 0 && d < p ? d : null,
-                                    description: desc.text.trim().isEmpty ? null : desc.text.trim(),
+                                    description: _composeDescription(desc.text, features),
                                     imageUrl: imageUrl,
                                     isAvailable: existing?.isAvailable ?? true,
                                     imagePath: existing?.imagePath,

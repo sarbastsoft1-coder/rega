@@ -363,7 +363,8 @@ class CustomerApiService {
     return const [];
   }
 
-  Future<Map<String, dynamic>?> placeBackendOrder({
+  /// Returns `(data, errorMessage)`. On success `errorMessage` is null.
+  Future<(Map<String, dynamic>?, String?)> placeBackendOrder({
     int? storeId,
     required String storeName,
     required String neighborhoodName,
@@ -378,13 +379,22 @@ class CustomerApiService {
     String? notes,
   }) async {
     await initToken();
+    // Normalize Flutter cart keys to what the API expects.
+    final normalizedItems = items.map((raw) {
+      final m = Map<String, dynamic>.from(raw);
+      m['product_name'] ??= m['name'];
+      m['unit_price'] ??= m['price'];
+      m['special_notes'] ??= m['notes'];
+      return m;
+    }).toList();
+
     try {
       final res = await http
           .post(
             Uri.parse('$baseUrl/public/orders'),
             headers: _headers(),
             body: jsonEncode({
-              'store_id': storeId,
+              if (storeId != null) 'store_id': storeId,
               'store_name': storeName,
               'neighborhood_name': neighborhoodName,
               'customer_name': customerName,
@@ -396,17 +406,27 @@ class CustomerApiService {
               'payment_method': 'cash',
               'coupon_code': couponCode,
               'customer_notes': notes,
-              'items': items,
+              'items': normalizedItems,
             }),
           )
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 20));
 
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        final body = regaJsonDecode(res.body) as Map<String, dynamic>;
-        return body['data'] as Map<String, dynamic>?;
+      final body = res.body.isNotEmpty
+          ? (regaJsonDecode(res.body) as Map<String, dynamic>)
+          : <String, dynamic>{};
+      if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] != false) {
+        return (body['data'] as Map<String, dynamic>?, null);
       }
-    } catch (_) {}
-    return null;
+      final msg = body['message']?.toString();
+      return (
+        null,
+        (msg != null && msg.isNotEmpty)
+            ? msg
+            : 'ناردنی داواکاری سەرکەوتوو نەبوو (${res.statusCode})',
+      );
+    } catch (_) {
+      return (null, 'پەیوەندی بە سێرڤەرەوە شکستی هێنا. دووبارە هەوڵبدەرەوە.');
+    }
   }
 
   Future<List<dynamic>> fetchCustomerOrders({String? phone}) async {

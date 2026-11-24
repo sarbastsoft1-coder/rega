@@ -29,6 +29,17 @@ class VendorAppController extends Controller
         return $store;
     }
 
+    /** Store that owns this order — any of the vendor's stores (not only resolveOwnedStore). */
+    private function resolveOrderStore(Request $request, Order $order): Store
+    {
+        $store = $request->user()->stores()->whereKey($order->store_id)->first();
+        if (! $store) {
+            abort(403, 'ئەم داواکارییە سەر بە فرۆشگاکەت نییە.');
+        }
+
+        return $store;
+    }
+
     public function storeProfile(Request $request): JsonResponse
     {
         $store = $this->resolveStore($request)->load('storeCategories');
@@ -357,10 +368,21 @@ class VendorAppController extends Controller
 
     public function orders(Request $request): JsonResponse
     {
-        $store = $this->resolveStore($request);
+        $user = $request->user();
+        $storeIds = $user->stores()->pluck('id');
+        if ($storeIds->isEmpty()) {
+            abort(404, 'هیچ فرۆشگایەک بەم هەژمارەوە نەبەستراوەتەوە.');
+        }
 
-        $query = $store->orders()
-            ->with(['items', 'customer:id,name,phone', 'driver:id,name,phone', 'driver.driverProfile'])
+        $query = Order::query()
+            ->whereIn('store_id', $storeIds)
+            ->with([
+                'items',
+                'customer:id,name,phone',
+                'driver:id,name,phone',
+                'driver.driverProfile',
+                'store:id,lat,lng,name_ku',
+            ])
             ->latest();
 
         $filter = (string) $request->string('status', 'active');
@@ -370,13 +392,13 @@ class VendorAppController extends Controller
             $query->where('vendor_status', $filter);
         }
 
-        $orders = $query->get()->makeHidden(['handover_pin', 'delivery_pin'])->map(function (Order $order) use ($store) {
+        $orders = $query->get()->makeHidden(['handover_pin', 'delivery_pin'])->map(function (Order $order) {
             $profile = $order->driver?->driverProfile;
             $arr = $order->toArray();
             $arr['driver_lat'] = $order->driver_lat ?? $profile?->current_lat;
             $arr['driver_lng'] = $order->driver_lng ?? $profile?->current_lng;
-            $arr['store_lat'] = $store->lat;
-            $arr['store_lng'] = $store->lng;
+            $arr['store_lat'] = $order->store?->lat;
+            $arr['store_lng'] = $order->store?->lng;
             $arr['customer_lat'] = $order->delivery_lat;
             $arr['customer_lng'] = $order->delivery_lng;
             if (isset($arr['driver']) && is_array($arr['driver'])) {
@@ -397,10 +419,7 @@ class VendorAppController extends Controller
 
     public function acceptOrder(Request $request, Order $order): JsonResponse
     {
-        $store = $this->resolveStore($request);
-        if ($order->store_id !== $store->id) {
-            abort(403);
-        }
+        $this->resolveOrderStore($request, $order);
 
         $old = $order->status;
         $order->update([
@@ -440,10 +459,7 @@ class VendorAppController extends Controller
 
     public function rejectOrder(Request $request, Order $order): JsonResponse
     {
-        $store = $this->resolveStore($request);
-        if ($order->store_id !== $store->id) {
-            abort(403);
-        }
+        $this->resolveOrderStore($request, $order);
 
         $reason = $request->input('reason', 'لەلایەن فرۆشگاوە ڕەتکرایەوە');
         $old = $order->status;
@@ -471,10 +487,7 @@ class VendorAppController extends Controller
 
     public function markReady(Request $request, Order $order): JsonResponse
     {
-        $store = $this->resolveStore($request);
-        if ($order->store_id !== $store->id) {
-            abort(403);
-        }
+        $this->resolveOrderStore($request, $order);
 
         $old = $order->status;
         $order->update([
@@ -526,10 +539,7 @@ class VendorAppController extends Controller
 
     public function dispatchNearestDriver(Request $request, Order $order, DriverDispatchService $dispatchService): JsonResponse
     {
-        $store = $this->resolveStore($request);
-        if ($order->store_id !== $store->id) {
-            abort(403);
-        }
+        $this->resolveOrderStore($request, $order);
 
         $result = $dispatchService->autoAssignNearestDriver($order, $request->user());
 
@@ -546,10 +556,7 @@ class VendorAppController extends Controller
 
     public function assignDriver(Request $request, Order $order): JsonResponse
     {
-        $store = $this->resolveStore($request);
-        if ($order->store_id !== $store->id) {
-            abort(403);
-        }
+        $store = $this->resolveOrderStore($request, $order);
 
         $validated = $request->validate([
             'driver_id' => ['required', 'exists:users,id'],
@@ -708,10 +715,7 @@ class VendorAppController extends Controller
 
     public function handoverToDriver(Request $request, Order $order): JsonResponse
     {
-        $store = $this->resolveStore($request);
-        if ($order->store_id !== $store->id) {
-            abort(403);
-        }
+        $this->resolveOrderStore($request, $order);
 
         $old = $order->status;
         $order->update([

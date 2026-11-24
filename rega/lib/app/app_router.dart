@@ -158,6 +158,44 @@ GoRouter createCustomerRouter({
             );
           }
           final o = order;
+          final pendingStatus = o.status.toLowerCase().trim();
+          final waitingAccept = pendingStatus.isEmpty ||
+              pendingStatus == 'pending' ||
+              pendingStatus == 'waiting' ||
+              pendingStatus == 'awaiting_accept';
+          if (waitingAccept) {
+            return Scaffold(
+              appBar: AppBar(title: Text(tx('شوێن پێهەڵگرتن'))),
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.hourglass_top_rounded, size: 48, color: Color(0xFFF59E0B)),
+                      const SizedBox(height: 16),
+                      Text(
+                        tx('چاوەڕوانی قبوڵکردنی داواکاری'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        tx('نەخشە دوای قبوڵکردنی فرۆشیار دەردەکەوێت'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: () => context.go('/orders'),
+                        child: Text(tx('گەڕانەوە بۆ داواکارییەکان')),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
           return CustomerLiveOrderTrackerScreen(
             orderCode: o.id,
             storeName: o.storeName,

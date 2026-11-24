@@ -819,13 +819,25 @@ class _MainScreenState extends State<MainScreen> {
         return false;
       }
 
-      final pos = await regaResolveCurrentPosition();
+      // High-accuracy + refine — same path as map «شوێنەکەم» (avoids city-center / IP pins).
+      final pos = await regaResolveCurrentPosition(
+        precise: true,
+        allowLastKnown: false,
+        refineFor: const Duration(seconds: 8),
+        timeLimit: const Duration(seconds: 22),
+      );
 
       if (pos == null) {
         if (!silent && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(_t('نەتوانرا شوێنەکەت بدۆزرێتەوە. دووبارە هەوڵبدەرەوە')),
+              content: Text(
+                tx(
+                  kIsWeb
+                      ? 'GPS نەدۆزرایەوە. Precise Location چالاک بکە و دووبارە هەوڵبدەرەوە'
+                      : 'نەتوانرا شوێنەکەت بدۆزرێتەوە. دووبارە هەوڵبدەرەوە',
+                ),
+              ),
               backgroundColor: RC.bg(Color(0xFFDC2626)),
             ),
           );
@@ -834,11 +846,21 @@ class _MainScreenState extends State<MainScreen> {
       }
 
       final fixedPos = pos;
-      final closest = _closestNeighborhoodTo(fixedPos.latitude, fixedPos.longitude);
-      final strictName = _strictNeighborhoodNameAt(fixedPos.latitude, fixedPos.longitude);
+      final coarse = regaIsCoarseFix(fixedPos, maxMeters: 150);
+      // Coarse / IP fixes must not snap to a wrong curated neighborhood.
+      final closest = coarse
+          ? null
+          : _closestNeighborhoodTo(fixedPos.latitude, fixedPos.longitude);
+      final strictName = coarse
+          ? null
+          : _strictNeighborhoodNameAt(fixedPos.latitude, fixedPos.longitude);
       final geocoded = await _reverseGeocodeLabel(fixedPos.latitude, fixedPos.longitude);
       if (mounted) {
-        final label = geocoded ?? strictName;
+        final coordsFallback =
+            '${fixedPos.latitude.toStringAsFixed(5)}, ${fixedPos.longitude.toStringAsFixed(5)}';
+        final label = (geocoded != null && geocoded.trim().isNotEmpty)
+            ? geocoded
+            : (strictName ?? coordsFallback);
         // Preserve any manual user input in "ناوی شوێن" (clearPlaceNote: false).
         context.read<LocationNotifier>().setPin(
           lat: fixedPos.latitude,
@@ -847,19 +869,24 @@ class _MainScreenState extends State<MainScreen> {
           clearNeighborhood: closest == null,
           clearPlaceNote: false,
           resolvedPlaceName: label,
-          clearResolvedPlaceName: label == null,
+          clearResolvedPlaceName: false,
         );
         setState(() {
           _isLocationAuthorized = true;
         });
         if (!silent) {
+          final acc = fixedPos.accuracy;
+          final meters = acc.isFinite ? acc.round() : null;
+          final msg = coarse
+              ? (meters == null
+                  ? '⚠️ شوێن نزیکە بەڵام ورد نییە — Precise Location هەڵبکە یان لە نەخشە پینەکە بجوڵێنە'
+                  : '⚠️ شوێن ورد نییە (±$meters م). Precise Location هەڵبکە یان لە نەخشە پینەکە بجوڵێنە')
+              : '🎯 شوێنەکەت دیاریکرا: $label';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                tx('🎯 شوێنەکەت دیاریکرا: ${label ?? '${fixedPos.latitude.toStringAsFixed(4)}, ${fixedPos.longitude.toStringAsFixed(4)}'}'),
-              ),
-              backgroundColor: RC.bg(Color(0xFF059669)),
-              duration: const Duration(seconds: 2),
+              content: Text(tx(msg)),
+              backgroundColor: RC.bg(coarse ? const Color(0xFFF59E0B) : const Color(0xFF059669)),
+              duration: Duration(seconds: coarse ? 4 : 2),
             ),
           );
         }
@@ -2627,15 +2654,32 @@ class _MainScreenState extends State<MainScreen> {
         .map(
           (c) => <String, dynamic>{
             'product_id': int.tryParse(c.product.id),
+            'product_name': c.product.name,
             'name': c.product.name,
             'quantity': c.quantity,
+            'unit_price': c.product.price,
             'price': c.product.price,
+            'special_notes': c.specialNotes,
             'notes': c.specialNotes,
           },
         )
         .toList();
 
-    final created = await CustomerApiService.instance.placeBackendOrder(
+    if (dbStoreId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            tx('فرۆشگا نادروستە — داواکاری نەنێردرا. دووبارە هەوڵبدەرەوە.'),
+            textAlign: TextAlign.center,
+          ),
+          backgroundColor: RC.bg(const Color(0xFFDC2626)),
+        ),
+      );
+      return;
+    }
+
+    final (created, placeError) = await CustomerApiService.instance.placeBackendOrder(
       storeId: dbStoreId,
       storeName: localOrder.storeName,
       neighborhoodName: _selectedNeighborhoodOrNull?.name ?? _deliveryDisplayLabel,
@@ -2656,7 +2700,9 @@ class _MainScreenState extends State<MainScreen> {
       final syncedOrder = OrderItem(
         id: realOrderNum,
         storeName: localOrder.storeName,
-        totalAmount: (created['grand_total'] as num?)?.toInt() ?? grandTotal,
+        totalAmount: (created['total_amount'] as num?)?.toInt() ??
+            (created['grand_total'] as num?)?.toInt() ??
+            grandTotal,
         status: realStatus,
         date: DateTime.now(),
         items: localOrder.items,
@@ -2680,8 +2726,20 @@ class _MainScreenState extends State<MainScreen> {
       });
       _showOrderSuccessModal(syncedOrder);
     } else {
-      // Backend failed — still show local pending order so the customer has a next step.
-      _showOrderSuccessModal(localOrder);
+      // Remove optimistic local order — backend never received it.
+      setState(() {
+        _orders.removeWhere((o) => o.id == localOrder.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            tx(placeError ?? 'ناردنی داواکاری سەرکەوتوو نەبوو'),
+            textAlign: TextAlign.center,
+          ),
+          backgroundColor: RC.bg(const Color(0xFFDC2626)),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 
@@ -7309,7 +7367,28 @@ class _MainScreenState extends State<MainScreen> {
   // ============================================================================
   // 🛵 LIVE GPS TRACKING MODAL (شوێنپێهەڵگرتنی ڕاستەوخۆ)
   // ============================================================================
+  bool _isWaitingForVendorAccept(String status) {
+    final s = status.toLowerCase().trim();
+    return s.isEmpty || s == 'pending' || s == 'waiting' || s == 'awaiting_accept';
+  }
+
   void _showLiveTrackingModal(OrderItem order) {
+    // Pending orders have no live map yet — tell the customer to wait for accept.
+    if (_isWaitingForVendorAccept(order.status)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            tx('چاوەڕوانی قبوڵکردنی داواکاری'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          backgroundColor: RC.bg(const Color(0xFFF59E0B)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
     if (order.id.isNotEmpty) {
       context.push('/track/${Uri.encodeComponent(order.id)}', extra: order);
       return;
@@ -9454,6 +9533,16 @@ class _MainScreenState extends State<MainScreen> {
       'کوردی': 'چاوەڕوانی قبوڵکردن',
       'العربية': 'بانتظار القبول',
       'English': 'Waiting for accept',
+    },
+    'چاوەڕوانی قبوڵکردنی داواکاری': {
+      'کوردی': 'چاوەڕوانی قبوڵکردنی داواکاری',
+      'العربية': 'بانتظار قبول الطلب',
+      'English': 'Wait for order acceptance',
+    },
+    'نەخشە دوای قبوڵکردنی فرۆشیار دەردەکەوێت': {
+      'کوردی': 'نەخشە دوای قبوڵکردنی فرۆشیار دەردەکەوێت',
+      'العربية': 'ستظهر الخريطة بعد قبول البائع للطلب',
+      'English': 'The map appears after the vendor accepts the order',
     },
     'ئامادەیە': {'کوردی': 'ئامادەیە', 'العربية': 'جاهز', 'English': 'Ready'},
     'هەڵگیرا': {'کوردی': 'هەڵگیرا', 'العربية': 'تم الاستلام للتوصيل', 'English': 'Picked up'},

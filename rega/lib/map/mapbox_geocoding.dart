@@ -605,11 +605,15 @@ class MapboxGeocoding {
       return 'کەلار · گەڕەک / کۆمەڵگای نوێ';
     }
 
-    // 7. Outside Kalar/Rizgari: return normalized remote city/town or clean GPS fallback.
+    // 7. Outside Kalar/Rizgari: prefer remote label; if only a generic city came
+    // back, keep it with GPS coords so the pin is still identifiable.
     if (remoteBest != null && remoteBest.isNotEmpty) {
+      if (_isGenericCityOrDistrict(remoteBest)) {
+        return '$remoteBest · ${coordinatesLabel(point, decimals: 4)}';
+      }
       return remoteBest;
     }
-    return null;
+    return coordinatesLabel(point, decimals: 5);
   }
 
   /// Forward search / autocomplete for Kurdish neighborhoods, residential complexes,
@@ -1146,34 +1150,45 @@ class MapboxGeocoding {
     required Duration timeout,
     String acceptLanguage = 'ckb,ku,ar,en',
   }) async {
-    final uri = Uri.parse(
-      'https://nominatim.openstreetmap.org/reverse'
-      '?lat=${point.latitude}&lon=${point.longitude}'
-      '&format=jsonv2'
-      '&addressdetails=1'
-      '&namedetails=1'
-      '&accept-language=$acceptLanguage'
-      '&zoom=18',
-    );
-    try {
-      // On Web, sending a custom User-Agent header triggers a browser CORS preflight error.
-      // Browsers automatically send their own User-Agent header when omitted.
-      final res = await http
-          .get(
-            uri,
-            headers: kIsWeb
-                ? const {'Accept': 'application/json'}
-                : const {
-                    'Accept': 'application/json',
-                    'User-Agent': 'rega-customer/1.0 (kurdish delivery map picker)',
-                  },
-          )
-          .timeout(timeout);
-      if (res.statusCode != 200) return null;
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      return _extractNominatimLabel(body);
-    } catch (_) {
-      return null;
+    // Try street-level first, then suburb/district if street has no name.
+    for (final zoom in const [18, 16, 14]) {
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse'
+        '?lat=${point.latitude}&lon=${point.longitude}'
+        '&format=jsonv2'
+        '&addressdetails=1'
+        '&namedetails=1'
+        '&accept-language=$acceptLanguage'
+        '&zoom=$zoom',
+      );
+      try {
+        // On Web, sending a custom User-Agent header triggers a browser CORS preflight error.
+        // Browsers automatically send their own User-Agent header when omitted.
+        final res = await http
+            .get(
+              uri,
+              headers: kIsWeb
+                  ? const {'Accept': 'application/json'}
+                  : const {
+                      'Accept': 'application/json',
+                      'User-Agent': 'rega-customer/1.0 (kurdish delivery map picker)',
+                    },
+            )
+            .timeout(timeout);
+        if (res.statusCode != 200) continue;
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final label = _extractNominatimLabel(body);
+        if (label != null && label.isNotEmpty && !_isGenericCityOrDistrict(label)) {
+          return label;
+        }
+        // Keep a generic city label as last resort from this zoom, then try coarser.
+        if (label != null && label.isNotEmpty && zoom == 14) {
+          return label;
+        }
+      } catch (_) {
+        continue;
+      }
     }
+    return null;
   }
 }

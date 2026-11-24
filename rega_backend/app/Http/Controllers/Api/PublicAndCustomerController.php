@@ -513,16 +513,27 @@ class PublicAndCustomerController extends Controller
 
         $store = null;
         if (! empty($validated['store_id'])) {
-            $store = Store::find($validated['store_id']);
+            $store = Store::query()
+                ->whereKey((int) $validated['store_id'])
+                ->where('is_approved', true)
+                ->first();
         }
         if (! $store && ! empty($validated['store_name'])) {
             $sn = trim($validated['store_name']);
-            $store = Store::where('name_ku', 'ILIKE', "%{$sn}%")
-                ->orWhere('name_en', 'ILIKE', "%{$sn}%")
+            $store = Store::query()
+                ->where('is_approved', true)
+                ->where(function ($q) use ($sn) {
+                    $q->where('name_ku', 'ILIKE', "%{$sn}%")
+                        ->orWhere('name_en', 'ILIKE', "%{$sn}%");
+                })
+                ->orderByDesc('is_online')
                 ->first();
         }
         if (! $store) {
-            $store = Store::where('is_approved', true)->orderByDesc('is_online')->firstOrFail();
+            return response()->json([
+                'success' => false,
+                'message' => 'فرۆشگا نەدۆزرایەوە یان پەسەند نەکراوە. داواکاری نەنێردرا.',
+            ], 422);
         }
 
         $order = DB::transaction(function () use ($validated, $authUser, $store) {
@@ -531,8 +542,11 @@ class PublicAndCustomerController extends Controller
                 $neighborhood = Neighborhood::find($validated['neighborhood_id']);
             } elseif (! empty($validated['neighborhood_name'])) {
                 $nn = trim($validated['neighborhood_name']);
-                $neighborhood = Neighborhood::where('name_ku', 'ILIKE', "%{$nn}%")
-                    ->orWhere('name_en', 'ILIKE', "%{$nn}%")
+                $neighborhood = Neighborhood::query()
+                    ->where(function ($q) use ($nn) {
+                        $q->where('name_ku', 'ILIKE', "%{$nn}%")
+                            ->orWhere('name_en', 'ILIKE', "%{$nn}%");
+                    })
                     ->first();
             }
 
@@ -549,31 +563,36 @@ class PublicAndCustomerController extends Controller
             foreach ($validated['items'] as $entry) {
                 $product = null;
                 if (! empty($entry['product_id']) && is_numeric($entry['product_id'])) {
-                    $product = Product::find((int) $entry['product_id']);
+                    $product = Product::query()
+                        ->whereKey((int) $entry['product_id'])
+                        ->where('store_id', $store->id)
+                        ->first();
                 }
-                if (! $product && ! empty($entry['product_name'])) {
-                    $pn = trim((string) $entry['product_name']);
+                $productName = trim((string) ($entry['product_name'] ?? $entry['name'] ?? ''));
+                if (! $product && $productName !== '') {
                     $product = Product::where('store_id', $store->id)
-                        ->where('name_ku', 'ILIKE', "%{$pn}%")
+                        ->where('name_ku', 'ILIKE', "%{$productName}%")
                         ->first();
                 }
 
                 $qty = max(1, (int) ($entry['quantity'] ?? 1));
+                $specialNotes = $entry['special_notes'] ?? $entry['notes'] ?? null;
                 if ($product) {
                     $snap = $profitService->buildLineSnapshot($product, $qty, $commissionRate);
                     $preparedItems[] = [
                         ...$snap['item'],
-                        'special_notes' => $entry['special_notes'] ?? null,
+                        'special_notes' => $specialNotes,
                     ];
                 } else {
-                    $unitPrice = max(0, (int) ($entry['unit_price'] ?? 2500));
+                    $rawPrice = $entry['unit_price'] ?? $entry['price'] ?? 2500;
+                    $unitPrice = max(0, (int) $rawPrice);
                     $unitCost = 0;
                     $lineTotal = $unitPrice * $qty;
                     $lineGross = $unitPrice * $qty;
                     $adminShare = (int) round($lineGross * ($commissionRate / 100));
                     $preparedItems[] = [
                         'product_id' => null,
-                        'product_name' => (string) ($entry['product_name'] ?? 'بەرهەم'),
+                        'product_name' => $productName !== '' ? $productName : 'بەرهەم',
                         'product_image' => $entry['product_image'] ?? null,
                         'unit_price' => $unitPrice,
                         'unit_cost' => $unitCost,
@@ -585,7 +604,7 @@ class PublicAndCustomerController extends Controller
                         'commission_rate' => $commissionRate,
                         'admin_share' => $adminShare,
                         'seller_share' => max(0, $lineGross - $adminShare),
-                        'special_notes' => $entry['special_notes'] ?? null,
+                        'special_notes' => $specialNotes,
                     ];
                 }
             }

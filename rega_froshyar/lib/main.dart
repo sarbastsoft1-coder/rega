@@ -313,6 +313,10 @@ class Trans {
      'نرخی گەیاندن': {'en': 'Delivery price', 'ar': 'سعر التوصيل'},
      'زیادکردنی تایبەتمەندی +': {'en': 'Add feature +', 'ar': 'إضافة ميزة +'},
      '+ زیادکردنی تایبەتمەندی': {'en': '+ Add feature', 'ar': '+ إضافة ميزة'},
+     'زیادکردنی تایبەتمەندی': {'en': 'Add feature', 'ar': 'إضافة ميزة'},
+     'تایبەتمەندییەکان': {'en': 'Features', 'ar': 'الميزات'},
+     'ناوی تایبەتمەندی': {'en': 'Feature name', 'ar': 'اسم الميزة'},
+     'نرخی زیادە (ئارەزوومەندانە)': {'en': 'Extra price (optional)', 'ar': 'سعر إضافي (اختياري)'},
      'وێنە': {'en': 'Image', 'ar': 'صورة'},
      'سڕینەوەی بەش': {'en': 'Delete section', 'ar': 'حذف القسم'},
      'نرخ': {'en': 'Price', 'ar': 'السعر'},
@@ -1148,7 +1152,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Future<void> _syncVendorOrdersOnly({required bool initialLoad}) async {
     try {
       final list = await VendorApiService.instance.fetchOrders();
-      if (!mounted || list.isEmpty) return;
+      if (!mounted) return;
+      // Empty list is valid (no orders) — still clear backend-synced rows.
+      if (list.isEmpty) {
+        setState(() {
+          final localOnly = _orders.where((o) => o.dbId == null).toList();
+          _orders
+            ..clear()
+            ..addAll(localOnly);
+        });
+        return;
+      }
 
       bool hasBrandNewPending = false;
       final parsed = <Order>[];
@@ -1600,42 +1614,45 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
-  /// Semi-transparent rounded icon button used in the orange top bar.
+  /// Semi-transparent rounded glass icon button used in the orange top bar.
   Widget _buildHeaderGlassIcon({
     required Widget child,
     required VoidCallback onTap,
+    double size = 42,
+    double radius = 14,
+    double borderAlpha = 0.44,
     bool dimmed = false,
   }) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
-        width: 40,
-        height: 40,
+        width: size,
+        height: size,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: RC.bg(Colors.white).withValues(alpha: dimmed ? 0.10 : 0.22),
-          borderRadius: BorderRadius.circular(12),
+          color: Colors.white.withValues(alpha: dimmed ? 0.10 : 0.18),
+          borderRadius: BorderRadius.circular(radius),
           border: Border.all(
-            color: RC.bg(Colors.white).withValues(alpha: dimmed ? 0.18 : 0.38),
-            width: 1.2,
+            color: Colors.white.withValues(alpha: dimmed ? 0.22 : borderAlpha),
+            width: 1.25,
           ),
         ),
-        child: Opacity(opacity: dimmed ? 0.7 : 1, child: child),
+        child: Opacity(opacity: dimmed ? 0.72 : 1, child: child),
       ),
     );
   }
 
-  /// Online/Offline pill switch: green ON / coral OFF with label (header style).
+  /// Recessed capsule toggle switch: emerald-teal ON / muted OFF with white thumb.
   Widget _buildOnlineOfflineSwitch() {
-    const onGreen = Color(0xFF22C55E);
-    const offCoral = Color(0xFFFF7272);
-    // Keep LTR so thumb/label positions match the design regardless of app RTL.
+    const onEmerald = Color(0xFF0FB884);
+    // Keep LTR so thumb position matches the header design regardless of app RTL.
     return Directionality(
       textDirection: TextDirection.ltr,
       child: Semantics(
         button: true,
         toggled: _isOnline,
-        label: _isOnline ? 'ON' : 'OFF',
+        label: _isOnline ? t('فرۆشگا کراوەیە') : t('فرۆشگا داخراوە'),
         child: GestureDetector(
           onTap: () {
             HapticFeedback.selectionClick();
@@ -1645,66 +1662,48 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             });
           },
           behavior: HitTestBehavior.opaque,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            width: 72,
-            height: 32,
-            padding: const EdgeInsets.all(3),
+          child: Container(
+            width: 56,
+            height: 34,
+            padding: const EdgeInsets.all(3.5),
             decoration: BoxDecoration(
-              color: RC.bg(_isOnline ? onGreen : offCoral),
+              color: Colors.black.withValues(alpha: 0.20),
               borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.28),
+                width: 1.1,
+              ),
             ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Align(
-                  alignment: _isOnline ? Alignment.centerLeft : Alignment.centerRight,
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      left: _isOnline ? 8 : 0,
-                      right: _isOnline ? 0 : 8,
-                    ),
-                    child: Text(
-                      _isOnline ? 'ON' : 'OFF',
-                      style: TextStyle(
-                        color: RC.fg(Colors.white),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 11,
-                        letterSpacing: 0.4,
-                        height: 1,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: 2.5),
+              decoration: BoxDecoration(
+                color: _isOnline
+                    ? onEmerald
+                    : Colors.white.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                alignment: _isOnline ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  width: 21,
+                  height: 21,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.18),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-                AnimatedAlign(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  alignment: _isOnline ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: RC.bg(Colors.white),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.18),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1755,27 +1754,38 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     return Directionality(
       textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        backgroundColor: RC.bg(Colors.white),
-        // Orange REGA top bar — matches vendor TB screenshot.
+        backgroundColor: RC.bg(const Color(0xFFF6F7F9)),
+        // Orange REGA top bar — matches vendor header reference design.
         appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(86),
+          preferredSize: const Size.fromHeight(80),
           child: AppBar(
+            systemOverlayStyle: SystemUiOverlayStyle.light,
             backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
             elevation: 0,
+            scrolledUnderElevation: 0,
             automaticallyImplyLeading: false,
-            toolbarHeight: 86,
-            titleSpacing: 12,
+            toolbarHeight: 80,
+            titleSpacing: 14,
             shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
             ),
             flexibleSpace: Container(
               decoration: BoxDecoration(
-                color: RC.bg(const Color(0xFFFF6418)),
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+                gradient: const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Color(0xFFEA580D),
+                    Color(0xFFE46509),
+                    Color(0xFFDE7507),
+                  ],
+                ),
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.16),
-                    blurRadius: 12,
+                    color: Colors.black.withValues(alpha: 0.14),
+                    blurRadius: 14,
                     offset: const Offset(0, 4),
                   ),
                 ],
@@ -1783,69 +1793,103 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
             title: SizedBox(
               width: double.infinity,
-              height: 56,
+              height: 58,
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1080),
-                  // Match screenshot: ON | sound | logo | فرۆشگا + store
-                  child: Row(
+                  // Match reference: [switch] [sound]  ... [REGA logo centered] ...  [فرۆشگا] [store+dot]
+                  child: Directionality(
                     textDirection: TextDirection.ltr,
-                    children: [
-                      _buildOnlineOfflineSwitch(),
-                      const SizedBox(width: 8),
-                      _buildHeaderGlassIcon(
-                        onTap: () {
-                          setState(() => _soundEnabled = !_soundEnabled);
-                          if (_soundEnabled) OrderSoundService.playTestTone();
-                        },
-                        child: CustomPaint(
-                          size: const Size(20, 20),
-                          painter: _HeaderVolumePainter(
-                            color: RC.fg(Colors.white),
-                            muted: !_soundEnabled,
-                          ),
-                        ),
-                        dimmed: !_soundEnabled,
-                      ),
-                      Expanded(child: Center(child: _buildTopLogo())),
-                      Text(
-                        t('فرۆشگا'),
-                        style: TextStyle(
-                          color: RC.fg(Colors.white),
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                          fontFamily: kAppFontFamily,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          _buildHeaderGlassIcon(
-                            onTap: () => _onItemTapped(0),
-                            child: CustomPaint(
-                              size: const Size(22, 22),
-                              painter: _HeaderStorePainter(color: RC.fg(Colors.white)),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: -1,
-                            right: -1,
-                            child: Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: _isOnline
-                                    ? RC.bg(const Color(0xFF22C55E))
-                                    : RC.bg(const Color(0xFFEF4444)),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: RC.bg(const Color(0xFFFF6418)), width: 2),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildOnlineOfflineSwitch(),
+                              const SizedBox(width: 8),
+                              _buildHeaderGlassIcon(
+                                size: 42,
+                                radius: 13.5,
+                                borderAlpha: 0.42,
+                                onTap: () {
+                                  setState(() => _soundEnabled = !_soundEnabled);
+                                  if (_soundEnabled) OrderSoundService.playTestTone();
+                                },
+                                child: CustomPaint(
+                                  size: const Size(21, 21),
+                                  painter: _HeaderVolumePainter(
+                                    color: Colors.white,
+                                    muted: !_soundEnabled,
+                                  ),
+                                ),
+                                dimmed: !_soundEnabled,
                               ),
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                        Center(child: _buildTopLogo()),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 115),
+                                child: Text(
+                                  t('فرۆشگا'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: kAppFontFamily,
+                                    height: 1.15,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  _buildHeaderGlassIcon(
+                                    size: 46,
+                                    radius: 14.5,
+                                    borderAlpha: 0.48,
+                                    onTap: () => _onItemTapped(0),
+                                    child: CustomPaint(
+                                      size: const Size(23, 23),
+                                      painter: _HeaderStorePainter(color: Colors.white),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: -1,
+                                    right: -1,
+                                    child: Container(
+                                      width: 13,
+                                      height: 13,
+                                      decoration: BoxDecoration(
+                                        color: _isOnline
+                                            ? const Color(0xFF0FB884)
+                                            : const Color(0xFFEF4444),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: const Color(0xFFDE7507),
+                                          width: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1861,54 +1905,92 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
           ),
         ),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: RC.bg(Colors.white),
-            border: Border(
-              top: BorderSide(
-                color: RC.bg(const Color(0xFFE8EDF2)),
-                width: 1.0,
-              ),
-            ),
+        bottomNavigationBar: _buildResponsiveBottomNav(context),
+      ),
+    );
+  }
+
+  /// Fully responsive bottom navigation bar across compact phones, phones,
+  /// landscape mode, tablets/iPads, and desktop browsers.
+  Widget _buildResponsiveBottomNav(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final screenW = mq.size.width;
+    final compactH = RegaResponsive.isCompactHeight(context);
+    final isSmallPhone = screenW < 360;
+    final isTablet = screenW >= RegaBreakpoints.phone && screenW < RegaBreakpoints.desktop;
+    final isDesktop = screenW >= RegaBreakpoints.desktop;
+
+    final double maxBarWidth = isDesktop
+        ? 860
+        : isTablet
+            ? 740
+            : double.infinity;
+    final double hPad = isSmallPhone
+        ? 4
+        : isDesktop
+            ? 24
+            : isTablet
+                ? 16
+                : 8;
+    final double bottomPad = compactH ? 4 : 8;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: RC.bg(Colors.white),
+        border: Border(
+          top: BorderSide(
+            color: RC.bg(const Color(0xFFF1F3F7)),
+            width: 1.0,
           ),
-          child: SafeArea(
-            top: false,
-            bottom: true,
-            child: Center(
-              heightFactor: 1.0,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 620),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 2, 4, 6),
-                  // Match TB navbar image 1 (RTL): Orders | Menu | Revenue | Settings
-                  // Custom-drawn icons — Material Icons.restaurant / Icons.tune fail on web.
-                  child: Row(
-                    textDirection: TextDirection.rtl,
-                    children: [
-                      _buildNavItem(
-                        3,
-                        t('داواکارییەکان'),
-                        kind: _NavIconKind.bag,
-                        hasNotification: true,
-                      ),
-                      _buildNavItem(
-                        2,
-                        t('مێنۆ'),
-                        kind: _NavIconKind.utensils,
-                      ),
-                      _buildNavItem(
-                        1,
-                        t('داهات'),
-                        kind: _NavIconKind.chart,
-                      ),
-                      _buildNavItem(
-                        0,
-                        t('ڕێکخستن'),
-                        kind: _NavIconKind.sliders,
-                      ),
-                    ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        bottom: true,
+        child: Center(
+          heightFactor: 1.0,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxBarWidth),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(hPad, 0, hPad, bottomPad),
+              // Match reference navbar (RTL): داواکارییەکان | مێنۆ | داهات | ڕێکخستن
+              child: Row(
+                textDirection: TextDirection.rtl,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildNavItem(
+                    context,
+                    3,
+                    t('داواکارییەکان'),
+                    kind: _NavIconKind.bag,
+                    hasNotification: true,
                   ),
-                ),
+                  _buildNavItem(
+                    context,
+                    2,
+                    t('مێنۆ'),
+                    kind: _NavIconKind.utensils,
+                  ),
+                  _buildNavItem(
+                    context,
+                    1,
+                    t('داهات'),
+                    kind: _NavIconKind.chart,
+                  ),
+                  _buildNavItem(
+                    context,
+                    0,
+                    t('ڕێکخستن'),
+                    kind: _NavIconKind.sliders,
+                  ),
+                ],
               ),
             ),
           ),
@@ -1917,107 +1999,133 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  /// Bottom nav item — matches TB navbar (bag / crossed utensils / chart / sliders).
+  /// Bottom nav item — matches reference (bag / crossed utensils / chart / sliders).
   Widget _buildNavItem(
+    BuildContext context,
     int index,
     String label, {
     required _NavIconKind kind,
     bool hasNotification = false,
   }) {
+    final screenW = MediaQuery.sizeOf(context).width;
+    final compactH = RegaResponsive.isCompactHeight(context);
+    final isSmallPhone = screenW < 360;
+    final isWide = screenW >= RegaBreakpoints.phone;
+
     final bool isSelected = _selectedIndex == index;
-    const primeOrange = Color(0xFFFF6418);
-    const softOrange = Color(0xFFFFE8D6);
-    const idleGray = Color(0xFF8B95A5);
+    const primeOrange = Color(0xFFEB6316);
+    const softPeach = Color(0xFFFFF1E9);
+    const idleGray = Color(0xFF8A929E);
     final Color accent = RC.fg(isSelected ? primeOrange : idleGray);
+
+    final double pillW = isSmallPhone ? 48 : (isWide ? 60 : 54);
+    final double pillH = compactH ? 28 : (isSmallPhone ? 31 : (isWide ? 36 : 34));
+    final double iconSize = compactH ? 20 : (isSmallPhone ? 21 : (isWide ? 24 : 23));
+    final double fontSize = compactH ? 10.5 : (isSmallPhone ? 10.5 : (isWide ? 12.5 : 12.0));
+    final double indicatorW = isSmallPhone ? 24 : (isWide ? 32 : 28);
 
     final pendingCount = _orders.where((o) => o.status == OrderStatus.pending).length;
     final bool showBadge = hasNotification && pendingCount > 0;
 
     return Expanded(
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          _onItemTapped(index);
-        },
-        splashColor: primeOrange.withValues(alpha: 0.10),
-        highlightColor: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: isSelected ? 26 : 0,
-                height: 3.5,
-                margin: const EdgeInsets.only(bottom: 5),
-                decoration: BoxDecoration(
-                  color: isSelected ? primeOrange : Colors.transparent,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 46,
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: isSelected ? softOrange : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: CustomPaint(
-                      size: const Size(24, 24),
-                      painter: _VendorNavIconPainter(kind: kind, color: accent),
-                    ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            _onItemTapped(index);
+          },
+          splashColor: primeOrange.withValues(alpha: 0.08),
+          hoverColor: primeOrange.withValues(alpha: 0.04),
+          highlightColor: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top active indicator bar
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  width: isSelected ? indicatorW : 0,
+                  height: 3.0,
+                  margin: EdgeInsets.only(bottom: compactH ? 3 : 5),
+                  decoration: BoxDecoration(
+                    color: isSelected ? primeOrange : Colors.transparent,
+                    borderRadius: BorderRadius.circular(3),
                   ),
-                  if (showBadge)
-                    Positioned(
-                      top: -5,
-                      left: 2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: RC.bg(primeOrange),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: RC.bg(Colors.white), width: 1.5),
-                        ),
-                        constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
-                        child: Center(
-                          child: Text(
-                            tx('$pendingCount'),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: RC.fg(Colors.white),
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w900,
-                              height: 1,
+                ),
+                // Icon capsule + notification badge
+                Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutCubic,
+                      width: pillW,
+                      height: pillH,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSelected ? RC.bg(softPeach) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(pillH / 2),
+                      ),
+                      child: CustomPaint(
+                        size: Size(iconSize, iconSize),
+                        painter: _VendorNavIconPainter(kind: kind, color: accent),
+                      ),
+                    ),
+                    if (showBadge)
+                      Positioned(
+                        top: -6,
+                        left: -2,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: primeOrange,
+                            borderRadius: BorderRadius.circular(11),
+                            border: Border.all(color: RC.bg(Colors.white), width: 1.8),
+                          ),
+                          constraints: BoxConstraints(
+                            minWidth: isSmallPhone ? 18 : 20,
+                            minHeight: isSmallPhone ? 18 : 20,
+                          ),
+                          child: Center(
+                            child: Text(
+                              tx(pendingCount > 99 ? '99+' : '$pendingCount'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: isSmallPhone ? 9.5 : 10.5,
+                                fontWeight: FontWeight.w800,
+                                height: 1,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 3),
-              Text(
-                tx(label),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 11.5,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                  letterSpacing: -0.2,
-                  fontFamily: kAppFontFamily,
+                  ],
                 ),
-              ),
-            ],
+                SizedBox(height: compactH ? 2 : 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    tx(label),
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: fontSize,
+                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                      letterSpacing: -0.1,
+                      height: 1.15,
+                      fontFamily: kAppFontFamily,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2032,7 +2140,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     return const IgnorePointer(
       child: _TopBarLogoWidget(
         primaryPath: kAppLogoFilePath,
-        height: 44,
+        height: 48,
       ),
     );
   }
@@ -2171,102 +2279,111 @@ class _VendorNavIconPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final sx = size.width / 24.0;
+    final sy = size.height / 24.0;
+    canvas.save();
+    canvas.scale(sx, sy);
+
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.85
+      ..strokeWidth = 1.9
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
     switch (kind) {
       case _NavIconKind.bag:
-        _paintBag(canvas, size, paint);
+        _paintBag(canvas, paint);
       case _NavIconKind.utensils:
-        _paintUtensils(canvas, size, paint);
+        _paintUtensils(canvas, paint);
       case _NavIconKind.chart:
-        _paintChart(canvas, size, paint);
+        _paintChart(canvas, paint);
       case _NavIconKind.sliders:
-        _paintSliders(canvas, size, paint);
+        _paintSliders(canvas, paint);
     }
+
+    canvas.restore();
   }
 
-  void _paintBag(Canvas canvas, Size size, Paint paint) {
-    final w = size.width;
-    final h = size.height;
-    // Shopping bag body
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(w * 0.18, h * 0.34, w * 0.82, h * 0.90),
-        const Radius.circular(3.5),
-      ),
+  void _paintBag(Canvas canvas, Paint paint) {
+    // Retail/takeaway folded-top shopping bag with inner U-handle (Lucide shopping-bag)
+    final bag = Path()
+      ..moveTo(6.2, 3.2)
+      ..lineTo(17.8, 3.2)
+      ..lineTo(20.0, 7.0)
+      ..lineTo(20.0, 18.4)
+      ..quadraticBezierTo(20.0, 20.8, 17.6, 20.8)
+      ..lineTo(6.4, 20.8)
+      ..quadraticBezierTo(4.0, 20.8, 4.0, 18.4)
+      ..lineTo(4.0, 7.0)
+      ..close();
+    canvas.drawPath(bag, paint);
+    // Top fold crease
+    canvas.drawLine(const Offset(4.2, 7.0), const Offset(19.8, 7.0), paint);
+    // Inner hanging U-handle
+    canvas.drawArc(
+      const Rect.fromLTRB(8.6, 7.2, 15.4, 14.2),
+      0,
+      math.pi,
+      false,
       paint,
     );
-    // Handle arch
-    final handle = Path()
-      ..moveTo(w * 0.34, h * 0.34)
-      ..cubicTo(w * 0.34, h * 0.10, w * 0.66, h * 0.10, w * 0.66, h * 0.34);
-    canvas.drawPath(handle, paint);
   }
 
-  void _paintUtensils(Canvas canvas, Size size, Paint paint) {
-    final w = size.width;
-    final h = size.height;
-    final cx = w * 0.5;
-    final cy = h * 0.52;
+  void _paintUtensils(Canvas canvas, Paint paint) {
+    // Crossed fork (top-right -> bottom-left) & hollow knife blade (top-left -> bottom-right)
+    // 1. Fork head at top-right (3 tines + curved cup)
+    final forkCup = Path()
+      ..moveTo(16.0, 2.6)
+      ..lineTo(13.6, 5.0)
+      ..cubicTo(12.3, 6.3, 12.3, 8.3, 13.6, 9.6)
+      ..cubicTo(14.9, 10.9, 16.9, 10.9, 18.2, 9.6)
+      ..lineTo(20.6, 7.2);
+    canvas.drawPath(forkCup, paint);
+    // Middle tine + upper fork neck
+    canvas.drawLine(const Offset(18.3, 4.9), const Offset(12.2, 11.0), paint);
+    // Lower fork handle (continues cleanly past knife to bottom-left)
+    canvas.drawLine(const Offset(9.2, 14.0), const Offset(3.4, 19.8), paint);
 
-    // Crossed fork + knife (same as reference)
-    canvas.save();
-    canvas.translate(cx, cy);
-    canvas.rotate(-0.42);
-    canvas.translate(-cx, -cy);
-    // Fork
-    canvas.drawLine(Offset(w * 0.48, h * 0.10), Offset(w * 0.48, h * 0.90), paint);
-    canvas.drawLine(Offset(w * 0.38, h * 0.10), Offset(w * 0.38, h * 0.36), paint);
-    canvas.drawLine(Offset(w * 0.58, h * 0.10), Offset(w * 0.58, h * 0.36), paint);
-    canvas.drawLine(Offset(w * 0.38, h * 0.36), Offset(w * 0.58, h * 0.36), paint);
-    canvas.restore();
-
-    canvas.save();
-    canvas.translate(cx, cy);
-    canvas.rotate(0.42);
-    canvas.translate(-cx, -cy);
-    // Knife
-    canvas.drawLine(Offset(w * 0.52, h * 0.12), Offset(w * 0.52, h * 0.90), paint);
+    // 2. Knife: straight spine from top-left to bottom-right + curved blade belly
+    canvas.drawLine(const Offset(4.0, 3.4), const Offset(20.4, 19.8), paint);
     final blade = Path()
-      ..moveTo(w * 0.52, h * 0.12)
-      ..lineTo(w * 0.68, h * 0.40)
-      ..lineTo(w * 0.52, h * 0.46);
+      ..moveTo(4.0, 3.4)
+      ..cubicTo(2.6, 6.2, 3.8, 9.8, 8.6, 13.8)
+      ..lineTo(11.3, 10.7);
     canvas.drawPath(blade, paint);
-    canvas.restore();
   }
 
-  void _paintChart(Canvas canvas, Size size, Paint paint) {
-    final w = size.width;
-    final h = size.height;
-    // Outline bars — short / mid / tall (increasing)
-    final bars = <Rect>[
-      Rect.fromLTRB(w * 0.14, h * 0.58, w * 0.34, h * 0.88),
-      Rect.fromLTRB(w * 0.40, h * 0.38, w * 0.60, h * 0.88),
-      Rect.fromLTRB(w * 0.66, h * 0.16, w * 0.86, h * 0.88),
-    ];
-    for (final r in bars) {
-      canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(2)), paint);
-    }
+  void _paintChart(Canvas canvas, Paint paint) {
+    // L-shaped chart axis + 3 vertical bars (short, tall, medium)
+    final axis = Path()
+      ..moveTo(3.5, 3.5)
+      ..lineTo(3.5, 18.0)
+      ..quadraticBezierTo(3.5, 20.5, 6.0, 20.5)
+      ..lineTo(20.5, 20.5);
+    canvas.drawPath(axis, paint);
+
+    canvas.drawLine(const Offset(8.5, 13.5), const Offset(8.5, 16.8), paint);
+    canvas.drawLine(const Offset(13.2, 7.0), const Offset(13.2, 16.8), paint);
+    canvas.drawLine(const Offset(17.9, 10.2), const Offset(17.9, 16.8), paint);
   }
 
-  void _paintSliders(Canvas canvas, Size size, Paint paint) {
-    final w = size.width;
-    final h = size.height;
-    final fill = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    // Three horizontal tracks + knobs (tune look)
-    final ys = [h * 0.26, h * 0.50, h * 0.74];
-    final knobs = [w * 0.66, w * 0.34, w * 0.72];
-    for (var i = 0; i < 3; i++) {
-      canvas.drawLine(Offset(w * 0.12, ys[i]), Offset(w * 0.88, ys[i]), paint);
-      canvas.drawCircle(Offset(knobs[i], ys[i]), 3.4, fill);
-    }
+  void _paintSliders(Canvas canvas, Paint paint) {
+    // Three split horizontal slider tracks with vertical tick knobs
+    // Row 1 (tick at x = 13.5)
+    canvas.drawLine(const Offset(3.5, 5.5), const Offset(10.2, 5.5), paint);
+    canvas.drawLine(const Offset(13.5, 5.5), const Offset(20.5, 5.5), paint);
+    canvas.drawLine(const Offset(13.5, 3.3), const Offset(13.5, 7.7), paint);
+
+    // Row 2 (tick at x = 8.8)
+    canvas.drawLine(const Offset(3.5, 12.0), const Offset(8.8, 12.0), paint);
+    canvas.drawLine(const Offset(12.1, 12.0), const Offset(20.5, 12.0), paint);
+    canvas.drawLine(const Offset(8.8, 9.8), const Offset(8.8, 14.2), paint);
+
+    // Row 3 (tick at x = 15.2)
+    canvas.drawLine(const Offset(3.5, 18.5), const Offset(11.9, 18.5), paint);
+    canvas.drawLine(const Offset(15.2, 18.5), const Offset(20.5, 18.5), paint);
+    canvas.drawLine(const Offset(15.2, 16.3), const Offset(15.2, 20.7), paint);
   }
 
   @override
@@ -2280,29 +2397,60 @@ class _HeaderBellPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
+    final sx = size.width / 24.0;
+    final sy = size.height / 24.0;
+    canvas.save();
+    canvas.scale(sx, sy);
+
+    final fillPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    // Top finial + solid bell dome + flared rim (Material notifications_active shape)
+    final bell = Path()
+      ..moveTo(12.0, 2.2)
+      ..cubicTo(12.9, 2.2, 13.6, 2.9, 13.6, 3.8)
+      ..lineTo(13.6, 4.3)
+      ..cubicTo(16.4, 5.0, 18.0, 7.5, 18.0, 10.8)
+      ..lineTo(18.0, 15.2)
+      ..lineTo(20.0, 17.2)
+      ..lineTo(20.0, 18.2)
+      ..lineTo(4.0, 18.2)
+      ..lineTo(4.0, 17.2)
+      ..lineTo(6.0, 15.2)
+      ..lineTo(6.0, 10.8)
+      ..cubicTo(6.0, 7.5, 7.6, 5.0, 10.4, 4.3)
+      ..lineTo(10.4, 3.8)
+      ..cubicTo(10.4, 2.9, 11.1, 2.2, 12.0, 2.2)
+      ..close();
+    canvas.drawPath(bell, fillPaint);
+
+    // Bottom clapper semicircle
+    final clapper = Path()
+      ..addArc(
+        Rect.fromCenter(center: const Offset(12.0, 19.2), width: 4.0, height: 4.0),
+        0,
+        math.pi,
+      )
+      ..close();
+    canvas.drawPath(clapper, fillPaint);
+
+    // Curved ringing arcs on upper-left and upper-right shoulders
+    final wavePaint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.7
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final w = size.width;
-    final h = size.height;
-    final bell = Path()
-      ..moveTo(w * 0.20, h * 0.55)
-      ..cubicTo(w * 0.20, h * 0.28, w * 0.80, h * 0.28, w * 0.80, h * 0.55)
-      ..lineTo(w * 0.88, h * 0.70)
-      ..lineTo(w * 0.12, h * 0.70)
-      ..close();
-    canvas.drawPath(bell, paint);
-    canvas.drawArc(
-      Rect.fromCenter(center: Offset(w * 0.50, h * 0.78), width: w * 0.28, height: h * 0.22),
-      0.15,
-      2.85,
-      false,
-      paint,
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+
+    final waveRect = Rect.fromCenter(
+      center: const Offset(12.0, 11.0),
+      width: 18.4,
+      height: 18.4,
     );
-    canvas.drawCircle(Offset(w * 0.50, h * 0.22), 1.4, paint..style = PaintingStyle.fill);
+    canvas.drawArc(waveRect, -2.76, 0.72, false, wavePaint);
+    canvas.drawArc(waveRect, -1.10, 0.72, false, wavePaint);
+
+    canvas.restore();
   }
 
   @override
@@ -2316,42 +2464,49 @@ class _HeaderVolumePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
     final w = size.width;
     final h = size.height;
+    final fillPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
     final body = Path()
-      ..moveTo(w * 0.12, h * 0.38)
-      ..lineTo(w * 0.32, h * 0.38)
-      ..lineTo(w * 0.52, h * 0.18)
-      ..lineTo(w * 0.52, h * 0.82)
-      ..lineTo(w * 0.32, h * 0.62)
-      ..lineTo(w * 0.12, h * 0.62)
+      ..moveTo(w * 0.14, h * 0.38)
+      ..lineTo(w * 0.30, h * 0.38)
+      ..lineTo(w * 0.52, h * 0.20)
+      ..lineTo(w * 0.52, h * 0.80)
+      ..lineTo(w * 0.30, h * 0.62)
+      ..lineTo(w * 0.14, h * 0.62)
       ..close();
-    canvas.drawPath(body, paint..style = PaintingStyle.fill);
-    paint.style = PaintingStyle.stroke;
+    canvas.drawPath(body, fillPaint);
+
+    final strokePaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    // Soften speaker corners slightly
+    canvas.drawPath(body, strokePaint..strokeWidth = 1.4);
+    strokePaint.strokeWidth = 2.0;
+
     if (!muted) {
       canvas.drawArc(
-        Rect.fromCenter(center: Offset(w * 0.55, h * 0.5), width: w * 0.42, height: h * 0.42),
-        -0.7,
-        1.4,
+        Rect.fromCenter(center: Offset(w * 0.54, h * 0.50), width: w * 0.38, height: h * 0.38),
+        -0.72,
+        1.44,
         false,
-        paint,
+        strokePaint,
       );
       canvas.drawArc(
-        Rect.fromCenter(center: Offset(w * 0.55, h * 0.5), width: w * 0.68, height: h * 0.68),
-        -0.7,
-        1.4,
+        Rect.fromCenter(center: Offset(w * 0.54, h * 0.50), width: w * 0.68, height: h * 0.68),
+        -0.78,
+        1.56,
         false,
-        paint,
+        strokePaint,
       );
     } else {
-      canvas.drawLine(Offset(w * 0.58, h * 0.28), Offset(w * 0.88, h * 0.72), paint);
-      canvas.drawLine(Offset(w * 0.88, h * 0.28), Offset(w * 0.58, h * 0.72), paint);
+      canvas.drawLine(Offset(w * 0.62, h * 0.32), Offset(w * 0.88, h * 0.68), strokePaint);
+      canvas.drawLine(Offset(w * 0.88, h * 0.32), Offset(w * 0.62, h * 0.68), strokePaint);
     }
   }
 
@@ -2369,39 +2524,49 @@ class _HeaderStorePainter extends CustomPainter {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
+      ..strokeWidth = 1.9
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     final w = size.width;
     final h = size.height;
-    // Awning / roof
-    final roof = Path()
-      ..moveTo(w * 0.08, h * 0.42)
-      ..lineTo(w * 0.18, h * 0.22)
-      ..lineTo(w * 0.82, h * 0.22)
-      ..lineTo(w * 0.92, h * 0.42);
-    canvas.drawPath(roof, paint);
-    canvas.drawLine(Offset(w * 0.08, h * 0.42), Offset(w * 0.92, h * 0.42), paint);
-    // Scallops
-    for (final x in [0.22, 0.40, 0.58, 0.76]) {
-      canvas.drawArc(
-        Rect.fromCenter(center: Offset(w * x, h * 0.42), width: w * 0.16, height: h * 0.16),
-        0,
-        3.14,
-        false,
-        paint,
-      );
+
+    // Awning top & slanted outer sides
+    final roofTop = Path()
+      ..moveTo(w * 0.10, h * 0.43)
+      ..lineTo(w * 0.17, h * 0.18)
+      ..lineTo(w * 0.83, h * 0.18)
+      ..lineTo(w * 0.90, h * 0.43);
+    canvas.drawPath(roofTop, paint);
+
+    // Three vertical awning stripes dividing into 4 panels
+    canvas.drawLine(Offset(w * 0.335, h * 0.18), Offset(w * 0.30, h * 0.43), paint);
+    canvas.drawLine(Offset(w * 0.50, h * 0.18), Offset(w * 0.50, h * 0.43), paint);
+    canvas.drawLine(Offset(w * 0.665, h * 0.18), Offset(w * 0.70, h * 0.43), paint);
+
+    // Four scalloped bottom arches along awning
+    const xs = [0.10, 0.30, 0.50, 0.70, 0.90];
+    for (int i = 0; i < 4; i++) {
+      final x0 = w * xs[i];
+      final x1 = w * xs[i + 1];
+      final scallop = Path()
+        ..moveTo(x0, h * 0.43)
+        ..arcToPoint(
+          Offset(x1, h * 0.43),
+          radius: Radius.circular((x1 - x0) * 0.52),
+          clockwise: false,
+        );
+      canvas.drawPath(scallop, paint);
     }
-    // Building body
-    canvas.drawRect(Rect.fromLTRB(w * 0.16, h * 0.42, w * 0.84, h * 0.88), paint);
-    // Door
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(w * 0.40, h * 0.58, w * 0.60, h * 0.88),
-        const Radius.circular(1.5),
-      ),
-      paint,
-    );
+
+    // Clean open rounded-bottom shop body below awning
+    final body = Path()
+      ..moveTo(w * 0.18, h * 0.51)
+      ..lineTo(w * 0.18, h * 0.78)
+      ..quadraticBezierTo(w * 0.18, h * 0.85, w * 0.25, h * 0.85)
+      ..lineTo(w * 0.75, h * 0.85)
+      ..quadraticBezierTo(w * 0.82, h * 0.85, w * 0.82, h * 0.78)
+      ..lineTo(w * 0.82, h * 0.51);
+    canvas.drawPath(body, paint);
   }
 
   @override
@@ -3004,28 +3169,28 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       const SizedBox(width: 8),
                       Material(
                         color: RC.bg(const Color(0xFFFF6418)),
-                        borderRadius: BorderRadius.circular(22),
+                        borderRadius: BorderRadius.circular(15),
                         child: InkWell(
                           onTap: () => OrderSoundService.playTestTone(),
                           onLongPress: () => widget.onSimulateNewOrder?.call(),
-                          borderRadius: BorderRadius.circular(22),
+                          borderRadius: BorderRadius.circular(15),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               textDirection: TextDirection.rtl,
                               children: [
                                 CustomPaint(
-                                  size: const Size(16, 16),
-                                  painter: _HeaderBellPainter(color: RC.fg(Colors.white)),
+                                  size: const Size(18, 18),
+                                  painter: _HeaderBellPainter(color: Colors.white),
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 7),
                                 Text(
                                   t('تاقیکردنەوەی دەنگ'),
-                                  style: TextStyle(
-                                    color: RC.fg(Colors.white),
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 12.5,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
                                     fontFamily: kAppFontFamily,
                                   ),
                                 ),
@@ -3133,7 +3298,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
     const teal = Color(0xFF0F8A5F);
     return Container(
       width: double.infinity,
-      color: RC.bg(const Color(0xFFF3F4F6)),
+      color: Colors.transparent,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
