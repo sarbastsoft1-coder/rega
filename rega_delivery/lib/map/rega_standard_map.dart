@@ -40,6 +40,8 @@ class RegaStandardMapState extends State<RegaStandardMap> {
 
   Point _point(LatLng p) => Point(coordinates: Position(p.longitude, p.latitude));
 
+  RegaMapStyleId get styleId => _styleId;
+
   Future<void> moveTo(LatLng center, {double? zoom}) async {
     final m = map;
     if (m == null) return;
@@ -49,9 +51,47 @@ class RegaStandardMapState extends State<RegaStandardMap> {
     } catch (_) {}
   }
 
-p
+  Future<void> applyStyle(RegaMapStyleId id) async {
+    if (_styleId == id) return;
+    // ValueKey on MapWidget remounts with the new streets/satellite URI.
+    setState(() => _styleId = id);
+    widget.onStyleChanged?.call(id);
+  }
+
+  Future<void> toggleSatellite() async {
+    await applyStyle(
+      _styleId == RegaMapStyleId.satellite
+          ? RegaMapStyleId.map
+          : RegaMapStyleId.satellite,
+    );
+  }
+
+  Future<void> zoomBy(double delta) async {
+    final m = map;
+    if (m == null) return;
+    try {
+      final cam = await m.getCameraState();
+      final next = (cam.zoom + delta).clamp(5.0, 20.0);
+      await m.setCamera(CameraOptions(center: cam.center, zoom: next));
+    } catch (_) {}
+  }
+
+  Future<void> _openLayers() async {
+    final picked = await showModalBottomSheet<RegaMapStyleId>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
                 'جۆری نەخشە',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 12),
               ...RegaMapStyles.all.map((id) {
@@ -68,7 +108,9 @@ p
                                 : Icons.map_rounded,
                   ),
                   title: Text('${RegaMapStyles.labelKu(id)} · ${RegaMapStyles.labelEn(id)}'),
-                  trailing: selected ? const Icon(Icons.check_circle, color: Color(0xFFFAC800)) : null,
+                  trailing: selected
+                      ? const Icon(Icons.check_circle, color: Color(0xFFFAC800))
+                      : null,
                   onTap: () => Navigator.pop(ctx, id),
                 );
               }),
