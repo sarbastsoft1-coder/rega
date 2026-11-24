@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart'; // 📍 پێویستە ئەم پاکێجە لە pubspec.yaml زیاد کرابێت
@@ -42,7 +43,6 @@ import 'direct_request_screen.dart';
 import 'onboarding/onboarding_notifier.dart';
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
-import 'widgets/profile_preferences_card.dart';
 export 'models/customer_models.dart';
 
 void main() async {
@@ -334,6 +334,9 @@ class _MainScreenState extends State<MainScreen> {
 
   bool get _profileLtr => _currentLanguage == 'English';
 
+  IconData get _settingsChevronIcon =>
+      _isLanguageExpanded ? Icons.expand_more_rounded : (_profileLtr ? Icons.chevron_right_rounded : Icons.chevron_left_rounded);
+
   // Profile Controllers
   late TextEditingController _nameCtrl;
   late TextEditingController _phoneCtrl;
@@ -349,12 +352,12 @@ class _MainScreenState extends State<MainScreen> {
   bool _isLocationAuthorized = kIsWeb;
   bool _isCheckingLocation = !kIsWeb;
   bool _isVpnActive = false; // 🛡️ بارودۆخی VPN
-  bool _isOutsideServiceArea = false; // 📍 دەرەوەی ناوچەی کارکردن
+  bool _isOutsideServiceArea = false; // 📍 دەرەوەی ناوچەی کارکردن (بانەری سەبەتە)
   bool _isCheckingServiceArea = false;
+  bool _checkoutBusy = false; // Complete Order tap — show spinner, avoid silent GPS hang
   bool _isDeviceSafe = true; // 🔒 ئایا ئامێرەکە پارێزراوە؟
   bool _isCheckingSecurity = !kIsWeb; // 🔒 پشکنینی ئاسایش
   String _securityErrorMessage = "";
-  Timer? _serviceAreaTimer;
 
   @override
   void initState() {
@@ -503,6 +506,33 @@ class _MainScreenState extends State<MainScreen> {
       });
     }
     context.go(path);
+    if (index == 2) {
+      _refreshOutsideServiceAreaStatus();
+    }
+  }
+
+  /// Soft cart check — does not block browsing; only updates the pink banner.
+  Future<void> _refreshOutsideServiceAreaStatus() async {
+    var outside = false;
+
+    // Delivery pin outside any configured city circle.
+    if (_pinnedCustomerLat != null && _pinnedCustomerLng != null) {
+      outside = !ServiceAreaGate.config.contains(
+        _pinnedCustomerLat!,
+        _pinnedCustomerLng!,
+      );
+    }
+
+    // Also treat live GPS outside as blocked (same rule as checkout).
+    if (!outside) {
+      final result = await ServiceAreaGate.check(requestPermission: false);
+      outside = result.status == ServiceAreaCheckStatus.outside;
+    }
+
+    if (!mounted) return;
+    if (_isOutsideServiceArea != outside) {
+      setState(() => _isOutsideServiceArea = outside);
+    }
   }
 
   // 🚀 زنجیرەی چالاککردنی ئەپ (Security -> Notification -> Location)
@@ -527,24 +557,80 @@ class _MainScreenState extends State<MainScreen> {
     // 4. داواکردنی ڕێگەپێدانی شوێن (Location)
     await _requestLocationPermission();
 
-    // 5. پشکنینی ناوچەی کارکردن (کەلار + مەودا)
-    await _checkServiceArea();
-    _serviceAreaTimer?.cancel();
-    _serviceAreaTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      _checkServiceArea();
-    });
+    // Service-area gate runs only when the customer creates an order
+    // (checkout / direct request) — see _ensureInsideServiceAreaForOrder.
   }
 
-  Future<void> _checkServiceArea() async {
-    if (_isCheckingServiceArea) return;
+  /// Blocks order creation when the delivery place / GPS is outside service cities.
+  /// Prefers the saved delivery pin so checkout is not stuck waiting on live GPS.
+  Future<bool> _ensureInsideServiceAreaForOrder() async {
+    if (_isCheckingServiceArea) return false;
     _isCheckingServiceArea = true;
     try {
-      final result = await ServiceAreaGate.check(requestPermission: false);
-      if (!mounted) return;
-      setState(() => _isOutsideServiceArea = result.blocksApp);
+      // 1) Saved delivery pin — same rule as the cart banner (instant, no GPS wait).
+      final pinLat = _pinnedCustomerLat;
+      final pinLng = _pinnedCustomerLng;
+      if (pinLat != null && pinLng != null) {
+        if (ServiceAreaGate.config.contains(pinLat, pinLng)) {
+          if (mounted && _isOutsideServiceArea) {
+            setState(() => _isOutsideServiceArea = false);
+          }
+          return true;
+        }
+        if (mounted) setState(() => _isOutsideServiceArea = true);
+        return await _showServiceAreaBlockedAndWait();
+      }
+
+      // 2) No pin yet — quick GPS check with timeout (do not hang the button).
+      ServiceAreaCheckResult result;
+      try {
+        result = await ServiceAreaGate.check(requestPermission: true).timeout(
+          const Duration(seconds: 4),
+          onTimeout: () =>
+              const ServiceAreaCheckResult(ServiceAreaCheckStatus.skipped),
+        );
+      } catch (_) {
+        result = const ServiceAreaCheckResult(ServiceAreaCheckStatus.skipped);
+      }
+      if (!mounted) return false;
+      if (!result.blocksApp) return true;
+
+      if (mounted) setState(() => _isOutsideServiceArea = true);
+      return await _showServiceAreaBlockedAndWait();
     } finally {
       _isCheckingServiceArea = false;
     }
+  }
+
+  Future<bool> _showServiceAreaBlockedAndWait() async {
+    final allowed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (blockedCtx) => ServiceAreaBlockedScreen(
+          onRetry: () async {
+            final pinLat = _pinnedCustomerLat;
+            final pinLng = _pinnedCustomerLng;
+            if (pinLat != null &&
+                pinLng != null &&
+                ServiceAreaGate.config.contains(pinLat, pinLng)) {
+              if (blockedCtx.mounted) Navigator.of(blockedCtx).pop(true);
+              return;
+            }
+            final retry = await ServiceAreaGate.check(requestPermission: true)
+                .timeout(
+              const Duration(seconds: 4),
+              onTimeout: () =>
+                  const ServiceAreaCheckResult(ServiceAreaCheckStatus.skipped),
+            );
+            if (!blockedCtx.mounted) return;
+            if (!retry.blocksApp) {
+              Navigator.of(blockedCtx).pop(true);
+            }
+          },
+        ),
+      ),
+    );
+    return allowed == true;
   }
 
   // 📍 فەنکشن بۆ داواکردنی ڕێگەپێدانی GPS لە مۆبایل (بە مەرجی ناچاری)
@@ -988,7 +1074,6 @@ class _MainScreenState extends State<MainScreen> {
   void dispose() {
     _connectivityTimer?.cancel();
     _backendOrdersTimer?.cancel();
-    _serviceAreaTimer?.cancel();
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _passwordCtrl.dispose();
@@ -1075,6 +1160,9 @@ class _MainScreenState extends State<MainScreen> {
       );
       if (boot != null && mounted) {
         ServiceAreaGate.applyFromBootstrap(boot);
+        if (_currentIndex == 2) {
+          _refreshOutsideServiceAreaStatus();
+        }
 
         final rawCities = boot['service_cities'] as List<dynamic>? ?? [];
         if (rawCities.isNotEmpty) {
@@ -1354,7 +1442,7 @@ class _MainScreenState extends State<MainScreen> {
             (catMap?['id'] as num?)?.toInt() ??
             catId;
         final rawBadge = sm['discount_badge']?.toString().trim();
-        final mappedStore = StoreItem(
+        var mappedStore = StoreItem(
           id: storeKey,
           name: storeName,
           category: mappedCatName,
@@ -1378,9 +1466,104 @@ class _MainScreenState extends State<MainScreen> {
         );
         final existingIdx = allStores.indexWhere((s) => s.id == storeKey || s.name == storeName);
         if (existingIdx >= 0) {
+          mappedStore = StoreItem(
+            id: allStores[existingIdx].id,
+            name: mappedStore.name,
+            category: mappedStore.category,
+            categoryId: mappedStore.categoryId,
+            rating: mappedStore.rating,
+            reviewCount: mappedStore.reviewCount,
+            deliveryTime: mappedStore.deliveryTime,
+            deliveryFee: mappedStore.deliveryFee,
+            imageUrl: mappedStore.imageUrl,
+            address: mappedStore.address,
+            isOpen: mappedStore.isOpen,
+            phone: mappedStore.phone,
+            discountBadge: mappedStore.discountBadge,
+            lat: mappedStore.lat,
+            lng: mappedStore.lng,
+          );
           allStores[existingIdx] = mappedStore;
         } else {
           allStores.insert(0, mappedStore);
+        }
+
+        // Category browse previously only merged stores — load menu so products
+        // appear even when the store was missing from city-scoped bootstrap.
+        final needsProducts = !allProducts.any((p) => p.storeId == mappedStore.id);
+        if (needsProducts) {
+          final detail = await CustomerApiService.instance.fetchStoreDetails(dbStoreId);
+          final menuCats = detail?['store_categories'] as List<dynamic>? ?? [];
+          final metaForStore = <String, Map<String, dynamic>>{};
+          for (final rawCat in menuCats) {
+            final cm = rawCat as Map<String, dynamic>;
+            final cName = cm['name_ku']?.toString() ?? '';
+            if (cName.isEmpty) continue;
+            metaForStore[cName] = {
+              'image_url': cm['image_url']?.toString() ?? '',
+              'secondary_image_url': cm['secondary_image_url']?.toString() ?? '',
+              'sort_order': (cm['sort_order'] as num?)?.toInt() ?? 0,
+              'name_ku': cName,
+              'name_ar': cm['name_ar']?.toString() ?? '',
+              'name_en': cm['name_en']?.toString() ?? '',
+            };
+          }
+          _storeMenuCategoryMeta[mappedStore.id] = metaForStore;
+          final prods = detail?['products'] as List<dynamic>? ?? [];
+          int bestDiscountPct = 0;
+          for (final rp in prods) {
+            final pm = rp as Map<String, dynamic>;
+            final pid = '${pm['id']}';
+            final pName = pm['name_ku']?.toString() ?? '';
+            final basePrice = ((pm['price'] ?? 2500) as num).toInt();
+            final discPrice = (pm['discount_price'] as num?)?.toInt();
+            if (discPrice != null && discPrice > 0 && discPrice < basePrice && basePrice > 0) {
+              final pct = (((basePrice - discPrice) / basePrice) * 100).round();
+              if (pct > bestDiscountPct) bestDiscountPct = pct;
+            }
+            final pIdx = allProducts.indexWhere(
+              (p) => p.id == pid || (p.storeId == mappedStore.id && p.name == pName),
+            );
+            final mappedProd = ProductItem(
+              id: pid,
+              storeId: mappedStore.id,
+              name: pName,
+              price: (discPrice != null && discPrice > 0 && discPrice < basePrice) ? discPrice : basePrice,
+              description: pm['description_ku']?.toString() ?? '',
+              imageUrl: () {
+                final img = RegaApiHost.resolveMediaUrl(pm['image_url']?.toString());
+                return img.isNotEmpty ? img : mappedStore.imageUrl;
+              }(),
+              category: mappedCatName,
+              subCategory: pm['store_category']?['name_ku']?.toString(),
+            );
+            if (pIdx >= 0) {
+              allProducts[pIdx] = mappedProd;
+            } else {
+              allProducts.insert(0, mappedProd);
+            }
+          }
+          if (bestDiscountPct > 0) {
+            final withBadge = StoreItem(
+              id: mappedStore.id,
+              name: mappedStore.name,
+              category: mappedStore.category,
+              categoryId: mappedStore.categoryId,
+              rating: mappedStore.rating,
+              reviewCount: mappedStore.reviewCount,
+              deliveryTime: mappedStore.deliveryTime,
+              deliveryFee: mappedStore.deliveryFee,
+              imageUrl: mappedStore.imageUrl,
+              address: mappedStore.address,
+              isOpen: mappedStore.isOpen,
+              phone: mappedStore.phone,
+              discountBadge: 'OFF %$bestDiscountPct',
+              lat: mappedStore.lat,
+              lng: mappedStore.lng,
+            );
+            final storeIdx = allStores.indexWhere((s) => s.id == mappedStore.id);
+            if (storeIdx >= 0) allStores[storeIdx] = withBadge;
+          }
         }
       }
       if (mounted) setState(() {});
@@ -1631,6 +1814,9 @@ class _MainScreenState extends State<MainScreen> {
             storeLng: ((rawStore?['lng'] ?? 45.3189) as num).toDouble(),
             customerLat: ((m['delivery_lat'] ?? 34.6912) as num).toDouble(),
             customerLng: ((m['delivery_lng'] ?? 45.3264) as num).toDouble(),
+            storeCoverUrl: RegaApiHost.resolveMediaUrl(
+              rawStore?['cover_url']?.toString() ?? rawStore?['logo_url']?.toString(),
+            ),
             isDirectRequest: isDirect,
             directRequestNotes: m['direct_notes']?.toString() ?? m['direct_subject']?.toString(),
             directRequestImage: m['direct_image']?.toString(),
@@ -2245,11 +2431,33 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _handleProceedToCheckout() {
-    if (_userProfile == null) {
+  Future<void> _handleProceedToCheckout() async {
+    if (_checkoutBusy) return;
+    if (_userProfile == null && !CustomerApiService.instance.hasToken) {
       _showAuthRequiredModal();
-    } else {
+      return;
+    }
+    if (_userProfile == null && CustomerApiService.instance.hasToken) {
+      // Token present but profile not hydrated yet — still allow checkout sheet.
+    }
+    setState(() => _checkoutBusy = true);
+    try {
+      final inside = await _ensureInsideServiceAreaForOrder();
+      if (!mounted) return;
+      if (!inside) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              tx(_t('ناتوانیت داواکاری بنێریت، تۆ لەدەرەوەی لۆکەیشنیت')),
+            ),
+            backgroundColor: RC.bg(const Color(0xFFBE123C)),
+          ),
+        );
+        return;
+      }
       _showCheckoutSheet();
+    } finally {
+      if (mounted) setState(() => _checkoutBusy = false);
     }
   }
 
@@ -2374,6 +2582,7 @@ class _MainScreenState extends State<MainScreen> {
                       storeLng: matchedStore?.lng ?? KalarGeoCatalog.kalarCenter.longitude,
                       customerLat: _pinnedCustomerLat ?? KalarGeoCatalog.kalarCenter.latitude,
                       customerLng: _pinnedCustomerLng ?? KalarGeoCatalog.kalarCenter.longitude,
+                      storeCoverUrl: matchedStore?.imageUrl,
                     );
 
                     setState(() {
@@ -2459,6 +2668,7 @@ class _MainScreenState extends State<MainScreen> {
         storeLng: localOrder.storeLng,
         customerLat: localOrder.customerLat,
         customerLng: localOrder.customerLng,
+        storeCoverUrl: localOrder.storeCoverUrl,
       );
       setState(() {
         final idx = _orders.indexWhere((o) => o.id == localOrder.id);
@@ -2468,13 +2678,20 @@ class _MainScreenState extends State<MainScreen> {
           _orders.insert(0, syncedOrder);
         }
       });
-      _showOrderSuccessModal();
+      _showOrderSuccessModal(syncedOrder);
     } else {
-      _showOrderSuccessModal();
+      // Backend failed — still show local pending order so the customer has a next step.
+      _showOrderSuccessModal(localOrder);
     }
   }
 
-  void _showOrderSuccessModal() {
+  /// Standard post-order screen: success → Orders (waiting for vendor accept).
+  void _showOrderSuccessModal(OrderItem order) {
+    final orderNo = order.id.trim().isEmpty ? '—' : order.id.trim();
+    final place = order.address.trim().isNotEmpty
+        ? order.address.trim()
+        : _deliveryDisplayLabel;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -2488,54 +2705,129 @@ class _MainScreenState extends State<MainScreen> {
               width: 68,
               height: 68,
               decoration: BoxDecoration(
-                color: RC.bg(Color(0xFFDCFCE7)),
+                color: RC.bg(const Color(0xFFDCFCE7)),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.check_circle_rounded, size: 48, color: RC.fg(Color(0xFF16A34A))),
+              child: Icon(
+                Icons.check_circle_rounded,
+                size: 48,
+                color: RC.fg(const Color(0xFF16A34A)),
+              ),
             ),
             const SizedBox(height: 14),
             Text(
               _t('داواکارییەکەت بە سەرکەوتوویی نێردرا!'),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: RC.fg(Colors.black)),
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: RC.fg(Colors.black),
+              ),
             ),
             const SizedBox(height: 14),
 
-            // Delivery tracking hint
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: RC.bg(Color(0xFFF9FAFB)),
+                color: RC.bg(const Color(0xFFF9FAFB)),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: RC.bg(Colors.grey.shade200)),
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.location_on_rounded, size: 16, color: RC.fg(Color(0xFFD97706))),
+                      Icon(Icons.tag_rounded, size: 16, color: RC.fg(const Color(0xFF64748B))),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          tx('شوێنی گەیاندن: $_deliveryDisplayLabel'),
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: RC.fg(Colors.black87)),
+                          tx('${_t('ژمارەی داواکاری')}: $orderNo'),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            color: RC.fg(const Color(0xFF0F172A)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: RC.bg(const Color(0xFFFFF7ED)),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: RC.bg(const Color(0xFFFDBA74))),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.hourglass_top_rounded,
+                          size: 15,
+                          color: RC.fg(const Color(0xFFC2410C)),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            tx(_t('چاوەڕوانی قبوڵکردن')),
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              color: RC.fg(const Color(0xFFC2410C)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Icon(Icons.storefront_rounded, size: 16, color: RC.fg(const Color(0xFFD97706))),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          tx(order.storeName),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: RC.fg(Colors.black87),
+                          ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.moped_rounded, size: 16, color: RC.fg(Color(0xFF16A34A))),
-                      SizedBox(width: 6),
+                      Icon(Icons.location_on_rounded, size: 16, color: RC.fg(const Color(0xFFD97706))),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          tx('کاتێک فرۆشیار داواکاری قبوڵدەکات و دەینێرێت بۆ گەیاندن، نەخشەی ڕاستەوخۆی ماتۆرسوار خۆکارانە دەکرێتەوە.'),
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: RC.fg(Colors.black87), height: 1.35),
+                          tx('${_t('شوێنی گەیاندن')}: $place'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: RC.fg(Colors.black87),
+                          ),
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    tx(_t('فرۆشیار دەبێت سەرەتا داواکاری قبوڵ بکات. دوای قبوڵکردن دۆخەکان نوێ دەبنەوە.')),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: RC.fg(const Color(0xFF475569)),
+                      height: 1.35,
+                    ),
                   ),
                 ],
               ),
@@ -2547,18 +2839,37 @@ class _MainScreenState extends State<MainScreen> {
               height: 48,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: RC.bg(Color(0xFFFAC800)),
+                  backgroundColor: RC.bg(const Color(0xFFFAC800)),
                   foregroundColor: RC.fg(Colors.black),
                   elevation: 2,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
                 onPressed: () {
                   Navigator.pop(ctx);
-                  _goTab(3); // Switch to Orders tab
+                  _goTab(3); // Orders tab — waiting for accept
                 },
                 child: Text(
-                  _t('چوون بۆ داواکارییەکان'),
+                  _t('بینینی داواکاری'),
                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _goTab(0); // Home
+                },
+                child: Text(
+                  _t('گەڕانەوە بۆ سەرەکی'),
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: RC.fg(const Color(0xFF64748B)),
+                  ),
                 ),
               ),
             ),
@@ -2871,30 +3182,32 @@ class _MainScreenState extends State<MainScreen> {
               );
               setState(() {});
               Navigator.pop(context);
-              final savedLabel =
-                  context.read<LocationNotifier>().displayPlaceLabel ?? draftLabel();
+              _refreshOutsideServiceAreaStatus();
+              // Snackbar: full place (neighborhood / street / note), not city-only.
+              final savedPlace = _deliveryDisplayLabel;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    tx('📍 ${_t('شوێنی گەیاندن پاشەکەوت کرا')}: $savedLabel'),
+                    tx('📍 ${_t('شوێنی گەیاندن پاشەکەوت کرا')}: $savedPlace'),
                   ),
                   backgroundColor: RC.bg(const Color(0xFF059669)),
                 ),
               );
             }
 
-            // Screenshot-style picker: yellow header + X, map chips, confirm.
+            // Screenshot-style picker: full-bleed map, chips, pin ring, X/+/- FABs, stadium confirm.
+            final safeBottom = MediaQuery.of(context).padding.bottom;
             return Align(
               alignment: Alignment.bottomCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 640),
                 child: Material(
-                  color: RC.bg(Colors.white),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                  color: Colors.transparent,
                   clipBehavior: Clip.antiAlias,
                   child: SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.96,
+                    height: MediaQuery.of(context).size.height * 0.98,
                     child: Stack(
+                      fit: StackFit.expand,
                       children: [
                         Positioned.fill(
                           child: KalarInteractivePickerMap(
@@ -2907,33 +3220,48 @@ class _MainScreenState extends State<MainScreen> {
                             controller: pickerController,
                             initialStyle: RegaMapStyles.defaultPicker,
                             showTopChrome: false,
+                            onClose: () => Navigator.pop(context),
+                            bottomControlsInset: 86,
                             onLocationChanged: applyPin,
                           ),
                         ),
                         Positioned(
-                          left: 14,
-                          right: 14,
-                          bottom: 12 + MediaQuery.of(context).padding.bottom,
+                          left: 18,
+                          right: 18,
+                          bottom: 14 + safeBottom,
                           child: SizedBox(
                             width: double.infinity,
-                            height: 52,
-                            child: ElevatedButton.icon(
+                            height: 54,
+                            child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: RC.bg(const Color(0xFFFAC800)),
                                 foregroundColor: RC.fg(Colors.black),
-                                elevation: 4,
+                                elevation: 6,
+                                shadowColor: Colors.black38,
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(28),
                                 ),
                               ),
                               onPressed: confirmPin,
-                              icon: const Icon(Icons.check_rounded),
-                              label: Text(
-                                _t('دیاریکردنی شوێن'),
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.check_rounded,
+                                    size: 22,
+                                    color: RC.fg(Colors.black),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _t('دیاریکردنی شوێن'),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                      color: RC.fg(Colors.black),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -3546,172 +3874,84 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                           )
                         : ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
                       itemCount: filteredNotifs.length,
                       separatorBuilder: (context, index) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final notif = filteredNotifs[index];
-                        final IconData icon = notif['icon'] as IconData;
-                        final Color iconColor = notif['color'] as Color;
+                        final title = (notif['title'] ?? '').toString();
+                        final desc = (notif['desc'] ?? '').toString();
+                        final time = (notif['time'] ?? 'ئێستا').toString();
 
-                        // بۆکسی لیستی پانی بۆ هەر ئاگادارییەک بە شێوازی پانی تەواو لەسەر یەک
-                        return Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: RC.bg(Colors.white),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: RC.bg(Colors.grey.shade200), width: 1.2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: RC.bg(Colors.black).withOpacity(0.03),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                        // Screenshot-style card: yellow border, title+time row, grey body.
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () => _handleNotificationTap(notif, context),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                              decoration: BoxDecoration(
+                                color: RC.bg(Colors.white),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: RC.bg(const Color(0xFFFFE08A)),
+                                  width: 1.4,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: RC.bg(Colors.black).withValues(alpha: 0.06),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () => _handleNotificationTap(notif, context),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    // 1. ئایکۆنی ڕەنگاوڕەنگی سەرەکی بە قەبارەی بچووکتر
-                                    Container(
-                                      width: 38,
-                                      height: 38,
-                                      decoration: BoxDecoration(
-                                        color: iconColor.withOpacity(0.12),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: iconColor.withOpacity(0.25), width: 1),
-                                      ),
-                                      child: Center(
-                                        child: Icon(icon, color: iconColor, size: 19),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-
-                                    // 2. ناوەڕۆک بە شێوازی پانی و چڕتر
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          // ناونیشانی ئاگاداری
-                                          Text(
-                                            tx(notif['title'] as String),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 12.5,
-                                              color: RC.fg(Colors.black87),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          // دەقی ڕوونکردنەوە
-                                          Text(
-                                            tx(notif['desc'] as String),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: RC.fg(Colors.grey.shade600),
-                                              height: 1.3,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          // کات و تاگی ئاگاداری
-                                          Row(
-                                            children: [
-                                              Icon(Icons.access_time_rounded, size: 11, color: RC.fg(Colors.grey.shade500)),
-                                              const SizedBox(width: 3),
-                                              Text(
-                                                tx(notif['time'] as String),
-                                                style: TextStyle(
-                                                  fontSize: 9.5,
-                                                  color: RC.fg(Colors.grey.shade500),
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                                decoration: BoxDecoration(
-                                                  color: RC.bg(Colors.grey.shade100),
-                                                  borderRadius: BorderRadius.circular(5),
-                                                ),
-                                                child: Text(
-                                                  tx(notif['tag'] as String),
-                                                  style: TextStyle(
-                                                    fontSize: 9,
-                                                    color: RC.fg(Colors.grey.shade700),
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-
-                                    // 3. باجی داشکاندن و دوگمەی بچووک لە تەنیشتەوە
-                                    Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: RC.bg(Color(0xFFFEF3C7)),
-                                            borderRadius: BorderRadius.circular(6),
-                                            border: Border.all(color: RC.bg(Color(0xFFFDE68A))),
-                                          ),
-                                          child: Text(
-                                            tx(notif['discountBadge'] as String),
-                                            style: TextStyle(
-                                              fontSize: 8.5,
-                                              fontWeight: FontWeight.w900,
-                                              color: RC.fg(Color(0xFFD97706)),
-                                            ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          tx(title),
+                                          textAlign: TextAlign.start,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 14.5,
+                                            height: 1.25,
+                                            color: RC.fg(const Color(0xFF0F172A)),
                                           ),
                                         ),
-                                        const SizedBox(height: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: RC.bg(Color(0xFFFAC800)),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                tx('بینین'),
-                                                style: TextStyle(
-                                                  fontSize: 9.5,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: RC.fg(Colors.black),
-                                                ),
-                                              ),
-                                              SizedBox(width: 2),
-                                              Icon(
-                                                Icons.arrow_forward_ios_rounded,
-                                                size: 8,
-                                                color: RC.fg(Colors.black),
-                                              ),
-                                            ],
-                                          ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        tx(time),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: RC.fg(const Color(0xFF94A3B8)),
                                         ),
-                                      ],
+                                      ),
+                                    ],
+                                  ),
+                                  if (desc.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      tx(desc),
+                                      textAlign: TextAlign.start,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        height: 1.45,
+                                        color: RC.fg(const Color(0xFF64748B)),
+                                      ),
                                     ),
                                   ],
-                                ),
+                                ],
                               ),
                             ),
                           ),
@@ -3795,13 +4035,6 @@ class _MainScreenState extends State<MainScreen> {
       return _buildVpnBlockedScreen();
     }
 
-    // 📍 دەرەوەی ناوچەی کارکردن (کەلار + مەودای ئەدمین)
-    if (_isOutsideServiceArea) {
-      return ServiceAreaBlockedScreen(onRetry: () async {
-        await _checkServiceArea();
-      });
-    }
-
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -3839,23 +4072,17 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ),
 
-      // 📍 Bottom Navigation Bar — yellow pill active tab (icon + label)
+      // 📍 Bottom Navigation Bar — screenshot icons + yellow Home pill
       bottomNavigationBar: _isOffline
           ? null
           : Container(
               decoration: BoxDecoration(
-                color: RC.bg(Colors.white),
-                border: Border(
-                  top: BorderSide(
-                    color: RC.bg(Color(0xFFF1F5F9)),
-                    width: 1.0,
-                  ),
-                ),
+                color: RC.bg(Colors.white).withValues(alpha: 0.96),
                 boxShadow: [
                   BoxShadow(
-                    color: RC.bg(Color(0xFF0F172A)).withOpacity(0.04),
-                    blurRadius: 16,
-                    offset: const Offset(0, -4),
+                    color: RC.bg(Color(0xFF0F172A)).withValues(alpha: 0.06),
+                    blurRadius: 18,
+                    offset: const Offset(0, -3),
                   ),
                 ],
               ),
@@ -3875,11 +4102,12 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                       child: Row(
                         children: [
-                          _buildBottomNavItem(0, _t('سەرەکی'), Icons.home_rounded, Icons.home_outlined),
-                          _buildBottomNavItem(1, _t('داشکاندن'), Icons.local_offer_rounded, Icons.local_offer_outlined),
-                          _buildBottomNavItem(2, _t('سەبەتە'), Icons.shopping_cart_rounded, Icons.shopping_cart_outlined, isCart: true),
-                          _buildBottomNavItem(3, _t('داواکاری'), Icons.receipt_long_rounded, Icons.receipt_long_outlined),
-                          _buildBottomNavItem(4, _t('پڕۆفایل'), Icons.person_rounded, Icons.person_outline_rounded),
+                          // RTL visual order (R→L): Home | % | Basket | Orders | Profile
+                          _buildBottomNavItem(0, _t('سەرەکی'), Icons.home_outlined, Icons.home_outlined),
+                          _buildBottomNavItem(1, _t('داشکاندن'), Icons.percent, Icons.percent, isPercent: true),
+                          _buildBottomNavItem(2, _t('سەبەتە'), Icons.shopping_basket_outlined, Icons.shopping_basket_outlined, isCart: true),
+                          _buildBottomNavItem(3, _t('داواکاری'), Icons.receipt_long_outlined, Icons.receipt_long_outlined),
+                          _buildBottomNavItem(4, _t('پڕۆفایل'), Icons.person_outline_rounded, Icons.person_outline_rounded),
                         ],
                       ),
                     ),
@@ -3903,7 +4131,25 @@ class _MainScreenState extends State<MainScreen> {
     return w >= 640 ? tablet : mobile;
   }
 
-  Widget _buildBottomNavItem(int index, String label, IconData activeIcon, IconData inactiveIcon, {bool isCart = false}) {
+  /// Screenshot discount icon: % inside a jagged/starburst circle outline.
+  Widget _navPercentBadge({required double size, required Color color}) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _JaggedPercentBadgePainter(color: color),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavItem(
+    int index,
+    String label,
+    IconData activeIcon,
+    IconData inactiveIcon, {
+    bool isCart = false,
+    bool isPercent = false,
+  }) {
     final bool isSelected = _currentIndex == index;
     final bool phone = RegaResponsive.isPhone(context);
     const pillYellow = Color(0xFFFAC800);
@@ -3911,16 +4157,24 @@ class _MainScreenState extends State<MainScreen> {
     final cartCount = isCart
         ? _cart.fold<int>(0, (sum, e) => sum + e.quantity)
         : 0;
-    final iconSize = phone ? 20.0 : 22.0;
+    final iconSize = isSelected
+        ? (phone ? 30.0 : 32.0)
+        : (phone ? 28.0 : 30.0);
 
-    Widget iconWidget = Icon(
-      isSelected ? activeIcon : inactiveIcon,
-      color: iconColor,
-      size: iconSize,
-    );
+    Widget iconWidget;
+    if (isPercent) {
+      iconWidget = _navPercentBadge(size: iconSize + 2, color: iconColor);
+    } else {
+      iconWidget = Icon(
+        isSelected ? activeIcon : inactiveIcon,
+        color: iconColor,
+        size: iconSize,
+      );
+    }
 
-    // Cart: yellow pill look with red count badge on the cart icon (like design)
     if (isCart) {
+      final badgeLabel = cartCount > 99 ? '99+' : '$cartCount';
+      final wideBadge = cartCount > 9;
       iconWidget = Stack(
         clipBehavior: Clip.none,
         children: [
@@ -3931,24 +4185,33 @@ class _MainScreenState extends State<MainScreen> {
           ),
           if (cartCount > 0)
             Positioned(
-              top: -6,
-              right: -8,
+              top: -5,
+              right: -7,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                width: wideBadge ? 22 : 18,
+                height: 18,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: RC.bg(Color(0xFFEF4444)),
-                  borderRadius: BorderRadius.circular(999),
+                  color: RC.bg(const Color(0xFFEF4444)),
+                  shape: wideBadge ? BoxShape.rectangle : BoxShape.circle,
+                  borderRadius: wideBadge ? BorderRadius.circular(999) : null,
                   border: Border.all(color: RC.bg(Colors.white), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: RC.bg(Colors.black).withValues(alpha: 0.18),
+                      blurRadius: 3,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
                 ),
-                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                 child: Text(
-                  tx(cartCount > 99 ? '99+' : '$cartCount'),
+                  badgeLabel,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: RC.fg(Colors.white),
-                    fontSize: 9.5,
+                    fontSize: wideBadge ? 9 : 10,
                     fontWeight: FontWeight.w900,
-                    height: 1.15,
+                    height: 1.0,
                   ),
                 ),
               ),
@@ -3958,8 +4221,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return Expanded(
-      // Active yellow pill needs more width so 5 tabs don't clip on phone
-      flex: isSelected ? (phone ? 3 : 2) : 1,
+      flex: isSelected ? 2 : 1,
       child: InkWell(
         onTap: () {
           HapticFeedback.selectionClick();
@@ -3968,42 +4230,43 @@ class _MainScreenState extends State<MainScreen> {
             _syncCustomerOrdersFromBackend();
           }
         },
-        splashColor: pillYellow.withOpacity(0.2),
+        splashColor: pillYellow.withValues(alpha: 0.2),
         highlightColor: Colors.transparent,
         borderRadius: BorderRadius.circular(50),
         child: Align(
           alignment: Alignment.center,
+          widthFactor: 1.0,
           heightFactor: 1.0,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
-            clipBehavior: Clip.hardEdge,
+            // Clip.none so the cart count badge is not cut into a blob.
+            clipBehavior: Clip.none,
             padding: EdgeInsets.symmetric(
-              horizontal: isSelected ? (phone ? 8 : 12) : (phone ? 4 : 8),
-              vertical: phone ? 8 : 10,
+              horizontal: isSelected ? (phone ? 14 : 16) : (phone ? 4 : 8),
+              vertical: phone ? 10 : 12,
             ),
             decoration: BoxDecoration(
               color: isSelected ? pillYellow : Colors.transparent,
               borderRadius: BorderRadius.circular(50),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 iconWidget,
                 if (isSelected) ...[
-                  SizedBox(width: phone ? 5 : 8),
-                  Flexible(
-                    child: Text(
-                      tx(label),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                      style: TextStyle(
-                        color: iconColor,
-                        fontSize: phone ? 11.5 : 13,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.2,
-                      ),
+                  SizedBox(width: phone ? 6 : 8),
+                  Text(
+                    tx(label),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    style: TextStyle(
+                      color: iconColor,
+                      fontSize: phone ? 13 : 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
                     ),
                   ),
                 ],
@@ -4117,23 +4380,73 @@ class _MainScreenState extends State<MainScreen> {
   // ============================================================================
   // 💛 HEADER COMPONENT (EXACT SCREENSHOT DESIGN)
   // ============================================================================
-  /// Label for the center place pill: custom pin if set, else active work city.
+  /// Home place pill label — neighborhood / note only (never city / کەلار).
   String get _homePlacePillLabel {
-    if (_hasDeliveryPlaceChosen) {
-      final label = _deliveryDisplayLabel.trim();
-      if (label.isNotEmpty && label != _t('شوێنی گەیاندن هەڵبژێرە')) {
-        // Keep pill short — first segment before ·
-        final short = label.split('·').first.trim();
-        if (short.isNotEmpty) return short;
-        return label;
-      }
-    }
-    return _selectedCityDisplayName;
+    var place = context.read<LocationNotifier>().displayPlaceLabel?.trim() ?? '';
+    place = _stripCityFromPlaceLabel(place);
+    if (place.isNotEmpty) return place;
+    return 'شوێنی گەیاندن';
   }
 
-  /// Row under yellow header: GPS | place/city pill (app yellow) | داواکاری ڕاستەوخۆ.
+  /// Removes city words like کەلار / (کەلار) / "City · place" from home pill text.
+  String _stripCityFromPlaceLabel(String raw) {
+    var place = raw.trim();
+    if (place.isEmpty) return place;
+
+    final cities = <String>{
+      _selectedCityDisplayName.trim(),
+      'کەلار',
+      'كلار',
+      'Kalar',
+      'kalar',
+      'ڕزگاری',
+      'رزگاری',
+      'Rizgari',
+      for (final c in _serviceCities)
+        if ((c['name_ku']?.toString() ?? '').trim().isNotEmpty)
+          c['name_ku'].toString().trim(),
+    }..removeWhere((e) => e.isEmpty);
+
+    for (final city in cities) {
+      final esc = RegExp.escape(city);
+      place = place
+          // "(کەلار)" / "( Kalar )"
+          .replaceAll(RegExp(r'\s*\(\s*' + esc + r'\s*\)\s*', caseSensitive: false), ' ')
+          // "کەلار · …" / "کەلار • …"
+          .replaceAll(RegExp(r'^' + esc + r'\s*[·•|,/\-]\s*', caseSensitive: false), '')
+          // "… · کەلار" / "… • کەلار"
+          .replaceAll(RegExp(r'\s*[·•|,/\-]\s*' + esc + r'\s*$', caseSensitive: false), '')
+          // trailing / leading bare city
+          .replaceAll(RegExp(r'\s+' + esc + r'\s*$', caseSensitive: false), '')
+          .replaceAll(RegExp(r'^' + esc + r'\s+', caseSensitive: false), '')
+          .trim();
+      if (place.toLowerCase() == city.toLowerCase()) place = '';
+    }
+
+    place = place
+        .replaceAll(RegExp(r'\s{2,}'), ' ')
+        .replaceAll(RegExp(r'^[\s·•|,/\-]+|[\s·•|,/\-]+$'), '')
+        .trim();
+    return place;
+  }
+
+  /// Flaticon GPS asset used inside the all-in-one place pill.
+  Widget _homeGpsIcon({double size = 26}) {
+    return Image.asset(
+      'assets/icons/gps_location.png',
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => Icon(
+        Icons.gps_fixed_rounded,
+        size: size,
+        color: RC.fg(const Color(0xFFE11D48)),
+      ),
+    );
+  }
+
+  /// Row under yellow header: location LEFT | داواکاری ڕاستەوخۆ RIGHT (forced LTR).
   Widget _buildHomeDirectRequestBar() {
-    const gold = Color(0xFFFAC800);
     context.watch<LocationNotifier>();
 
     return Padding(
@@ -4141,45 +4454,7 @@ class _MainScreenState extends State<MainScreen> {
       child: Row(
         textDirection: TextDirection.ltr,
         children: [
-          // GPS + place pill share one delivery pin (LocationNotifier).
-          // GPS → same map, jump to live fix. Pill → same map on saved pin.
-          // Long-press pill → switch work city only.
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _openSharedDeliveryPlace(jumpToGps: true),
-              customBorder: const CircleBorder(),
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: RC.bg(Colors.white),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: RC.bg(Colors.black).withValues(alpha: 0.14),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(4),
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: gold,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(
-                    Icons.gps_fixed_rounded,
-                    size: 22,
-                    color: RC.fg(Colors.black),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
+          // LEFT: GPS icon + place (no city name)
           Expanded(
             child: Material(
               color: Colors.transparent,
@@ -4188,48 +4463,39 @@ class _MainScreenState extends State<MainScreen> {
                   jumpToGps: !_hasDeliveryPlaceChosen,
                 ),
                 onLongPress: _showCityAndPlacePicker,
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(50),
                 child: Container(
-                  height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  constraints: const BoxConstraints(minHeight: 48),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: RC.bg(const Color(0xFFFFFBEB)),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: RC.bg(gold), width: 1.4),
+                    color: RC.bg(Colors.white),
+                    borderRadius: BorderRadius.circular(50),
                     boxShadow: [
                       BoxShadow(
-                        color: RC.bg(Colors.black).withValues(alpha: 0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        color: RC.bg(Colors.black).withValues(alpha: 0.10),
+                        blurRadius: 12,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
                   child: Row(
+                    textDirection: TextDirection.ltr,
                     children: [
-                      Icon(Icons.location_on_rounded, size: 20, color: RC.fg(gold)),
-                      const SizedBox(width: 6),
+                      _homeGpsIcon(size: 26),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           tx(_homePlacePillLabel),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
+                          textAlign: TextAlign.start,
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w900,
-                            color: RC.fg(const Color(0xFF1E293B)),
+                            height: 1.2,
+                            color: RC.fg(const Color(0xFF0F172A)),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: const BoxDecoration(
-                          color: gold,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.check_rounded, size: 14, color: RC.fg(Colors.black)),
                       ),
                     ],
                   ),
@@ -4237,24 +4503,24 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          // داواکاری ڕاستەوخۆ pill
+          const SizedBox(width: 10),
+          // RIGHT: داواکاری ڕاستەوخۆ
           Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: _openDirectRequestScreen,
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(50),
               child: Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                constraints: const BoxConstraints(minHeight: 48),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: RC.bg(Colors.white),
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(50),
                   boxShadow: [
                     BoxShadow(
-                      color: RC.bg(Colors.black).withOpacity(0.08),
-                      blurRadius: 10,
+                      color: RC.bg(Colors.black).withValues(alpha: 0.10),
+                      blurRadius: 12,
                       offset: const Offset(0, 3),
                     ),
                   ],
@@ -4449,13 +4715,22 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _openDirectRequestScreen() async {
+    // Open instantly — do NOT await GPS/service-area here (that was ~2s+ lag).
+    // Service-area is still enforced inside DirectRequestScreen on submit.
+    HapticFeedback.selectionClick();
+    if (!mounted) return;
+
     final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => DirectRequestScreen(
+      PageRouteBuilder<bool>(
+        transitionDuration: const Duration(milliseconds: 180),
+        reverseTransitionDuration: const Duration(milliseconds: 150),
+        pageBuilder: (context, animation, secondaryAnimation) => DirectRequestScreen(
           initialPhone: _userProfile?.phone ?? '',
           initialAddress: _deliveryDisplayLabel == _t('شوێنی گەیاندن هەڵبژێرە')
               ? ''
               : _deliveryDisplayLabel,
+          deliveryLat: _pinnedCustomerLat,
+          deliveryLng: _pinnedCustomerLng,
           onPickAddress: () async {
             await _showLocationPicker(jumpToGps: true);
             final label = _deliveryDisplayLabel;
@@ -4463,6 +4738,12 @@ class _MainScreenState extends State<MainScreen> {
             return label;
           },
         ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            child: child,
+          );
+        },
       ),
     );
     if (result == true && mounted) {
@@ -5735,40 +6016,36 @@ class _MainScreenState extends State<MainScreen> {
     final discountStores = allStores.where((s) => (s.discountBadge != null && s.discountBadge!.trim().isNotEmpty) || s.isFreeDelivery).toList();
 
     return ListView(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Icon(Icons.local_offer_rounded, color: RC.fg(Color(0xFFE11D48)), size: 22),
-                const SizedBox(width: 8),
-                Text(
-                  tx('${_t('ئۆفەرەکان')} (${discountStores.length})'),
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: RC.fg(Colors.black)),
-                ),
-              ],
+            Icon(Icons.local_offer_rounded, color: RC.fg(Color(0xFFE11D48)), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              tx('${_t('ئۆفەرەکان')} (${discountStores.length})'),
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: RC.fg(Colors.black)),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        // Standard tight gap — no large empty band under the title.
+        const SizedBox(height: 10),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: discountStores.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: _responsiveGridCount(context),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: _responsiveAspectRatio(context, mobile: 0.72, tablet: 0.82),
+            crossAxisSpacing: 14,
+            mainAxisSpacing: 14,
+            childAspectRatio: _responsiveAspectRatio(context, mobile: 0.78, tablet: 0.88),
           ),
           itemBuilder: (context, index) {
             final store = discountStores[index];
             return _buildVerticalGridStoreCard(store);
           },
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
       ],
     );
   }
@@ -6034,6 +6311,7 @@ class _MainScreenState extends State<MainScreen> {
               );
             }
 
+            // Match pizza-card layout: image right, title+unit price, qty + total on one bottom row.
             return Container(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
               decoration: BoxDecoration(
@@ -6047,120 +6325,132 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ],
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Right (RTL start): product image
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      entry.product.imageUrl,
-                      width: 72,
-                      height: 72,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 72,
-                        height: 72,
-                        color: RC.bg(Colors.grey.shade200),
-                        child: Icon(Icons.fastfood, color: RC.fg(Colors.grey)),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Right (RTL start): product image
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.network(
+                        entry.product.imageUrl,
+                        width: 84,
+                        height: 84,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 84,
+                          height: 84,
+                          color: RC.bg(Colors.grey.shade200),
+                          child: Icon(Icons.fastfood, color: RC.fg(Colors.grey)),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
+                    const SizedBox(width: 12),
 
-                  // Middle: title + unit price + qty
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          tx(entry.product.name),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 14,
-                            color: RC.fg(const Color(0xFF0F172A)),
-                            height: 1.25,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        moneyLine(
-                          amount: entry.product.price,
-                          amountColor: RC.fg(const Color(0xFFE11D48)),
-                          amountSize: 13,
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: RC.bg(Colors.white),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: RC.bg(Colors.grey.shade300)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                    // Middle + left: title/price on top, qty + total on bottom, delete top-end
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              yellowQtyBtn(
-                                icon: Icons.add,
-                                onTap: () => setState(() => entry.quantity++),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      tx(entry.product.name),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 15,
+                                        color: RC.fg(const Color(0xFF0F172A)),
+                                        height: 1.25,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    moneyLine(
+                                      amount: entry.product.price,
+                                      amountColor: RC.fg(const Color(0xFFE11D48)),
+                                      amountSize: 14,
+                                    ),
+                                  ],
+                                ),
                               ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                child: Text(
-                                  tx('${entry.quantity}'),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 14,
-                                    color: RC.fg(Colors.black),
+                              const SizedBox(width: 6),
+                              InkWell(
+                                onTap: () => setState(() => _cart.removeAt(idx)),
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(2),
+                                  child: Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 22,
+                                    color: RC.fg(const Color(0xFFE11D48)),
                                   ),
                                 ),
                               ),
-                              yellowQtyBtn(
-                                icon: Icons.remove,
-                                onTap: () {
-                                  setState(() {
-                                    if (entry.quantity > 1) {
-                                      entry.quantity--;
-                                    } else {
-                                      _cart.removeAt(idx);
-                                    }
-                                  });
-                                },
+                            ],
+                          ),
+                          const Spacer(),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: RC.bg(Colors.white),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: RC.bg(Colors.grey.shade300)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    yellowQtyBtn(
+                                      icon: Icons.add,
+                                      onTap: () => setState(() => entry.quantity++),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      child: Text(
+                                        tx('${entry.quantity}'),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 14,
+                                          color: RC.fg(Colors.black),
+                                        ),
+                                      ),
+                                    ),
+                                    yellowQtyBtn(
+                                      icon: Icons.remove,
+                                      onTap: () {
+                                        setState(() {
+                                          if (entry.quantity > 1) {
+                                            entry.quantity--;
+                                          } else {
+                                            _cart.removeAt(idx);
+                                          }
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Spacer(),
+                              moneyLine(
+                                amount: itemTotal,
+                                amountColor: RC.fg(const Color(0xFF0F172A)),
+                                amountSize: 16,
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-
-                  // Left (RTL end): delete + line total
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      InkWell(
-                        onTap: () => setState(() => _cart.removeAt(idx)),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(2),
-                          child: Icon(
-                            Icons.delete_outline_rounded,
-                            size: 22,
-                            color: RC.fg(const Color(0xFFE11D48)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      moneyLine(
-                        amount: itemTotal,
-                        amountColor: RC.fg(const Color(0xFF0F172A)),
-                        amountSize: 15,
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -6278,6 +6568,14 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
 
+        // ----------------------------------------------------------------------
+        // OUTSIDE SERVICE AREA BANNER
+        // ----------------------------------------------------------------------
+        if (_isOutsideServiceArea) ...[
+          const SizedBox(height: 16),
+          _buildOutsideServiceAreaBanner(),
+        ],
+
         const SizedBox(height: 20),
 
         // ----------------------------------------------------------------------
@@ -6288,37 +6586,146 @@ class _MainScreenState extends State<MainScreen> {
           height: 54,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: RC.bg(Color(0xFFFAC800)),
+              backgroundColor: RC.bg(
+                _isOutsideServiceArea
+                    ? Colors.grey.shade300
+                    : const Color(0xFFFAC800),
+              ),
               foregroundColor: RC.fg(Colors.black),
-              elevation: 2,
+              elevation: _isOutsideServiceArea ? 0 : 2,
               shadowColor: RC.bg(Color(0xFFFAC800)).withOpacity(0.4),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
             ),
-            onPressed: _handleProceedToCheckout,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  _t('تەواوکردنی داواکاری'),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    color: RC.fg(Colors.black),
+            onPressed: (_isOutsideServiceArea || _checkoutBusy)
+                ? null
+                : _handleProceedToCheckout,
+            child: _checkoutBusy
+                ? SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.8,
+                      color: RC.fg(Colors.black87),
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _t('تەواوکردنی داواکاری'),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: RC.fg(
+                            _isOutsideServiceArea
+                                ? Colors.grey.shade600
+                                : Colors.black,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.arrow_back_rounded,
+                        textDirection: TextDirection.ltr,
+                        size: 20,
+                        color: RC.fg(
+                          _isOutsideServiceArea
+                              ? Colors.grey.shade600
+                              : Colors.black,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                SizedBox(width: 8),
-                Icon(
-                  Icons.arrow_back_rounded,
-                  textDirection: TextDirection.ltr,
-                  size: 20,
-                  color: RC.fg(Colors.black),
-                ),
-              ],
-            ),
           ),
         ),
         const SizedBox(height: 24),
       ],
+    );
+  }
+
+  Widget _buildOutsideServiceAreaBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: RC.bg(const Color(0xFFFFF1F2)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: RC.bg(const Color(0xFFFDA4AF)), width: 1.4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  _t('ناتوانیت داواکاری بنێریت، تۆ لەدەرەوەی لۆکەیشنیت'),
+                  textAlign: TextAlign.start,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    height: 1.45,
+                    color: RC.fg(const Color(0xFFE11D48)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: RC.bg(const Color(0xFFFFE4E6)),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.location_off_rounded,
+                  size: 22,
+                  color: RC.fg(const Color(0xFFE11D48)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: RC.bg(const Color(0xFFFAC800)),
+                foregroundColor: RC.fg(Colors.black),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () async {
+                await _openSharedDeliveryPlace(jumpToGps: true);
+                if (mounted) await _refreshOutsideServiceAreaStatus();
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.location_on_rounded,
+                    size: 18,
+                    color: RC.fg(Colors.black),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _t('گۆڕینی شوێن'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: RC.fg(Colors.black),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -6530,26 +6937,58 @@ class _MainScreenState extends State<MainScreen> {
               child: Divider(color: RC.bg(Colors.grey.shade200), thickness: 1),
             ),
           ),
-          // Filter Chips
+          // Filter Chips — full-width responsive segmented control (no overflow)
           SliverToBoxAdapter(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: RC.bg(Colors.white),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: RC.bg(Colors.grey.shade200)),
-                ),
-                child: Row(
-                  children: [
-                    _buildOrderFilterChip('هەموو', count: stats.total),
-                    _buildOrderFilterChip('بەردەوام', count: stats.active),
-                    _buildOrderFilterChip('تەواوبوو', count: stats.completed),
-                    _buildOrderFilterChip('هەڵوەشایەوە', count: stats.cancelled),
-                  ],
-                ),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: RegaResponsive.pagePadding(context),
+                vertical: 8,
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final narrow = constraints.maxWidth < 360;
+                  return Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(narrow ? 3 : 4),
+                    decoration: BoxDecoration(
+                      color: RC.bg(Colors.white),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: RC.bg(Colors.grey.shade200)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildOrderFilterChip(
+                            'هەموو',
+                            count: stats.total,
+                            compact: narrow,
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildOrderFilterChip(
+                            'بەردەوام',
+                            count: stats.active,
+                            compact: narrow,
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildOrderFilterChip(
+                            'تەواوبوو',
+                            count: stats.completed,
+                            compact: narrow,
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildOrderFilterChip(
+                            'هەڵوەشایەوە',
+                            count: stats.cancelled,
+                            compact: narrow,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -6597,27 +7036,72 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildOrderFilterChip(String key, {int? count}) {
+  Widget _buildOrderFilterChip(String key, {int? count, bool compact = false}) {
     final isSelected = _selectedOrderFilter == key;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedOrderFilter = key;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? RC.bg(Color(0xFFFAC800)) : Colors.transparent,
-          borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-        ),
-        child: Text(
-          tx(count == null ? _t(key) : '${_t(key)} ($count)'),
-          style: TextStyle(
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            color: isSelected ? RC.bg(Colors.black) : RC.bg(Colors.grey.shade600),
-            fontSize: 13,
+    final label = _t(key);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _selectedOrderFilter = key),
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 2 : 4,
+            vertical: compact ? 8 : 10,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected ? RC.bg(const Color(0xFFFAC800)) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  tx(label),
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected
+                        ? RC.bg(Colors.black)
+                        : RC.bg(Colors.grey.shade600),
+                    fontSize: compact ? 11 : 12.5,
+                    height: 1.1,
+                  ),
+                ),
+                if (count != null) ...[
+                  SizedBox(height: compact ? 2 : 3),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 5 : 6,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? RC.bg(Colors.black.withOpacity(0.12))
+                          : RC.bg(Colors.grey.shade100),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      tx('$count'),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: isSelected
+                            ? RC.bg(Colors.black)
+                            : RC.bg(Colors.grey.shade700),
+                        fontSize: compact ? 9.5 : 10.5,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),
@@ -7084,17 +7568,21 @@ class _MainScreenState extends State<MainScreen> {
   // 🛤️ ORDER STATUS STEPPER (هێڵی شوێنکەوتنی داواکاری)
   // ============================================================================
   Widget _buildOrderStepper(OrderItem order) {
+    // First step is vendor Accept — pending stays unchecked until قبوڵکردن.
     final steps = [
-      _t('وەرگیرا'),
+      _t('قبوڵکرا'),
       _t('ئامادەیە'),
       _t('هەڵگیرا'),
       _t('لە ڕێگایە'),
       _t('ڕادەست کرا'),
     ];
 
-    int currentStep = 0;
+    int currentStep = -1;
     switch (order.status) {
       case 'pending':
+        // Waiting for vendor accept — no step lit yet.
+        currentStep = -1;
+        break;
       case 'accepted':
         currentStep = 0;
         break;
@@ -7119,7 +7607,7 @@ class _MainScreenState extends State<MainScreen> {
         currentStep = -1;
         break;
       default:
-        currentStep = 0;
+        currentStep = -1;
     }
 
     return Container(
@@ -7213,10 +7701,14 @@ class _MainScreenState extends State<MainScreen> {
     
     switch (order.status) {
       case 'pending':
+        statusBg = RC.bg(Color(0xFFFFF7ED));
+        statusText = RC.bg(Color(0xFFC2410C));
+        statusStr = _t('چاوەڕوانی قبوڵکردن');
+        break;
       case 'accepted':
         statusBg = RC.bg(Color(0xFFFEF3C7));
         statusText = RC.bg(Color(0xFFB45309));
-        statusStr = _t('وەرگیرا');
+        statusStr = _t('قبوڵکرا');
         break;
       case 'preparing':
         statusBg = RC.bg(Color(0xFFDBEAFE));
@@ -7513,113 +8005,230 @@ class _MainScreenState extends State<MainScreen> {
               const SizedBox(height: 4),
             ],
             Divider(color: RC.bg(Colors.grey.shade100), height: 1),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        order.isDirectRequest ? _t('جۆری داواکاری') : _t('کۆی گشتی حساب'),
-                        style: TextStyle(fontSize: 11, color: RC.fg(Colors.grey.shade500)),
-                      ),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          order.isDirectRequest
-                              ? tx('داواکاری ڕاستەوخۆ')
-                              : tx('${_formatNum(order.totalAmount)} ${_t('د.ع')}'),
-                          style: TextStyle(
-                            fontSize: order.isDirectRequest ? 15 : 18,
-                            fontWeight: FontWeight.bold,
-                            color: RC.fg(const Color(0xFFB45309)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+            const SizedBox(height: 14),
+            // Total row — matches screenshot: label | orange price
+            if (!order.isDirectRequest)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
                   children: [
-                    if (!order.isDirectRequest) ...[
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: GestureDetector(
+                    Text(
+                      tx('کۆی گشتی پارە'),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: RC.fg(const Color(0xFF0F172A)),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      tx('${_formatNum(order.totalAmount)} ${_t('دینار')}'),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: RC.fg(const Color(0xFFB45309)),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    Text(
+                      tx('جۆری داواکاری'),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: RC.fg(const Color(0xFF0F172A)),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      tx('داواکاری ڕاستەوخۆ'),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: RC.fg(const Color(0xFFB45309)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            // Action buttons — Receipt always; Reorder only after delivered; Track while active.
+            Builder(
+              builder: (context) {
+                final status = order.status.toLowerCase().trim();
+                final isDelivered =
+                    status == 'delivered' || status == 'completed';
+                final isCancelled =
+                    status == 'cancelled' || status == 'rejected';
+                final canReorder = !order.isDirectRequest &&
+                    isDelivered &&
+                    order.items.isNotEmpty;
+                final canTrack = !order.isDirectRequest &&
+                    !isDelivered &&
+                    !isCancelled;
+
+                return Row(
+                  children: [
+                    Expanded(
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
                           onTap: () => _showReceiptModal(order),
+                          borderRadius: BorderRadius.circular(14),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            height: 46,
+                            alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: RC.bg(Colors.grey.shade100),
-                              borderRadius: BorderRadius.circular(12),
+                              color: RC.bg(const Color(0xFFF1F5F9)),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
                             ),
                             child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.receipt_long_outlined, size: 16, color: RC.fg(Colors.grey.shade700)),
+                                Icon(Icons.description_outlined,
+                                    size: 18, color: RC.fg(const Color(0xFF475569))),
                                 const SizedBox(width: 6),
-                                Text(tx('پسوولە'), style: TextStyle(fontSize: 13, color: RC.fg(Colors.grey.shade800), fontWeight: FontWeight.bold)),
+                                Text(
+                                  tx('پسوولە'),
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: RC.fg(const Color(0xFF334155)),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                    ],
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: GestureDetector(
-                        onTap: () {
-                          if (order.status != 'cancelled' && order.status != 'rejected') {
-                            _showLiveTrackingModal(order);
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: (order.status != 'cancelled' && order.status != 'rejected')
-                                ? RC.bg(Color(0xFFF59E0B))
-                                : RC.bg(Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.moped_rounded,
-                                size: 16,
-                                color: (order.status != 'cancelled' && order.status != 'rejected')
-                                    ? RC.fg(Colors.black)
-                                    : RC.bg(Colors.grey.shade500),
+                    ),
+                    if (canReorder) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => _reorderOrder(order),
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              height: 46,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: RC.bg(const Color(0xFFFFF8E1)),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                    color: RC.bg(const Color(0xFFFAC800)), width: 1.4),
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                tx(_isLiveTrackStatus(order.status)
-                                    ? 'شوێنی ماتۆرسوار'
-                                    : 'شوێن پێهەڵگرتن'),
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: (order.status != 'cancelled' && order.status != 'rejected')
-                                      ? RC.bg(Colors.black)
-                                      : RC.bg(Colors.grey.shade500),
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.sync_rounded,
+                                      size: 18, color: RC.fg(const Color(0xFF92400E))),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      tx('دووبارە داواکردنەوە'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: RC.fg(const Color(0xFF92400E)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ] else if (canTrack) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => _showLiveTrackingModal(order),
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              height: 46,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: RC.bg(const Color(0xFFF59E0B)),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.moped_rounded,
+                                      size: 18, color: RC.fg(Colors.black)),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    tx(_isLiveTrackStatus(order.status)
+                                        ? 'شوێنی ماتۆرسوار'
+                                        : 'شوێن پێهەڵگرتن'),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: RC.fg(Colors.black),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ),
-              ],
+                );
+              },
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// Put previous order items back in the cart and open the cart tab.
+  void _reorderOrder(OrderItem order) {
+    if (order.items.isEmpty) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      for (final entry in order.items) {
+        final idx = _cart.indexWhere((c) => c.product.id == entry.product.id);
+        if (idx >= 0) {
+          _cart[idx].quantity += entry.quantity;
+        } else {
+          _cart.add(
+            CartEntry(
+              product: entry.product,
+              quantity: entry.quantity,
+              specialNotes: entry.specialNotes,
+            ),
+          );
+        }
+      }
+    });
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tx('کاڵاکان زیادکران بۆ سەبەتە')),
+        backgroundColor: RC.bg(const Color(0xFF047857)),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1400),
+      ),
+    );
+    _goTab(2);
   }
 
   Future<void> _confirmDeleteOrder(OrderItem order) async {
@@ -8184,8 +8793,41 @@ class _MainScreenState extends State<MainScreen> {
 
         const SizedBox(height: 16),
 
-        // 3. LANGUAGE & APPEARANCE PREFERENCES CARD
-        _buildPreferencesCard(),
+        // 3. LANGUAGES MENU ITEM
+        Container(
+          decoration: BoxDecoration(
+            color: RC.bg(Colors.white),
+            borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+            border: Border.all(color: RC.bg(Colors.grey.shade100)),
+          ),
+          child: Column(
+            children: [
+              GestureDetector(
+                onTap: () => setState(() => _isLanguageExpanded = !_isLanguageExpanded),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: _buildSettingsLanguageHeader(),
+                ),
+              ),
+              
+              if (_isLanguageExpanded) ...[
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      _buildLanguageOption('کوردی', isSelected: _currentLanguage == 'کوردی'),
+                      const SizedBox(height: 10),
+                      _buildLanguageOption('العربية', isSelected: _currentLanguage == 'العربية'),
+                      const SizedBox(height: 10),
+                      _buildLanguageOption('English', isSelected: _currentLanguage == 'English'),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
 
         const SizedBox(height: 12),
 
@@ -8277,6 +8919,28 @@ class _MainScreenState extends State<MainScreen> {
             ],
           ),
         ),
+
+        const SizedBox(height: 12),
+
+        // 4b. LIGHT / DARK MODE (under location)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: RC.bg(Colors.white),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: RC.bg(Colors.grey.shade100)),
+            boxShadow: [
+              BoxShadow(
+                color: RC.bg(Colors.black).withOpacity(0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: _buildSettingsDarkModeSwitch(),
+        ),
+
         const SizedBox(height: 12),
 
         // 5. SUPPORT & POLICIES MENU
@@ -8411,34 +9075,88 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildPreferencesCard() {
-    final isDark = context.watch<LocaleNotifier>().isDark;
-    return ProfilePreferencesCard(
-      currentLanguage: _currentLanguage,
-      isDark: isDark,
-      isExpanded: _isLanguageExpanded,
-      onExpandedChanged: (expanded) => setState(() => _isLanguageExpanded = expanded),
-      onLanguageSelected: _selectLanguage,
-      onDarkModeChanged: (v) => context.read<LocaleNotifier>().setDark(v),
+  Widget _buildSettingsLanguageHeader() {
+    final ltr = _profileLtr;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: RC.bg(Colors.amber.shade50),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(Icons.translate_rounded, color: RC.fg(Color(0xFFB45309)), size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: ltr ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+            children: [
+              Text(_t('زمانەکان'), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 14, fontWeight: FontWeight.bold)),
+              Text(tx(_currentLanguage), style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 11, color: RC.fg(Colors.grey))),
+            ],
+          ),
+        ),
+        Icon(_settingsChevronIcon, color: RC.fg(Colors.grey), size: 20),
+      ],
     );
   }
 
-  Future<void> _selectLanguage(String lang) async {
-    setState(() {
-      _currentLanguage = lang;
-    });
+  Widget _buildLanguageOption(String lang, {required bool isSelected}) {
+    return GestureDetector(
+      onTap: () async {
+        setState(() {
+          _currentLanguage = lang;
+        });
 
-    // 💾 پاشەکەوتکردنی زمان لەناو SharedPreferences بۆ ئەوەی لە کاتی دەرچوون و گەڕانەوە نەگۆڕێت
-    await _saveLanguage(lang);
+        // 💾 پاشەکەوتکردنی زمان لەناو SharedPreferences بۆ ئەوەی لە کاتی دەرچوون و گەڕانەوە نەگۆڕێت
+        await _saveLanguage(lang);
 
-    // Notify parent and update global text direction
-    if (lang == 'English') {
-      widget.onLanguageChange('en');
-    } else if (lang == 'العربية') {
-      widget.onLanguageChange('ar');
-    } else {
-      widget.onLanguageChange('ku');
-    }
+        // Notify parent and update global text direction
+        if (lang == 'English') {
+          widget.onLanguageChange('en');
+        } else if (lang == 'العربية') {
+          widget.onLanguageChange('ar');
+        } else {
+          widget.onLanguageChange('ku');
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? RC.bg(Colors.white) : RC.bg(Colors.grey.shade50),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? RC.bg(Color(0xFFF59E0B)) : RC.bg(Colors.grey.shade100),
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected ? [BoxShadow(color: RC.bg(Colors.amber).withOpacity(0.1), blurRadius: 10)] : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              tx(lang),
+              textAlign: _profileLtr ? TextAlign.left : TextAlign.right,
+              style: TextStyle(fontFamily: 'NotoKufiArabic', 
+                fontSize: 16,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? RC.bg(Color(0xFFB45309)) : RC.bg(Colors.black87),
+              ),
+            ),
+            if (isSelected)
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(color: RC.bg(Color(0xFFF59E0B)), shape: BoxShape.circle),
+                child: Icon(Icons.check, size: 12, color: RC.fg(Colors.white)),
+              )
+            else
+              const SizedBox(width: 20),
+          ],
+        ),
+      ),
+    );
   }
 
   // Simple Translation Helper with Static Map for better performance
@@ -8460,6 +9178,13 @@ class _MainScreenState extends State<MainScreen> {
     'ڕێگە مەدە': {'کوردی': 'ڕێگە مەدە', 'العربية': 'عدم السماح', 'English': 'Don\'t Allow'},
     'ناوی بابەت': {'کوردی': 'ناوی بابەت', 'العربية': 'اسم الموضوع', 'English': 'Subject name'},
     'تێبینی بابەت': {'کوردی': 'تێبینی بابەت', 'العربية': 'ملاحظات الموضوع', 'English': 'Subject notes'},
+    'ناونیشانی بابەت': {'کوردی': 'ناونیشانی بابەت', 'العربية': 'عنوان الموضوع', 'English': 'Subject address'},
+    'تکایە ناونیشانی بابەت بنووسە': {
+      'کوردی': 'تکایە ناونیشانی بابەت بنووسە',
+      'العربية': 'يرجى كتابة عنوان الموضوع',
+      'English': 'Please enter the subject address',
+    },
+    'شوێنی گەیاندن': {'کوردی': 'شوێنی گەیاندن', 'العربية': 'موقع التوصيل', 'English': 'Delivery place'},
     'ناونیشانی داواکاری': {'کوردی': 'ناونیشانی داواکاری', 'العربية': 'عنوان الطلب', 'English': 'Request address'},
     'ژمارەی مۆبایل': {'کوردی': 'ژمارەی مۆبایل', 'العربية': 'رقم الموبايل', 'English': 'Mobile number'},
     'وێنەی بابەت': {'کوردی': 'وێنەی بابەت', 'العربية': 'صورة الموضوع', 'English': 'Subject image'},
@@ -8622,6 +9347,13 @@ class _MainScreenState extends State<MainScreen> {
     'ڕاستەوخۆ بڕۆ بۆ خۆتۆمارکردن': {'کوردی': 'ڕاستەوخۆ بڕۆ بۆ خۆتۆمارکردن', 'العربية': 'انتقل إلى التسجيل مباشرة', 'English': 'Go to Register'},
     'دواخستن': {'کوردی': 'دواخستن', 'العربية': 'لاحقاً', 'English': 'Dismiss'},
     'داواکارییەکەت بە سەرکەوتوویی نێردرا!': {'کوردی': 'داواکارییەکەت بە سەرکەوتوویی نێردرا!', 'العربية': 'تم إرسال طلبك بنجاح!', 'English': 'Your order was sent successfully!'},
+    'بینینی داواکاری': {'کوردی': 'بینینی داواکاری', 'العربية': 'عرض الطلب', 'English': 'View order'},
+    'گەڕانەوە بۆ سەرەکی': {'کوردی': 'گەڕانەوە بۆ سەرەکی', 'العربية': 'العودة للرئيسية', 'English': 'Back to home'},
+    'فرۆشیار دەبێت سەرەتا داواکاری قبوڵ بکات. دوای قبوڵکردن دۆخەکان نوێ دەبنەوە.': {
+      'کوردی': 'فرۆشیار دەبێت سەرەتا داواکاری قبوڵ بکات. دوای قبوڵکردن دۆخەکان نوێ دەبنەوە.',
+      'العربية': 'يجب على المتجر قبول الطلب أولاً. بعد القبول يتم تحديث الحالات.',
+      'English': 'The store must accept the order first. Status updates after accept.',
+    },
     'تکایە ئەم کۆدە لای خۆت بپارێزە بۆ وەرگرتنی داواکاری لە شۆفێر:': {
       'کوردی': 'تکایە ئەم کۆدە لای خۆت بپارێزە بۆ وەرگرتنی داواکاری لە شۆفێر:',
       'العربية': 'يرجى الاحتفاظ بهذا الرمز لاستلام الطلب من السائق:',
@@ -8692,9 +9424,21 @@ class _MainScreenState extends State<MainScreen> {
     'داواکاری لە:': {'کوردی': 'داواکاری لە:', 'العربية': 'الطلب من:', 'English': 'Order from:'},
     'سڕینەوەی هەموو': {'کوردی': 'سڕینەوەی هەموو', 'العربية': 'حذف الكل', 'English': 'Clear All'},
     'کورتیی داواکاری': {'کوردی': 'کورتیی داواکاری', 'العربية': 'ملخص الطلب', 'English': 'Order Summary'},
+    'ناتوانیت داواکاری بنێریت، تۆ لەدەرەوەی لۆکەیشنیت': {
+      'کوردی': 'ناتوانیت داواکاری بنێریت، تۆ لەدەرەوەی لۆکەیشنیت',
+      'العربية': 'لا يمكنك إرسال الطلب، أنت خارج نطاق الموقع',
+      'English': 'You cannot place the order, you are outside the service location',
+    },
+    'گۆڕینی شوێن': {
+      'کوردی': 'گۆڕینی شوێن',
+      'العربية': 'تغيير الموقع',
+      'English': 'Change Location',
+    },
     'کۆی گشتی کاڵاکان': {'کوردی': 'کۆی گشتی کاڵاکان', 'العربية': 'مجموع المنتجات', 'English': 'Items Subtotal'},
     'تێچووی گەیاندن ': {'کوردی': 'تێچووی گەیاندن ', 'العربية': 'تكلفة التوصيل ', 'English': 'Delivery Fee '},
-    'کۆی گشتی پارە': {'کوردی': 'کۆی گشتی حساب', 'العربية': 'المجموع الكلي', 'English': 'Grand Total'},
+    'کۆی گشتی پارە': {'کوردی': 'کۆی گشتی پارە', 'العربية': 'المجموع الكلي', 'English': 'Grand Total'},
+    'دووبارە داواکردنەوە': {'کوردی': 'دووبارە داواکردنەوە', 'العربية': 'إعادة الطلب', 'English': 'Reorder'},
+    'کاڵاکان زیادکران بۆ سەبەتە': {'کوردی': 'کاڵاکان زیادکران بۆ سەبەتە', 'العربية': 'تمت إضافة المنتجات إلى السلة', 'English': 'Items added to cart'},
     'کۆی گشتی حساب': {'کوردی': 'کۆی گشتی حساب', 'العربية': 'المجموع الكلي', 'English': 'Grand Total'},
     'کۆی گشتی حساب:': {'کوردی': 'کۆی گشتی حساب:', 'العربية': 'المجموع الكلي:', 'English': 'Grand Total:'},
     'داواکاریەکانم': {'کوردی': 'داواکاریەکانم', 'العربية': 'طلباتي', 'English': 'My Orders'},
@@ -8705,6 +9449,12 @@ class _MainScreenState extends State<MainScreen> {
     'بەڕێوەیە (زیندوو)': {'کوردی': 'بەڕێوەیە (زیندوو)', 'العربية': 'قيد المعالجة (مباشر)', 'English': 'In Progress (Live)'},
     'پسوولەی داواکاری REGA': {'کوردی': 'پسوولەی داواکاری REGA', 'العربية': 'وصل طلب REGA', 'English': 'REGA Order Receipt'},
     'وەرگیرا': {'کوردی': 'وەرگیرا', 'العربية': 'تم الاستلام', 'English': 'Received'},
+    'قبوڵکرا': {'کوردی': 'قبوڵکرا', 'العربية': 'تم القبول', 'English': 'Accepted'},
+    'چاوەڕوانی قبوڵکردن': {
+      'کوردی': 'چاوەڕوانی قبوڵکردن',
+      'العربية': 'بانتظار القبول',
+      'English': 'Waiting for accept',
+    },
     'ئامادەیە': {'کوردی': 'ئامادەیە', 'العربية': 'جاهز', 'English': 'Ready'},
     'هەڵگیرا': {'کوردی': 'هەڵگیرا', 'العربية': 'تم الاستلام للتوصيل', 'English': 'Picked up'},
     'لە ڕێگایە': {'کوردی': 'لە ڕێگایە', 'العربية': 'في الطريق', 'English': 'On the way'},
@@ -8763,6 +9513,26 @@ class _MainScreenState extends State<MainScreen> {
       if (localized.isNotEmpty) return localized;
     }
     return _t(key);
+  }
+
+  Widget _buildSettingsDarkModeSwitch() {
+    final ltr = _profileLtr;
+    final isDark = context.watch<LocaleNotifier>().isDark;
+    return SwitchListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        tx(isDark ? _t('دۆخی تاریک') : _t('دۆخی ڕووناک')),
+        textAlign: ltr ? TextAlign.left : TextAlign.right,
+        style: TextStyle(fontFamily: 'NotoKufiArabic', fontSize: 13, fontWeight: FontWeight.bold),
+      ),
+      secondary: Icon(
+        isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+        color: RC.fg(Color(0xFFB45309)),
+      ),
+      value: isDark,
+      activeColor: RC.bg(Color(0xFFFAC800)),
+      onChanged: (v) => context.read<LocaleNotifier>().setDark(v),
+    );
   }
 
   Widget _buildMenuItem(String title, IconData icon, {bool isLogout = false}) {
@@ -9106,8 +9876,46 @@ class _MainScreenState extends State<MainScreen> {
           ),
           const SizedBox(height: 16),
 
-          // 3. LANGUAGE & APPEARANCE CARD (AVAILABLE BEFORE LOGIN)
-          _buildPreferencesCard(),
+          // 3. LANGUAGES CARD (AVAILABLE BEFORE LOGIN)
+          Container(
+            decoration: BoxDecoration(
+              color: RC.bg(Colors.white),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: RC.bg(Colors.grey.shade100)),
+              boxShadow: [
+                BoxShadow(color: RC.bg(Colors.black).withOpacity(0.03), blurRadius: 10, spreadRadius: 1),
+              ],
+            ),
+            child: Column(
+              children: [
+                GestureDetector(
+                  onTap: () => setState(() => _isLanguageExpanded = !_isLanguageExpanded),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: _buildSettingsLanguageHeader(),
+                  ),
+                ),
+                
+                if (_isLanguageExpanded) ...[
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildLanguageOption('کوردی', isSelected: _currentLanguage == 'کوردی'),
+                        const SizedBox(height: 10),
+                        _buildLanguageOption('العربية', isSelected: _currentLanguage == 'العربية'),
+                        const SizedBox(height: 10),
+                        _buildLanguageOption('English', isSelected: _currentLanguage == 'English'),
+                        const SizedBox(height: 14),
+                        _buildSettingsDarkModeSwitch(),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
           const SizedBox(height: 20),
         ],
       ),
@@ -9737,13 +10545,50 @@ class _HomePromoBannerCarouselState extends State<_HomePromoBannerCarousel> {
   Timer? _autoTimer;
   int _index = 0;
   int _pageCount = 1;
+  final Set<String> _prefetched = {};
 
   @override
   void initState() {
     super.initState();
     _pageCtrl = PageController();
     // Start after first frame so PageView has clients (web-safe).
-    WidgetsBinding.instance.addPostFrameCallback((_) => _startAutoRotate());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startAutoRotate();
+      _prefetchBanners(context);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomePromoBannerCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.banners, widget.banners)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _prefetchBanners(context);
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get _validBanners => widget.banners
+      .where((b) => (b['image_url']?.toString() ?? '').trim().isNotEmpty)
+      .take(5)
+      .toList();
+
+  void _prefetchBanners(BuildContext context) {
+    if (!mounted) return;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final logicalW = MediaQuery.sizeOf(context).width;
+    // Decode near display size so large uploads don't block the UI thread.
+    final cacheW = (logicalW * dpr).round().clamp(480, 1600);
+    for (final banner in _validBanners) {
+      final url = RegaApiHost.resolveMediaUrl(banner['image_url']?.toString());
+      if (url.isEmpty || _prefetched.contains(url)) continue;
+      _prefetched.add(url);
+      precacheImage(
+        ResizeImage.resizeIfNeeded(cacheW, null, NetworkImage(url)),
+        context,
+        onError: (_, __) {},
+      );
+    }
   }
 
   void _startAutoRotate() {
@@ -9778,14 +10623,16 @@ class _HomePromoBannerCarouselState extends State<_HomePromoBannerCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    final banners = widget.banners
-        .where((b) => (b['image_url']?.toString() ?? '').trim().isNotEmpty)
-        .toList();
+    final banners = _validBanners;
     if (banners.isEmpty) return const SizedBox(height: 8);
 
-    final bannerHeight = MediaQuery.of(context).size.width >= 640 ? 230.0 : 170.0;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final bannerHeight = screenW >= 640 ? 230.0 : 170.0;
+    // Decode at display resolution — full camera uploads were decoding huge bitmaps.
+    final cacheWidth = (screenW * dpr).round().clamp(480, 1600);
     // Up to 5 reklaming images — image only, auto-advance every 5s.
-    final count = banners.length.clamp(1, 5);
+    final count = banners.length;
     _pageCount = count;
 
     return Column(
@@ -9818,8 +10665,37 @@ class _HomePromoBannerCarouselState extends State<_HomePromoBannerCarousel> {
                         width: double.infinity,
                         height: bannerHeight,
                         gaplessPlayback: true,
-                        errorBuilder: (_, __, ___) =>
-                            Container(color: RC.bg(const Color(0xFF1E293B))),
+                        filterQuality: FilterQuality.medium,
+                        // Decode near on-screen size so big uploads paint faster.
+                        cacheWidth: cacheWidth,
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return Container(
+                            color: RC.bg(const Color(0xFFF8FAFC)),
+                            alignment: Alignment.center,
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: RC.fg(const Color(0xFFFAC800)),
+                                value: progress.expectedTotalBytes != null
+                                    ? progress.cumulativeBytesLoaded /
+                                        progress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (_, __, ___) => Container(
+                          color: RC.bg(const Color(0xFFF1F5F9)),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Icons.image_outlined,
+                            size: 36,
+                            color: RC.fg(const Color(0xFF94A3B8)),
+                          ),
+                        ),
                       ),
                     );
                   },
@@ -9828,7 +10704,7 @@ class _HomePromoBannerCarouselState extends State<_HomePromoBannerCarousel> {
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(count, (i) {
@@ -9845,9 +10721,67 @@ class _HomePromoBannerCarouselState extends State<_HomePromoBannerCarousel> {
             );
           }),
         ),
-        const SizedBox(height: 16),
+        // Tight gap under dots so category grid sits closer (was 16 — too much empty space).
+        const SizedBox(height: 6),
       ],
     );
+  }
+}
+
+/// Bottom-nav discount badge: jagged starburst ring + centered % (screenshot style).
+class _JaggedPercentBadgePainter extends CustomPainter {
+  final Color color;
+
+  const _JaggedPercentBadgePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final outerR = size.shortestSide / 2;
+    final innerR = outerR * 0.78;
+    const spikes = 12;
+
+    final path = Path();
+    for (var i = 0; i < spikes * 2; i++) {
+      final r = i.isEven ? outerR : innerR;
+      final a = (i / (spikes * 2)) * math.pi * 2 - math.pi / 2;
+      final x = cx + math.cos(a) * r;
+      final y = cy + math.sin(a) * r;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (outerR * 0.11).clamp(1.6, 2.4)
+      ..strokeJoin = StrokeJoin.round
+      ..isAntiAlias = true;
+    canvas.drawPath(path, stroke);
+
+    final tp = TextPainter(
+      text: TextSpan(
+        text: '%',
+        style: TextStyle(
+          color: color,
+          fontSize: outerR * 0.95,
+          fontWeight: FontWeight.w800,
+          height: 1,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(cx - tp.width / 2, cy - tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant _JaggedPercentBadgePainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
 

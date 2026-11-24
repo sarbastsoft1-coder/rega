@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -10,11 +9,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import 'map/mapbox_directions.dart';
 import 'map/mapbox_tiles.dart';
 import 'map/rega_map_styles.dart';
-import 'map/rega_standard_map.dart';
 import 'services/rega_gps.dart';
 import 'rega_mobile.dart';
 
@@ -92,6 +89,10 @@ class KalarInteractivePickerMap extends StatefulWidget {
   final RegaMapStyleId initialStyle;
   /// When false, parent owns back/title chrome (map only shows layers + GPS FABs).
   final bool showTopChrome;
+  /// Optional close (X) FAB — bottom-left, matching pick-location screenshot.
+  final VoidCallback? onClose;
+  /// Extra bottom inset so zoom/close FABs sit above the parent confirm button.
+  final double bottomControlsInset;
 
   const KalarInteractivePickerMap({
     super.key,
@@ -105,6 +106,8 @@ class KalarInteractivePickerMap extends StatefulWidget {
     this.controller,
     this.initialStyle = RegaMapStyles.defaultPicker,
     this.showTopChrome = false,
+    this.onClose,
+    this.bottomControlsInset = 78,
   });
 
   @override
@@ -381,35 +384,45 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
     } catch (_) {}
   }
 
+  /// Center map marker — Flaticon GPS icon (assets/icons/gps_location.png).
   Widget _buildRegaPin({double size = 56}) {
-    final pinW = size * 0.95;
-    final pinH = size * 1.25;
     return SizedBox(
-      width: pinW,
-      height: pinH,
-      child: CustomPaint(
-        size: Size(pinW, pinH),
-        painter: _LocationPinPainter(
-          fill: RC.bg(const Color(0xFFE11D48)),
-          stroke: RC.bg(Colors.white),
-          hole: RC.bg(const Color(0xFFFAC800)),
+      width: size,
+      height: size,
+      child: Image.asset(
+        'assets/icons/gps_location.png',
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => Icon(
+          Icons.gps_fixed_rounded,
+          size: size * 0.85,
+          color: RC.fg(const Color(0xFFE11D48)),
         ),
       ),
+    );
+  }
+
+  /// Center overlay — GPS icon sits on the map center point.
+  Widget _buildCenterPinWithAccuracy() {
+    return Transform.translate(
+      offset: const Offset(0, -10),
+      child: _buildRegaPin(size: 56),
     );
   }
 
   Widget _zoomFab(IconData icon, VoidCallback onTap) {
     return Material(
       color: Colors.white,
-      elevation: 4,
-      shadowColor: Colors.black26,
+      elevation: 5,
+      shadowColor: Colors.black38,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: SizedBox(
-          width: 44,
-          height: 44,
+          width: 46,
+          height: 46,
           child: Icon(icon, color: const Color(0xFF0F172A), size: 24),
         ),
       ),
@@ -425,29 +438,29 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
   }) {
     return Material(
       color: active ? activeColor : Colors.white,
-      elevation: 3,
+      elevation: 4,
       shadowColor: Colors.black26,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(24),
       child: InkWell(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
-                size: 16,
-                color: active ? const Color(0xFF0F172A) : const Color(0xFF334155),
+                size: 17,
+                color: const Color(0xFF0F172A),
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 6),
               Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
+                tx(label),
+                style: const TextStyle(
+                  fontSize: 13,
                   fontWeight: FontWeight.w900,
-                  color: active ? const Color(0xFF0F172A) : const Color(0xFF334155),
+                  color: Color(0xFF0F172A),
                 ),
               ),
             ],
@@ -461,10 +474,11 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
   Widget build(BuildContext context) {
     const gold = Color(0xFFFAC800);
     const panGreen = Color(0xFF22C55E);
-    final isMap = _styleId != RegaMapStyleId.satellite;
     final isSat = _styleId == RegaMapStyleId.satellite;
+    final bottomPad = widget.bottomControlsInset + MediaQuery.of(context).padding.bottom;
 
     return Stack(
+      fit: StackFit.expand,
       children: [
         FlutterMap(
           mapController: _mapCtrl,
@@ -496,28 +510,32 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
             ),
           ],
         ),
+        // Center pin + accuracy circle (screenshot style).
         IgnorePointer(
           child: Align(
-            alignment: const Alignment(0, -0.04),
-            child: _buildRegaPin(size: 58),
+            alignment: const Alignment(0, -0.02),
+            child: _buildCenterPinWithAccuracy(),
           ),
         ),
+        // Top chips: سەتەلایت | جووڵاندن | شوێنەکەم
         Positioned(
-          top: 12,
+          top: 12 + MediaQuery.of(context).padding.top * 0.15,
           left: 10,
           right: 10,
-          child: Directionality(
-            textDirection: TextDirection.ltr,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+          child: SafeArea(
+            bottom: false,
+            child: Directionality(
+              textDirection: TextDirection.ltr,
               child: Row(
                 children: [
                   _modeChip(
-                    label: 'شوێنەکەم',
-                    icon: Icons.gps_fixed_rounded,
-                    active: true,
+                    label: 'سەتەلایت',
+                    icon: Icons.satellite_alt_rounded,
+                    active: isSat,
                     activeColor: gold,
-                    onTap: _locating ? () {} : () => _goToCurrentGps(),
+                    onTap: () => _applyStyle(
+                      isSat ? RegaMapStyleId.map : RegaMapStyleId.satellite,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   _modeChip(
@@ -525,32 +543,32 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
                     icon: Icons.open_with_rounded,
                     active: _panPickMode,
                     activeColor: panGreen,
-                    onTap: () => setState(() => _panPickMode = true),
+                    onTap: () => setState(() => _panPickMode = !_panPickMode),
                   ),
-                  const SizedBox(width: 8),
+                  const Spacer(),
                   _modeChip(
-                    label: 'سەتەلایت',
-                    icon: Icons.satellite_alt_rounded,
-                    active: isSat,
+                    label: 'شوێنەکەم',
+                    icon: Icons.my_location_rounded,
+                    active: true,
                     activeColor: gold,
-                    onTap: () => _applyStyle(RegaMapStyleId.satellite),
-                  ),
-                  const SizedBox(width: 8),
-                  _modeChip(
-                    label: 'نەخشە',
-                    icon: Icons.map_rounded,
-                    active: isMap,
-                    activeColor: gold,
-                    onTap: () => _applyStyle(RegaMapStyleId.map),
+                    onTap: _locating ? () {} : () => _goToCurrentGps(),
                   ),
                 ],
               ),
             ),
           ),
         ),
+        // Close (X) — bottom left
+        if (widget.onClose != null)
+          Positioned(
+            left: 14,
+            bottom: bottomPad,
+            child: _zoomFab(Icons.close_rounded, widget.onClose!),
+          ),
+        // Zoom + / − — bottom right
         Positioned(
           right: 14,
-          bottom: 88,
+          bottom: bottomPad,
           child: Column(
             children: [
               _zoomFab(Icons.add_rounded, () => _zoomBy(1)),
@@ -559,6 +577,22 @@ class _KalarInteractivePickerMapState extends State<KalarInteractivePickerMap> {
             ],
           ),
         ),
+        if (_locating)
+          const Positioned(
+            top: 70,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: Color(0xFFFAC800),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -576,6 +610,8 @@ class CustomerLiveOrderTrackerScreen extends StatefulWidget {
   final String initialStatus;
   final LatLng storeLocation;
   final LatLng customerLocation;
+  /// Vendor cover/logo shown as the store pin on the live map.
+  final String? storeCoverUrl;
   final String apiBaseUrl;
   final ValueChanged<String>? onOrderStatusChanged;
 
@@ -591,6 +627,7 @@ class CustomerLiveOrderTrackerScreen extends StatefulWidget {
     required this.initialStatus,
     this.storeLocation = const LatLng(34.6836, 45.3189),
     this.customerLocation = const LatLng(34.6912, 45.3264),
+    this.storeCoverUrl,
     String? apiBaseUrl,
     this.onOrderStatusChanged,
   }) : apiBaseUrl = apiBaseUrl ?? RegaApiHost.apiV1;
@@ -602,19 +639,18 @@ class CustomerLiveOrderTrackerScreen extends StatefulWidget {
 
 class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTrackerScreen>
     with TickerProviderStateMixin {
-  final GlobalKey<RegaStandardMapState> _mapKey = GlobalKey<RegaStandardMapState>();
-  mb.MapboxMap? _mbMap;
-  mb.PointAnnotationManager? _pointMgr;
-  mb.PolylineAnnotationManager? _lineMgr;
+  /// Same flutter_map + Mapbox rasters stack as the pick-location map.
+  final MapController _mapCtrl = MapController();
 
   late AnimationController _pulseController;
   late AnimationController _glideController;
 
   Timer? _oneSecondTimer;
 
-  RegaMapStyleId _mapStyleId = RegaMapStyles.defaultTracking;
+  RegaMapStyleId _mapStyleId = RegaMapStyleId.map;
   bool _followDriver = true;
   bool _mapReady = false;
+  bool _applyingCamera = false;
   /// Local fake movement — OFF by default; only via play button.
   bool _autoDriveSimulation = false;
 
@@ -623,6 +659,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
   late String _driverPhone;
   String _vehicleLabel = 'ماتۆڕسوار • KLR-402';
 
+  late LatLng _storePos;
+  late LatLng _customerPos;
   late LatLng _dispatchOrigin;
   List<LatLng> _leg1ToStore = [];
   List<LatLng> _leg2ToCustomer = [];
@@ -640,12 +678,21 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
   int _secondsSinceOpen = 0;
   double _localProgress = 0.08; // 0.0 -> 1.0 along _fullRoute
 
+  MapboxStyle get _rasterStyle => switch (_mapStyleId) {
+        RegaMapStyleId.satellite => MapboxStyle.satellite,
+        RegaMapStyleId.outdoors => MapboxStyle.outdoors,
+        RegaMapStyleId.dark => MapboxStyle.dark,
+        RegaMapStyleId.map => MapboxStyle.streets,
+      };
+
   @override
   void initState() {
     super.initState();
     _status = widget.initialStatus;
     _driverName = widget.driverName;
     _driverPhone = widget.driverPhone;
+    _storePos = widget.storeLocation;
+    _customerPos = widget.customerLocation;
 
     _pulseController = AnimationController(
       vsync: this,
@@ -658,8 +705,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     )..addListener(_onGlideTick);
 
     _dispatchOrigin = LatLng(
-      widget.storeLocation.latitude - 0.0036,
-      widget.storeLocation.longitude - 0.0042,
+      _storePos.latitude - 0.0036,
+      _storePos.longitude - 0.0042,
     );
 
     _buildInitialRoute();
@@ -672,14 +719,14 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     _oneSecondTimer?.cancel();
     _pulseController.dispose();
     _glideController.dispose();
-    // Mapbox MapWidget disposed with the element tree.
+    _mapCtrl.dispose();
     super.dispose();
   }
 
   void _buildInitialRoute() {
     // Temporary straight fallback until Mapbox Directions returns road geometry.
-    final leg1 = [_dispatchOrigin, widget.storeLocation];
-    final leg2 = [widget.storeLocation, widget.customerLocation];
+    final leg1 = [_dispatchOrigin, _storePos];
+    final leg2 = [_storePos, _customerPos];
     _leg1ToStore = leg1;
     _leg2ToCustomer = leg2;
     _storeSplitIndex = leg1.length - 1;
@@ -712,8 +759,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     try {
       final (raw1, raw2) = await MapboxDirections.twoLegRoute(
         origin: _dispatchOrigin,
-        store: widget.storeLocation,
-        customer: widget.customerLocation,
+        store: _storePos,
+        customer: _customerPos,
       );
       if (!mounted) return;
       final leg1 = MapboxDirections.densify(raw1, minPoints: 24);
@@ -755,11 +802,11 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                 body: jsonEncode({
                   'order_ref': cleanRef,
                   'store_name': widget.storeName,
-                  'store_lat': widget.storeLocation.latitude,
-                  'store_lng': widget.storeLocation.longitude,
+                  'store_lat': _storePos.latitude,
+                  'store_lng': _storePos.longitude,
                   'customer_address': widget.customerAddress,
-                  'customer_lat': widget.customerLocation.latitude,
-                  'customer_lng': widget.customerLocation.longitude,
+                  'customer_lat': _customerPos.latitude,
+                  'customer_lng': _customerPos.longitude,
                   'delivery_pin': widget.deliveryPin,
                   'total_amount': widget.totalAmount,
                 }),
@@ -806,10 +853,23 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       if (data == null) return false;
 
       final driver = (data['driver'] as Map<String, dynamic>?) ?? const {};
+      final store = (data['store'] as Map<String, dynamic>?) ?? const {};
+      final customer = (data['customer'] as Map<String, dynamic>?) ?? const {};
       // Mirror real-time 1-second coordinates from Captain App or Backend Telemetry Engine!
       final dLat = (driver['lat'] as num?)?.toDouble() ?? _displayDriverPos.latitude;
       final dLng = (driver['lng'] as num?)?.toDouble() ?? _displayDriverPos.longitude;
       final remoteStatus = (data['status'] ?? _status).toString();
+
+      final sLat = (store['lat'] as num?)?.toDouble();
+      final sLng = (store['lng'] as num?)?.toDouble();
+      if (sLat != null && sLng != null) {
+        _storePos = LatLng(sLat, sLng);
+      }
+      final cLat = (customer['lat'] as num?)?.toDouble();
+      final cLng = (customer['lng'] as num?)?.toDouble();
+      if (cLat != null && cLng != null) {
+        _customerPos = LatLng(cLat, cLng);
+      }
 
       _driverName = (driver['name'] ?? _driverName).toString();
       _driverPhone = (driver['phone'] ?? _driverPhone).toString();
@@ -881,8 +941,22 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     _etaSeconds = 0;
     _remainingMeters = 0;
     _speedKmh = 0.0;
-    _glideDriverTo(widget.customerLocation);
+    _glideDriverTo(_customerPos);
     _updateStatus('delivered');
+  }
+
+  void _moveCamera(LatLng center, {double? zoom}) {
+    if (!_mapReady) return;
+    _applyingCamera = true;
+    try {
+      final z = (zoom ?? _mapCtrl.camera.zoom).clamp(5.0, 20.0);
+      _mapCtrl.move(center, z);
+    } catch (_) {
+    } finally {
+      Future<void>.delayed(const Duration(milliseconds: 60), () {
+        _applyingCamera = false;
+      });
+    }
   }
 
   void _glideDriverTo(LatLng next, {double? headingOverride}) {
@@ -898,7 +972,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     _glideController.forward(from: 0.0);
 
     if (_followDriver && _mapReady) {
-      _mapKey.currentState?.moveTo(next);
+      _moveCamera(next);
     }
   }
 
@@ -912,10 +986,9 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     setState(() {
       _displayDriverPos = cur;
     });
-    if (_followDriver && _mapReady) {
-      _mapKey.currentState?.moveTo(cur);
+    if (_followDriver && _mapReady && !_applyingCamera) {
+      _moveCamera(cur);
     }
-    _syncMapAnnotations();
   }
 
   void _recomputeLocalMetrics() {
@@ -966,143 +1039,118 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     return [...pts.sublist(0, prevIdx + 1), current];
   }
 
-  mb.Point _mbPoint(LatLng p) =>
-      mb.Point(coordinates: mb.Position(p.longitude, p.latitude));
-
-  Future<void> _onMbMapCreated(mb.MapboxMap map) async {
-    _mbMap = map;
+  void _onMapReady() {
     _mapReady = true;
-    try {
-      _pointMgr = await map.annotations.createPointAnnotationManager();
-      _lineMgr = await map.annotations.createPolylineAnnotationManager();
-    } catch (_) {}
     _followDriver = true;
-    await _syncMapAnnotations();
-    Future.delayed(const Duration(milliseconds: 350), () {
+    Future.delayed(const Duration(milliseconds: 280), () {
       if (mounted && _mapReady) {
         _safeFitBounds([
           _displayDriverPos,
-          widget.storeLocation,
-          widget.customerLocation,
+          _storePos,
+          _customerPos,
         ]);
       }
     });
   }
 
-  Future<void> _syncMapAnnotations() async {
-    final lines = _lineMgr;
-    final points = _pointMgr;
-    if (lines == null || points == null) return;
-    try {
-      await lines.deleteAll();
-      await points.deleteAll();
-    } catch (_) {}
-
+  List<Polyline> _buildRoutePolylines() {
     final storeRatio = _fullRoute.length > 2
         ? (_storeSplitIndex / (_fullRoute.length - 1))
         : 0.35;
     final isHeadingToStore = _localProgress < storeRatio;
     final isDelivered = _status == 'delivered';
+    final lines = <Polyline>[];
 
-    Future<void> addLine(List<LatLng> pts, int color, double width) async {
+    void addLine(List<LatLng> pts, Color color, double width) {
       if (pts.length < 2) return;
-      try {
-        await lines.create(
-          mb.PolylineAnnotationOptions(
-            geometry: mb.LineString(
-              coordinates: [
-                for (final p in pts) mb.Position(p.longitude, p.latitude),
-              ],
-            ),
-            lineColor: color,
-            lineWidth: width,
-          ),
-        );
-      } catch (_) {}
+      lines.add(
+        Polyline(
+          points: pts,
+          color: color,
+          strokeWidth: width,
+          borderColor: Colors.white.withValues(alpha: 0.55),
+          borderStrokeWidth: 1.5,
+        ),
+      );
     }
 
     if (isHeadingToStore) {
       final leg1Progress = (_localProgress / storeRatio).clamp(0.0, 1.0);
-      await addLine(
+      addLine(
         _traveledSubPolyline(_leg1ToStore, leg1Progress, _displayDriverPos),
-        0xFF94A3B8,
+        const Color(0xFF94A3B8),
         4,
       );
-      await addLine(
+      addLine(
         _remainingSubPolyline(_leg1ToStore, leg1Progress, _displayDriverPos),
-        0xFFF59E0B,
+        const Color(0xFFF59E0B),
         7,
       );
-      await addLine(_leg2ToCustomer, 0xFF10B981, 4);
+      addLine(_leg2ToCustomer, const Color(0xFF10B981), 4);
     } else {
-      await addLine(_leg1ToStore, 0xFF94A3B8, 3.5);
+      addLine(_leg1ToStore, const Color(0xFF94A3B8), 3.5);
       final leg2Progress =
           ((_localProgress - storeRatio) / (1.0 - storeRatio)).clamp(0.0, 1.0);
-      await addLine(
+      addLine(
         _traveledSubPolyline(_leg2ToCustomer, leg2Progress, _displayDriverPos),
-        0xFF86EFAC,
+        const Color(0xFF86EFAC),
         4,
       );
       if (!isDelivered) {
-        await addLine(
+        addLine(
           _remainingSubPolyline(_leg2ToCustomer, leg2Progress, _displayDriverPos),
-          0xFF16A34A,
+          const Color(0xFF16A34A),
           7.5,
         );
       } else {
-        await addLine(_leg2ToCustomer, 0xFF16A34A, 6);
+        addLine(_leg2ToCustomer, const Color(0xFF16A34A), 6);
       }
     }
-
-    Future<void> addPin(LatLng at, String text) async {
-      try {
-        await points.create(
-          mb.PointAnnotationOptions(
-            geometry: _mbPoint(at),
-            textField: text,
-            textSize: 12,
-            textColor: 0xFF0F172A,
-            textHaloColor: 0xFFFFFFFF,
-            textHaloWidth: 1.2,
-            iconSize: 1.2,
-          ),
-        );
-      } catch (_) {}
-    }
-
-    await addPin(widget.storeLocation, 'فرۆشگا');
-    await addPin(widget.customerLocation, 'کڕیار');
-    if (_status != 'delivered') {
-      await addPin(_displayDriverPos, 'شۆفێر');
-    }
+    return lines;
   }
 
-  void _safeFitBounds(List<LatLng> points, {double maxZoom = 16.2, double minZoom = 12.0}) {
+  void _safeFitBounds(List<LatLng> points, {double maxZoom = 16.2, double minZoom = 13.0}) {
     if (!_mapReady || points.isEmpty) return;
     final valid = points.where((p) => !p.latitude.isNaN && !p.longitude.isNaN).toList();
     if (valid.isEmpty) return;
     if (valid.length == 1) {
-      _mapKey.currentState?.moveTo(valid.first, zoom: 15.6);
+      _moveCamera(valid.first, zoom: 15.6);
       return;
     }
-    double minLat = valid.first.latitude, maxLat = valid.first.latitude;
-    double minLng = valid.first.longitude, maxLng = valid.first.longitude;
-    for (final p in valid) {
-      minLat = math.min(minLat, p.latitude);
-      maxLat = math.max(maxLat, p.latitude);
-      minLng = math.min(minLng, p.longitude);
-      maxLng = math.max(maxLng, p.longitude);
+    try {
+      _applyingCamera = true;
+      _mapCtrl.fitCamera(
+        CameraFit.coordinates(
+          coordinates: valid,
+          padding: const EdgeInsets.fromLTRB(52, 110, 52, 270),
+          maxZoom: maxZoom,
+          minZoom: minZoom,
+        ),
+      );
+    } catch (_) {
+      double minLat = valid.first.latitude, maxLat = valid.first.latitude;
+      double minLng = valid.first.longitude, maxLng = valid.first.longitude;
+      for (final p in valid) {
+        minLat = math.min(minLat, p.latitude);
+        maxLat = math.max(maxLat, p.latitude);
+        minLng = math.min(minLng, p.longitude);
+        maxLng = math.max(maxLng, p.longitude);
+      }
+      final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+      final span = math.max((maxLat - minLat).abs(), (maxLng - minLng).abs());
+      final zoom = span < 0.002
+          ? maxZoom
+          : span < 0.01
+              ? 15.4
+              : span < 0.03
+                  ? 14.2
+                  : minZoom + 0.8;
+      _moveCamera(center, zoom: zoom.clamp(minZoom, maxZoom));
+    } finally {
+      Future<void>.delayed(const Duration(milliseconds: 80), () {
+        _applyingCamera = false;
+      });
     }
-    final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-    final span = math.max((maxLat - minLat).abs(), (maxLng - minLng).abs());
-    final zoom = span < 0.002
-        ? maxZoom
-        : span < 0.01
-            ? 15.2
-            : span < 0.03
-                ? 14.0
-                : minZoom + 1;
-    _mapKey.currentState?.moveTo(center, zoom: zoom.clamp(minZoom, maxZoom));
   }
 
   void _focusOnPickupRoute() {
@@ -1111,7 +1159,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     _safeFitBounds([
       _displayDriverPos,
       _dispatchOrigin,
-      widget.storeLocation,
+      _storePos,
     ]);
     setState(() {});
   }
@@ -1120,15 +1168,15 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     if (!_mapReady) return;
     _followDriver = false;
     _safeFitBounds([
-      widget.storeLocation,
-      widget.customerLocation,
+      _storePos,
+      _customerPos,
       if (_localProgress >= 0.35) _displayDriverPos,
     ]);
     setState(() {});
   }
 
   LatLng _pointAlong(List<LatLng> pts, double progress) {
-    if (pts.isEmpty) return widget.storeLocation;
+    if (pts.isEmpty) return _storePos;
     if (pts.length == 1) return pts.first;
     final p = progress.clamp(0.0, 1.0);
     final exact = p * (pts.length - 1);
@@ -1166,10 +1214,169 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
     _followDriver = keepFollowing;
     _safeFitBounds([
       _displayDriverPos,
-      widget.storeLocation,
-      widget.customerLocation,
+      _storePos,
+      _customerPos,
     ]);
     setState(() {});
+  }
+
+  Widget _vendorLogoMarker() {
+    final url = (widget.storeCoverUrl ?? '').trim();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            border: Border.all(color: const Color(0xFFFAC800), width: 3),
+            boxShadow: const [
+              BoxShadow(color: Color(0x66000000), blurRadius: 10, offset: Offset(0, 3)),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: url.isNotEmpty
+              ? Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.storefront_rounded,
+                    color: Color(0xFF0F172A),
+                    size: 26,
+                  ),
+                )
+              : const Icon(Icons.storefront_rounded, color: Color(0xFF0F172A), size: 26),
+        ),
+        const SizedBox(height: 2),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: const [
+              BoxShadow(color: Color(0x33000000), blurRadius: 4, offset: Offset(0, 1)),
+            ],
+          ),
+          child: Text(
+            tx('فرۆشگا'),
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _customerPinMarker() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE11D48),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: const [
+              BoxShadow(color: Color(0x66000000), blurRadius: 8, offset: Offset(0, 3)),
+            ],
+          ),
+          child: const Icon(Icons.home_rounded, color: Colors.white, size: 22),
+        ),
+        const SizedBox(height: 2),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            tx('کڕیار'),
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _driverLiveMarker() {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        final pulse = 0.65 + (_pulseController.value * 0.35);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Transform.scale(
+                  scale: pulse,
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.22),
+                    ),
+                  ),
+                ),
+                Transform.rotate(
+                  angle: _headingDeg * math.pi / 180.0,
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFAC800),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2.5),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x66000000),
+                          blurRadius: 10,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.two_wheeler_rounded,
+                      color: Color(0xFF0F172A),
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                tx('گەیاندن'),
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _exitLiveTracker() {
@@ -1194,6 +1401,8 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
   int get _activeStepIndex {
     switch (_status) {
       case 'pending':
+        // Waiting for vendor accept — no step active yet.
+        return -1;
       case 'accepted':
         return 0;
       case 'heading_to_store':
@@ -1213,22 +1422,13 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
       case 'completed':
         return 4;
       default:
-        return 1;
+        return -1;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final storeRatio = _fullRoute.length > 2
-        ? (_storeSplitIndex / (_fullRoute.length - 1))
-        : 0.35;
-    final isHeadingToStore = _localProgress < storeRatio;
-    final isDelivered = _status == 'delivered';
-
-    // Keep annotations in sync with live driver progress.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _mapReady) _syncMapAnnotations();
-    });
+    final routeLines = _buildRoutePolylines();
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -1236,24 +1436,67 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
         backgroundColor: RC.bg(Color(0xFFF1F5F9)),
         body: Stack(
           children: [
-            // 1. Mapbox Standard fullscreen basemap + route annotations
+            // Same flutter_map + Mapbox rasters as pick-location, with live pins.
             Positioned.fill(
-              child: RegaStandardMap(
-                key: _mapKey,
-                center: _displayDriverPos,
-                zoom: 15.6,
-                initialStyle: _mapStyleId,
-                showLayersFab: true,
-                onMapCreated: _onMbMapCreated,
-                onCameraChange: (data) {
-                  if (_followDriver) {
-                    // User pan disables follow.
-                  }
-                },
+              child: FlutterMap(
+                mapController: _mapCtrl,
+                options: MapOptions(
+                  initialCenter: _displayDriverPos,
+                  initialZoom: 15.4,
+                  minZoom: 5,
+                  maxZoom: 20,
+                  backgroundColor: const Color(0xFFE8EEF4),
+                  onMapReady: _onMapReady,
+                  onPositionChanged: (camera, hasGesture) {
+                    if (hasGesture && _followDriver) {
+                      setState(() => _followDriver = false);
+                    }
+                  },
+                ),
+                children: [
+                  MapboxTiles.layer(
+                    style: _rasterStyle,
+                    userAgentPackageName: 'tech.rega.customer',
+                    fallbackStyle: MapboxStyle.outdoors,
+                  ),
+                  PolylineLayer(polylines: routeLines),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: _storePos,
+                        width: 72,
+                        height: 78,
+                        alignment: Alignment.bottomCenter,
+                        child: _vendorLogoMarker(),
+                      ),
+                      Marker(
+                        point: _customerPos,
+                        width: 64,
+                        height: 68,
+                        alignment: Alignment.bottomCenter,
+                        child: _customerPinMarker(),
+                      ),
+                      if (_status != 'delivered')
+                        Marker(
+                          point: _displayDriverPos,
+                          width: 72,
+                          height: 78,
+                          alignment: Alignment.center,
+                          child: _driverLiveMarker(),
+                        ),
+                    ],
+                  ),
+                  RichAttributionWidget(
+                    attributions: [
+                      TextSourceAttribution('Mapbox'),
+                      TextSourceAttribution('OpenStreetMap'),
+                    ],
+                  ),
+                ],
               ),
             ),
 
-            // 2. Top-start exit + map controls (visible on first paint; RTL-aware)
+            // Top-start exit + map controls (visible on first paint; RTL-aware)
             Positioned.directional(
               textDirection: Directionality.of(context),
               top: 0,
@@ -1276,7 +1519,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                       onTap: () {
                         setState(() => _followDriver = true);
                         if (_mapReady) {
-                          _mapKey.currentState?.moveTo(_displayDriverPos, zoom: 16.0);
+                          _moveCamera(_displayDriverPos, zoom: 16.0);
                         }
                       },
                     ),
@@ -1312,7 +1555,6 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                           RegaMapStyleId.dark => RegaMapStyleId.map,
                         };
                         setState(() => _mapStyleId = next);
-                        _mapKey.currentState?.applyStyle(next);
                       },
                     ),
                     const SizedBox(height: 8),
@@ -1370,7 +1612,7 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
   }
 
   Widget _buildActiveLiveBottomPanel() {
-    const stepLabels = ['وەرگیرا', 'ئامادەیە', 'هەڵگیرا', 'لە ڕێگایە', 'ڕادەست کرا'];
+    const stepLabels = ['قبوڵکرا', 'ئامادەیە', 'هەڵگیرا', 'لە ڕێگایە', 'ڕادەست کرا'];
     final activeIdx = _activeStepIndex;
     final isArrivedAtDoor = _status == 'arrived_customer';
     final screenH = MediaQuery.of(context).size.height;
@@ -1948,67 +2190,3 @@ class _MapRoundBtn extends StatelessWidget {
   }
 }
 
-/// Classic map location pin (teardrop) — independent of Material Icons fonts.
-class _LocationPinPainter extends CustomPainter {
-  final Color fill;
-  final Color stroke;
-  final Color hole;
-
-  const _LocationPinPainter({
-    required this.fill,
-    required this.stroke,
-    required this.hole,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final cx = w / 2;
-    final headR = w * 0.42;
-    final headCy = headR + 1.5;
-
-    final path = ui.Path()
-      ..moveTo(cx, h - 1)
-      ..quadraticBezierTo(cx - headR * 0.15, h * 0.62, cx - headR, headCy)
-      ..arcToPoint(
-        Offset(cx + headR, headCy),
-        radius: Radius.circular(headR),
-        clockwise: true,
-      )
-      ..quadraticBezierTo(cx + headR * 0.15, h * 0.62, cx, h - 1)
-      ..close();
-
-    canvas.drawShadow(path, const Color(0x99000000), 4, true);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = fill
-        ..style = PaintingStyle.fill
-        ..isAntiAlias = true,
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = stroke
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..isAntiAlias = true,
-    );
-    canvas.drawCircle(
-      Offset(cx, headCy),
-      headR * 0.34,
-      Paint()
-        ..color = hole
-        ..style = PaintingStyle.fill
-        ..isAntiAlias = true,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _LocationPinPainter oldDelegate) {
-    return oldDelegate.fill != fill ||
-        oldDelegate.stroke != stroke ||
-        oldDelegate.hole != hole;
-  }
-}

@@ -147,6 +147,8 @@ class OrderItem {
   final double storeLng;
   final double customerLat;
   final double customerLng;
+  /// Vendor cover/logo for live map pin (from store.cover_url).
+  final String? storeCoverUrl;
   final DateTime date;
   final List<CartEntry> items;
   final String driverName;
@@ -172,6 +174,7 @@ class OrderItem {
     this.storeLng = 45.3189,
     this.customerLat = 34.6912,
     this.customerLng = 45.3264,
+    this.storeCoverUrl,
     this.isDirectRequest = false,
     this.directRequestNotes,
     this.directRequestImage,

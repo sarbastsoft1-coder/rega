@@ -95,7 +95,7 @@ class StoreManagementController extends Controller
             'initial_categories.*' => ['string', 'max:100'],
         ]);
 
-        $createdStore = DB::transaction(function () use ($validated) {
+        $result = DB::transaction(function () use ($validated) {
             $ownerPhone = preg_replace('/\s+/', '', $validated['owner_phone'] ?? $validated['phone']);
 
             $owner = User::where('phone', $ownerPhone)->first();
@@ -118,10 +118,13 @@ class StoreManagementController extends Controller
                     'is_active' => true,
                 ]);
                 $owner->tokens()->delete();
+            } else {
+                $owner->update([
+                    'name' => $validated['owner_name'] ?? $owner->name,
+                    'role' => 'vendor',
+                    'is_active' => true,
+                ]);
             }
-
-            $baseSlug = Str::slug($validated['name_en'] ?? $validated['name_ku']) ?: 'store';
-            $slug = $baseSlug . '-' . Str::lower(Str::random(5));
 
             $neighborhoodId = $validated['neighborhood_id'] ?? null;
             $serviceCityId = $validated['service_city_id'] ?? null;
@@ -131,12 +134,11 @@ class StoreManagementController extends Controller
                     ->value('service_city_id');
             }
 
-            $store = Store::create([
+            $storePayload = [
                 'owner_id' => $owner->id,
                 'category_id' => $validated['category_id'],
                 'neighborhood_id' => $neighborhoodId,
                 'service_city_id' => $serviceCityId,
-                'slug' => $slug,
                 'name_ku' => $validated['name_ku'],
                 'name_ar' => $validated['name_ar'] ?? $validated['name_ku'],
                 'name_en' => $validated['name_en'] ?? $validated['name_ku'],
@@ -161,7 +163,42 @@ class StoreManagementController extends Controller
                 'is_online' => $validated['is_online'] ?? true,
                 'is_approved' => $validated['is_approved'] ?? true,
                 'is_featured' => $validated['is_featured'] ?? false,
-            ]);
+            ];
+
+            // One writable store per vendor phone — update existing instead of
+            // creating an empty sibling that customer/admin look at while vendor
+            // keeps writing to the old catalog store.
+            $existingStore = $owner->resolveOwnedStore();
+            if ($existingStore) {
+                if (array_key_exists('logo_url', $validated) === false) {
+                    unset($storePayload['logo_url']);
+                }
+                if (array_key_exists('cover_url', $validated) === false) {
+                    unset($storePayload['cover_url']);
+                }
+                if (! array_key_exists('commission_rate', $validated)) {
+                    unset($storePayload['commission_rate']);
+                }
+                if (! array_key_exists('rating', $validated)) {
+                    unset($storePayload['rating']);
+                }
+                if (! array_key_exists('review_count', $validated)) {
+                    unset($storePayload['review_count']);
+                }
+                $existingStore->update($storePayload);
+                $store = $existingStore->fresh();
+
+                return [
+                    'store' => $store->load(['owner', 'category', 'neighborhood', 'storeCategories']),
+                    'reused' => true,
+                ];
+            }
+
+            $baseSlug = Str::slug($validated['name_en'] ?? $validated['name_ku']) ?: 'store';
+            $slug = $baseSlug . '-' . Str::lower(Str::random(5));
+            $storePayload['slug'] = $slug;
+
+            $store = Store::create($storePayload);
 
             $cats = $validated['initial_categories'] ?? ['بەرهەمە سەرەکییەکان', 'خواردنەوەکان'];
             foreach ($cats as $idx => $catName) {
@@ -172,14 +209,22 @@ class StoreManagementController extends Controller
                 ]);
             }
 
-            return $store->load(['owner', 'category', 'neighborhood', 'storeCategories']);
+            return [
+                'store' => $store->load(['owner', 'category', 'neighborhood', 'storeCategories']),
+                'reused' => false,
+            ];
         });
+
+        $createdStore = $result['store'];
+        $reused = $result['reused'];
 
         return response()->json([
             'success' => true,
-            'message' => 'فرۆشگا و هەژماری فرۆشیار بە سەرکەوتوویی دروستکران.',
+            'message' => $reused
+                ? 'فرۆشگای هەمان خاوەن نوێکرایەوە (دووبارە دروست نەکرا).'
+                : 'فرۆشگا و هەژماری فرۆشیار بە سەرکەوتوویی دروستکران.',
             'data' => $createdStore,
-        ], 201);
+        ], $reused ? 200 : 201);
     }
 
     public function show(Store $store): JsonResponse

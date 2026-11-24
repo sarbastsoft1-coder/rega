@@ -51,6 +51,7 @@ flutter:
   assets:
     - assets1/logo.png
     - assets2/logo2.png
+    - assets/icons/gps_location.png
     - assets/sounds/mixkit-correct-answer-tone-2870.wav
   fonts:
     - family: NotoKufiArabic

@@ -237,7 +237,19 @@ class VendorAppController extends Controller
         $store = $this->resolveStore($request);
 
         $validated = $request->validate([
-            'store_category_id' => ['nullable', 'exists:store_categories,id'],
+            'store_category_id' => [
+                'nullable',
+                'exists:store_categories,id',
+                function (string $attribute, mixed $value, \Closure $fail) use ($store) {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+                    $belongs = StoreCategory::whereKey($value)->where('store_id', $store->id)->exists();
+                    if (! $belongs) {
+                        $fail('پۆلی بەرهەم سەر بەم فرۆشگایە نییە.');
+                    }
+                },
+            ],
             'name_ku' => ['required', 'string', 'max:150'],
             'description_ku' => ['nullable', 'string'],
             'description_ar' => ['nullable', 'string'],
@@ -276,7 +288,19 @@ class VendorAppController extends Controller
         }
 
         $validated = $request->validate([
-            'store_category_id' => ['nullable', 'exists:store_categories,id'],
+            'store_category_id' => [
+                'nullable',
+                'exists:store_categories,id',
+                function (string $attribute, mixed $value, \Closure $fail) use ($store) {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+                    $belongs = StoreCategory::whereKey($value)->where('store_id', $store->id)->exists();
+                    if (! $belongs) {
+                        $fail('پۆلی بەرهەم سەر بەم فرۆشگایە نییە.');
+                    }
+                },
+            ],
             'name_ku' => ['sometimes', 'string', 'max:150'],
             'description_ku' => ['nullable', 'string'],
             'description_ar' => ['nullable', 'string'],

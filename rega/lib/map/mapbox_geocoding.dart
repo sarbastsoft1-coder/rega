@@ -769,6 +769,16 @@ class MapboxGeocoding {
       'گەرمیان',
       'ئیدارەی گەرمیان',
       'garmian',
+      'هەولێر',
+      'أربيل',
+      'اربيل',
+      'erbil',
+      'arbil',
+      'hawler',
+      'دهۆک',
+      'دهوك',
+      'duhok',
+      'dahuk',
       'عێراق',
       'العراق',
       'iraq',
@@ -1081,7 +1091,17 @@ class MapboxGeocoding {
             norm.isNotEmpty &&
             !_isGenericCityOrDistrict(norm) &&
             norm != neighborhoodPart) {
-          poiOrRoadPart = norm;
+          // Prefer full street line when OSM has house number + road.
+          if (k == 'road' || k == 'pedestrian') {
+            final house = address['house_number']?.toString().trim();
+            if (house != null && house.isNotEmpty) {
+              poiOrRoadPart = '$norm · $house';
+            } else {
+              poiOrRoadPart = norm;
+            }
+          } else {
+            poiOrRoadPart = norm;
+          }
           break;
         }
       }

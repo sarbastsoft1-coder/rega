@@ -75,7 +75,7 @@ class User extends Authenticatable
 
     /**
      * Pick one store for a vendor who may own several (admin test duplicates, etc.).
-     * Prefer the store with the richest catalog so added products/categories
+     * Prefer approved stores, then the richest catalog, so added products/categories
      * still appear after logout / app restart instead of an empty sibling store.
      */
     public function resolveOwnedStore(): ?Store
@@ -83,6 +83,7 @@ class User extends Authenticatable
         return $this->stores()
             ->with(['category', 'neighborhood'])
             ->withCount(['products', 'storeCategories'])
+            ->orderByDesc('is_approved')
             ->orderByDesc('products_count')
             ->orderByDesc('store_categories_count')
             ->orderByDesc('updated_at')

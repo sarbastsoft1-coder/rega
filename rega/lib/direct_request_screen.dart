@@ -9,6 +9,7 @@ import 'rega_colors.dart';
 import 'rega_i18n.dart';
 import 'rega_mobile.dart';
 import 'services/customer_image_pick.dart';
+import 'services/service_area.dart';
 
 /// داواکاری ڕاستەوخۆ — full-screen form under the home pill button.
 class DirectRequestScreen extends StatefulWidget {
@@ -16,11 +17,17 @@ class DirectRequestScreen extends StatefulWidget {
     super.key,
     this.initialPhone = '',
     this.initialAddress = '',
+    this.deliveryLat,
+    this.deliveryLng,
     this.onPickAddress,
   });
 
   final String initialPhone;
   final String initialAddress;
+
+  /// Saved delivery pin — used for instant service-area check (no GPS wait).
+  final double? deliveryLat;
+  final double? deliveryLng;
 
   /// Opens the customer location picker; returns the chosen label (or null).
   final Future<String?> Function()? onPickAddress;
@@ -32,6 +39,7 @@ class DirectRequestScreen extends StatefulWidget {
 class _DirectRequestScreenState extends State<DirectRequestScreen> {
   final _subjectCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
+  final _subjectAddressCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
 
@@ -45,6 +53,7 @@ class _DirectRequestScreenState extends State<DirectRequestScreen> {
   void initState() {
     super.initState();
     _phoneCtrl.text = IraqPhoneFormatter.format(widget.initialPhone);
+    _subjectAddressCtrl.text = widget.initialAddress;
     _addressCtrl.text = widget.initialAddress;
   }
 
@@ -52,6 +61,7 @@ class _DirectRequestScreenState extends State<DirectRequestScreen> {
   void dispose() {
     _subjectCtrl.dispose();
     _notesCtrl.dispose();
+    _subjectAddressCtrl.dispose();
     _addressCtrl.dispose();
     _phoneCtrl.dispose();
     super.dispose();
@@ -83,7 +93,13 @@ class _DirectRequestScreenState extends State<DirectRequestScreen> {
     if (widget.onPickAddress == null) return;
     final label = await widget.onPickAddress!();
     if (!mounted || label == null || label.trim().isEmpty) return;
-    setState(() => _addressCtrl.text = label.trim());
+    setState(() {
+      final place = label.trim();
+      _addressCtrl.text = place;
+      if (_subjectAddressCtrl.text.trim().isEmpty) {
+        _subjectAddressCtrl.text = place;
+      }
+    });
   }
 
   void _openImagePreview(Uint8List bytes) {
@@ -126,7 +142,9 @@ class _DirectRequestScreenState extends State<DirectRequestScreen> {
   Future<void> _submit() async {
     if (_submitting) return;
     final subject = _subjectCtrl.text.trim();
-    final address = _addressCtrl.text.trim();
+    final subjectAddress = _subjectAddressCtrl.text.trim();
+    final mapAddress = _addressCtrl.text.trim();
+    final address = subjectAddress.isNotEmpty ? subjectAddress : mapAddress;
     final phoneDigits = IraqPhoneFormatter.digitsOnly(_phoneCtrl.text);
 
     if (subject.isEmpty) {
@@ -134,7 +152,7 @@ class _DirectRequestScreenState extends State<DirectRequestScreen> {
       return;
     }
     if (address.isEmpty) {
-      _toast(tx('تکایە ناونیشانی داواکاری بنووسە'));
+      _toast(tx('تکایە ناونیشانی بابەت بنووسە'));
       return;
     }
     if (!IraqPhoneFormatter.isValidIraqMobile(phoneDigits)) {
@@ -142,8 +160,42 @@ class _DirectRequestScreenState extends State<DirectRequestScreen> {
       return;
     }
 
+    // Show spinner immediately — never hang on silent GPS before feedback.
     setState(() => _submitting = true);
+    HapticFeedback.lightImpact();
+
     try {
+      // Instant area check from saved pin only (no multi-second live GPS).
+      final lat = widget.deliveryLat;
+      final lng = widget.deliveryLng;
+      if (lat != null && lng != null && !ServiceAreaGate.config.contains(lat, lng)) {
+        if (!mounted) return;
+        setState(() => _submitting = false);
+        final allowed = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (blockedCtx) => ServiceAreaBlockedScreen(
+              onRetry: () async {
+                final retry = await ServiceAreaGate.check(requestPermission: true);
+                if (!blockedCtx.mounted) return;
+                if (!retry.blocksApp) {
+                  Navigator.of(blockedCtx).pop(true);
+                }
+              },
+            ),
+          ),
+        );
+        if (allowed != true || !mounted) return;
+        setState(() => _submitting = true);
+      }
+
+      if (!CustomerApiService.instance.hasToken) {
+        await CustomerApiService.instance.initToken();
+      }
+      if (!CustomerApiService.instance.hasToken) {
+        throw Exception('تکایە دووبارە بچۆ ژوورەوە');
+      }
+
       String? imageUrl = _uploadedImageUrl;
       if (_imageBytes != null && imageUrl == null) {
         final up = await CustomerApiService.instance.uploadDirectRequestImage(
@@ -176,7 +228,14 @@ class _DirectRequestScreenState extends State<DirectRequestScreen> {
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
-      final msg = e.toString().replaceFirst('Exception: ', '');
+      var msg = e.toString().replaceFirst('Exception: ', '');
+      if (msg == 'login_required' || msg.contains('Unauthorized')) {
+        msg = 'تکایە دووبارە بچۆ ژوورەوە';
+      } else if (msg == 'upload_failed') {
+        msg = 'بارکردنی وێنە سەرکەوتوو نەبوو';
+      } else if (msg == 'direct_request_failed') {
+        msg = 'ناردنی داواکاری سەرکەوتوو نەبوو';
+      }
       _toast(tx(msg.isNotEmpty ? msg : 'ناردنی داواکاری سەرکەوتوو نەبوو'));
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -301,7 +360,19 @@ class _DirectRequestScreenState extends State<DirectRequestScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                // ناونیشانی داواکاری
+                // ناونیشانی بابەت
+                Container(
+                  decoration: _cardShadow,
+                  child: TextField(
+                    controller: _subjectAddressCtrl,
+                    enabled: !_submitting,
+                    textInputAction: TextInputAction.next,
+                    decoration: _fieldDecoration(hint: 'ناونیشانی بابەت'),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // شوێنی گەیاندن (نەخشە)
                 Container(
                   decoration: _cardShadow,
                   child: TextField(
@@ -309,7 +380,7 @@ class _DirectRequestScreenState extends State<DirectRequestScreen> {
                     enabled: !_submitting,
                     textInputAction: TextInputAction.next,
                     decoration: _fieldDecoration(
-                      hint: 'ناونیشانی داواکاری',
+                      hint: 'شوێنی گەیاندن',
                       prefixIcon: IconButton(
                         onPressed: _submitting ? null : _pickAddress,
                         icon: Icon(

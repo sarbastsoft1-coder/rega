@@ -169,6 +169,7 @@ GoRouter createCustomerRouter({
             initialStatus: o.status,
             storeLocation: LatLng(o.storeLat, o.storeLng),
             customerLocation: LatLng(o.customerLat, o.customerLng),
+            storeCoverUrl: o.storeCoverUrl,
             onOrderStatusChanged: (nextStatus) {
               o.status = nextStatus;
               context.read<OrdersNotifier>().notify();

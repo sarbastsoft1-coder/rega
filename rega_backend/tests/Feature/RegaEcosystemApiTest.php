@@ -567,4 +567,82 @@ class RegaEcosystemApiTest extends TestCase
             'password' => 'password123',
         ])->assertUnauthorized();
     }
+
+    public function test_vendor_product_lands_on_same_store_for_admin_and_customer(): void
+    {
+        $adminToken = $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@rega.iq',
+            'password' => 'password123',
+        ])->json('data.token');
+
+        $catId = $this->withToken($adminToken)->getJson('/api/v1/admin/categories')->json('data.0.id');
+        $zoneId = $this->withToken($adminToken)->getJson('/api/v1/admin/neighborhoods')->json('data.0.id');
+
+        $storeRes = $this->withToken($adminToken)->postJson('/api/v1/admin/stores', [
+            'name_ku' => 'فرۆشگای تاقیکردنەوە',
+            'name_en' => 'Visibility Test Store',
+            'category_id' => $catId,
+            'neighborhood_id' => $zoneId,
+            'phone' => '07509991122',
+            'address_ku' => 'کەلار',
+            'owner_name' => 'فرۆشیار تاقیکردنەوە',
+            'owner_phone' => '07509991122',
+            'owner_password' => 'vendorpass',
+            'is_approved' => true,
+        ])->assertCreated();
+
+        $storeId = $storeRes->json('data.id');
+
+        // Same owner phone must update the existing store — not create a sibling.
+        $reuseRes = $this->withToken($adminToken)->postJson('/api/v1/admin/stores', [
+            'name_ku' => 'فرۆشگای تاقیکردنەوە نوێکراو',
+            'name_en' => 'Visibility Test Store Updated',
+            'category_id' => $catId,
+            'neighborhood_id' => $zoneId,
+            'phone' => '07509991122',
+            'address_ku' => 'کەلار - نوێ',
+            'owner_name' => 'فرۆشیار تاقیکردنەوە',
+            'owner_phone' => '07509991122',
+            'owner_password' => 'vendorpass',
+            'is_approved' => true,
+        ])->assertOk();
+
+        $this->assertEquals($storeId, $reuseRes->json('data.id'));
+        $this->assertEquals(1, Store::where('owner_id', $reuseRes->json('data.owner_id'))->count());
+
+        $vendorLogin = $this->postJson('/api/v1/auth/login', [
+            'phone' => '07509991122',
+            'password' => 'vendorpass',
+            'role_filter' => 'vendor',
+        ])->assertOk();
+
+        $this->assertEquals($storeId, $vendorLogin->json('data.user.owned_store.id'));
+        $vendorToken = $vendorLogin->json('data.token');
+
+        $menuCatId = $this->asBearer($vendorToken)
+            ->postJson('/api/v1/vendor/categories', ['name_ku' => 'سەرەکی'])
+            ->assertCreated()
+            ->json('data.id');
+
+        $productId = $this->asBearer($vendorToken)->postJson('/api/v1/vendor/products', [
+            'store_category_id' => $menuCatId,
+            'name_ku' => 'بەرهەمی بینین',
+            'price' => 5000,
+            'cost_price' => 3000,
+            'is_available' => true,
+        ])->assertCreated()->json('data.id');
+
+        $adminProducts = $this->asBearer($adminToken)
+            ->getJson("/api/v1/admin/products?store_id={$storeId}")
+            ->assertOk()
+            ->json('data');
+        $this->assertTrue(collect($adminProducts)->contains(fn ($p) => (int) $p['id'] === (int) $productId));
+
+        $customerStore = $this->getJson("/api/v1/public/stores/{$storeId}")
+            ->assertOk()
+            ->json('data');
+        $this->assertTrue(
+            collect($customerStore['products'] ?? [])->contains(fn ($p) => (int) $p['id'] === (int) $productId)
+        );
+    }
 }

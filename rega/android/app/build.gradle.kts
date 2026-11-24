@@ -1,3 +1,6 @@
+import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -17,8 +20,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
     }
 
     defaultConfig {
@@ -32,7 +37,7 @@ android {
         versionName = flutter.versionName
 
         // Load Maps API Key from local.properties if present, fallback to placeholder
-        val localProperties = java.util.Properties()
+        val localProperties = Properties()
         val localPropertiesFile = rootProject.file("local.properties")
         if (localPropertiesFile.exists()) {
             localProperties.load(localPropertiesFile.inputStream())
@@ -49,17 +54,7 @@ android {
         }
     }
 }
-android {
-    applicationVariants.all {
-        val variant = this
-        if (variant.buildType.name == "release") {
-            variant.outputs.forEach { output ->
-                val processOutput = output as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-                processOutput.outputFileName = "REGA.apk"
-            }
-        }
-    }
-}
+
 flutter {
     source = "../.."
 }
