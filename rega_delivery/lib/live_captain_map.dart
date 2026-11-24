@@ -10,6 +10,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import 'driver_api_service.dart';
 import 'map/mapbox_directions.dart';
+import 'map/rega_map_styles.dart';
 import 'map/rega_standard_map.dart';
 import 'rega_mobile.dart';
 
@@ -100,6 +101,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   bool _mapReady = false;
   bool _backendSynced = false;
   bool _promptedPinOnce = false;
+  bool _isSatellite = false;
   DateTime? _lastFleetLocationPush;
   DateTime? _lastGpsFixAt;
   Timer? _gpsRetryTimer;
@@ -577,18 +579,22 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         return;
       }
 
-      // Fresh fix only — never promote getLastKnownPosition to the driver pin
-      // (stale/cached coords were shown as live near Karkuk St at 0 km/h).
+      // Fast first fix so «شوێنەکەم» jumps like the customer app (then stream refines).
       try {
         final pos = await Geolocator.getCurrentPosition(
           locationSettings: _freshLocationSettings(
-            accuracy: LocationAccuracy.bestForNavigation,
-            timeLimit: const Duration(seconds: 15),
+            accuracy: LocationAccuracy.best,
+            timeLimit: const Duration(seconds: 10),
           ),
         );
         if (mounted) _applyPhoneGpsPosition(pos, snapImmediately: true);
       } catch (_) {
-        // Overview only until a real current fix arrives — no fabricated pin.
+        try {
+          final last = await Geolocator.getLastKnownPosition();
+          if (last != null && mounted) {
+            _applyPhoneGpsPosition(last, snapImmediately: true);
+          }
+        } catch (_) {}
       }
 
       await _gpsSub?.cancel();
@@ -1048,187 +1054,192 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     final mapCenter = _usingRealGps ? _displayDriverPos : _kalarOverview;
     final mapZoom = _usingRealGps ? 15.6 : 13.8;
 
+    const gold = Color(0xFFFAC800);
+    final topPad = MediaQuery.of(context).padding.top;
+    final bottomPad = 88.0 + MediaQuery.of(context).padding.bottom;
+
     return Stack(
       children: [
         RegaStandardMap(
           key: _regaMapKey,
           center: mapCenter,
           zoom: mapZoom,
-          showLayersFab: true,
+          showLayersFab: false,
           onMapCreated: _onMbMapCreated,
+          onStyleChanged: (id) {
+            if (mounted) setState(() => _isSatellite = id == RegaMapStyleId.satellite);
+          },
         ),
 
-        // 2. Top Turn-by-Turn Second-by-Second Navigation HUD (only with active order)
-        if (hasOrder)
+        // Customer-style top chips: سەتەلایت | شوێنەکەم
         Positioned(
-          top: 12,
-          left: RegaResponsive.pagePadding(context),
-          right: RegaResponsive.pagePadding(context),
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 620),
-              ),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: RC.bg(Color(0xFF0F172A)).withValues(alpha: 0.94),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: RC.bg(Color(0xFF00E676)).withValues(alpha: 0.45),
-                    width: 1.4,
+          top: 12 + topPad * 0.1,
+          left: 10,
+          right: 10,
+          child: SafeArea(
+            bottom: false,
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: Row(
+                children: [
+                  _CaptainModeChip(
+                    label: 'سەتەلایت',
+                    icon: Icons.satellite_alt_rounded,
+                    active: _isSatellite,
+                    activeColor: gold,
+                    onTap: () => _regaMapKey.currentState?.toggleSatellite(),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: RC.bg(Colors.black26),
-                      blurRadius: 18,
-                      offset: Offset(0, 8),
+                  const SizedBox(width: 8),
+                  if (hasOrder)
+                    _CaptainModeChip(
+                      label: 'ڕێگا',
+                      icon: Icons.route_rounded,
+                      active: false,
+                      activeColor: const Color(0xFF22C55E),
+                      onTap: _fitFullRoute,
                     ),
-                  ],
+                  const Spacer(),
+                  _CaptainModeChip(
+                    label: 'شوێنەکەم',
+                    icon: _gpsBusy
+                        ? Icons.hourglass_top_rounded
+                        : Icons.my_location_rounded,
+                    active: true,
+                    activeColor: gold,
+                    busy: _gpsBusy,
+                    onTap: _gpsBusy
+                        ? () {}
+                        : () async {
+                            setState(() => _followCaptain = true);
+                            await _startRealGpsIfAvailable(requestPermission: true);
+                          },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Compact order HUD (only with active order) — lighter, customer-like card
+        if (hasOrder)
+          Positioned(
+            top: 62 + topPad * 0.15,
+            left: RegaResponsive.pagePadding(context),
+            right: RegaResponsive.pagePadding(context),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 620),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: RC.bg(Color(0xFF00E676)).withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        _navigationIcon(),
-                        color: RC.fg(Color(0xFF00E676)),
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                child: Material(
+                  color: Colors.white,
+                  elevation: 6,
+                  shadowColor: Colors.black26,
+                  borderRadius: BorderRadius.circular(18),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: gold.withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(_navigationIcon(), color: const Color(0xFF0F172A), size: 22),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: _backendSynced
-                                      ? RC.bg(Color(0xFF00E676))
-                                      : RC.bg(Color(0xFFFAC800)),
-                                  shape: BoxShape.circle,
+                              Text(
+                                tx(_navigationHeadline()),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF0F172A),
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
-                              const SizedBox(width: 5),
+                              const SizedBox(height: 2),
                               Text(
-                                tx(_backendSynced
-                                    ? _mt('gps_live_sync')
-                                    : _mt('gps_live_kalar')),
+                                tx(_backendSynced ? _mt('gps_live_sync') : _mt('gps_live_kalar')),
                                 style: TextStyle(
-                                  color: RC.fg(Color(0xFF00E676)),
-                                  fontSize: 10,
+                                  color: _backendSynced
+                                      ? const Color(0xFF16A34A)
+                                      : const Color(0xFFD97706),
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            tx(_navigationHeadline()),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: RC.fg(Colors.white),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
+                        ),
+                        const SizedBox(width: 8),
+                        Directionality(
+                          textDirection: TextDirection.ltr,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: gold,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  tx(_formatCountdown(_etaSeconds)),
+                                  style: const TextStyle(
+                                    color: Color(0xFF0F172A),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w900,
+                                    fontFeatures: [FontFeature.tabularFigures()],
+                                  ),
+                                ),
+                                Text(
+                                  tx(_formatDistance(_remainingMeters)),
+                                  style: const TextStyle(
+                                    color: Color(0xFF334155),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Live Exact MM:SS Second-by-Second Countdown Box
-                    Directionality(
-                      textDirection: TextDirection.ltr,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: RC.bg(Color(0xFF00E676)),
-                          borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              tx(_formatCountdown(_etaSeconds)),
-                              style: TextStyle(
-                                color: RC.fg(Color(0xFF0F172A)),
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                fontFeatures: [FontFeature.tabularFigures()],
-                              ),
-                            ),
-                            Text(
-                              tx(_formatDistance(_remainingMeters)),
-                              style: TextStyle(
-                                color: RC.fg(Color(0xFF064E3B)),
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    ),
 
-        // 3. Floating Map Controls (Follow, Fit Route, Style, Auto-Drive, Sync Customer Order)
+        // Zoom + / − — customer style (bottom right)
         Positioned(
-          top: 96,
           right: 14,
+          bottom: bottomPad,
           child: Column(
             children: [
               _MapHudButton(
-                icon: _followCaptain ? Icons.gps_fixed_rounded : Icons.gps_not_fixed_rounded,
-                active: _followCaptain,
-                tooltip: tx(_mt('follow_driver')),
-                onTap: () {
-                  setState(() => _followCaptain = true);
-                  unawaited(_moveMap(_displayDriverPos, zoom: 16.2));
-                },
+                icon: Icons.add_rounded,
+                active: false,
+                tooltip: '+',
+                onTap: () => _regaMapKey.currentState?.zoomBy(1),
               ),
-              if (hasOrder) ...[
-                const SizedBox(height: 8),
-                _MapHudButton(
-                  icon: Icons.route_rounded,
-                  active: false,
-                  tooltip: tx(_mt('show_full_route')),
-                  onTap: _fitFullRoute,
-                ),
-              ],
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               _MapHudButton(
-                icon: _usingRealGps
-                    ? Icons.my_location_rounded
-                    : Icons.location_searching_rounded,
-                active: _usingRealGps,
-                tooltip: tx(_mt('phone_gps')),
-                onTap: () async {
-                  setState(() => _followCaptain = true);
-                  await _startRealGpsIfAvailable(requestPermission: true);
-                },
+                icon: Icons.remove_rounded,
+                active: false,
+                tooltip: '−',
+                onTap: () => _regaMapKey.currentState?.zoomBy(-1),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               _MapHudButton(
                 icon: Icons.cloud_sync_rounded,
                 active: _backendSynced,
@@ -1239,45 +1250,43 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
           ),
         ),
 
-        // Waiting for real phone GPS — never show a fake driver place.
+        // Soft tip when GPS not ready yet (not dark full banner)
         if (!_usingRealGps)
           Positioned(
-            top: 14,
             left: 14,
-            right: 70,
+            bottom: bottomPad,
             child: Material(
-              color: RC.bg(Color(0xFF0F172A)).withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(16),
+              color: gold,
+              elevation: 4,
+              borderRadius: BorderRadius.circular(24),
               child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => _startRealGpsIfAvailable(requestPermission: true),
+                borderRadius: BorderRadius.circular(24),
+                onTap: _gpsBusy
+                    ? null
+                    : () => _startRealGpsIfAvailable(requestPermission: true),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       if (_gpsBusy)
-                        SizedBox(
-                          width: 18,
-                          height: 18,
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
                           child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: RC.bg(Color(0xFFFAC800)),
+                            strokeWidth: 2,
+                            color: Color(0xFF0F172A),
                           ),
                         )
                       else
-                        Icon(Icons.gps_fixed_rounded, color: RC.fg(Color(0xFFFAC800)), size: 20),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          tx(_gpsBusy
-                              ? _mt('gps_locating')
-                              : _mt('gps_allow_phone')),
-                          style: TextStyle(
-                            color: RC.fg(Colors.white),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            height: 1.35,
-                          ),
+                        const Icon(Icons.my_location_rounded, size: 18, color: Color(0xFF0F172A)),
+                      const SizedBox(width: 8),
+                      Text(
+                        tx(_gpsBusy ? _mt('gps_locating') : 'شوێنەکەم'),
+                        style: const TextStyle(
+                          color: Color(0xFF0F172A),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ],
@@ -1287,6 +1296,63 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
             ),
           ),
       ],
+    );
+  }
+}
+
+class _CaptainModeChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final Color activeColor;
+  final VoidCallback onTap;
+  final bool busy;
+
+  const _CaptainModeChip({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.activeColor,
+    required this.onTap,
+    this.busy = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: active ? activeColor : Colors.white,
+      elevation: 4,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (busy)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F172A)),
+                )
+              else
+                Icon(icon, size: 17, color: const Color(0xFF0F172A)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

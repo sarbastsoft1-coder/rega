@@ -8,35 +8,27 @@ class RegaMapStyles {
   static const RegaMapStyleId defaultPicker = RegaMapStyleId.map;
   static const RegaMapStyleId defaultTracking = RegaMapStyleId.map;
 
+  /// Match customer app: classic streets / satellite-streets (not Studio Standard).
   static String uri(RegaMapStyleId id) {
     return switch (id) {
-      RegaMapStyleId.map => MapboxTiles.customStandardStyleUri,
-      RegaMapStyleId.satellite => MapboxStyles.STANDARD_SATELLITE,
-      RegaMapStyleId.outdoors => MapboxStyles.STANDARD,
-      RegaMapStyleId.dark => MapboxStyles.STANDARD,
+      RegaMapStyleId.map => MapboxStyles.MAPBOX_STREETS,
+      RegaMapStyleId.satellite => MapboxStyles.SATELLITE_STREETS,
+      RegaMapStyleId.outdoors => MapboxStyles.OUTDOORS,
+      RegaMapStyleId.dark => MapboxStyles.DARK,
     };
   }
 
   static String fallbackUri(RegaMapStyleId id) {
     return switch (id) {
-      RegaMapStyleId.map => MapboxStyles.STANDARD,
-      RegaMapStyleId.satellite => MapboxStyles.STANDARD_SATELLITE,
-      RegaMapStyleId.outdoors => MapboxStyles.STANDARD,
-      RegaMapStyleId.dark => MapboxStyles.STANDARD,
+      RegaMapStyleId.map => MapboxStyles.MAPBOX_STREETS,
+      RegaMapStyleId.satellite => MapboxStyles.SATELLITE_STREETS,
+      RegaMapStyleId.outdoors => MapboxStyles.OUTDOORS,
+      RegaMapStyleId.dark => MapboxStyles.DARK,
     };
   }
 
   static Future<void> applyConfig(MapboxMap map, RegaMapStyleId id) async {
-    if (id == RegaMapStyleId.satellite) return;
-    final preset = switch (id) {
-      RegaMapStyleId.dark => 'night',
-      RegaMapStyleId.outdoors => 'day',
-      RegaMapStyleId.map => 'day',
-      RegaMapStyleId.satellite => 'day',
-    };
-    try {
-      await map.style.setStyleImportConfigProperty('basemap', 'lightPreset', preset);
-    } catch (_) {}
+    // Classic styles — no Standard basemap lightPreset needed.
   }
 
   static String labelKu(RegaMapStyleId id) {

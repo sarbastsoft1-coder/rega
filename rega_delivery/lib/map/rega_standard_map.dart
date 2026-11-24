@@ -3,8 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'rega_map_styles.dart';
 
-/// Fullscreen Mapbox Standard host used by tracking / admin / vendor maps.
-/// Always uses [MapWidget] (web + native) — never classic streets rasters.
+/// Fullscreen Mapbox map host (streets like customer app).
 class RegaStandardMap extends StatefulWidget {
   final LatLng center;
   final double zoom;
@@ -12,6 +11,7 @@ class RegaStandardMap extends StatefulWidget {
   final ValueChanged<MapboxMap>? onMapCreated;
   final OnCameraChangeListener? onCameraChange;
   final bool showLayersFab;
+  final ValueChanged<RegaMapStyleId>? onStyleChanged;
 
   const RegaStandardMap({
     super.key,
@@ -20,7 +20,8 @@ class RegaStandardMap extends StatefulWidget {
     this.initialStyle = RegaMapStyles.defaultTracking,
     this.onMapCreated,
     this.onCameraChange,
-    this.showLayersFab = true,
+    this.showLayersFab = false,
+    this.onStyleChanged,
   });
 
   @override
@@ -48,41 +49,8 @@ class RegaStandardMapState extends State<RegaStandardMap> {
     } catch (_) {}
   }
 
-  Future<void> applyStyle(RegaMapStyleId id) async {
-    if (_styleId == id && map != null) return;
-    final prevUri = RegaMapStyles.uri(_styleId);
-    setState(() => _styleId = id);
-    final m = map;
-    if (m == null) return;
-    final nextUri = RegaMapStyles.uri(id);
-    try {
-      if (nextUri != prevUri) {
-        await m.loadStyleURI(nextUri);
-      }
-      await RegaMapStyles.applyConfig(m, id);
-    } catch (_) {
-      try {
-        await m.loadStyleURI(RegaMapStyles.fallbackUri(id));
-        await RegaMapStyles.applyConfig(m, id);
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _openLayers() async {
-    final picked = await showModalBottomSheet<RegaMapStyleId>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'جۆری نەخشە · Mapbox Standard',
+p
+                'جۆری نەخشە',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 12),
