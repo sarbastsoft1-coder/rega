@@ -273,22 +273,128 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
   }
 
   void _confirmDeleteCategory(String cat) {
+    const deleteRed = Color(0xFFDC2626);
     showDialog<bool>(
       context: context,
-      builder: (ctx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          title: Text(t('سڕینەوەی بەش'), style: TextStyle(fontFamily: kAppFontFamily)),
-          content: Text(tx('دڵنیایت لە سڕینەوەی "$cat"؟'), style: TextStyle(fontFamily: kAppFontFamily)),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('پاشگەزبوونەوە'))),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(t('سڕینەوە'), style: TextStyle(color: RC.fg(_red))),
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) {
+        final compactH = RegaResponsive.isCompactHeight(ctx);
+        final pad = RegaResponsive.scale(ctx, 20).clamp(14.0, 22.0);
+        final titleSize = RegaResponsive.scale(ctx, 18).clamp(15.0, 18.0);
+        final bodySize = RegaResponsive.scale(ctx, 14).clamp(12.5, 14.0);
+        final btnH = RegaResponsive.scale(ctx, compactH ? 42 : 46).clamp(40.0, 48.0);
+        final radius = RegaResponsive.scale(ctx, 22).clamp(16.0, 24.0);
+
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Dialog(
+            backgroundColor: RC.bg(Colors.white),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+            insetPadding: RegaResponsive.dialogInset(ctx, cap: 400, vertical: compactH ? 12 : 24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: RegaResponsive.dialogMaxWidth(ctx, cap: 400),
+              ),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(pad, pad + 2, pad, pad),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      t('سڕینەوەی بەش'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: RC.fg(deleteRed),
+                        fontWeight: FontWeight.w900,
+                        fontSize: titleSize,
+                        height: 1.35,
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                    SizedBox(height: RegaResponsive.scale(ctx, 12).clamp(8.0, 12.0)),
+                    Text(
+                      tx('دڵنیایت لە سڕینەوەی "$cat"؟'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: RC.fg(const Color(0xFF64748B)),
+                        fontWeight: FontWeight.w600,
+                        fontSize: bodySize,
+                        height: 1.55,
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                    SizedBox(height: RegaResponsive.scale(ctx, 18).clamp(12.0, 18.0)),
+                    Row(
+                      textDirection: TextDirection.rtl,
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: btnH,
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: RC.bg(const Color(0xFFE8EAF0)),
+                                foregroundColor: RC.fg(const Color(0xFF0F172A)),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                              child: Text(
+                                t('پاشگەزبوونەوە'),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: RegaResponsive.scale(ctx, 14).clamp(12.0, 14.0),
+                                  height: 1.1,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: SizedBox(
+                            height: btnH,
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: RC.bg(deleteRed),
+                                foregroundColor: RC.fg(Colors.white),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                              child: Text(
+                                t('سڕینەوە'),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: RegaResponsive.scale(ctx, 15).clamp(13.0, 15.0),
+                                  height: 1.1,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     ).then((ok) {
       if (ok == true) {
         widget.onDeleteCategory?.call(cat);

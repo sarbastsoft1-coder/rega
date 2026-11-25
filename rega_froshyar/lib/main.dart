@@ -3186,7 +3186,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 context: context,
                                 barrierColor: Colors.black.withValues(alpha: 0.45),
                                 builder: (ctx) {
-                                  const coral = Color(0xFFE55B5B);
+                                  const deleteRed = Color(0xFFDC2626);
                                   final compactH = RegaResponsive.isCompactHeight(ctx);
                                   final pad = RegaResponsive.scale(ctx, 20).clamp(14.0, 22.0);
                                   final titleSize = RegaResponsive.scale(ctx, 18).clamp(15.0, 18.0);
@@ -3213,7 +3213,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                                 t('سڕینەوەی تەواوبووەکان'),
                                                 textAlign: TextAlign.center,
                                                 style: TextStyle(
-                                                  color: RC.fg(coral),
+                                                  color: RC.fg(deleteRed),
                                                   fontWeight: FontWeight.w900,
                                                   fontSize: titleSize,
                                                   height: 1.35,
@@ -3242,7 +3242,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                                       child: ElevatedButton(
                                                         onPressed: () => Navigator.pop(ctx, false),
                                                         style: ElevatedButton.styleFrom(
-                                                          backgroundColor: RC.bg(const Color(0xFFF1F5F9)),
+                                                          backgroundColor: RC.bg(const Color(0xFFE8EAF0)),
                                                           foregroundColor: RC.fg(const Color(0xFF0F172A)),
                                                           elevation: 0,
                                                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -3272,7 +3272,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                                       child: ElevatedButton(
                                                         onPressed: () => Navigator.pop(ctx, true),
                                                         style: ElevatedButton.styleFrom(
-                                                          backgroundColor: RC.bg(coral),
+                                                          backgroundColor: RC.bg(deleteRed),
                                                           foregroundColor: RC.fg(Colors.white),
                                                           elevation: 0,
                                                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -4090,7 +4090,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Future<void> _confirmDeleteOrder(Order order) async {
-    const coral = Color(0xFFE55B5B);
+    const deleteRed = Color(0xFFDC2626);
     final ok = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.45),
@@ -4110,7 +4110,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, false),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: RC.bg(const Color(0xFFF1F5F9)),
+                  backgroundColor: RC.bg(const Color(0xFFE8EAF0)),
                   foregroundColor: RC.fg(const Color(0xFF0F172A)),
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -4135,7 +4135,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: RC.bg(coral),
+                  backgroundColor: RC.bg(deleteRed),
                   foregroundColor: RC.fg(Colors.white),
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -4174,14 +4174,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         textDirection: TextDirection.rtl,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.warning_amber_rounded, color: RC.fg(coral), size: iconSize),
+                          Icon(Icons.warning_amber_rounded, color: RC.fg(deleteRed), size: iconSize),
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
                               t('سڕینەوەی داواکاری'),
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: RC.fg(coral),
+                                color: RC.fg(deleteRed),
                                 fontWeight: FontWeight.w900,
                                 fontSize: titleSize,
                                 fontFamily: kAppFontFamily,
@@ -6113,191 +6113,334 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   void _confirmDeleteCategory(BuildContext context, String category) {
+    const deleteRed = Color(0xFFDC2626);
     final count = widget.products.where((p) => p.category.trim() == category.trim()).length;
     showDialog(
       context: context,
-      builder: (dialogCtx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          backgroundColor: RC.bg(Colors.white),
-          insetPadding: RegaResponsive.dialogInset(dialogCtx, cap: 420),
-          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-          contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: RC.bg(Color(0xFFFFEBEE)),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.delete_outline_rounded, color: RC.fg(Color(0xFFE50010)), size: 22),
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (dialogCtx) {
+        final compactH = RegaResponsive.isCompactHeight(dialogCtx);
+        final pad = RegaResponsive.scale(dialogCtx, 20).clamp(14.0, 22.0);
+        final titleSize = RegaResponsive.scale(dialogCtx, 18).clamp(15.0, 18.0);
+        final bodySize = RegaResponsive.scale(dialogCtx, 14).clamp(12.5, 14.0);
+        final btnH = RegaResponsive.scale(dialogCtx, compactH ? 42 : 46).clamp(40.0, 48.0);
+        final radius = RegaResponsive.scale(dialogCtx, 22).clamp(16.0, 24.0);
+
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Dialog(
+            backgroundColor: RC.bg(Colors.white),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+            insetPadding: RegaResponsive.dialogInset(dialogCtx, cap: 400, vertical: compactH ? 12 : 24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: RegaResponsive.dialogMaxWidth(dialogCtx, cap: 400),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  tx('سڕینەوەی بەش'),
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1B2028))),
-                ),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: RegaResponsive.dialogMaxWidth(dialogCtx, cap: 420),
-            child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                tx('ئایا دڵنیایت لە سڕینەوەی بەشی "$category"؟'),
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFF374151)), height: 1.4),
-              ),
-              if (count > 0) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: RC.bg(Color(0xFFFFFBEB)),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: RC.bg(Color(0xFFFDE68A))),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning_amber_rounded, size: 18, color: RC.fg(Color(0xFFB45309))),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          tx('ئەم بەشە $count بەرهەمی تێدایە.'),
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFF92400E))),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(pad, pad + 2, pad, pad),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      tx('سڕینەوەی بەش'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: RC.fg(deleteRed),
+                        fontWeight: FontWeight.w900,
+                        fontSize: titleSize,
+                        height: 1.35,
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                    SizedBox(height: RegaResponsive.scale(dialogCtx, 12).clamp(8.0, 12.0)),
+                    Text(
+                      tx('ئایا دڵنیایت لە سڕینەوەی بەشی "$category"؟'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: RC.fg(const Color(0xFF64748B)),
+                        fontWeight: FontWeight.w600,
+                        fontSize: bodySize,
+                        height: 1.55,
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                    if (count > 0) ...[
+                      SizedBox(height: RegaResponsive.scale(dialogCtx, 12).clamp(8.0, 12.0)),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: RC.bg(const Color(0xFFFFFBEB)),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: RC.bg(const Color(0xFFFDE68A))),
+                        ),
+                        child: Row(
+                          textDirection: TextDirection.rtl,
+                          children: [
+                            Icon(Icons.warning_amber_rounded, size: 18, color: RC.fg(const Color(0xFFB45309))),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                tx('ئەم بەشە $count بەرهەمی تێدایە.'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: RC.fg(const Color(0xFF92400E)),
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
-                  ),
+                    SizedBox(height: RegaResponsive.scale(dialogCtx, 18).clamp(12.0, 18.0)),
+                    Row(
+                      textDirection: TextDirection.rtl,
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: btnH,
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.pop(dialogCtx),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: RC.bg(const Color(0xFFE8EAF0)),
+                                foregroundColor: RC.fg(const Color(0xFF0F172A)),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                              child: Text(
+                                tx('پاشگەزبوونەوە'),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: RegaResponsive.scale(dialogCtx, 14).clamp(12.0, 14.0),
+                                  height: 1.1,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: SizedBox(
+                            height: btnH,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(dialogCtx);
+                                setState(() {
+                                  if (_selectedCategory == category) {
+                                    _selectedCategory = null;
+                                  }
+                                  widget.categories.remove(category);
+                                });
+                                widget.onDeleteCategory?.call(category);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      tx('بەشی "$category" بە سەرکەوتوویی سڕایەوە'),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                    backgroundColor: RC.bg(deleteRed),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: RC.bg(deleteRed),
+                                foregroundColor: RC.fg(Colors.white),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                              child: Text(
+                                tx('سڕینەوە'),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: RegaResponsive.scale(dialogCtx, 15).clamp(13.0, 15.0),
+                                  height: 1.1,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ],
-          ),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: Text(tx('پاشگەزبوونەوە'), style: TextStyle(color: RC.fg(Color(0xFF6B7280)), fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: RC.bg(Color(0xFFE50010)),
-                foregroundColor: RC.fg(Colors.white),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
               ),
-              onPressed: () {
-                Navigator.pop(dialogCtx);
-                setState(() {
-                  if (_selectedCategory == category) {
-                    _selectedCategory = null;
-                  }
-                  widget.categories.remove(category);
-                });
-                widget.onDeleteCategory?.call(category);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(tx('بەشی "$category" بە سەرکەوتوویی سڕایەوە'), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    backgroundColor: RC.bg(Color(0xFFE50010)),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              },
-              child: Text(tx('سڕینەوە'), style: TextStyle(fontWeight: FontWeight.w900)),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
   void _confirmDeleteProduct(BuildContext context, Product product) {
+    const deleteRed = Color(0xFFDC2626);
     showDialog(
       context: context,
-      builder: (dialogCtx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          backgroundColor: RC.bg(Colors.white),
-          insetPadding: RegaResponsive.dialogInset(dialogCtx, cap: 420),
-          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-          contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: RC.bg(Color(0xFFFFEBEE)),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.delete_outline_rounded, color: RC.fg(Color(0xFFE50010)), size: 22),
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (dialogCtx) {
+        final compactH = RegaResponsive.isCompactHeight(dialogCtx);
+        final pad = RegaResponsive.scale(dialogCtx, 20).clamp(14.0, 22.0);
+        final titleSize = RegaResponsive.scale(dialogCtx, 18).clamp(15.0, 18.0);
+        final bodySize = RegaResponsive.scale(dialogCtx, 14).clamp(12.5, 14.0);
+        final btnH = RegaResponsive.scale(dialogCtx, compactH ? 42 : 46).clamp(40.0, 48.0);
+        final radius = RegaResponsive.scale(dialogCtx, 22).clamp(16.0, 24.0);
+
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Dialog(
+            backgroundColor: RC.bg(Colors.white),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+            insetPadding: RegaResponsive.dialogInset(dialogCtx, cap: 400, vertical: compactH ? 12 : 24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: RegaResponsive.dialogMaxWidth(dialogCtx, cap: 400),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  tx('سڕینەوەی بەرهەم'),
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1B2028))),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(pad, pad + 2, pad, pad),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      tx('سڕینەوەی بەرهەم'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: RC.fg(deleteRed),
+                        fontWeight: FontWeight.w900,
+                        fontSize: titleSize,
+                        height: 1.35,
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                    SizedBox(height: RegaResponsive.scale(dialogCtx, 12).clamp(8.0, 12.0)),
+                    Text(
+                      tx('ئایا دڵنیایت لە سڕینەوەی بەرهەمی "${product.name}"؟'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: RC.fg(const Color(0xFF64748B)),
+                        fontWeight: FontWeight.w600,
+                        fontSize: bodySize,
+                        height: 1.55,
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                    SizedBox(height: RegaResponsive.scale(dialogCtx, 8).clamp(6.0, 8.0)),
+                    Text(
+                      tx('ئەم بەرهەمە لە مێنۆکەت دەسڕدرێتەوە.'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: RC.fgn(Colors.grey[600]),
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                    SizedBox(height: RegaResponsive.scale(dialogCtx, 18).clamp(12.0, 18.0)),
+                    Row(
+                      textDirection: TextDirection.rtl,
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: btnH,
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.pop(dialogCtx),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: RC.bg(const Color(0xFFE8EAF0)),
+                                foregroundColor: RC.fg(const Color(0xFF0F172A)),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                              child: Text(
+                                tx('پاشگەزبوونەوە'),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: RegaResponsive.scale(dialogCtx, 14).clamp(12.0, 14.0),
+                                  height: 1.1,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: SizedBox(
+                            height: btnH,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(dialogCtx);
+                                widget.onDelete(product.id);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      tx('بەرهەمی "${product.name}" بە سەرکەوتوویی سڕایەوە'),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                    backgroundColor: RC.bg(deleteRed),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: RC.bg(deleteRed),
+                                foregroundColor: RC.fg(Colors.white),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                              child: Text(
+                                tx('سڕینەوە'),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: RegaResponsive.scale(dialogCtx, 15).clamp(13.0, 15.0),
+                                  height: 1.1,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          content: SizedBox(
-            width: RegaResponsive.dialogMaxWidth(dialogCtx, cap: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tx('ئایا دڵنیایت لە سڕینەوەی بەرهەمی "${product.name}"؟'),
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFF374151)), height: 1.4),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  tx('ئەم بەرهەمە لە مێنۆکەت دەسڕدرێتەوە.'),
-                  style: TextStyle(fontSize: 12, color: RC.fgn(Colors.grey[600])),
-                ),
-              ],
             ),
           ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: Text(tx('پاشگەزبوونەوە'), style: TextStyle(color: RC.fg(Color(0xFF6B7280)), fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: RC.bg(Color(0xFFE50010)),
-                foregroundColor: RC.fg(Colors.white),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
-              onPressed: () {
-                Navigator.pop(dialogCtx);
-                widget.onDelete(product.id);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(tx('بەرهەمی "${product.name}" بە سەرکەوتوویی سڕایەوە'), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    backgroundColor: RC.bg(Color(0xFFE50010)),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              },
-              child: Text(tx('سڕینەوە'), style: TextStyle(fontWeight: FontWeight.w900)),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -10000,89 +10143,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
         textDirection: TextDirection.rtl,
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  t('دۆخی فرۆشگا'),
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                    color: RC.fg(const Color(0xFF0F172A)),
-                    fontFamily: kAppFontFamily,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  open ? t('کراوە — کڕیار دەتوانێت داوا بکات') : t('داخراوە — داواکاری وەرناگیرێت'),
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: RC.fg(open ? const Color(0xFF15803D) : const Color(0xFFB91C1C)),
-                    fontFamily: kAppFontFamily,
-                  ),
-                ),
-              ],
+            child: Text(
+              t('دۆخی فرۆشگا'),
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                color: RC.fg(const Color(0xFF0F172A)),
+                fontFamily: kAppFontFamily,
+              ),
             ),
           ),
           const SizedBox(width: 12),
-          Column(
-            children: [
-              Text(
-                open ? t('کراوە') : t('داخراوە'),
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                  color: RC.fg(open ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
-                  fontFamily: kAppFontFamily,
-                ),
+          GestureDetector(
+            onTap: _togglingOnline
+                ? null
+                : () async {
+                    final next = !open;
+                    setState(() => _togglingOnline = true);
+                    widget.onOnlineChange(next);
+                    try {
+                      await VendorApiService.instance.updateOnlineStatus(next);
+                    } finally {
+                      if (mounted) setState(() => _togglingOnline = false);
+                    }
+                  },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 108,
+              height: 36,
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: RC.bg(open ? const Color(0xFF16A34A) : const Color(0xFF94A3B8)),
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: _togglingOnline
-                    ? null
-                    : () async {
-                        final next = !open;
-                        setState(() => _togglingOnline = true);
-                        widget.onOnlineChange(next);
-                        try {
-                          await VendorApiService.instance.updateOnlineStatus(next);
-                        } finally {
-                          if (mounted) setState(() => _togglingOnline = false);
-                        }
-                      },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 58,
-                  height: 32,
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: RC.bg(open ? const Color(0xFF16A34A) : const Color(0xFFCBD5E1)),
-                    borderRadius: BorderRadius.circular(20),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  AnimatedAlign(
+                    duration: const Duration(milliseconds: 200),
+                    alignment: open ? Alignment.centerLeft : Alignment.centerRight,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: open ? 8 : 0,
+                        right: open ? 0 : 8,
+                      ),
+                      child: Text(
+                        open ? t('کراوە') : t('داخراوە'),
+                        style: TextStyle(
+                          color: RC.fg(Colors.white),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          height: 1.1,
+                          fontFamily: kAppFontFamily,
+                        ),
+                      ),
+                    ),
                   ),
-                  child: AnimatedAlign(
+                  AnimatedAlign(
                     duration: const Duration(milliseconds: 200),
                     alignment: open ? Alignment.centerRight : Alignment.centerLeft,
                     child: Container(
-                      width: 26,
-                      height: 26,
+                      width: 30,
+                      height: 30,
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),
                       child: _togglingOnline
                           ? const Padding(
-                              padding: EdgeInsets.all(5),
+                              padding: EdgeInsets.all(6),
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : null,
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),
