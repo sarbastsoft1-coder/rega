@@ -347,8 +347,87 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     _gpsBusy = true;
     if (mounted) setState(() {});
     try {
+      if (kIsWeb) {
+        // On Web, directly invoke requestPermission/checkPermission safely
+        try {
+          var perm = await Geolocator.checkPermission();
+          if (perm == LocationPermission.denied && requestPermission) {
+            perm = await Geolocator.requestPermission();
+          }
+          if (perm == LocationPermission.denied ||
+              perm == LocationPermission.deniedForever) {
+            if (_mapReady) {
+              await _moveMap(_usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos, zoom: 15.6);
+            }
+            return;
+          }
+        } catch (_) {}
+
+        // Multi-tier acquisition on Web: first try high accuracy, fallback to balanced
+        Position? webPos;
+        try {
+          webPos = await Geolocator.getCurrentPosition(
+            locationSettings: WebSettings(
+              accuracy: LocationAccuracy.best,
+              timeLimit: const Duration(seconds: 12),
+            ),
+          );
+        } catch (_) {
+          try {
+            webPos = await Geolocator.getCurrentPosition(
+              locationSettings: WebSettings(
+                accuracy: LocationAccuracy.high,
+                timeLimit: const Duration(seconds: 10),
+              ),
+            );
+          } catch (_) {
+            try {
+              webPos = await Geolocator.getLastKnownPosition();
+            } catch (_) {}
+          }
+        }
+
+        if (webPos != null && mounted) {
+          _applyPhoneGpsPosition(webPos, snapImmediately: true);
+        } else if (_mapReady) {
+          await _moveMap(_usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos, zoom: 15.6);
+        }
+
+        await _gpsSub?.cancel();
+        _gpsSub = Geolocator.getPositionStream(
+          locationSettings: WebSettings(
+            accuracy: LocationAccuracy.best,
+            distanceFilter: 0,
+          ),
+        ).listen(
+          (pos) {
+            if (!mounted) return;
+            _applyPhoneGpsPosition(pos);
+          },
+          onError: (_) {
+            _ensureGpsPollingFallback();
+          },
+          cancelOnError: false,
+        );
+
+        _ensureGpsPollingFallback();
+        if (mounted) {
+          setState(() => _followCaptain = true);
+          if (_mapReady) {
+            await _moveMap(_usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos, zoom: 15.6);
+          }
+        }
+        return;
+      }
+
+      // Native platform (Android / iOS)
       final enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) return;
+      if (!enabled) {
+        if (_mapReady) {
+          await _moveMap(_usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos, zoom: 15.6);
+        }
+        return;
+      }
 
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied && requestPermission) {
@@ -356,6 +435,9 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       }
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
+        if (_mapReady) {
+          await _moveMap(_usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos, zoom: 15.6);
+        }
         return;
       }
 
@@ -363,7 +445,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         final pos = await Geolocator.getCurrentPosition(
           locationSettings: _freshLocationSettings(
             accuracy: LocationAccuracy.best,
-            timeLimit: const Duration(seconds: 8),
+            timeLimit: const Duration(seconds: 10),
           ),
         );
         if (mounted) _applyPhoneGpsPosition(pos, snapImmediately: true);
@@ -372,15 +454,21 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
           final last = await Geolocator.getLastKnownPosition();
           if (last != null && mounted) {
             _applyPhoneGpsPosition(last, snapImmediately: true);
+          } else if (_mapReady) {
+            await _moveMap(_usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos, zoom: 15.6);
           }
-        } catch (_) {}
+        } catch (_) {
+          if (_mapReady) {
+            await _moveMap(_usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos, zoom: 15.6);
+          }
+        }
       }
 
       await _gpsSub?.cancel();
       _gpsSub = Geolocator.getPositionStream(
         locationSettings: _freshLocationSettings(
           accuracy: LocationAccuracy.bestForNavigation,
-          distanceFilter: kIsWeb ? 0 : 2,
+          distanceFilter: 2,
         ),
       ).listen(
         (pos) {
@@ -395,11 +483,17 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
 
       _ensureGpsPollingFallback();
 
-      if (mounted && _usingRealGps) {
+      if (mounted) {
         setState(() => _followCaptain = true);
+        if (_mapReady) {
+          await _moveMap(_usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos, zoom: 15.6);
+        }
       }
     } catch (_) {
       _ensureGpsPollingFallback();
+      if (_mapReady) {
+        await _moveMap(_usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos, zoom: 15.6);
+      }
     } finally {
       _gpsBusy = false;
       if (mounted) setState(() {});
@@ -643,23 +737,9 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     if (_refreshBusy) return;
     setState(() => _refreshBusy = true);
     try {
+      // Strictly refresh only orders assigned to this driver by Admin.
       if (widget.onRefreshData != null) {
         await widget.onRefreshData!();
-      }
-      final res = await http
-          .get(
-            Uri.parse('${widget.apiBaseUrl}/live-telemetry/latest-active'),
-            headers: const {'Accept': 'application/json'},
-          )
-          .timeout(const Duration(seconds: 3));
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
-        final data = body['data'] as Map<String, dynamic>?;
-        if (data != null &&
-            !widget.hasActiveOrder &&
-            widget.onNewBackendOrderFound != null) {
-          widget.onNewBackendOrderFound!(data);
-        }
       }
     } catch (_) {
     } finally {
@@ -1271,17 +1351,16 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                       dotColor: _usingRealGps
                           ? const Color(0xFF16A34A)
                           : const Color(0xFFD97706),
-                      onTap: _gpsBusy
-                          ? () {}
-                          : () async {
-                              setState(() => _followCaptain = true);
-                              await _startRealGpsIfAvailable(
-                                  requestPermission: true);
-                              if (!_usingRealGps && _mapReady) {
-                                await _moveMap(_effectiveFallbackDriverPos,
-                                    zoom: 15.2);
-                              }
-                            },
+                      onTap: () async {
+                        setState(() => _followCaptain = true);
+                        await _startRealGpsIfAvailable(requestPermission: true);
+                        if (_mapReady) {
+                          await _moveMap(
+                            _usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos,
+                            zoom: 15.6,
+                          );
+                        }
+                      },
                     ),
                   ],
                 ),

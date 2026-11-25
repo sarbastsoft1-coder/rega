@@ -289,7 +289,7 @@ final Map<String, Map<String, String>> _trans = {
     'badge_to_customer': 'بەرەو کڕیار',
     'badge_at_customer': 'گەیشتە کڕیار',
     'badge_delivered': 'گەیەندرا',
-    'btn_start_to_merchant': 'بەرەو فرۆشیار دەکەومەڕێ',
+    'btn_start_to_merchant': 'وەرگرتنی داواکاری و بەڕێکەوتن بەرەو فرۆشیار',
     'btn_arrived_merchant': 'گەیشتمە لای فرۆشیار',
     'btn_picked_up': 'کاڵاکەم وەرگرت',
     'btn_start_to_customer': 'بەرەو کڕیار بەڕێکەوتم',
@@ -406,7 +406,7 @@ final Map<String, Map<String, String>> _trans = {
     'badge_to_customer': 'إلى العميل',
     'badge_at_customer': 'وصل للعميل',
     'badge_delivered': 'تم التوصيل',
-    'btn_start_to_merchant': 'انطلق نحو البائع',
+    'btn_start_to_merchant': 'قبول الطلب والانطلاق نحو البائع',
     'btn_arrived_merchant': 'وصلت إلى البائع',
     'btn_picked_up': 'استلمت الطلب',
     'btn_start_to_customer': 'انطلق نحو العميل',
@@ -523,7 +523,7 @@ final Map<String, Map<String, String>> _trans = {
     'badge_to_customer': 'To customer',
     'badge_at_customer': 'At customer',
     'badge_delivered': 'Delivered',
-    'btn_start_to_merchant': 'Heading to merchant',
+    'btn_start_to_merchant': 'Accept order & head to merchant',
     'btn_arrived_merchant': 'Arrived at merchant',
     'btn_picked_up': 'I picked up the order',
     'btn_start_to_customer': 'Heading to customer',
@@ -651,6 +651,37 @@ class OrderModel {
   int get totalEarnings => deliveryFee + tip + waitingBonus;
   int get customerCashToCollect =>
       totalAmount > 0 ? totalAmount : (itemsTotal - discountAmount + deliveryFee + tip);
+
+  /// Returns a clean display number like #10056 (stripping prefixes like 'RA-', internal '#', etc.)
+  String get displayOrderNumber {
+    if (orderNumber.trim().isEmpty) return '';
+    var clean = orderNumber.trim();
+    clean = clean.replaceAll('#', '');
+    if (clean.toUpperCase().startsWith('RA-')) {
+      clean = clean.substring(3);
+    } else if (clean.toUpperCase().startsWith('RA')) {
+      clean = clean.substring(2);
+    }
+    clean = clean.trim();
+    if (clean.isEmpty) return '';
+    return '#$clean';
+  }
+}
+
+/// Standalone formatter for order numbers across strings and maps
+String formatOrderCode(dynamic raw) {
+  if (raw == null) return '';
+  var s = raw.toString().trim();
+  if (s.isEmpty) return '';
+  s = s.replaceAll('#', '').trim();
+  if (s.toUpperCase().startsWith('RA-')) {
+    s = s.substring(3);
+  } else if (s.toUpperCase().startsWith('RA')) {
+    s = s.substring(2);
+  }
+  s = s.trim();
+  if (s.isEmpty) return '';
+  return '#$s';
 }
 
 // ---------------------------------------------------------
@@ -696,9 +727,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   String _searchQuery = '';
   Map<String, dynamic>? _driverProfile;
   List<Map<String, dynamic>>? _backendOrdersList;
-  List<Map<String, dynamic>> _availableOrders = const [];
   Map<String, dynamic> _supportContacts = const {};
-  bool _acceptingOrderBusy = false;
   final Map<String, Map<String, dynamic>> _earningsCache = {};
   Timer? _driverSyncTimer;
   bool _didStartBackendSync = false;
@@ -793,7 +822,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 
   Future<void> _refreshBackendDriverData({bool silent = false}) async {
     final profileFuture = DriverApiService.instance.fetchProfile();
-    final ordersFuture = DriverApiService.instance.fetchActiveAndAvailableOrders();
+    final activeFuture = DriverApiService.instance.fetchActiveOrder();
     final historyFuture = DriverApiService.instance.fetchOrdersHistory();
     final todayEarnFuture = DriverApiService.instance.fetchEarnings(period: 'today');
     final weekEarnFuture = DriverApiService.instance.fetchEarnings(period: 'week');
@@ -803,7 +832,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         : Future.value(_supportContacts);
 
     final profile = await profileFuture;
-    final (active, availableList) = await ordersFuture;
+    final active = await activeFuture;
     final history = await historyFuture;
     final todayEarn = await todayEarnFuture;
     final weekEarn = await weekEarnFuture;
@@ -816,7 +845,6 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       if (support.isNotEmpty) {
         _supportContacts = support;
       }
-      _availableOrders = availableList;
 
       if (profile != null) {
         _driverProfile = profile;
@@ -874,7 +902,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         return <String, dynamic>{
           'raw': m,
           'dbId': (m['id'] as num?)?.toInt(),
-          'id': numStr.startsWith('#') ? numStr : '#$numStr',
+          'id': formatOrderCode(numStr),
           'merchant': (store['name_ku'] ?? 'فرۆشگای کەلار').toString(),
           'merchantAddress': (store['address_ku'] ?? 'شاری کەلار').toString(),
           'merchantPhone': (store['phone'] ?? '').toString(),
@@ -969,37 +997,6 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         'type': 'order',
       });
       _isOrderCardVisible = true;
-    }
-  }
-
-  Future<void> _acceptAvailableStoreOrder(int orderId) async {
-    if (_acceptingOrderBusy) return;
-    setState(() => _acceptingOrderBusy = true);
-    try {
-      final (ok, msg, orderData) = await DriverApiService.instance.acceptOrder(orderId);
-      if (!mounted) return;
-      if (ok) {
-        if (orderData != null) {
-          setState(() {
-            _isOnline = true;
-            _applyActiveOrderMap(orderData);
-            _isOrderCardVisible = true;
-          });
-        }
-        await _refreshBackendDriverData(silent: true);
-        if (!mounted) return;
-        _goTab(0);
-        _showSuccessSnackBar(msg ?? 'داواکارییەکە بە سەرکەوتوویی وەرگیرا!');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(tx(msg ?? 'نەتوانرا داواکارییەکە وەربگیرێت')),
-            backgroundColor: RC.bg(const Color(0xFFDC2626)),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _acceptingOrderBusy = false);
     }
   }
 
@@ -1632,7 +1629,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  tx('${_activeOrder.orderNumber} • ${_activeOrder.merchantName}'),
+                                  tx('${_activeOrder.displayOrderNumber.isNotEmpty ? _activeOrder.displayOrderNumber : _activeOrder.orderNumber} • ${_activeOrder.merchantName}'),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -1666,7 +1663,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             ),
           )
         else
-          // دۆخی چاوەڕوانی + پیشاندانی داواکارییە ئامادەکانی فرۆشگا و ئاماری خێرای ئەمڕۆ
+          // دۆخی چاوەڕوانی: تەنها کاتێک ئادمین داواکاری بۆ ئەم شۆفێرە دەنێرێت دەردەکەوێت
           Positioned(
             left: padH,
             right: padH,
@@ -1686,10 +1683,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                     color: RC.bg(Colors.white),
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
-                      color: _availableOrders.isNotEmpty
-                          ? const Color(0xFF22C55E)
-                          : RC.bg(const Color(0xFFE2E8F0)),
-                      width: _availableOrders.isNotEmpty ? 1.8 : 1.0,
+                      color: RC.bg(const Color(0xFFE2E8F0)),
                     ),
                     boxShadow: const [
                       BoxShadow(
@@ -1699,116 +1693,81 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       ),
                     ],
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: _isOnline
-                                  ? const Color(0xFFDCFCE7)
-                                  : const Color(0xFFFEE2E2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              _isOnline
-                                  ? Icons.radar_rounded
-                                  : Icons.power_settings_new_rounded,
-                              color: _isOnline
-                                  ? const Color(0xFF16A34A)
-                                  : const Color(0xFFDC2626),
-                              size: 21,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  tx(_isOnline
-                                      ? t('waiting_admin_order')
-                                      : t('go_online_for_orders')),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: phone ? 12.2 : 13.5,
-                                    color: RC.fg(const Color(0xFF0F172A)),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  tx(
-                                    '${t('today')}: $_completedDeliveriesCount ${t('delivered')} • ${_formatMoney(_todayEarnings)} ${t('iqd')}',
-                                  ),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: RC.fg(const Color(0xFF64748B)),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (!_isOnline)
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                backgroundColor: const Color(0xFF16A34A),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onPressed:
-                                  _onlineToggleBusy ? null : _toggleOnlineStatus,
-                              child: Text(
-                                t('online'),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                        ],
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: _isOnline
+                              ? const Color(0xFFDCFCE7)
+                              : const Color(0xFFFEE2E2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          _isOnline
+                              ? Icons.radar_rounded
+                              : Icons.power_settings_new_rounded,
+                          color: _isOnline
+                              ? const Color(0xFF16A34A)
+                              : const Color(0xFFDC2626),
+                          size: 21,
+                        ),
                       ),
-                      if (_availableOrders.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF16A34A),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 11),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            onPressed: _showAvailableOrdersBottomSheet,
-                            icon: const Icon(
-                                Icons.notifications_active_rounded,
-                                size: 18),
-                            label: Text(
-                              tx('داواکاری ئامادەی فرۆشگاکان (${_availableOrders.length}) — کرتە بکە بۆ وەرگرتن'),
-                              style: const TextStyle(
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              tx(_isOnline
+                                  ? t('waiting_admin_order')
+                                  : t('go_online_for_orders')),
+                              style: TextStyle(
                                 fontWeight: FontWeight.w900,
-                                fontSize: 12.5,
+                                fontSize: phone ? 12.2 : 13.5,
+                                color: RC.fg(const Color(0xFF0F172A)),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            const SizedBox(height: 2),
+                            Text(
+                              tx(
+                                '${t('today')}: $_completedDeliveriesCount ${t('delivered')} • ${_formatMoney(_todayEarnings)} ${t('iqd')}',
+                              ),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: RC.fg(const Color(0xFF64748B)),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!_isOnline)
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            backgroundColor: const Color(0xFF16A34A),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed:
+                              _onlineToggleBusy ? null : _toggleOnlineStatus,
+                          child: Text(
+                            t('online'),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
-                      ],
                     ],
                   ),
                 ),
@@ -1900,7 +1859,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         backgroundColor: RC.bg(Colors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(
-          tx('داواکاری هەڵوەشاندنەوە / کێشە (${_activeOrder.orderNumber})'),
+          tx('داواکاری هەڵوەشاندنەوە / کێشە (${_activeOrder.displayOrderNumber.isNotEmpty ? _activeOrder.displayOrderNumber : _activeOrder.orderNumber})'),
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w900,
@@ -1948,195 +1907,6 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     if (ok) {
       _showSuccessSnackBar('داواکارییەکە نێردرا بۆ بەشی چاودێری ئادمین');
     }
-  }
-
-  void _showAvailableOrdersBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Align(
-        alignment: Alignment.bottomCenter,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: RegaResponsive.dialogMaxWidth(ctx, cap: 580),
-          ),
-          child: Container(
-            height: MediaQuery.of(ctx).size.height * 0.75,
-            decoration: BoxDecoration(
-              color: RC.bg(Colors.white),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                    Flexible(
-                      child: Text(
-                        tx('داواکارییە ئامادەکانی فرۆشگاکان (${_availableOrders.length})'),
-                        style: TextStyle(
-                          fontSize: 16.5,
-                          fontWeight: FontWeight.w900,
-                          color: RC.fg(const Color(0xFF0F172A)),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 36),
-                  ],
-                ),
-                const Divider(),
-                Expanded(
-                  child: _availableOrders.isEmpty
-                      ? Center(
-                          child: Text(
-                            tx(t('no_orders')),
-                            style: TextStyle(color: RC.fg(const Color(0xFF94A3B8))),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: _availableOrders.length,
-                          itemBuilder: (context, index) {
-                            final m = _availableOrders[index];
-                            final ordId = (m['id'] as num?)?.toInt();
-                            final ordNum = (m['order_number'] ?? '#').toString();
-                            final store = (m['store'] is Map)
-                                ? Map<String, dynamic>.from(m['store'] as Map)
-                                : const <String, dynamic>{};
-                            final storeName = (store['name_ku'] ?? 'فرۆشگا').toString();
-                            final storeAddr = (store['address_ku'] ?? 'کەلار').toString();
-                            final custName = (m['customer_name'] ?? 'کڕیار').toString();
-                            final custAddr = (m['delivery_address'] ?? 'کەلار').toString();
-                            final fee = ((m['delivery_fee'] ?? 1500) as num).toInt();
-                            final total = ((m['total_amount'] ?? 0) as num).toInt();
-                            final vStatus = (m['vendor_status'] ?? m['status'] ?? 'preparing').toString();
-                            final isReady = vStatus == 'ready';
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: RC.bg(const Color(0xFFF8FAFC)),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: isReady
-                                      ? const Color(0xFF22C55E)
-                                      : RC.bg(const Color(0xFFE2E8F0)),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 10, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: isReady
-                                              ? const Color(0xFFDCFCE7)
-                                              : const Color(0xFFFEF3C7),
-                                          borderRadius: BorderRadius.circular(100),
-                                        ),
-                                        child: Text(
-                                          tx(isReady
-                                              ? 'ئامادەیە لە فرۆشگا'
-                                              : 'لە ئامادەکردندایە'),
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w900,
-                                            color: isReady
-                                                ? const Color(0xFF15803D)
-                                                : const Color(0xFFB45309),
-                                          ),
-                                        ),
-                                      ),
-                                      Text(
-                                        tx(ordNum.startsWith('#') ? ordNum : '#$ordNum'),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 16,
-                                          color: RC.fg(const Color(0xFF0F172A)),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    tx('فرۆشگا: $storeName ($storeAddr)'),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 13.5,
-                                      color: RC.fg(const Color(0xFF0F172A)),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    tx('کڕیار: $custName • $custAddr'),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 12.5,
-                                      color: RC.fg(const Color(0xFF64748B)),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        tx('کرێی گەیاندن: ${_formatMoney(fee)} د.ع • کۆی گشتی: ${_formatMoney(total)} د.ع'),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 12.5,
-                                          color: Color(0xFF16A34A),
-                                        ),
-                                      ),
-                                      if (ordId != null)
-                                        ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFF16A34A),
-                                            foregroundColor: Colors.white,
-                                            elevation: 0,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                          ),
-                                          onPressed: _acceptingOrderBusy
-                                              ? null
-                                              : () {
-                                                  Navigator.pop(ctx);
-                                                  _acceptAvailableStoreOrder(ordId);
-                                                },
-                                          child: Text(
-                                            tx('وەرگرتنی داواکاری'),
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w900,
-                                              fontSize: 12.5,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   // لاپەڕەی داهات (Earnings Screen) ڕێک وەک وێنەکە
@@ -2270,7 +2040,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       ? 'کۆی داواکاری: ${_formatMoney(orderTotal)} ${t('iqd')}'
                       : total;
                   return _buildEarningsHistoryItem(
-                    id.startsWith('#') ? id : '#$id',
+                    formatOrderCode(id),
                     time,
                     total,
                     detail,
@@ -3584,41 +3354,14 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       color: RC.fg(const Color(0xFF1E293B)),
                     ),
                   ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_availableOrders.isNotEmpty)
-                        TextButton.icon(
-                          style: TextButton.styleFrom(
-                            backgroundColor: const Color(0xFFDCFCE7),
-                            foregroundColor: const Color(0xFF15803D),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          onPressed: _showAvailableOrdersBottomSheet,
-                          icon: const Icon(
-                            Icons.notifications_active_rounded,
-                            size: 16,
-                          ),
-                          label: Text(
-                            tx('بەردەست (${_availableOrders.length})'),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      IconButton(
-                        tooltip: t('data_refreshed'),
-                        onPressed: () =>
-                            _refreshBackendDriverData(silent: false),
-                        icon: const Icon(
-                          Icons.refresh_rounded,
-                          color: Color(0xFF16A34A),
-                        ),
-                      ),
-                    ],
+                  IconButton(
+                    tooltip: t('data_refreshed'),
+                    onPressed: () =>
+                        _refreshBackendDriverData(silent: false),
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      color: Color(0xFF16A34A),
+                    ),
                   ),
                 ],
               ),
@@ -3852,12 +3595,15 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                         ),
                       ),
                     ),
-                    Text(
-                      tx(order['id'].toString()),
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: RC.fg(const Color(0xFF0F172A)),
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Text(
+                        formatOrderCode(order['id']),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: RC.fg(const Color(0xFF0F172A)),
+                        ),
                       ),
                     ),
                   ],
@@ -4019,12 +3765,15 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 ),
                 const SizedBox(width: 8),
                 Flexible(
-                  child: Text(
-                    tx(id),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end,
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: RC.fg(const Color(0xFF1E293B))),
+                  child: Directionality(
+                    textDirection: TextDirection.ltr,
+                    child: Text(
+                      formatOrderCode(id),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: RC.fg(const Color(0xFF1E293B))),
+                    ),
                   ),
                 ),
               ],
@@ -4310,17 +4059,23 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0F172A),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text(
-                        tx(widget.order.orderNumber),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
+                      child: Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(
+                          widget.order.displayOrderNumber.isNotEmpty
+                              ? widget.order.displayOrderNumber
+                              : formatOrderCode(widget.order.orderNumber),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
                     ),

@@ -141,7 +141,6 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/orders/active', [DriverAppController::class, 'activeOrder']);
         Route::get('/orders', [DriverAppController::class, 'ordersHistory']);
-        Route::post('/orders/{order}/accept', [DriverAppController::class, 'acceptAvailableOrder']);
         Route::patch('/orders/{order}/status', [DriverAppController::class, 'advanceOrderStatus']);
         Route::post('/orders/{order}/verify-delivery', [DriverAppController::class, 'verifyDeliveryPin']);
         Route::post('/orders/{order}/waiting-bonus', [DriverAppController::class, 'claimWaitingBonus']);

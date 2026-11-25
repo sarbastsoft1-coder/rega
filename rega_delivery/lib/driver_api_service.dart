@@ -163,57 +163,18 @@ class DriverApiService {
   }
 
   Future<Map<String, dynamic>?> fetchActiveOrder() async {
-    final res = await fetchActiveAndAvailableOrders();
-    return res.$1;
-  }
-
-  /// Returns `(activeOrder, availableUnassignedOrders)` from `/driver/orders/active`.
-  Future<(Map<String, dynamic>?, List<Map<String, dynamic>>)>
-      fetchActiveAndAvailableOrders() async {
     try {
       final res = await http
           .get(Uri.parse('$baseUrl/driver/orders/active'), headers: _headers())
           .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         final body = regaJsonDecode(res.body) as Map<String, dynamic>;
-        final active = body['data'] is Map
+        return body['data'] is Map
             ? Map<String, dynamic>.from(body['data'] as Map)
             : null;
-        final rawAvail = body['available_orders'];
-        final avail = <Map<String, dynamic>>[];
-        if (rawAvail is List) {
-          for (final item in rawAvail) {
-            if (item is Map) {
-              avail.add(Map<String, dynamic>.from(item));
-            }
-          }
-        }
-        return (active, avail);
       }
     } catch (_) {}
-    return (null, const <Map<String, dynamic>>[]);
-  }
-
-  /// Claim an unassigned order directly from the Delivery app.
-  Future<(bool, String?, Map<String, dynamic>?)> acceptOrder(int orderId) async {
-    try {
-      final res = await http
-          .post(
-            Uri.parse('$baseUrl/driver/orders/$orderId/accept'),
-            headers: _headers(),
-          )
-          .timeout(const Duration(seconds: 6));
-      final body = regaJsonDecode(res.body) as Map<String, dynamic>;
-      final data = body['data'] is Map
-          ? Map<String, dynamic>.from(body['data'] as Map)
-          : null;
-      if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true) {
-        return (true, body['message']?.toString(), data);
-      }
-      return (false, body['message']?.toString(), data);
-    } catch (_) {
-      return (false, null, null);
-    }
+    return null;
   }
 
   Future<List<dynamic>> fetchOrdersHistory({String status = 'all'}) async {

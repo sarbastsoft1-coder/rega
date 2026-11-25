@@ -363,17 +363,12 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                               .toList();
                           final showDraft = _addingCategory || _editingCategory != null;
 
+                          final itemCount = cats.length + (showDraft ? 1 : 0);
+
                           return CustomScrollView(
                             slivers: [
-                              if (showDraft)
-                                SliverToBoxAdapter(
-                                  child: Padding(
-                                    padding: EdgeInsets.fromLTRB(padH, 4, padH, 14),
-                                    child: _buildCategoryDraftCard(),
-                                  ),
-                                ),
                               SliverPadding(
-                                padding: EdgeInsets.fromLTRB(padH, showDraft ? 0 : 4, padH, 20),
+                                padding: EdgeInsets.fromLTRB(padH, 4, padH, 20),
                                 sliver: SliverGrid(
                                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                     crossAxisCount: crossCount,
@@ -382,8 +377,14 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                                     childAspectRatio: 0.78,
                                   ),
                                   delegate: SliverChildBuilderDelegate(
-                                    (context, index) => _buildCategoryCard(cats[index]),
-                                    childCount: cats.length,
+                                    (context, index) {
+                                      if (showDraft && index == 0) {
+                                        return _buildCategoryDraftCard();
+                                      }
+                                      final catIndex = showDraft ? index - 1 : index;
+                                      return _buildCategoryCard(cats[catIndex]);
+                                    },
+                                    childCount: itemCount,
                                   ),
                                 ),
                               ),
@@ -424,180 +425,176 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
 
   Widget _buildCategoryDraftCard() {
     final hasImage = _draftPreviewBytes != null || (_draftImageUrl != null && _draftImageUrl!.isNotEmpty);
-    const imageBox = 120.0;
-    return Align(
-      alignment: Alignment.centerRight,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 240),
-        child: Container(
-          decoration: BoxDecoration(
-            color: RC.bg(Colors.white),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: SizedBox(
-                    width: imageBox,
-                    height: imageBox,
-                    child: Material(
-                      color: RC.bg(const Color(0xFFF8FAFC)),
-                      borderRadius: BorderRadius.circular(14),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: _imageBusy ? null : _pickCategoryImage,
-                        child: hasImage
-                            ? Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  if (_draftPreviewBytes != null)
-                                    Image.memory(
-                                      _draftPreviewBytes!,
-                                      fit: BoxFit.cover,
-                                      alignment: Alignment.center,
-                                    )
-                                  else
-                                    Image.network(
-                                      VendorApiService.instance.resolveMediaUrl(_draftImageUrl!),
-                                      fit: BoxFit.cover,
-                                      alignment: Alignment.center,
-                                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                                    ),
-                                  Align(
-                                    alignment: Alignment.bottomCenter,
-                                    child: Container(
-                                      width: double.infinity,
-                                      color: Colors.black.withValues(alpha: 0.55),
-                                      padding: const EdgeInsets.symmetric(vertical: 4),
-                                      child: Text(
-                                        t('گۆڕینی وێنە'),
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: RC.fg(Colors.white),
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 11,
-                                          fontFamily: kAppFontFamily,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  if (_imageBusy)
-                                    const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
-                                ],
+    return Material(
+      color: RC.bg(Colors.white),
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: RC.bg(_orange), width: 1.6),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Material(
+                color: RC.bg(const Color(0xFFF8FAFC)),
+                child: InkWell(
+                  onTap: _imageBusy ? null : _pickCategoryImage,
+                  child: hasImage
+                      ? Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (_draftPreviewBytes != null)
+                              Image.memory(
+                                _draftPreviewBytes!,
+                                fit: BoxFit.cover,
+                                alignment: Alignment.center,
                               )
-                            : Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  if (_imageBusy)
-                                    const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(color: _orange, strokeWidth: 2),
-                                    )
-                                  else ...[
-                                    Icon(Icons.image_outlined, size: 32, color: RC.fg(_orange)),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      t('هەڵبژاردنی وێنە'),
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: RC.fg(_green),
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 12,
-                                        fontFamily: kAppFontFamily,
-                                      ),
-                                    ),
-                                  ],
-                                ],
+                            else
+                              Image.network(
+                                VendorApiService.instance.resolveMediaUrl(_draftImageUrl!),
+                                fit: BoxFit.cover,
+                                alignment: Alignment.center,
+                                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                               ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _catNameCtrl,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                    fontFamily: kAppFontFamily,
-                    color: RC.fg(const Color(0xFF0F172A)),
-                  ),
-                  decoration: InputDecoration(
-                    hintText: t('...ناوی بەش بنووسە'),
-                    hintStyle: TextStyle(
-                      color: RC.fg(const Color(0xFF94A3B8)),
-                      fontFamily: kAppFontFamily,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    isDense: true,
-                    filled: true,
-                    fillColor: RC.bg(Colors.white),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: RC.bg(_orange), width: 1.6),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: RC.bg(_orange), width: 1.9),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  textDirection: TextDirection.rtl,
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 44,
-                        child: ElevatedButton(
-                          onPressed: _saveDraft,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: RC.bg(_green),
-                            foregroundColor: RC.fg(Colors.white),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: Text(
-                            t('پاشەکەوتکردن'),
-                            style: TextStyle(fontWeight: FontWeight.w900, fontFamily: kAppFontFamily),
-                          ),
+                            Align(
+                              alignment: Alignment.bottomCenter,
+                              child: Container(
+                                width: double.infinity,
+                                color: Colors.black.withValues(alpha: 0.55),
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Text(
+                                  t('گۆڕینی وێنە'),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: RC.fg(Colors.white),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 11,
+                                    fontFamily: kAppFontFamily,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_imageBusy)
+                              const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (_imageBusy)
+                              const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(color: _orange, strokeWidth: 2),
+                              )
+                            else ...[
+                              Icon(Icons.image_outlined, size: 36, color: RC.fg(_orange)),
+                              const SizedBox(height: 6),
+                              Text(
+                                t('هەڵبژاردنی وێنە'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: RC.fg(_green),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: Material(
-                        color: RC.bg(_red),
-                        borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
-                          onTap: _cancelDraft,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Icon(Icons.close_rounded, color: RC.fg(Colors.white)),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
-              ],
+              ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _catNameCtrl,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      fontFamily: kAppFontFamily,
+                      color: RC.fg(const Color(0xFF0F172A)),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: t('...ناوی بەش بنووسە'),
+                      hintStyle: TextStyle(
+                        color: RC.fg(const Color(0xFF94A3B8)),
+                        fontFamily: kAppFontFamily,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                      isDense: true,
+                      filled: true,
+                      fillColor: RC.bg(Colors.white),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: RC.bg(_orange), width: 1.4),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: RC.bg(_orange), width: 1.7),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    textDirection: TextDirection.rtl,
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 36,
+                          child: ElevatedButton(
+                            onPressed: _saveDraft,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: RC.bg(_green),
+                              foregroundColor: RC.fg(Colors.white),
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: Text(
+                              t('پاشەکەوتکردن'),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 12,
+                                height: 1.1,
+                                fontFamily: kAppFontFamily,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: Material(
+                          color: RC.bg(_red),
+                          borderRadius: BorderRadius.circular(10),
+                          child: InkWell(
+                            onTap: _cancelDraft,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Icon(Icons.close_rounded, color: RC.fg(Colors.white), size: 18),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

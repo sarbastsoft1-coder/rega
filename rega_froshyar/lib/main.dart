@@ -3184,20 +3184,126 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             onTap: () async {
                               final ok = await showDialog<bool>(
                                 context: context,
-                                builder: (ctx) => Directionality(
-                                  textDirection: TextDirection.rtl,
-                                  child: AlertDialog(
-                                    title: Text(t('سڕینەوەی تەواوبووەکان')),
-                                    content: Text(t('دڵنیایت لە سڕینەوەی هەموو داواکاری تەواوبووەکان؟')),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('پاشگەزبوونەوە'))),
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(ctx, true),
-                                        child: Text(t('سڕینەوە'), style: TextStyle(color: RC.fg(const Color(0xFFDC2626)))),
+                                barrierColor: Colors.black.withValues(alpha: 0.45),
+                                builder: (ctx) {
+                                  const coral = Color(0xFFE55B5B);
+                                  final compactH = RegaResponsive.isCompactHeight(ctx);
+                                  final pad = RegaResponsive.scale(ctx, 20).clamp(14.0, 22.0);
+                                  final titleSize = RegaResponsive.scale(ctx, 18).clamp(15.0, 18.0);
+                                  final bodySize = RegaResponsive.scale(ctx, 14).clamp(12.5, 14.0);
+                                  final btnH = RegaResponsive.scale(ctx, compactH ? 42 : 46).clamp(40.0, 48.0);
+                                  final radius = RegaResponsive.scale(ctx, 22).clamp(16.0, 24.0);
+
+                                  return Directionality(
+                                    textDirection: TextDirection.rtl,
+                                    child: Dialog(
+                                      backgroundColor: RC.bg(Colors.white),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+                                      insetPadding: RegaResponsive.dialogInset(ctx, cap: 400, vertical: compactH ? 12 : 24),
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxWidth: RegaResponsive.dialogMaxWidth(ctx, cap: 400),
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.fromLTRB(pad, pad + 2, pad, pad),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                t('سڕینەوەی تەواوبووەکان'),
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  color: RC.fg(coral),
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: titleSize,
+                                                  height: 1.35,
+                                                  fontFamily: kAppFontFamily,
+                                                ),
+                                              ),
+                                              SizedBox(height: RegaResponsive.scale(ctx, 12).clamp(8.0, 12.0)),
+                                              Text(
+                                                t('دڵنیایت لە سڕینەوەی هەموو داواکاری تەواوبووەکان؟'),
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  color: RC.fg(const Color(0xFF64748B)),
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: bodySize,
+                                                  height: 1.55,
+                                                  fontFamily: kAppFontFamily,
+                                                ),
+                                              ),
+                                              SizedBox(height: RegaResponsive.scale(ctx, 18).clamp(12.0, 18.0)),
+                                              Row(
+                                                textDirection: TextDirection.rtl,
+                                                children: [
+                                                  Expanded(
+                                                    child: SizedBox(
+                                                      height: btnH,
+                                                      child: ElevatedButton(
+                                                        onPressed: () => Navigator.pop(ctx, false),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: RC.bg(const Color(0xFFF1F5F9)),
+                                                          foregroundColor: RC.fg(const Color(0xFF0F172A)),
+                                                          elevation: 0,
+                                                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                          shape: RoundedRectangleBorder(
+                                                            borderRadius: BorderRadius.circular(999),
+                                                          ),
+                                                        ),
+                                                        child: Text(
+                                                          t('پاشگەزبوونەوە'),
+                                                          textAlign: TextAlign.center,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                          style: TextStyle(
+                                                            fontWeight: FontWeight.w800,
+                                                            fontSize: RegaResponsive.scale(ctx, 14).clamp(12.0, 14.0),
+                                                            height: 1.1,
+                                                            fontFamily: kAppFontFamily,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  Expanded(
+                                                    child: SizedBox(
+                                                      height: btnH,
+                                                      child: ElevatedButton(
+                                                        onPressed: () => Navigator.pop(ctx, true),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: RC.bg(coral),
+                                                          foregroundColor: RC.fg(Colors.white),
+                                                          elevation: 0,
+                                                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                          shape: RoundedRectangleBorder(
+                                                            borderRadius: BorderRadius.circular(999),
+                                                          ),
+                                                        ),
+                                                        child: Text(
+                                                          t('سڕینەوە'),
+                                                          textAlign: TextAlign.center,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                          style: TextStyle(
+                                                            fontWeight: FontWeight.w900,
+                                                            fontSize: RegaResponsive.scale(ctx, 15).clamp(13.0, 15.0),
+                                                            height: 1.1,
+                                                            fontFamily: kAppFontFamily,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
-                                    ],
-                                  ),
-                                ),
+                                    ),
+                                  );
+                                },
                               );
                               if (ok == true) widget.onClearCompletedOrders?.call();
                             },
@@ -3276,7 +3382,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       color: Colors.transparent,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+        padding: const EdgeInsets.fromLTRB(6, 2, 6, 0),
         child: Row(
           textDirection: TextDirection.rtl,
           children: List.generate(_statusTabs.length, (i) {
@@ -3286,12 +3392,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
             return InkWell(
               onTap: () => setState(() => _statusTab = i),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
                       color: selected ? RC.bg(teal) : Colors.transparent,
-                      width: 3.5,
+                      width: 2.5,
                     ),
                   ),
                 ),
@@ -3306,23 +3412,25 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             ? RC.fg(const Color(0xFF0F172A))
                             : RC.fg(const Color(0xFF94A3B8)),
                         fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
-                        fontSize: 13.5,
+                        fontSize: 11.5,
+                        height: 1.15,
                         fontFamily: kAppFontFamily,
                       ),
                     ),
                     if (count > 0) ...[
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 4),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                         decoration: BoxDecoration(
                           color: selected ? RC.bg(teal) : RC.bg(const Color(0xFFE2E8F0)),
-                          borderRadius: BorderRadius.circular(9),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           '$count',
                           style: TextStyle(
                             color: selected ? RC.fg(Colors.white) : RC.fg(const Color(0xFF64748B)),
-                            fontSize: 10.5,
+                            fontSize: 9,
+                            height: 1.1,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -4250,21 +4358,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
             child: Column(
               children: [
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: RC.bg(orange),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     textDirection: TextDirection.rtl,
                     children: [
                       CustomPaint(
-                        size: const Size(16, 16),
+                        size: const Size(15, 15),
                         painter: _ChatBubblePainter(color: RC.fg(Colors.white)),
                       ),
                       const SizedBox(width: 8),
@@ -4275,7 +4383,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           style: TextStyle(
                             color: RC.fg(Colors.white),
                             fontWeight: FontWeight.w800,
-                            fontSize: 13.5,
+                            fontSize: 13,
+                            height: 1.2,
                             fontFamily: kAppFontFamily,
                           ),
                         ),
@@ -4283,13 +4392,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
-                  height: 50,
+                  height: 40,
                   child: Material(
                     color: RC.bg(teal),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                     child: InkWell(
                       onTap: () {
                         if (next != null) {
@@ -4299,13 +4408,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           _openOrderActionBox(order);
                         }
                       },
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         textDirection: TextDirection.rtl,
                         children: [
                           CustomPaint(
-                            size: const Size(18, 18),
+                            size: const Size(16, 16),
                             painter: _FlameIconPainter(color: RC.fg(Colors.white)),
                           ),
                           const SizedBox(width: 8),
@@ -4314,7 +4423,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             style: TextStyle(
                               color: RC.fg(Colors.white),
                               fontWeight: FontWeight.w900,
-                              fontSize: 15,
+                              fontSize: 14,
+                              height: 1.1,
                               fontFamily: kAppFontFamily,
                             ),
                           ),
