@@ -1,5 +1,4 @@
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
-import 'mapbox_tiles.dart';
 
 /// Mapbox Standard family for every REGA fullscreen map.
 enum RegaMapStyleId { map, satellite, outdoors, dark }

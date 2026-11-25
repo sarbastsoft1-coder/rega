@@ -4,18 +4,18 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import 'driver_api_service.dart';
 import 'map/mapbox_directions.dart';
 import 'map/rega_map_styles.dart';
 import 'map/rega_standard_map.dart';
 import 'rega_mobile.dart';
-
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
+
 enum CaptainRouteStage {
   assigned,
   arrivingPickup,
@@ -38,14 +38,17 @@ class CaptainLiveMapWidget extends StatefulWidget {
   final double storeLng;
   final double customerLat;
   final double customerLng;
+  final double? profileLat;
+  final double? profileLng;
   final bool isOnline;
-  /// When false (no assigned order), map shows only the driver — no route lines or stop pins.
   final bool hasActiveOrder;
+  final bool isOrderCardExpanded;
   final String locale;
   final String Function(String key)? translate;
   final String apiBaseUrl;
   final ValueChanged<CaptainRouteStage> onStageAutoReached;
   final VoidCallback onArrivedPromptPin;
+  final Future<void> Function()? onRefreshData;
   final void Function(Map<String, dynamic> syncedOrder)? onNewBackendOrderFound;
 
   CaptainLiveMapWidget({
@@ -61,13 +64,17 @@ class CaptainLiveMapWidget extends StatefulWidget {
     this.storeLng = 45.3189,
     this.customerLat = 34.6912,
     this.customerLng = 45.3264,
+    this.profileLat,
+    this.profileLng,
     this.isOnline = true,
     this.hasActiveOrder = true,
+    this.isOrderCardExpanded = false,
     this.locale = 'ku',
     this.translate,
     String? apiBaseUrl,
     required this.onStageAutoReached,
     required this.onArrivedPromptPin,
+    this.onRefreshData,
     this.onNewBackendOrderFound,
   }) : apiBaseUrl = apiBaseUrl ?? RegaApiHost.apiV1;
 
@@ -78,13 +85,6 @@ class CaptainLiveMapWidget extends StatefulWidget {
 class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     with TickerProviderStateMixin {
   final GlobalKey<RegaStandardMapState> _regaMapKey = GlobalKey();
-  mb.MapboxMap? _mbMap;
-  mb.PolylineAnnotationManager? _polyMgr;
-  mb.PolylineAnnotationManager? _polyDashMgr;
-  mb.PointAnnotationManager? _pointMgr;
-  mb.PointAnnotation? _driverPointAnno;
-  StreamSubscription<mb.MapContentGestureContext>? _panGestureSub;
-  bool _suppressFollowDisable = false;
 
   late AnimationController _pulseController;
   late AnimationController _glideController;
@@ -92,24 +92,21 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   Timer? _secondTicker;
   StreamSubscription<Position>? _gpsSub;
   Timer? _gpsPollTimer;
+  Timer? _gpsRetryTimer;
 
-  // Map appearance & camera controls
   bool _followCaptain = true;
-  /// True only after a real phone GPS fix — never invent a fake place.
   bool _usingRealGps = false;
   bool _gpsBusy = false;
+  bool _refreshBusy = false;
   bool _mapReady = false;
   bool _backendSynced = false;
-  bool _promptedPinOnce = false;
   bool _isSatellite = false;
   DateTime? _lastFleetLocationPush;
   DateTime? _lastGpsFixAt;
-  Timer? _gpsRetryTimer;
 
-  // Overview only (no driver pin) until real GPS arrives — downtown کەلار.
+  // Downtown Kalar center (ناو بازاڕی کەلار)
   static const LatLng _kalarOverview = LatLng(34.6295, 45.3159);
 
-  // Coordinates & Street Polyline
   late LatLng _dispatchOrigin;
   late LatLng _storePoint;
   late LatLng _customerPoint;
@@ -127,8 +124,20 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   int _remainingMeters = 0;
   int _elapsedSeconds = 0;
 
-  double _leg1Progress = 0.0; // 0.0 -> 1.0 (Captain -> Store)
-  double _leg2Progress = 0.0; // 0.0 -> 1.0 (Store -> Customer)
+  double _leg1Progress = 0.0;
+  double _leg2Progress = 0.0;
+
+  LatLng get _effectiveFallbackDriverPos {
+    final pLat = widget.profileLat;
+    final pLng = widget.profileLng;
+    if (pLat != null &&
+        pLng != null &&
+        pLat.abs() > 1 &&
+        pLng.abs() > 1) {
+      return LatLng(pLat, pLng);
+    }
+    return _kalarOverview;
+  }
 
   @override
   void initState() {
@@ -140,17 +149,21 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
 
     _glideController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 920),
+      duration: const Duration(milliseconds: 850),
     )..addListener(_onGlideFrame);
+
+    _displayDriverPos = _effectiveFallbackDriverPos;
+    _prevDriverPos = _displayDriverPos;
+    _targetDriverPos = _displayDriverPos;
 
     _initCoordinatesAndRoutes();
     if (widget.hasActiveOrder) {
       _syncStageAnchors(widget.stage, jumpImmediately: true);
     }
     _startRealGpsIfAvailable();
-    _gpsRetryTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+    _gpsRetryTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (!mounted || _usingRealGps || _gpsBusy) return;
-      _startRealGpsIfAvailable(requestPermission: true);
+      _startRealGpsIfAvailable(requestPermission: false);
     });
     _startOneSecondEngine();
   }
@@ -158,16 +171,30 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   @override
   void didUpdateWidget(covariant CaptainLiveMapWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!_usingRealGps &&
+        (oldWidget.profileLat != widget.profileLat ||
+            oldWidget.profileLng != widget.profileLng)) {
+      _displayDriverPos = _effectiveFallbackDriverPos;
+      _prevDriverPos = _displayDriverPos;
+      _targetDriverPos = _displayDriverPos;
+    }
     if (oldWidget.hasActiveOrder != widget.hasActiveOrder ||
         oldWidget.orderNumber != widget.orderNumber ||
         oldWidget.storeLat != widget.storeLat ||
-        oldWidget.customerLat != widget.customerLat) {
-      _promptedPinOnce = false;
+        oldWidget.storeLng != widget.storeLng ||
+        oldWidget.customerLat != widget.customerLat ||
+        oldWidget.customerLng != widget.customerLng) {
       _initCoordinatesAndRoutes();
       if (widget.hasActiveOrder) {
         _syncStageAnchors(widget.stage, jumpImmediately: true);
+        if (_mapReady) {
+          Future.delayed(const Duration(milliseconds: 250), () {
+            if (mounted && widget.hasActiveOrder) {
+              _fitFullRoute(keepFollowing: false);
+            }
+          });
+        }
       }
-      unawaited(_syncPointAnnotations());
     } else if (widget.hasActiveOrder && oldWidget.stage != widget.stage) {
       _syncStageAnchors(widget.stage, jumpImmediately: false);
     }
@@ -185,269 +212,31 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     _gpsSub?.cancel();
     _pulseController.dispose();
     _glideController.dispose();
-    _panGestureSub?.cancel();
     super.dispose();
-  }
-
-  mb.Point _mbPoint(LatLng p) =>
-      mb.Point(coordinates: mb.Position(p.longitude, p.latitude));
-
-  mb.LineString _mbLine(List<LatLng> pts) => mb.LineString(
-        coordinates: pts
-            .map((p) => mb.Position(p.longitude, p.latitude))
-            .toList(),
-      );
-
-  int _colorInt(Color c) => RC.bg(c).toARGB32();
-
-  Future<double> _cameraZoom() async {
-    final map = _mbMap;
-    if (map == null) return 15.6;
-    try {
-      final z = (await map.getCameraState()).zoom;
-      return (z.isNaN || z < 11.5) ? 15.6 : z;
-    } catch (_) {
-      return 15.6;
-    }
   }
 
   Future<void> _moveMap(LatLng at, {double? zoom}) async {
     if (!_mapReady) return;
-    _suppressFollowDisable = true;
-    try {
-      final z = zoom ?? await _cameraZoom();
-      final safeZoom = z < 11.5 ? 15.6 : z;
-      await _regaMapKey.currentState?.moveTo(at, zoom: safeZoom);
-    } finally {
-      _suppressFollowDisable = false;
-    }
+    final currentZ = _regaMapKey.currentState?.currentZoom ?? 15.5;
+    final z = zoom ?? (currentZ < 11.5 ? 15.5 : currentZ);
+    await _regaMapKey.currentState?.moveTo(at, zoom: z);
   }
 
-  Future<void> _onMbMapCreated(mb.MapboxMap map) async {
-    _mbMap = map;
+  void _onFlutterMapReady() {
     _mapReady = true;
-    if (!kIsWeb) {
-      try {
-        final annotations = map.annotations;
-        _polyMgr = await annotations.createPolylineAnnotationManager();
-        _polyDashMgr =
-            await annotations.createPolylineAnnotationManager(id: 'dash');
-        await _polyDashMgr?.setLineDasharray([1.4, 1.0]);
-        _pointMgr = await annotations.createPointAnnotationManager();
-      } catch (_) {}
-    }
-    try {
-      _panGestureSub = map.gestures.pan.gestureEvents.listen((_) {
-        if (!_mapReady || _suppressFollowDisable) return;
-        if (_followCaptain) setState(() => _followCaptain = false);
-      });
-    } catch (_) {}
-
-    final center = _usingRealGps ? _displayDriverPos : _kalarOverview;
-    final zoom = _usingRealGps ? 15.6 : 13.8;
-    await _moveMap(center, zoom: zoom);
-    if (_usingRealGps) _followCaptain = true;
-    await _syncRoutePolylines();
-    await _syncPointAnnotations();
-    if (!_usingRealGps && widget.hasActiveOrder) {
-      Future.delayed(const Duration(milliseconds: 350), () {
-        if (mounted && _mapReady && widget.hasActiveOrder && !_usingRealGps) {
-          _safeFitBounds([_storePoint, _customerPoint]);
+    if (widget.hasActiveOrder) {
+      Future.delayed(const Duration(milliseconds: 220), () {
+        if (mounted && widget.hasActiveOrder) {
+          _fitFullRoute(keepFollowing: false);
         }
       });
+    } else {
+      final center = _usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos;
+      final zoom = _usingRealGps ? 15.6 : 14.4;
+      unawaited(_moveMap(center, zoom: zoom));
     }
   }
 
-  Future<void> _syncRoutePolylines() async {
-    if (kIsWeb) return;
-    final solid = _polyMgr;
-    final dashed = _polyDashMgr;
-    if (solid == null) return;
-    try {
-      await solid.deleteAll();
-      await dashed?.deleteAll();
-    } catch (_) {}
-
-    final hasOrder = widget.hasActiveOrder;
-    final isToStore = widget.stage == CaptainRouteStage.assigned ||
-        widget.stage == CaptainRouteStage.arrivingPickup;
-    final polylines = <({List<LatLng> pts, int color, double width, int? border, double borderW, bool dash})>[];
-
-    if (hasOrder && _usingRealGps) {
-      if (isToStore) {
-        final traveled1 =
-            _traveledSubPolyline(_legToStore, _leg1Progress, _displayDriverPos);
-        final remain1 =
-            _remainingSubPolyline(_legToStore, _leg1Progress, _displayDriverPos);
-        if (traveled1.length >= 2) {
-          polylines.add((
-            pts: traveled1,
-            color: _colorInt(const Color(0xFF94A3B8)),
-            width: 5,
-            border: null,
-            borderW: 0,
-            dash: false,
-          ));
-        }
-        if (remain1.length >= 2) {
-          polylines.add((
-            pts: remain1,
-            color: _colorInt(const Color(0xFFF59E0B)),
-            width: 7,
-            border: _colorInt(const Color(0xFF78350F)),
-            borderW: 2.5,
-            dash: false,
-          ));
-        }
-        if (_legToCustomer.length >= 2) {
-          polylines.add((
-            pts: _legToCustomer,
-            color: _colorInt(const Color(0xFF16A34A)),
-            width: 5,
-            border: null,
-            borderW: 0,
-            dash: true,
-          ));
-        }
-      } else {
-        if (_legToStore.length >= 2) {
-          polylines.add((
-            pts: _legToStore,
-            color: _colorInt(const Color(0xFF94A3B8)),
-            width: 4,
-            border: null,
-            borderW: 0,
-            dash: false,
-          ));
-        }
-        final traveled2 = _traveledSubPolyline(
-            _legToCustomer, _leg2Progress, _displayDriverPos);
-        final remain2 = _remainingSubPolyline(
-            _legToCustomer, _leg2Progress, _displayDriverPos);
-        if (traveled2.length >= 2) {
-          polylines.add((
-            pts: traveled2,
-            color: _colorInt(const Color(0xFF22C55E)),
-            width: 5,
-            border: null,
-            borderW: 0,
-            dash: false,
-          ));
-        }
-        if (remain2.length >= 2) {
-          polylines.add((
-            pts: remain2,
-            color: _colorInt(const Color(0xFF00E676)),
-            width: 7.5,
-            border: _colorInt(const Color(0xFF065F46)),
-            borderW: 2.5,
-            dash: false,
-          ));
-        }
-      }
-    } else if (hasOrder && _legToStore.length >= 2) {
-      polylines.add((
-        pts: [_storePoint, _customerPoint],
-        color: _colorInt(const Color(0xFF64748B)),
-        width: 5,
-        border: null,
-        borderW: 0,
-        dash: true,
-      ));
-    }
-
-    for (final pl in polylines) {
-      final mgr = pl.dash ? dashed : solid;
-      if (mgr == null || pl.pts.length < 2) continue;
-      try {
-        await mgr.create(
-          mb.PolylineAnnotationOptions(
-            geometry: _mbLine(pl.pts),
-            lineColor: pl.color,
-            lineWidth: pl.width,
-            lineOpacity: pl.dash ? 0.75 : (pl.color == _colorInt(const Color(0xFF94A3B8)) ? 0.65 : 1.0),
-            lineBorderColor: pl.border,
-            lineBorderWidth: pl.borderW,
-          ),
-        );
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _syncPointAnnotations({bool driverOnly = false}) async {
-    if (kIsWeb) return;
-    final mgr = _pointMgr;
-    if (mgr == null) return;
-
-    if (!driverOnly) {
-      try {
-        await mgr.deleteAll();
-        _driverPointAnno = null;
-      } catch (_) {}
-
-      if (widget.hasActiveOrder) {
-        try {
-          await mgr.create(
-            mb.PointAnnotationOptions(
-              geometry: _mbPoint(_storePoint),
-              textField: widget.merchantName,
-              textSize: 10,
-              textHaloWidth: 1.2,
-              textHaloColor: _colorInt(Colors.white),
-              textColor: _colorInt(const Color(0xFF0F172A)),
-              textOffset: [0, -1.8],
-              iconColor: _colorInt(const Color(0xFFEA580C)),
-              iconSize: 1.1,
-            ),
-          );
-          await mgr.create(
-            mb.PointAnnotationOptions(
-              geometry: _mbPoint(_customerPoint),
-              textField: widget.customerName,
-              textSize: 10,
-              textHaloWidth: 1.2,
-              textHaloColor: _colorInt(Colors.white),
-              textColor: _colorInt(const Color(0xFF0F172A)),
-              textOffset: [0, -1.8],
-              iconColor: _colorInt(const Color(0xFF0284C7)),
-              iconSize: 1.1,
-            ),
-          );
-        } catch (_) {}
-      }
-    }
-
-    if (!_usingRealGps) return;
-
-    try {
-      final speedLabel = '${_speedKmh.toStringAsFixed(0)} km/h';
-      if (_driverPointAnno == null) {
-        _driverPointAnno = await mgr.create(
-          mb.PointAnnotationOptions(
-            geometry: _mbPoint(_displayDriverPos),
-            textField: speedLabel,
-            textSize: 9,
-            textColor: _colorInt(const Color(0xFF00E676)),
-            textHaloColor: _colorInt(const Color(0xFF0F172A)),
-            textHaloWidth: 1.2,
-            textOffset: [0, -2.2],
-            iconRotate: _headingDeg,
-            iconColor: _colorInt(const Color(0xFF00E676)),
-            iconSize: 1.25,
-          ),
-        );
-      } else {
-        _driverPointAnno!
-          ..geometry = _mbPoint(_displayDriverPos)
-          ..iconRotate = _headingDeg
-          ..textField = speedLabel;
-        await mgr.update(_driverPointAnno!);
-      }
-    } catch (_) {}
-  }
-
-  /// Fresh GPS settings — on web force `maximumAge: 0` so browsers cannot
-  /// hand back a cached/stale fix (the Karkuk St / field pin bug).
   LocationSettings _freshLocationSettings({
     LocationAccuracy accuracy = LocationAccuracy.high,
     int distanceFilter = 0,
@@ -471,11 +260,10 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   void _initCoordinatesAndRoutes() {
     _storePoint = LatLng(widget.storeLat, widget.storeLng);
     _customerPoint = LatLng(widget.customerLat, widget.customerLng);
-    // Route start = real phone GPS when available (never a fabricated offset).
-    _dispatchOrigin = _usingRealGps ? _displayDriverPos : _storePoint;
+    _dispatchOrigin =
+        _usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos;
 
     if (!widget.hasActiveOrder) {
-      // Idle map: no route geometry at all.
       _legToStore = [];
       _legToCustomer = [];
       _leg1Progress = 0.0;
@@ -485,17 +273,17 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       return;
     }
 
-    // Temporary straight fallback until Mapbox Directions returns road geometry.
     _legToStore = [_dispatchOrigin, _storePoint];
     _legToCustomer = [_storePoint, _customerPoint];
-
+    _recomputeMetrics();
     _fetchMapboxStreetRoutes();
   }
 
   Future<void> _fetchMapboxStreetRoutes() async {
     if (!widget.hasActiveOrder) return;
     try {
-      final origin = _usingRealGps ? _displayDriverPos : _storePoint;
+      final origin =
+          _usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos;
       final (leg1, leg2) = await MapboxDirections.twoLegRoute(
         origin: origin,
         store: _storePoint,
@@ -510,14 +298,14 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
           _legToCustomer = MapboxDirections.densify(leg2, minPoints: 50);
         }
       });
-      await _syncRoutePolylines();
-    } catch (_) {
-      // Keep temporary fallback line if Directions is unreachable.
-    }
+      _recomputeMetrics();
+    } catch (_) {}
   }
 
-  void _syncStageAnchors(CaptainRouteStage stage, {required bool jumpImmediately}) {
-    // Progress / ETA only — never teleport the pin to a fake place.
+  void _syncStageAnchors(
+    CaptainRouteStage stage, {
+    required bool jumpImmediately,
+  }) {
     switch (stage) {
       case CaptainRouteStage.assigned:
         _leg1Progress = 0.0;
@@ -525,7 +313,8 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         break;
       case CaptainRouteStage.arrivingPickup:
         if (_usingRealGps) {
-          _leg1Progress = _nearestProgressOnPolyline(_legToStore, _displayDriverPos);
+          _leg1Progress =
+              _nearestProgressOnPolyline(_legToStore, _displayDriverPos);
         }
         break;
       case CaptainRouteStage.arrivedPickup:
@@ -537,7 +326,8 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       case CaptainRouteStage.onTheWay:
         _leg1Progress = 1.0;
         if (_usingRealGps) {
-          _leg2Progress = _nearestProgressOnPolyline(_legToCustomer, _displayDriverPos);
+          _leg2Progress =
+              _nearestProgressOnPolyline(_legToCustomer, _displayDriverPos);
         }
         break;
       case CaptainRouteStage.arrivedCustomer:
@@ -549,15 +339,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         _remainingMeters = 0;
         break;
     }
-
-    // Without real GPS we keep the overview center — do not invent a driver place.
-    if (!_usingRealGps) {
-      _recomputeMetrics();
-      unawaited(_syncRoutePolylines());
-      return;
-    }
     _recomputeMetrics();
-    unawaited(_syncRoutePolylines());
   }
 
   Future<void> _startRealGpsIfAvailable({bool requestPermission = true}) async {
@@ -566,9 +348,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     if (mounted) setState(() {});
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) {
-        return;
-      }
+      if (!enabled) return;
 
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied && requestPermission) {
@@ -579,12 +359,11 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         return;
       }
 
-      // Fast first fix so «شوێنەکەم» jumps like the customer app (then stream refines).
       try {
         final pos = await Geolocator.getCurrentPosition(
           locationSettings: _freshLocationSettings(
             accuracy: LocationAccuracy.best,
-            timeLimit: const Duration(seconds: 10),
+            timeLimit: const Duration(seconds: 8),
           ),
         );
         if (mounted) _applyPhoneGpsPosition(pos, snapImmediately: true);
@@ -598,7 +377,6 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       }
 
       await _gpsSub?.cancel();
-      // Web watchPosition is unreliable; distanceFilter:0 + poll fallback below.
       _gpsSub = Geolocator.getPositionStream(
         locationSettings: _freshLocationSettings(
           accuracy: LocationAccuracy.bestForNavigation,
@@ -621,7 +399,6 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         setState(() => _followCaptain = true);
       }
     } catch (_) {
-      // Stay without a driver pin until a real fix arrives.
       _ensureGpsPollingFallback();
     } finally {
       _gpsBusy = false;
@@ -629,13 +406,12 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     }
   }
 
-  /// Poll getCurrentPosition when the web/native stream stalls or never fires.
   void _ensureGpsPollingFallback() {
     if (_gpsPollTimer != null) return;
-    final interval = kIsWeb ? const Duration(seconds: 2) : const Duration(seconds: 4);
+    final interval =
+        kIsWeb ? const Duration(seconds: 3) : const Duration(seconds: 5);
     _gpsPollTimer = Timer.periodic(interval, (_) async {
       if (!mounted) return;
-      // Native: skip poll while the stream is healthy.
       if (!kIsWeb &&
           _lastGpsFixAt != null &&
           DateTime.now().difference(_lastGpsFixAt!).inSeconds < 5) {
@@ -645,7 +421,7 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
         final pos = await Geolocator.getCurrentPosition(
           locationSettings: _freshLocationSettings(
             accuracy: LocationAccuracy.bestForNavigation,
-            timeLimit: const Duration(seconds: 8),
+            timeLimit: const Duration(seconds: 6),
           ),
         );
         if (mounted) _applyPhoneGpsPosition(pos);
@@ -653,55 +429,50 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     });
   }
 
-  /// Move captain pin + camera whenever the delivery phone place changes.
   void _applyPhoneGpsPosition(Position pos, {bool snapImmediately = false}) {
     final next = LatLng(pos.latitude, pos.longitude);
     final hadFix = _usingRealGps;
     _usingRealGps = true;
     _lastGpsFixAt = DateTime.now();
-    _followCaptain = true;
     final speed = pos.speed.isFinite ? math.max(0.0, pos.speed * 3.6) : 0.0;
     _speedKmh = speed;
     if (pos.heading.isFinite && pos.heading >= 0) {
       _headingDeg = pos.heading;
     }
 
-    // First fix: snap — never glide from the Kalar overview toward the phone.
     if (!hadFix || snapImmediately) {
       _glideController.stop();
       _prevDriverPos = next;
       _targetDriverPos = next;
       _displayDriverPos = next;
-      if (_mapReady) unawaited(_moveMap(next));
+      if (_mapReady && _followCaptain) {
+        unawaited(_moveMap(next, zoom: 15.6));
+      }
       if (mounted) setState(() {});
-      unawaited(_syncPointAnnotations());
-      unawaited(_syncRoutePolylines());
     } else {
       _animateDriverTo(next);
     }
 
     _updateProgressFromPhoneGps(next);
     _recomputeMetrics();
-    // Push the real fix coords (not mid-animation display).
     _pushFleetLocationIfNeeded(
       force: !hadFix,
       lat: next.latitude,
       lng: next.longitude,
     );
-    // Rebuild road route from the real phone place once we get the first fix.
     if (!hadFix && widget.hasActiveOrder) {
       _dispatchOrigin = next;
       _fetchMapboxStreetRoutes();
     }
   }
 
-  /// Publish GPS to backend so admin + seller maps see this online driver.
   Future<void> _pushFleetLocationIfNeeded({
     bool force = false,
     double? lat,
     double? lng,
   }) async {
-    if (!widget.isOnline || !_usingRealGps) return;
+    if (!widget.isOnline) return;
+    final pos = _usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos;
     final now = DateTime.now();
     if (!force &&
         _lastFleetLocationPush != null &&
@@ -710,8 +481,8 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     }
     _lastFleetLocationPush = now;
     await DriverApiService.instance.updateLocation(
-      lat ?? _displayDriverPos.latitude,
-      lng ?? _displayDriverPos.longitude,
+      lat ?? pos.latitude,
+      lng ?? pos.longitude,
       heading: _headingDeg,
       speedKmh: _speedKmh,
     );
@@ -746,18 +517,12 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     _secondTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || !widget.isOnline) return;
       _elapsedSeconds += 1;
-      if (_usingRealGps) {
-        _recomputeMetrics();
-        if (widget.hasActiveOrder) {
-          _pushOneSecondTelemetryToBackend();
-        }
-        // Keep fleet GPS alive for admin/seller maps (real phone only).
-        if (_elapsedSeconds % 3 == 0) {
-          _pushFleetLocationIfNeeded(
-            lat: _targetDriverPos.latitude,
-            lng: _targetDriverPos.longitude,
-          );
-        }
+      _recomputeMetrics();
+      if (widget.hasActiveOrder) {
+        _pushOneSecondTelemetryToBackend();
+      }
+      if (_elapsedSeconds % 4 == 0) {
+        _pushFleetLocationIfNeeded();
       }
     });
   }
@@ -774,19 +539,19 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     if (_followCaptain && _mapReady) {
       unawaited(_moveMap(next));
     }
-    unawaited(_syncPointAnnotations(driverOnly: true));
   }
 
   void _onGlideFrame() {
     if (!mounted) return;
-    final t = Curves.linear.transform(_glideController.value);
+    final t = Curves.easeOut.transform(_glideController.value);
     setState(() {
       _displayDriverPos = LatLng(
-        _prevDriverPos.latitude + (_targetDriverPos.latitude - _prevDriverPos.latitude) * t,
-        _prevDriverPos.longitude + (_targetDriverPos.longitude - _prevDriverPos.longitude) * t,
+        _prevDriverPos.latitude +
+            (_targetDriverPos.latitude - _prevDriverPos.latitude) * t,
+        _prevDriverPos.longitude +
+            (_targetDriverPos.longitude - _prevDriverPos.longitude) * t,
       );
     });
-    unawaited(_syncPointAnnotations(driverOnly: true));
   }
 
   void _recomputeMetrics() {
@@ -794,10 +559,12 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     if (!widget.hasActiveOrder ||
         widget.stage == CaptainRouteStage.delivered ||
         widget.stage == CaptainRouteStage.arrivedCustomer) {
-      setState(() {
-        _remainingMeters = 0;
-        _etaSeconds = 0;
-      });
+      if (_remainingMeters != 0 || _etaSeconds != 0) {
+        setState(() {
+          _remainingMeters = 0;
+          _etaSeconds = 0;
+        });
+      }
       return;
     }
 
@@ -813,24 +580,29 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       meters = _remainingPolylineMeters(_legToCustomer, _leg2Progress);
     }
 
-    // Average Kalar urban scooter speed ~9.5 m/s (~34 km/h)
     final secs = (meters / 9.5).ceil();
-
-    setState(() {
-      _remainingMeters = meters.round();
-      _etaSeconds = math.max(0, secs);
-    });
+    final nextMeters = meters.round();
+    final nextSecs = math.max(0, secs);
+    if (nextMeters != _remainingMeters || nextSecs != _etaSeconds) {
+      setState(() {
+        _remainingMeters = nextMeters;
+        _etaSeconds = nextSecs;
+      });
+    }
   }
 
   Future<void> _pushOneSecondTelemetryToBackend() async {
-    if (!_usingRealGps) return;
     final cleanRef = widget.orderNumber.replaceAll('#', '').trim();
     if (cleanRef.isEmpty) return;
 
+    final driverPos =
+        _usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos;
     final statusPair = _mapStageToBackendStrings(widget.stage);
     final totalPermille = widget.stage == CaptainRouteStage.delivered
         ? 1000
-        : ((_leg1Progress * 350) + (_leg2Progress * 650)).round().clamp(0, 999);
+        : ((_leg1Progress * 350) + (_leg2Progress * 650))
+            .round()
+            .clamp(0, 999);
 
     try {
       final res = await http
@@ -841,8 +613,8 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
               'Accept': 'application/json',
             },
             body: jsonEncode({
-              'driver_lat': _displayDriverPos.latitude,
-              'driver_lng': _displayDriverPos.longitude,
+              'driver_lat': driverPos.latitude,
+              'driver_lng': driverPos.longitude,
               'driver_heading': double.parse(_headingDeg.toStringAsFixed(1)),
               'driver_speed_kmh': double.parse(_speedKmh.toStringAsFixed(1)),
               'eta_seconds': _etaSeconds,
@@ -852,9 +624,12 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
               'driver_status': statusPair.$2,
             }),
           )
-          .timeout(const Duration(milliseconds: 900));
+          .timeout(const Duration(milliseconds: 1100));
 
-      if (mounted && res.statusCode >= 200 && res.statusCode < 300 && !_backendSynced) {
+      if (mounted &&
+          res.statusCode >= 200 &&
+          res.statusCode < 300 &&
+          !_backendSynced) {
         setState(() => _backendSynced = true);
       }
     } catch (_) {
@@ -865,7 +640,12 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   }
 
   Future<void> syncLatestCustomerOrderFromServer() async {
+    if (_refreshBusy) return;
+    setState(() => _refreshBusy = true);
     try {
+      if (widget.onRefreshData != null) {
+        await widget.onRefreshData!();
+      }
       final res = await http
           .get(
             Uri.parse('${widget.apiBaseUrl}/live-telemetry/latest-active'),
@@ -875,11 +655,16 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         final data = body['data'] as Map<String, dynamic>?;
-        if (data != null && widget.onNewBackendOrderFound != null) {
+        if (data != null &&
+            !widget.hasActiveOrder &&
+            widget.onNewBackendOrderFound != null) {
           widget.onNewBackendOrderFound!(data);
         }
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _refreshBusy = false);
+    }
   }
 
   (String, String) _mapStageToBackendStrings(CaptainRouteStage stage) {
@@ -916,14 +701,16 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     );
   }
 
-  List<LatLng> _remainingSubPolyline(List<LatLng> pts, double progress, LatLng currentPos) {
+  List<LatLng> _remainingSubPolyline(
+      List<LatLng> pts, double progress, LatLng currentPos) {
     if (pts.length < 2 || progress >= 1.0) return [];
     final exact = progress.clamp(0.0, 1.0) * (pts.length - 1);
     final nextIdx = exact.ceil().clamp(1, pts.length - 1);
     return [currentPos, ...pts.sublist(nextIdx)];
   }
 
-  List<LatLng> _traveledSubPolyline(List<LatLng> pts, double progress, LatLng currentPos) {
+  List<LatLng> _traveledSubPolyline(
+      List<LatLng> pts, double progress, LatLng currentPos) {
     if (pts.length < 2 || progress <= 0.0) return [];
     final exact = progress.clamp(0.0, 1.0) * (pts.length - 1);
     final lastIdx = exact.floor().clamp(0, pts.length - 1);
@@ -932,7 +719,8 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
 
   double _remainingPolylineMeters(List<LatLng> pts, double progress) {
     if (pts.length < 2 || progress >= 1.0) return 0;
-    final sub = _remainingSubPolyline(pts, progress, _pointAlong(pts, progress));
+    final sub =
+        _remainingSubPolyline(pts, progress, _pointAlong(pts, progress));
     double sum = 0;
     for (var i = 0; i < sub.length - 1; i++) {
       sum += _haversineMeters(sub[i], sub[i + 1]);
@@ -947,7 +735,10 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     final lat1 = a.latitude * math.pi / 180.0;
     final lat2 = b.latitude * math.pi / 180.0;
     final h = math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
     return 2 * r * math.atan2(math.sqrt(h), math.sqrt(1 - h));
   }
 
@@ -961,41 +752,364 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
     return (math.atan2(y, x) * 180.0 / math.pi + 360.0) % 360.0;
   }
 
-  Future<void> _safeFitBounds(List<LatLng> points, {double maxZoom = 16.2, double minZoom = 11.5}) async {
-    if (!_mapReady || points.isEmpty || _mbMap == null) return;
-    try {
-      final valid = points.where((p) => !p.latitude.isNaN && !p.longitude.isNaN).toList();
-      if (valid.isEmpty) return;
-      if (valid.length == 1) {
-        await _moveMap(valid.first, zoom: 15.6);
-        return;
-      }
-      final camera = await _mbMap!.cameraForCoordinates(
-        valid.map(_mbPoint).toList(),
-        mb.MbxEdgeInsets(top: 36, left: 28, bottom: 36, right: 28),
-        null,
-        null,
+  void _fitFullRoute({bool keepFollowing = false}) {
+    if (!_mapReady) return;
+    _followCaptain = keepFollowing;
+    final driverPos =
+        _usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos;
+    if (widget.hasActiveOrder) {
+      _regaMapKey.currentState?.fitPoints(
+        [driverPos, _storePoint, _customerPoint],
+        padding: EdgeInsets.fromLTRB(
+          42,
+          128,
+          42,
+          widget.isOrderCardExpanded ? 310 : 190,
+        ),
       );
-      var z = camera.zoom ?? 15.6;
-      if (z > maxZoom) z = maxZoom;
-      if (z < minZoom) z = minZoom;
-      _suppressFollowDisable = true;
-      await _mbMap!.setCamera(mb.CameraOptions(center: camera.center, zoom: z));
-      _suppressFollowDisable = false;
-    } catch (_) {
-      await _moveMap(_displayDriverPos, zoom: 15.6);
+    } else {
+      _moveMap(driverPos, zoom: 15.2);
     }
+    setState(() {});
   }
 
-  void _fitFullRoute({bool keepFollowing = false}) {
-    if (!_mapReady || !widget.hasActiveOrder) return;
-    _followCaptain = keepFollowing;
-    _safeFitBounds([
-      _displayDriverPos,
-      _storePoint,
-      _customerPoint,
-    ]);
-    setState(() {});
+  List<Polyline> _buildFlutterMapPolylines() {
+    if (!widget.hasActiveOrder) return const [];
+
+    final lines = <Polyline>[];
+    final isToStore = widget.stage == CaptainRouteStage.assigned ||
+        widget.stage == CaptainRouteStage.arrivingPickup;
+    final driverPos =
+        _usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos;
+
+    if (isToStore) {
+      final traveled1 =
+          _traveledSubPolyline(_legToStore, _leg1Progress, driverPos);
+      final remain1 =
+          _remainingSubPolyline(_legToStore, _leg1Progress, driverPos);
+      if (traveled1.length >= 2) {
+        lines.add(
+          Polyline(
+            points: traveled1,
+            color: const Color(0xFF94A3B8).withValues(alpha: 0.7),
+            strokeWidth: 4.5,
+          ),
+        );
+      }
+      if (remain1.length >= 2) {
+        lines.add(
+          Polyline(
+            points: remain1,
+            color: const Color(0xFFF59E0B),
+            strokeWidth: 6.5,
+            borderColor: const Color(0xFF78350F),
+            borderStrokeWidth: 2.0,
+          ),
+        );
+      } else if (_legToStore.length >= 2) {
+        lines.add(
+          Polyline(
+            points: _legToStore,
+            color: const Color(0xFFF59E0B),
+            strokeWidth: 6.0,
+            borderColor: const Color(0xFF78350F),
+            borderStrokeWidth: 1.8,
+          ),
+        );
+      }
+      if (_legToCustomer.length >= 2) {
+        lines.add(
+          Polyline(
+            points: _legToCustomer,
+            color: const Color(0xFF16A34A).withValues(alpha: 0.82),
+            strokeWidth: 5.0,
+            borderColor: const Color(0xFF064E3B).withValues(alpha: 0.5),
+            borderStrokeWidth: 1.5,
+          ),
+        );
+      }
+    } else {
+      if (_legToStore.length >= 2) {
+        lines.add(
+          Polyline(
+            points: _legToStore,
+            color: const Color(0xFF94A3B8).withValues(alpha: 0.65),
+            strokeWidth: 4.0,
+          ),
+        );
+      }
+      final traveled2 =
+          _traveledSubPolyline(_legToCustomer, _leg2Progress, driverPos);
+      final remain2 =
+          _remainingSubPolyline(_legToCustomer, _leg2Progress, driverPos);
+      if (traveled2.length >= 2) {
+        lines.add(
+          Polyline(
+            points: traveled2,
+            color: const Color(0xFF22C55E).withValues(alpha: 0.75),
+            strokeWidth: 5.0,
+          ),
+        );
+      }
+      if (remain2.length >= 2) {
+        lines.add(
+          Polyline(
+            points: remain2,
+            color: const Color(0xFF00E676),
+            strokeWidth: 7.0,
+            borderColor: const Color(0xFF065F46),
+            borderStrokeWidth: 2.2,
+          ),
+        );
+      } else if (_legToCustomer.length >= 2) {
+        lines.add(
+          Polyline(
+            points: _legToCustomer,
+            color: const Color(0xFF00E676),
+            strokeWidth: 6.5,
+            borderColor: const Color(0xFF065F46),
+            borderStrokeWidth: 2.0,
+          ),
+        );
+      }
+    }
+    return lines;
+  }
+
+  List<Marker> _buildFlutterMapMarkers() {
+    final markers = <Marker>[];
+    final driverPos =
+        _usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos;
+
+    if (widget.hasActiveOrder) {
+      // 1. Vendor / Store Pin
+      markers.add(
+        Marker(
+          point: _storePoint,
+          width: 116,
+          height: 76,
+          alignment: Alignment.bottomCenter,
+          child: GestureDetector(
+            onTap: () => _moveMap(_storePoint, zoom: 16.5),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: const Color(0xFFEA580C), width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 6,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    tx(widget.merchantName.isEmpty
+                        ? 'فرۆشگا'
+                        : widget.merchantName),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF97316), Color(0xFFEA580C)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2.5),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black38,
+                        blurRadius: 8,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.storefront_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // 2. Customer Pin
+      markers.add(
+        Marker(
+          point: _customerPoint,
+          width: 116,
+          height: 76,
+          alignment: Alignment.bottomCenter,
+          child: GestureDetector(
+            onTap: () => _moveMap(_customerPoint, zoom: 16.5),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: const Color(0xFF0284C7), width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 6,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    tx(widget.customerName.isEmpty
+                        ? 'کڕیار'
+                        : widget.customerName),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF38BDF8), Color(0xFF0284C7)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2.5),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black38,
+                        blurRadius: 8,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.home_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 3. Captain / Driver Live Marker (always shown so captain sees their pin)
+    markers.add(
+      Marker(
+        point: driverPos,
+        width: 96,
+        height: 96,
+        alignment: Alignment.center,
+        child: AnimatedBuilder(
+          animation: _pulseController,
+          builder: (context, _) {
+            final p = _pulseController.value;
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 38 + (p * 42),
+                  height: 38 + (p * 42),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF00E676)
+                        .withValues(alpha: (1.0 - p) * 0.35),
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00E676),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF0F172A),
+                          width: 2.8,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black38,
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.two_wheeler_rounded,
+                        color: Color(0xFF0F172A),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        tx(_usingRealGps
+                            ? '${_speedKmh.toStringAsFixed(0)} km/h'
+                            : 'کاپتن'),
+                        style: const TextStyle(
+                          color: Color(0xFF00E676),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+
+    return markers;
   }
 
   String _formatCountdown(int secs) {
@@ -1050,82 +1164,138 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
   @override
   Widget build(BuildContext context) {
     final hasOrder = widget.hasActiveOrder;
+    final phone = RegaResponsive.isPhone(context);
+    final padH = RegaResponsive.pagePadding(context);
 
-    final mapCenter = _usingRealGps ? _displayDriverPos : _kalarOverview;
-    final mapZoom = _usingRealGps ? 15.6 : 13.8;
+    final mapCenter =
+        _usingRealGps ? _displayDriverPos : _effectiveFallbackDriverPos;
+    final mapZoom = _usingRealGps ? 15.6 : 14.4;
 
     const gold = Color(0xFFFAC800);
-    final topPad = MediaQuery.of(context).padding.top;
-    final bottomPad = 88.0 + MediaQuery.of(context).padding.bottom;
+    const brandGreen = Color(0xFF00B34B);
+
+    // Dynamic bottom offset so map controls sit cleanly above bottom card
+    final double controlsBottom = hasOrder
+        ? (widget.isOrderCardExpanded ? (phone ? 295.0 : 310.0) : 84.0)
+        : (phone ? 112.0 : 120.0);
 
     return Stack(
       children: [
-        RegaStandardMap(
-          key: _regaMapKey,
-          center: mapCenter,
-          zoom: mapZoom,
-          showLayersFab: false,
-          onMapCreated: _onMbMapCreated,
-          onStyleChanged: (id) {
-            if (mounted) setState(() => _isSatellite = id == RegaMapStyleId.satellite);
-          },
+        Positioned.fill(
+          child: RegaStandardMap(
+            key: _regaMapKey,
+            center: mapCenter,
+            zoom: mapZoom,
+            showLayersFab: false,
+            showCustomerControls: false,
+            onMapReady: _onFlutterMapReady,
+            onUserGesture: (_) {
+              if (_followCaptain) {
+                setState(() => _followCaptain = false);
+              }
+            },
+            onStyleChanged: (id) {
+              if (mounted) {
+                setState(() => _isSatellite = id == RegaMapStyleId.satellite);
+              }
+            },
+            polylines: _buildFlutterMapPolylines(),
+            markers: _buildFlutterMapMarkers(),
+          ),
         ),
 
-        // Customer-style top chips: سەتەلایت | شوێنەکەم
+        // Top Responsive Map Control Bar (Never overlaps!)
         Positioned(
-          top: 12 + topPad * 0.1,
-          left: 10,
-          right: 10,
-          child: SafeArea(
-            bottom: false,
-            child: Directionality(
-              textDirection: TextDirection.ltr,
-              child: Row(
-                children: [
-                  _CaptainModeChip(
-                    label: 'سەتەلایت',
-                    icon: Icons.satellite_alt_rounded,
-                    active: _isSatellite,
-                    activeColor: gold,
-                    onTap: () => _regaMapKey.currentState?.toggleSatellite(),
-                  ),
-                  const SizedBox(width: 8),
-                  if (hasOrder)
-                    _CaptainModeChip(
-                      label: 'ڕێگا',
-                      icon: Icons.route_rounded,
-                      active: false,
-                      activeColor: const Color(0xFF22C55E),
-                      onTap: _fitFullRoute,
+          top: 10,
+          left: padH,
+          right: padH,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1080),
+              child: Directionality(
+                textDirection: TextDirection.ltr,
+                child: Row(
+                  children: [
+                    // Left group: Satellite toggle + Refresh/Sync + Route Fit
+                    Flexible(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _CaptainModeChip(
+                              label: _isSatellite ? 'نەخشە' : 'سەتەلایت',
+                              icon: _isSatellite
+                                  ? Icons.map_rounded
+                                  : Icons.satellite_alt_rounded,
+                              active: _isSatellite,
+                              activeColor: gold,
+                              compact: phone,
+                              onTap: () =>
+                                  _regaMapKey.currentState?.toggleSatellite(),
+                            ),
+                            const SizedBox(width: 6),
+                            _CaptainIconChip(
+                              icon: Icons.sync_rounded,
+                              busy: _refreshBusy,
+                              tooltip: tx(_mt('sync_order')),
+                              onTap: syncLatestCustomerOrderFromServer,
+                            ),
+                            if (hasOrder) ...[
+                              const SizedBox(width: 6),
+                              _CaptainModeChip(
+                                label: 'ڕێگا',
+                                icon: Icons.route_rounded,
+                                active: false,
+                                activeColor: brandGreen,
+                                compact: phone,
+                                onTap: () =>
+                                    _fitFullRoute(keepFollowing: false),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
-                  const Spacer(),
-                  _CaptainModeChip(
-                    label: 'شوێنەکەم',
-                    icon: _gpsBusy
-                        ? Icons.hourglass_top_rounded
-                        : Icons.my_location_rounded,
-                    active: true,
-                    activeColor: gold,
-                    busy: _gpsBusy,
-                    onTap: _gpsBusy
-                        ? () {}
-                        : () async {
-                            setState(() => _followCaptain = true);
-                            await _startRealGpsIfAvailable(requestPermission: true);
-                          },
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    // Right: My Location button with live GPS status indicator
+                    _CaptainModeChip(
+                      label: 'شوێنەکەم',
+                      icon: _usingRealGps
+                          ? Icons.my_location_rounded
+                          : Icons.location_searching_rounded,
+                      active: true,
+                      activeColor: gold,
+                      busy: _gpsBusy,
+                      compact: phone,
+                      dotColor: _usingRealGps
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFD97706),
+                      onTap: _gpsBusy
+                          ? () {}
+                          : () async {
+                              setState(() => _followCaptain = true);
+                              await _startRealGpsIfAvailable(
+                                  requestPermission: true);
+                              if (!_usingRealGps && _mapReady) {
+                                await _moveMap(_effectiveFallbackDriverPos,
+                                    zoom: 15.2);
+                              }
+                            },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
 
-        // Compact order HUD (only with active order) — lighter, customer-like card
+        // Live Order Navigation HUD (shown right below top chips when order is active)
         if (hasOrder)
           Positioned(
-            top: 62 + topPad * 0.15,
-            left: RegaResponsive.pagePadding(context),
-            right: RegaResponsive.pagePadding(context),
+            top: 56,
+            left: padH,
+            right: padH,
             child: Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
@@ -1133,57 +1303,123 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                   maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 620),
                 ),
                 child: Material(
-                  color: Colors.white,
+                  color: RC.bg(Colors.white).withValues(alpha: 0.96),
                   elevation: 6,
                   shadowColor: Colors.black26,
                   borderRadius: BorderRadius.circular(18),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: phone ? 10 : 14,
+                      vertical: phone ? 8 : 10,
+                    ),
                     child: Row(
                       children: [
                         Container(
-                          width: 40,
-                          height: 40,
+                          width: phone ? 36 : 40,
+                          height: phone ? 36 : 40,
                           decoration: BoxDecoration(
                             color: gold.withValues(alpha: 0.22),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(_navigationIcon(), color: const Color(0xFF0F172A), size: 22),
+                          child: Icon(
+                            _navigationIcon(),
+                            color: RC.fg(const Color(0xFF0F172A)),
+                            size: phone ? 20 : 22,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
                                 tx(_navigationHeadline()),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Color(0xFF0F172A),
-                                  fontSize: 13.5,
+                                style: TextStyle(
+                                  color: RC.fg(const Color(0xFF0F172A)),
+                                  fontSize: phone ? 12.5 : 13.5,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                tx(_backendSynced ? _mt('gps_live_sync') : _mt('gps_live_kalar')),
-                                style: TextStyle(
-                                  color: _backendSynced
-                                      ? const Color(0xFF16A34A)
-                                      : const Color(0xFFD97706),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                ),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: BoxDecoration(
+                                      color: _usingRealGps
+                                          ? const Color(0xFF16A34A)
+                                          : const Color(0xFFD97706),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      tx(_usingRealGps
+                                          ? _mt('gps_live_sync')
+                                          : _mt('gps_live_kalar')),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: _usingRealGps
+                                            ? const Color(0xFF16A34A)
+                                            : const Color(0xFFD97706),
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
+                        // Quick jump to Store / Customer pins
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints:
+                              const BoxConstraints(minWidth: 30, minHeight: 30),
+                          tooltip: tx(widget.merchantName),
+                          icon: const Icon(
+                            Icons.storefront_rounded,
+                            color: Color(0xFFEA580C),
+                            size: 19,
+                          ),
+                          onPressed: () {
+                            setState(() => _followCaptain = false);
+                            _moveMap(_storePoint, zoom: 16.4);
+                          },
+                        ),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints:
+                              const BoxConstraints(minWidth: 30, minHeight: 30),
+                          tooltip: tx(widget.customerName),
+                          icon: const Icon(
+                            Icons.home_rounded,
+                            color: Color(0xFF0284C7),
+                            size: 19,
+                          ),
+                          onPressed: () {
+                            setState(() => _followCaptain = false);
+                            _moveMap(_customerPoint, zoom: 16.4);
+                          },
+                        ),
+                        const SizedBox(width: 4),
                         Directionality(
                           textDirection: TextDirection.ltr,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: phone ? 8 : 10,
+                              vertical: 5,
+                            ),
                             decoration: BoxDecoration(
                               color: gold,
                               borderRadius: BorderRadius.circular(12),
@@ -1193,11 +1429,13 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                               children: [
                                 Text(
                                   tx(_formatCountdown(_etaSeconds)),
-                                  style: const TextStyle(
-                                    color: Color(0xFF0F172A),
-                                    fontSize: 15,
+                                  style: TextStyle(
+                                    color: const Color(0xFF0F172A),
+                                    fontSize: phone ? 13 : 14.5,
                                     fontWeight: FontWeight.w900,
-                                    fontFeatures: [FontFeature.tabularFigures()],
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures()
+                                    ],
                                   ),
                                 ),
                                 Text(
@@ -1220,11 +1458,14 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
             ),
           ),
 
-        // Zoom + / − — customer style (bottom right)
-        Positioned(
-          right: 14,
-          bottom: bottomPad,
+        // Floating Zoom & Map Style Controls (Right Rail — dynamically positioned above bottom card)
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          right: padH,
+          bottom: controlsBottom,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               _MapHudButton(
                 icon: Icons.add_rounded,
@@ -1232,69 +1473,23 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                 tooltip: '+',
                 onTap: () => _regaMapKey.currentState?.zoomBy(1),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _MapHudButton(
                 icon: Icons.remove_rounded,
                 active: false,
                 tooltip: '−',
                 onTap: () => _regaMapKey.currentState?.zoomBy(-1),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _MapHudButton(
-                icon: Icons.cloud_sync_rounded,
-                active: _backendSynced,
-                tooltip: tx(_mt('sync_order')),
-                onTap: syncLatestCustomerOrderFromServer,
+                icon: Icons.layers_rounded,
+                active: _isSatellite,
+                tooltip: tx(_mt('map_style')),
+                onTap: () => _regaMapKey.currentState?.cycleStyle(),
               ),
             ],
           ),
         ),
-
-        // Soft tip when GPS not ready yet (not dark full banner)
-        if (!_usingRealGps)
-          Positioned(
-            left: 14,
-            bottom: bottomPad,
-            child: Material(
-              color: gold,
-              elevation: 4,
-              borderRadius: BorderRadius.circular(24),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(24),
-                onTap: _gpsBusy
-                    ? null
-                    : () => _startRealGpsIfAvailable(requestPermission: true),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_gpsBusy)
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Color(0xFF0F172A),
-                          ),
-                        )
-                      else
-                        const Icon(Icons.my_location_rounded, size: 18, color: Color(0xFF0F172A)),
-                      const SizedBox(width: 8),
-                      Text(
-                        tx(_gpsBusy ? _mt('gps_locating') : 'شوێنەکەم'),
-                        style: const TextStyle(
-                          color: Color(0xFF0F172A),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
@@ -1307,6 +1502,8 @@ class _CaptainModeChip extends StatelessWidget {
   final Color activeColor;
   final VoidCallback onTap;
   final bool busy;
+  final bool compact;
+  final Color? dotColor;
 
   const _CaptainModeChip({
     required this.label,
@@ -1315,12 +1512,14 @@ class _CaptainModeChip extends StatelessWidget {
     required this.activeColor,
     required this.onTap,
     this.busy = false,
+    this.compact = false,
+    this.dotColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: active ? activeColor : Colors.white,
+      color: active ? activeColor : RC.bg(Colors.white),
       elevation: 4,
       shadowColor: Colors.black26,
       borderRadius: BorderRadius.circular(24),
@@ -1328,28 +1527,104 @@ class _CaptainModeChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 11 : 14,
+            vertical: compact ? 8 : 9,
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (busy)
                 const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F172A)),
+                  width: 15,
+                  height: 15,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF0F172A),
+                  ),
                 )
               else
-                Icon(icon, size: 17, color: const Color(0xFF0F172A)),
-              const SizedBox(width: 6),
+                Icon(
+                  icon,
+                  size: compact ? 15.5 : 17,
+                  color: active
+                      ? const Color(0xFF0F172A)
+                      : RC.fg(const Color(0xFF0F172A)),
+                ),
+              const SizedBox(width: 5),
               Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 13,
+                tx(label),
+                style: TextStyle(
+                  fontSize: compact ? 12 : 13,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF0F172A),
+                  color: active
+                      ? const Color(0xFF0F172A)
+                      : RC.fg(const Color(0xFF0F172A)),
                 ),
               ),
+              if (dotColor != null) ...[
+                const SizedBox(width: 5),
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CaptainIconChip extends StatelessWidget {
+  final IconData icon;
+  final bool busy;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _CaptainIconChip({
+    required this.icon,
+    required this.busy,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: RC.bg(Colors.white),
+        elevation: 4,
+        shadowColor: Colors.black26,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: busy ? null : onTap,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Center(
+              child: busy
+                  ? const SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF16A34A),
+                      ),
+                    )
+                  : Icon(
+                      icon,
+                      size: 18,
+                      color: RC.fg(const Color(0xFF0F172A)),
+                    ),
+            ),
           ),
         ),
       ),
@@ -1375,19 +1650,22 @@ class _MapHudButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: active ? RC.bg(Color(0xFF0F172A)) : RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(14),
-        elevation: 4,
+        color: active ? const Color(0xFF0F172A) : Colors.white,
+        shape: const CircleBorder(),
+        elevation: 5,
+        shadowColor: Colors.black38,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
+          customBorder: const CircleBorder(),
           child: SizedBox(
-            width: 42,
-            height: 42,
+            width: 44,
+            height: 44,
             child: Icon(
               icon,
-              size: 21,
-              color: active ? RC.fg(Color(0xFF00E676)) : RC.bg(Color(0xFF0F172A)),
+              size: 22,
+              color: active
+                  ? const Color(0xFF00E676)
+                  : const Color(0xFF0F172A),
             ),
           ),
         ),

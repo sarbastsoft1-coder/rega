@@ -2,15 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import '../core/api/api_client.dart';
 import '../core/iraq_phone_formatter.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
-import '../map/rega_map_annotation_helpers.dart';
-import '../map/rega_map_styles.dart';
 import '../map/rega_standard_map.dart';
 import '../widgets/common_widgets.dart';
 import 'drivers_screen.dart';
@@ -37,16 +35,12 @@ class DeliveryPartScreen extends StatefulWidget {
 class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final GlobalKey<RegaStandardMapState> _regaMapKey = GlobalKey();
-  mb.PointAnnotationManager? _pointMgr;
-  mb.CircleAnnotationManager? _circleMgr;
-  mb.PolylineAnnotationManager? _polylineMgr;
   static const LatLng _hubMapCenter = LatLng(34.6295, 45.3159);
   Timer? _radarOneSecondTimer;
   Timer? _hubRefreshTimer;
 
   bool _loading = true;
   String? _error;
-  bool _darkMap = true;
   int _radarTicks = 0;
 
   Map<String, dynamic> _kpis = {};
@@ -77,24 +71,61 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
     super.dispose();
   }
 
-  Future<void> _onHubMapCreated(mb.MapboxMap map) async {
-    final ann = map.annotations;
-    _pointMgr = await ann.createPointAnnotationManager();
-    _circleMgr = await ann.createCircleAnnotationManager();
-    _polylineMgr = await ann.createPolylineAnnotationManager();
-    await _syncHubLiveMapAnnotations();
-  }
+  Future<void> _syncHubLiveMapAnnotations() async {}
 
-  Future<void> _syncHubLiveMapAnnotations() async {
-    final points = _pointMgr;
-    final circles = _circleMgr;
-    final lines = _polylineMgr;
-    if (points == null || circles == null || lines == null) return;
-    await regaClearAnnotationLayers(points: points, circles: circles, polylines: lines);
+  (List<Polyline>, List<Marker>) _buildHubMapLayers() {
+    final polylines = <Polyline>[];
+    final markers = <Marker>[];
 
-    final pointOpts = <mb.PointAnnotationOptions>[];
-    final circleOpts = <mb.CircleAnnotationOptions>[];
-    final lineOpts = <mb.PolylineAnnotationOptions>[];
+    Marker pin({
+      required LatLng point,
+      required IconData icon,
+      required Color color,
+      required String label,
+    }) {
+      return Marker(
+        point: point,
+        width: 110,
+        height: 68,
+        alignment: Alignment.bottomCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                tx(label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2.2),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+                ],
+              ),
+              child: Icon(icon, color: Colors.white, size: 17),
+            ),
+          ],
+        ),
+      );
+    }
 
     for (final s in _radarSessions) {
       final m = s as Map<String, dynamic>;
@@ -105,102 +136,75 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
           pts.add(LatLng((p[0] as num).toDouble(), (p[1] as num).toDouble()));
         }
       }
-      if (pts.length >= 2) {
-        lineOpts.add(
-          mb.PolylineAnnotationOptions(
-            geometry: regaMapLine(pts),
-            lineColor: regaArgb(RegaColors.emerald),
-            lineWidth: 4.5,
-          ),
-        );
-      }
-
-      final sLat = (m['store_lat'] as num?)?.toDouble() ?? 34.6836;
-      final sLng = (m['store_lng'] as num?)?.toDouble() ?? 45.3189;
-      final cLat = (m['customer_lat'] as num?)?.toDouble() ?? 34.6912;
-      final cLng = (m['customer_lng'] as num?)?.toDouble() ?? 45.3264;
-      final dLat = (m['driver_lat'] as num?)?.toDouble() ?? 34.6850;
-      final dLng = (m['driver_lng'] as num?)?.toDouble() ?? 45.3210;
-      final heading = (m['driver_heading'] as num?)?.toDouble() ?? 45.0;
+      final sLat = (m['store_lat'] as num?)?.toDouble() ?? 34.6295;
+      final sLng = (m['store_lng'] as num?)?.toDouble() ?? 45.3159;
+      final cLat = (m['customer_lat'] as num?)?.toDouble() ?? 34.6345;
+      final cLng = (m['customer_lng'] as num?)?.toDouble() ?? 45.3220;
+      final dLat = (m['driver_lat'] as num?)?.toDouble() ?? 34.6315;
+      final dLng = (m['driver_lng'] as num?)?.toDouble() ?? 45.3185;
       final eta = (m['eta_seconds'] as num?)?.toInt() ?? 0;
       final orderRef = m['order_ref']?.toString() ?? '';
 
-      circleOpts.add(
-        mb.CircleAnnotationOptions(
-          geometry: regaMapPoint(LatLng(sLat, sLng)),
-          circleRadius: 9,
-          circleColor: regaArgb(RegaColors.orange),
-          circleStrokeColor: regaArgb(RC.bg(Colors.white)),
-          circleStrokeWidth: 2,
+      final linePts = pts.length >= 2
+          ? pts
+          : [LatLng(sLat, sLng), LatLng(dLat, dLng), LatLng(cLat, cLng)];
+      polylines.add(
+        Polyline(
+          points: linePts,
+          color: const Color(0xFF16A34A),
+          strokeWidth: 4.5,
+          borderColor: const Color(0xFF064E3B),
+          borderStrokeWidth: 1.5,
         ),
       );
-      circleOpts.add(
-        mb.CircleAnnotationOptions(
-          geometry: regaMapPoint(LatLng(cLat, cLng)),
-          circleRadius: 9,
-          circleColor: regaArgb(RegaColors.blue),
-          circleStrokeColor: regaArgb(RC.bg(Colors.white)),
-          circleStrokeWidth: 2,
+
+      markers.add(
+        pin(
+          point: LatLng(sLat, sLng),
+          icon: Icons.storefront_rounded,
+          color: const Color(0xFFEA580C),
+          label: 'فرۆشگا',
         ),
       );
-      pointOpts.add(
-        mb.PointAnnotationOptions(
-          geometry: regaMapPoint(LatLng(dLat, dLng)),
-          textField: '$orderRef • ${_fmtMmSs(eta)}',
-          textSize: 10,
-          textColor: regaArgb(RegaColors.gold),
-          textHaloColor: regaArgb(RC.bg(const Color(0xFF0F172A))),
-          textHaloWidth: 1,
-          textOffset: [0, -2.0],
+      markers.add(
+        pin(
+          point: LatLng(cLat, cLng),
+          icon: Icons.home_rounded,
+          color: const Color(0xFF0284C7),
+          label: 'کڕیار',
         ),
       );
-      circleOpts.add(
-        mb.CircleAnnotationOptions(
-          geometry: regaMapPoint(LatLng(dLat, dLng)),
-          circleRadius: 11,
-          circleColor: regaArgb(RegaColors.emerald),
-          circleStrokeColor: regaArgb(RC.bg(Colors.white)),
-          circleStrokeWidth: 2,
+      markers.add(
+        pin(
+          point: LatLng(dLat, dLng),
+          icon: Icons.two_wheeler_rounded,
+          color: const Color(0xFF16A34A),
+          label: '$orderRef • ${_fmtMmSs(eta)}',
         ),
       );
-      if (heading != 0) {
-        pointOpts.add(
-          mb.PointAnnotationOptions(
-            geometry: regaMapPoint(LatLng(dLat, dLng)),
-            iconRotate: heading - 90,
-            textField: '›',
-            textSize: 14,
-            textColor: regaArgb(RC.fg(Colors.white)),
-          ),
-        );
-      }
     }
 
     for (final d in _radarDrivers) {
       final dm = d as Map<String, dynamic>;
       if (dm['is_online'] != true) continue;
-      final lat = (dm['current_lat'] as num?)?.toDouble() ?? (dm['lat'] as num?)?.toDouble();
-      final lng = (dm['current_lng'] as num?)?.toDouble() ?? (dm['lng'] as num?)?.toDouble();
+      final lat = (dm['current_lat'] as num?)?.toDouble() ??
+          (dm['lat'] as num?)?.toDouble();
+      final lng = (dm['current_lng'] as num?)?.toDouble() ??
+          (dm['lng'] as num?)?.toDouble();
       if (lat == null || lng == null) continue;
-      circleOpts.add(
-        mb.CircleAnnotationOptions(
-          geometry: regaMapPoint(LatLng(lat, lng)),
-          circleRadius: 8,
-          circleColor: regaArgb(RegaColors.gold),
-          circleStrokeColor: regaArgb(RC.bg(const Color(0xFF0F172A))),
-          circleStrokeWidth: 2,
+      final label =
+          (dm['name'] ?? dm['driver_code'] ?? 'کاپتن').toString();
+      markers.add(
+        pin(
+          point: LatLng(lat, lng),
+          icon: Icons.two_wheeler_rounded,
+          color: const Color(0xFF00B34B),
+          label: label,
         ),
       );
     }
 
-    if (lineOpts.isNotEmpty) await lines.createMulti(lineOpts);
-    if (circleOpts.isNotEmpty) await circles.createMulti(circleOpts);
-    if (pointOpts.isNotEmpty) await points.createMulti(pointOpts);
-  }
-
-  Future<void> _toggleHubMapStyle() async {
-    setState(() => _darkMap = !_darkMap);
-    await _regaMapKey.currentState?.applyStyle(_darkMap ? RegaMapStyleId.dark : RegaMapStyleId.map);
+    return (polylines, markers);
   }
 
   Future<void> _fetchLiveRadarTick() async {
@@ -1066,28 +1070,16 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
         final isWide = constraints.maxWidth >= 980 && constraints.maxHeight >= 520;
         final padH = AdminBreakpoints.pagePadH(context);
 
+        final (hubPolylines, hubMarkers) = _buildHubMapLayers();
         final mapCard = Card(
           clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              RegaStandardMap(
-                key: _regaMapKey,
-                center: _hubMapCenter,
-                zoom: 14.5,
-                showLayersFab: true,
-                initialStyle: _darkMap ? RegaMapStyleId.dark : RegaMapStyleId.map,
-                onMapCreated: _onHubMapCreated,
-              ),
-              PositionedDirectional(
-                top: 12,
-                start: 12,
-                child: FilledButton.tonalIcon(
-                  onPressed: _toggleHubMapStyle,
-                  icon: Icon(_darkMap ? Icons.light_mode_rounded : Icons.dark_mode_rounded, size: 16),
-                  label: Text(tx(_darkMap ? 'ڕۆژ' : 'شەو')),
-                ),
-              ),
-            ],
+          child: RegaStandardMap(
+            key: _regaMapKey,
+            center: _hubMapCenter,
+            zoom: 14.5,
+            showCustomerControls: true,
+            polylines: hubPolylines,
+            markers: hubMarkers,
           ),
         );
 

@@ -1,13 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
-import '../map/rega_map_annotation_helpers.dart';
 import '../map/rega_standard_map.dart';
 import '../widgets/admin_top_header.dart';
 
@@ -53,9 +52,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final TextEditingController _topSearchCtrl = TextEditingController();
   final GlobalKey<RegaStandardMapState> _regaMapKey = GlobalKey();
-  mb.MapboxMap? _mapboxMap;
-  mb.PointAnnotationManager? _pointMgr;
-  mb.CircleAnnotationManager? _circleMgr;
   Timer? _refreshTimer;
   bool _isLoading = true;
 
@@ -105,66 +101,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  Future<void> _onDashboardMapCreated(mb.MapboxMap map) async {
-    _mapboxMap = map;
-    final ann = map.annotations;
-    _pointMgr = await ann.createPointAnnotationManager();
-    _circleMgr = await ann.createCircleAnnotationManager();
-    await _syncDashboardMapMarkers();
+  Future<void> _syncDashboardMapMarkers() async {}
+
+  List<CircleMarker> _buildDashboardCircles() {
+    return [
+      CircleMarker(
+        point: _centerLocus,
+        radius: 38,
+        color: const Color(0xFFFF5722).withValues(alpha: 0.14),
+        borderColor: const Color(0xFFFF5722),
+        borderStrokeWidth: 1.8,
+      ),
+    ];
   }
 
-  Future<void> _syncDashboardMapMarkers() async {
-    if (!mounted) return;
-    final labelColor = AdminSurfaces.of(context).textPrimary;
-    final points = _pointMgr;
-    final circles = _circleMgr;
-    if (points == null || circles == null) return;
-    await regaClearAnnotationLayers(points: points, circles: circles);
-    if (!mounted) return;
-
-    await circles.create(
-      mb.CircleAnnotationOptions(
-        geometry: regaMapPoint(_centerLocus),
-        circleRadius: 38,
-        circleColor: regaArgb(RC.bg(const Color(0xFFFF5722)).withValues(alpha: 0.15)),
-        circleStrokeColor: regaArgb(RC.bg(const Color(0xFFFF5722))),
-        circleStrokeWidth: 1.5,
-      ),
-    );
-
-    await points.create(
-      mb.PointAnnotationOptions(
-        geometry: regaMapPoint(_centerLocus),
-        textField: 'کەلار',
-        textSize: 10,
-        textColor: regaArgb(labelColor),
-        textHaloColor: regaArgb(RC.bg(Colors.white)),
-        textHaloWidth: 1,
-        textOffset: [0, -2.2],
-      ),
-    );
-
-    if (_courierPositions.isEmpty) return;
-    await circles.createMulti(
-      _courierPositions
-          .map(
-            (pos) => mb.CircleAnnotationOptions(
-              geometry: regaMapPoint(pos),
-              circleRadius: 10,
-              circleColor: regaArgb(RC.bg(const Color(0xFF113E2E))),
-              circleStrokeColor: regaArgb(RC.bg(Colors.white)),
-              circleStrokeWidth: 2,
+  List<Marker> _buildDashboardMarkers() {
+    return [
+      Marker(
+        point: _centerLocus,
+        width: 84,
+        height: 36,
+        alignment: Alignment.center,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            tx('کەلار'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
             ),
-          )
-          .toList(),
-    );
-  }
-
-  Future<void> _dashboardZoomBy(double delta) async {
-    final map = _mapboxMap;
-    if (map == null) return;
-    final z = (await map.getCameraState()).zoom + delta;
-    await _regaMapKey.currentState?.moveTo(_centerLocus, zoom: z);
+          ),
+        ),
+      ),
+      ..._courierPositions.map(
+        (pos) => Marker(
+          point: pos,
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: const Color(0xFF16A34A),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2.2),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+              ],
+            ),
+            child: const Icon(
+              Icons.two_wheeler_rounded,
+              color: Colors.white,
+              size: 17,
+            ),
+          ),
+        ),
+      ),
+    ];
   }
 
   Future<void> _loadDashboardData({bool silent = false}) async {
@@ -646,50 +646,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           Divider(height: 1, color: AdminSurfaces.of(context).hairline),
 
-          // Interactive Map Area
+          // Interactive Map Area (Customer Map Style)
           Expanded(
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-              child: Stack(
-                children: [
-                  RegaStandardMap(
-                    key: _regaMapKey,
-                    center: _centerLocus,
-                    zoom: 14.2,
-                    showLayersFab: true,
-                    onMapCreated: _onDashboardMapCreated,
-                  ),
-                  PositionedDirectional(
-                    start: 12,
-                    bottom: 12,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AdminSurfaces.of(context).card,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [BoxShadow(color: RC.bg(Colors.black12), blurRadius: 6)],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          InkWell(
-                            onTap: () => _dashboardZoomBy(1),
-                            child: const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.add, size: 18)),
-                          ),
-                          const Divider(height: 1),
-                          InkWell(
-                            onTap: () => _dashboardZoomBy(-1),
-                            child: const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.remove, size: 18)),
-                          ),
-                          const Divider(height: 1),
-                          InkWell(
-                            onTap: () => _regaMapKey.currentState?.moveTo(_centerLocus, zoom: 14.2),
-                            child: const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.my_location_rounded, size: 16)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+              child: RegaStandardMap(
+                key: _regaMapKey,
+                center: _centerLocus,
+                zoom: 14.2,
+                showCustomerControls: true,
+                circles: _buildDashboardCircles(),
+                markers: _buildDashboardMarkers(),
               ),
             ),
           ),

@@ -6,7 +6,7 @@ import '../map/mapbox_tiles.dart';
 import '../rega_colors.dart';
 import '../rega_i18n.dart';
 
-/// Fullscreen center-pin picker for admin vendor lat/lng.
+/// Fullscreen Customer-style center-pin picker for Admin vendor lat/lng.
 Future<LatLng?> showVendorLocationPicker(
   BuildContext context, {
   required LatLng initial,
@@ -30,13 +30,17 @@ class _VendorLocationPickerSheet extends StatefulWidget {
   });
 
   @override
-  State<_VendorLocationPickerSheet> createState() => _VendorLocationPickerSheetState();
+  State<_VendorLocationPickerSheet> createState() =>
+      _VendorLocationPickerSheetState();
 }
 
-class _VendorLocationPickerSheetState extends State<_VendorLocationPickerSheet> {
+class _VendorLocationPickerSheetState
+    extends State<_VendorLocationPickerSheet> {
   final MapController _mapCtrl = MapController();
   late LatLng _pinned;
   bool _applying = false;
+  bool _isSatellite = false;
+  bool _locating = false;
 
   @override
   void initState() {
@@ -60,6 +64,69 @@ class _VendorLocationPickerSheetState extends State<_VendorLocationPickerSheet> 
       }
       setState(() => _pinned = c);
     }
+  }
+
+  Future<void> _goToCurrentGps() async {
+    if (_locating) return;
+    setState(() => _locating = true);
+    try {
+      _applying = true;
+      setState(() => _pinned = widget.initial);
+      _mapCtrl.move(widget.initial, 16.2);
+      Future<void>.delayed(const Duration(milliseconds: 250), () {
+        _applying = false;
+      });
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  Widget _modeChip({
+    required String label,
+    required IconData icon,
+    required bool active,
+    required Color activeColor,
+    required VoidCallback onTap,
+    bool busy = false,
+  }) {
+    return Material(
+      color: active ? activeColor : Colors.white,
+      elevation: 4,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (busy)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF0F172A),
+                  ),
+                )
+              else
+                Icon(icon, size: 17, color: const Color(0xFF0F172A)),
+              const SizedBox(width: 6),
+              Text(
+                tx(label),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -98,7 +165,9 @@ class _VendorLocationPickerSheetState extends State<_VendorLocationPickerSheet> 
                           ),
                           children: [
                             MapboxTiles.layer(
-                              style: MapboxStyle.streets,
+                              style: _isSatellite
+                                  ? MapboxStyle.satellite
+                                  : MapboxStyle.streets,
                               userAgentPackageName: 'tech.rega.admin',
                               fallbackStyle: MapboxStyle.outdoors,
                             ),
@@ -110,6 +179,36 @@ class _VendorLocationPickerSheetState extends State<_VendorLocationPickerSheet> 
                             ),
                           ],
                         ),
+                        // Customer-style top chips: سەتەلایت | شوێنەکەم
+                        Positioned(
+                          top: 12,
+                          left: 10,
+                          right: 10,
+                          child: Directionality(
+                            textDirection: TextDirection.ltr,
+                            child: Row(
+                              children: [
+                                _modeChip(
+                                  label: 'سەتەلایت',
+                                  icon: Icons.satellite_alt_rounded,
+                                  active: _isSatellite,
+                                  activeColor: gold,
+                                  onTap: () => setState(
+                                      () => _isSatellite = !_isSatellite),
+                                ),
+                                const Spacer(),
+                                _modeChip(
+                                  label: 'شوێنەکەم',
+                                  icon: Icons.my_location_rounded,
+                                  active: true,
+                                  activeColor: gold,
+                                  busy: _locating,
+                                  onTap: _goToCurrentGps,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                         const IgnorePointer(
                           child: Align(
                             alignment: Alignment(0, -0.04),
@@ -118,14 +217,18 @@ class _VendorLocationPickerSheetState extends State<_VendorLocationPickerSheet> 
                               size: 54,
                               color: Color(0xFFE11D48),
                               shadows: [
-                                Shadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+                                Shadow(
+                                  color: Colors.black26,
+                                  blurRadius: 6,
+                                  offset: Offset(0, 2),
+                                ),
                               ],
                             ),
                           ),
                         ),
                         Positioned(
                           right: 14,
-                          bottom: 88,
+                          bottom: 108,
                           child: Column(
                             children: [
                               _zoomBtn(Icons.add_rounded, 1),
@@ -166,7 +269,10 @@ class _VendorLocationPickerSheetState extends State<_VendorLocationPickerSheet> 
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
-                          icon: Icon(Icons.close_rounded, color: RC.fg(const Color(0xFF0F172A))),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: RC.fg(const Color(0xFF0F172A)),
+                          ),
                         ),
                       ],
                     ),
@@ -181,11 +287,13 @@ class _VendorLocationPickerSheetState extends State<_VendorLocationPickerSheet> 
                     children: [
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: RC.bg(Colors.white.withValues(alpha: 0.92)),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+                          border:
+                              Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
                         ),
                         child: Text(
                           '${_pinned.latitude.toStringAsFixed(6)}, ${_pinned.longitude.toStringAsFixed(6)}',
@@ -214,7 +322,10 @@ class _VendorLocationPickerSheetState extends State<_VendorLocationPickerSheet> 
                           icon: const Icon(Icons.check_rounded),
                           label: Text(
                             tx('پاشەکەوتکردنی شوێنی فرۆشگا'),
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
                       ),
@@ -232,7 +343,8 @@ class _VendorLocationPickerSheetState extends State<_VendorLocationPickerSheet> 
   Widget _zoomBtn(IconData icon, double delta) {
     return Material(
       color: Colors.white,
-      elevation: 4,
+      elevation: 5,
+      shadowColor: Colors.black38,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -247,9 +359,9 @@ class _VendorLocationPickerSheetState extends State<_VendorLocationPickerSheet> 
           } catch (_) {}
         },
         child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(icon, color: const Color(0xFF0F172A)),
+          width: 46,
+          height: 46,
+          child: Icon(icon, color: const Color(0xFF0F172A), size: 24),
         ),
       ),
     );

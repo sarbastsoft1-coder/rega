@@ -3,14 +3,13 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import '../core/api/api_client.dart';
 import '../core/iraq_phone_formatter.dart';
 import '../core/localization/app_strings.dart';
 import '../core/services/media_pick_service.dart';
 import '../core/services/open_url_io.dart' if (dart.library.html) '../core/services/open_url_web.dart';
-import '../map/rega_map_annotation_helpers.dart';
 import '../map/rega_standard_map.dart';
 import '../widgets/admin_top_header.dart';
 import '../widgets/common_widgets.dart';
@@ -172,8 +171,6 @@ class DriversScreen extends StatefulWidget {
 class _DriversScreenState extends State<DriversScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   final GlobalKey<RegaStandardMapState> _regaMapKey = GlobalKey();
-  mb.PointAnnotationManager? _pointMgr;
-  mb.CircleAnnotationManager? _circleMgr;
   static const LatLng _driversMapCenter = LatLng(34.6295, 45.3159);
 
   int _currentPage = 1;
@@ -215,47 +212,90 @@ class _DriversScreenState extends State<DriversScreen> {
     super.dispose();
   }
 
-  Future<void> _onDriversMapCreated(mb.MapboxMap map) async {
-    final ann = map.annotations;
-    _pointMgr = await ann.createPointAnnotationManager();
-    _circleMgr = await ann.createCircleAnnotationManager();
-    await _syncDriversMapMarkers();
-  }
+  Future<void> _syncDriversMapMarkers() async {}
 
-  Future<void> _syncDriversMapMarkers() async {
-    final points = _pointMgr;
-    final circles = _circleMgr;
-    if (points == null || circles == null) return;
-    await regaClearAnnotationLayers(points: points, circles: circles);
-
-    await points.create(
-      mb.PointAnnotationOptions(
-        geometry: regaMapPoint(_driversMapCenter),
-        textField: 'کەلار',
-        textSize: 11,
-        textColor: regaArgb(RC.fg(const Color(0xFF0F172A))),
-        textHaloColor: regaArgb(RC.bg(Colors.white)),
-        textHaloWidth: 1,
-      ),
-    );
-
-    final active = _couriers.where((c) => c.status == 'active' || c.status == 'on_the_way');
-    if (active.isEmpty) return;
-    await circles.createMulti(
-      active
-          .map(
-            (c) => mb.CircleAnnotationOptions(
-              geometry: regaMapPoint(c.location),
-              circleRadius: 10,
-              circleColor: regaArgb(
-                c.status == 'on_the_way' ? RC.bg(const Color(0xFFEA580C)) : RC.bg(const Color(0xFF16A34A)),
-              ),
-              circleStrokeColor: regaArgb(RC.bg(Colors.white)),
-              circleStrokeWidth: 2,
+  List<Marker> _buildDriversMapMarkers() {
+    final markers = <Marker>[
+      Marker(
+        point: _driversMapCenter,
+        width: 80,
+        height: 34,
+        alignment: Alignment.center,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            tx('کەلار'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
             ),
-          )
-          .toList(),
-    );
+          ),
+        ),
+      ),
+    ];
+
+    final active = _couriers
+        .where((c) => c.status == 'active' || c.status == 'on_the_way');
+    for (final c in active) {
+      final isDelivery = c.status == 'on_the_way';
+      markers.add(
+        Marker(
+          point: c.location,
+          width: 106,
+          height: 66,
+          alignment: Alignment.bottomCenter,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  tx(c.name),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: isDelivery
+                      ? const Color(0xFFEA580C)
+                      : const Color(0xFF16A34A),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.2),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.two_wheeler_rounded,
+                  color: Colors.white,
+                  size: 17,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return markers;
   }
 
   Future<void> _loadFromBackend({bool silent = false}) async {
@@ -2108,15 +2148,15 @@ class _DriversScreenState extends State<DriversScreen> {
             ),
           ),
 
-          // Interactive Map Canvas
+          // Interactive Map Canvas (Customer Map Style)
           SizedBox(
             height: mapHeight,
             child: RegaStandardMap(
               key: _regaMapKey,
               center: _driversMapCenter,
-              zoom: 13.5,
-              showLayersFab: true,
-              onMapCreated: _onDriversMapCreated,
+              zoom: 13.8,
+              showCustomerControls: true,
+              markers: _buildDriversMapMarkers(),
             ),
           ),
 

@@ -348,21 +348,48 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                           ),
                         ),
                       )
-                    : ListView(
-                        padding: EdgeInsets.fromLTRB(padH, 4, padH, 20),
-                        children: [
-                          if (_addingCategory || _editingCategory != null) ...[
-                            _buildCategoryDraftCard(),
-                            const SizedBox(height: 14),
-                          ],
-                          ...widget.categories.map((cat) {
-                            if (_editingCategory == cat) return const SizedBox.shrink();
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: _buildCategoryCard(cat),
-                            );
-                          }),
-                        ],
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final w = constraints.maxWidth;
+                          final crossCount = w >= 900
+                              ? 4
+                              : w >= 640
+                                  ? 3
+                                  : w >= 380
+                                      ? 2
+                                      : 1;
+                          final cats = widget.categories
+                              .where((c) => c != _editingCategory)
+                              .toList();
+                          final showDraft = _addingCategory || _editingCategory != null;
+
+                          return CustomScrollView(
+                            slivers: [
+                              if (showDraft)
+                                SliverToBoxAdapter(
+                                  child: Padding(
+                                    padding: EdgeInsets.fromLTRB(padH, 4, padH, 14),
+                                    child: _buildCategoryDraftCard(),
+                                  ),
+                                ),
+                              SliverPadding(
+                                padding: EdgeInsets.fromLTRB(padH, showDraft ? 0 : 4, padH, 20),
+                                sliver: SliverGrid(
+                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: crossCount,
+                                    mainAxisSpacing: 14,
+                                    crossAxisSpacing: 14,
+                                    childAspectRatio: 0.78,
+                                  ),
+                                  delegate: SliverChildBuilderDelegate(
+                                    (context, index) => _buildCategoryCard(cats[index]),
+                                    childCount: cats.length,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
               ),
             ],
@@ -578,100 +605,91 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
 
   Widget _buildCategoryCard(String cat) {
     final img = _imageFor(cat);
-    return Align(
-      alignment: Alignment.centerRight,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 180),
-        child: Material(
-          color: RC.bg(Colors.white),
-          borderRadius: BorderRadius.circular(18),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => setState(() => _openedCategory = cat),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AspectRatio(
-                    aspectRatio: 1,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (img != null && img.isNotEmpty)
-                          Image.network(
-                            img,
-                            width: double.infinity,
-                            height: double.infinity,
-                            fit: BoxFit.cover,
-                            alignment: Alignment.center,
-                            filterQuality: FilterQuality.medium,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: RC.bg(const Color(0xFFFFF7ED)),
-                              child: Icon(Icons.restaurant_menu_rounded, color: RC.fg(_orange), size: 48),
-                            ),
-                          )
-                        else
-                          Container(
-                            color: RC.bg(const Color(0xFFFFF7ED)),
-                            child: Icon(Icons.restaurant_menu_rounded, color: RC.fg(_orange), size: 48),
-                          ),
-                        // Top-left: trash + pencil (edit name/image) — TB image 5
-                        Positioned(
-                          top: 10,
-                          left: 10,
-                          child: Row(
-                            children: [
-                              _miniIconBtn(
-                                color: _red,
-                                icon: Icons.delete_outline_rounded,
-                                onTap: () {
-                                  // Absorb tap so card onTap does not open the section.
-                                  _confirmDeleteCategory(cat);
-                                },
-                              ),
-                              const SizedBox(width: 6),
-                              _miniIconBtn(
-                                color: _green,
-                                icon: Icons.edit_rounded,
-                                onTap: () {
-                                  _startEditCategory(cat);
-                                },
-                              ),
-                            ],
-                          ),
+    return Material(
+      color: RC.bg(Colors.white),
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      child: InkWell(
+        onTap: () => setState(() => _openedCategory = cat),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (img != null && img.isNotEmpty)
+                      Image.network(
+                        img,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        alignment: Alignment.center,
+                        filterQuality: FilterQuality.medium,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: RC.bg(const Color(0xFFFFF7ED)),
+                          child: Icon(Icons.restaurant_menu_rounded, color: RC.fg(_orange), size: 44),
                         ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    color: RC.bg(Colors.white),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    child: Row(
-                      textDirection: TextDirection.rtl,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            tx(cat),
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                              color: RC.fg(const Color(0xFF0F172A)),
-                              fontFamily: kAppFontFamily,
-                            ),
+                      )
+                    else
+                      Container(
+                        color: RC.bg(const Color(0xFFFFF7ED)),
+                        child: Icon(Icons.restaurant_menu_rounded, color: RC.fg(_orange), size: 44),
+                      ),
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Row(
+                        children: [
+                          _miniIconBtn(
+                            color: _red,
+                            icon: Icons.delete_outline_rounded,
+                            onTap: () => _confirmDeleteCategory(cat),
                           ),
-                        ),
-                        Icon(Icons.chevron_left_rounded, color: RC.fg(const Color(0xFF94A3B8))),
-                      ],
+                          const SizedBox(width: 6),
+                          _miniIconBtn(
+                            color: _green,
+                            icon: Icons.edit_rounded,
+                            onTap: () => _startEditCategory(cat),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              Container(
+                color: RC.bg(Colors.white),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                child: Row(
+                  textDirection: TextDirection.rtl,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        tx(cat),
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                          color: RC.fg(const Color(0xFF0F172A)),
+                          fontFamily: kAppFontFamily,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.chevron_left_rounded, color: RC.fg(const Color(0xFF94A3B8)), size: 22),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -696,7 +714,6 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
 
   Widget _buildCategoryDetail(double padH, String cat) {
     final products = widget.products.where((p) => p.category.trim() == cat.trim()).toList();
-    final img = _imageFor(cat);
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -707,52 +724,70 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
             children: [
               Padding(
                 padding: EdgeInsets.fromLTRB(padH, 12, padH, 10),
-                child: Row(
-                  textDirection: TextDirection.rtl,
-                  children: [
-                    Material(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final narrow = constraints.maxWidth < 420;
+                    final backBtn = Material(
                       color: RC.bg(const Color(0xFFFFF7ED)),
                       shape: const CircleBorder(),
                       child: InkWell(
                         customBorder: const CircleBorder(),
                         onTap: () => setState(() => _openedCategory = null),
                         child: Padding(
-                          padding: const EdgeInsets.all(10),
-                          child: Icon(Icons.arrow_forward_rounded, color: RC.fg(_orange), size: 22),
+                          padding: const EdgeInsets.all(9),
+                          child: Icon(Icons.arrow_forward_rounded, color: RC.fg(_orange), size: 20),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    if (img != null && img.isNotEmpty)
-                      ClipOval(
-                        child: Image.network(img, width: 40, height: 40, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const SizedBox(width: 40, height: 40)),
-                      )
-                    else
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: RC.bg(const Color(0xFFFFF7ED)),
-                        child: Icon(Icons.restaurant_menu_rounded, color: RC.fg(_orange), size: 20),
+                    );
+                    final title = Text(
+                      tx(cat),
+                      textAlign: TextAlign.right,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: narrow ? 14 : 15.5,
+                        color: RC.fg(const Color(0xFF0F172A)),
+                        fontFamily: kAppFontFamily,
                       ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        tx(cat),
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                          color: RC.fg(const Color(0xFF0F172A)),
-                          fontFamily: kAppFontFamily,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _orangeActionButton(
+                    );
+                    final addBtn = _orangeActionButton(
                       label: '+ ${t('زیادکردنی بەرهەم')}',
                       onTap: () => _openProductForm(category: cat),
-                    ),
-                  ],
+                    );
+
+                    if (narrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            textDirection: TextDirection.rtl,
+                            children: [
+                              backBtn,
+                              const SizedBox(width: 10),
+                              Expanded(child: title),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: addBtn,
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      textDirection: TextDirection.rtl,
+                      children: [
+                        backBtn,
+                        const SizedBox(width: 10),
+                        Expanded(child: title),
+                        const SizedBox(width: 10),
+                        addBtn,
+                      ],
+                    );
+                  },
                 ),
               ),
               Expanded(
@@ -764,15 +799,39 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                           style: TextStyle(
                             color: RC.fg(const Color(0xFFCBD5E1)),
                             fontWeight: FontWeight.w600,
-                            fontSize: 15,
+                            fontSize: 13.5,
                             fontFamily: kAppFontFamily,
                           ),
                         ),
                       )
-                    : ListView.builder(
-                        padding: EdgeInsets.fromLTRB(padH, 4, padH, 20),
-                        itemCount: products.length,
-                        itemBuilder: (_, i) => _buildProductRow(products[i]),
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final w = constraints.maxWidth;
+                          final useGrid = w >= 560;
+                          final crossCount = w >= 900
+                              ? 3
+                              : w >= 560
+                                  ? 2
+                                  : 1;
+                          if (!useGrid) {
+                            return ListView.builder(
+                              padding: EdgeInsets.fromLTRB(padH, 4, padH, 20),
+                              itemCount: products.length,
+                              itemBuilder: (_, i) => _buildProductRow(products[i]),
+                            );
+                          }
+                          return GridView.builder(
+                            padding: EdgeInsets.fromLTRB(padH, 4, padH, 20),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossCount,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              childAspectRatio: 2.35,
+                            ),
+                            itemCount: products.length,
+                            itemBuilder: (_, i) => _buildProductRow(products[i]),
+                          );
+                        },
                       ),
               ),
             ],
@@ -966,7 +1025,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
 
   Future<({String name, int extraPrice})?> _promptAddFeature(BuildContext parentCtx) async {
     final nameCtrl = TextEditingController();
-    final priceCtrl = TextEditingController(text: '0');
+    final priceCtrl = TextEditingController();
     final result = await showDialog<({String name, int extraPrice})>(
       context: parentCtx,
       builder: (dlgCtx) {
@@ -1003,6 +1062,13 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                   textAlign: TextAlign.right,
                   decoration: InputDecoration(
                     labelText: t('نرخی زیادە (ئارەزوومەندانە)'),
+                    hintText: t('بە دینار — ئارەزوومەندانە'),
+                    hintStyle: TextStyle(
+                      color: RC.fg(const Color(0xFF94A3B8)),
+                      fontWeight: FontWeight.w600,
+                      fontFamily: kAppFontFamily,
+                      fontSize: 13,
+                    ),
                     filled: true,
                     fillColor: RC.bg(const Color(0xFFF1F5F9)),
                     border: OutlineInputBorder(
@@ -1050,6 +1116,9 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
     final desc = TextEditingController(text: _stripFeaturesBlock(existing?.description));
     final price = TextEditingController(
       text: (existing != null && existing.price > 0) ? existing.price.toInt().toString() : '',
+    );
+    final cost = TextEditingController(
+      text: (existing != null && existing.costPrice > 0) ? existing.costPrice.toInt().toString() : '',
     );
     final discount = TextEditingController(
       text: (existing?.discountPrice != null && existing!.discountPrice! > 0)
@@ -1285,26 +1354,26 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                               const SizedBox(height: 10),
                               labeledField(t('ناوی بابەت بە عەرەبی'), nameAr),
                               const SizedBox(height: 10),
-                              labeledField(t('وەسف'), desc, maxLines: 2),
+                              labeledField(t('وەسف'), desc, maxLines: 2, hint: t('وەسف بنووسە (ئارەزوومەندانە)')),
                               const SizedBox(height: 10),
                               Row(
                                 textDirection: TextDirection.rtl,
                                 children: [
                                   Expanded(
                                     child: labeledField(
-                                      t('نرخ'),
+                                      t('نرخی فرۆشتن'),
                                       price,
                                       type: TextInputType.number,
-                                      hint: t('نرخ بنووسە'),
+                                      hint: t('بە دینار'),
                                     ),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: labeledField(
-                                      t('داشکان'),
-                                      discount,
+                                      t('نرخی کڕین (تێچوو)'),
+                                      cost,
                                       type: TextInputType.number,
-                                      hint: t('داشکان (ئارەزوومەندانە)'),
+                                      hint: t('تێچووی دروستکردن'),
                                     ),
                                   ),
                                 ],
@@ -1315,22 +1384,29 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                                 children: [
                                   Expanded(
                                     child: labeledField(
-                                      t('کاتی پێچوون (خولەک)'),
-                                      prep,
+                                      t('داشکان'),
+                                      discount,
                                       type: TextInputType.number,
-                                      hint: t('خولەک'),
+                                      hint: t('بە دینار — ئارەزوومەندانە'),
                                     ),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: labeledField(
-                                      t('نرخی گەیاندن'),
-                                      delivery,
+                                      t('کاتی پێچوون (خولەک)'),
+                                      prep,
                                       type: TextInputType.number,
-                                      hint: t('نرخی گەیاندن'),
+                                      hint: t('بە خولەک'),
                                     ),
                                   ),
                                 ],
+                              ),
+                              const SizedBox(height: 10),
+                              labeledField(
+                                t('نرخی گەیاندن'),
+                                delivery,
+                                type: TextInputType.number,
+                                hint: t('بە دینار — ئارەزوومەندانە'),
                               ),
                               const SizedBox(height: 12),
                               if (features.isNotEmpty) ...[
@@ -1423,6 +1499,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                                 onPressed: () {
                                   final n = nameKu.text.trim();
                                   final p = double.tryParse(price.text.trim()) ?? 0;
+                                  final c = double.tryParse(cost.text.trim()) ?? 0;
                                   final d = double.tryParse(discount.text.trim()) ?? 0;
                                   if (n.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -1436,7 +1513,19 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                                   if (p <= 0) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(t('نرخ'), textAlign: TextAlign.center),
+                                        content: Text(t('نرخی فرۆشتن'), textAlign: TextAlign.center),
+                                        backgroundColor: RC.bg(_red),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  if (c > 0 && c >= p) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          t('نرخی فرۆشتن دەبێت لە نرخی کڕین زیاتر بێت'),
+                                          textAlign: TextAlign.center,
+                                        ),
                                         backgroundColor: RC.bg(_red),
                                       ),
                                     );
@@ -1447,8 +1536,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                                     name: n,
                                     category: category,
                                     price: p,
-                                    costPrice: existing?.costPrice ??
-                                        (p > 1 ? (p - 1).clamp(0, p - 1).toDouble() : 0),
+                                    costPrice: c > 0 ? c : (existing?.costPrice ?? 0),
                                     discountPrice: d > 0 && d < p ? d : null,
                                     description: _composeDescription(desc.text, features),
                                     imageUrl: imageUrl,
@@ -1514,6 +1602,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
     nameAr.dispose();
     desc.dispose();
     price.dispose();
+    cost.dispose();
     discount.dispose();
     prep.dispose();
     delivery.dispose();

@@ -5,6 +5,7 @@ import 'blocked_account.dart';
 import 'rega_mobile.dart';
 
 import 'rega_i18n.dart';
+
 class DriverApiService {
   DriverApiService._();
   static final DriverApiService instance = DriverApiService._();
@@ -54,7 +55,7 @@ class DriverApiService {
               'device_name': 'rega_delivery_app',
             }),
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 6));
 
       if (res.statusCode == 403) {
         final body = regaJsonDecode(res.body) as Map<String, dynamic>;
@@ -132,7 +133,6 @@ class DriverApiService {
         final body = regaJsonDecode(res.body) as Map<String, dynamic>;
         final data = body['data'];
         if (data is Map<String, dynamic>) return data;
-        // Some responses nest profile under data.driver / data.profile.
         if (data is Map) return Map<String, dynamic>.from(data);
         return <String, dynamic>{'is_online': isOnline};
       }
@@ -163,16 +163,57 @@ class DriverApiService {
   }
 
   Future<Map<String, dynamic>?> fetchActiveOrder() async {
+    final res = await fetchActiveAndAvailableOrders();
+    return res.$1;
+  }
+
+  /// Returns `(activeOrder, availableUnassignedOrders)` from `/driver/orders/active`.
+  Future<(Map<String, dynamic>?, List<Map<String, dynamic>>)>
+      fetchActiveAndAvailableOrders() async {
     try {
       final res = await http
           .get(Uri.parse('$baseUrl/driver/orders/active'), headers: _headers())
           .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         final body = regaJsonDecode(res.body) as Map<String, dynamic>;
-        return body['data'] as Map<String, dynamic>?;
+        final active = body['data'] is Map
+            ? Map<String, dynamic>.from(body['data'] as Map)
+            : null;
+        final rawAvail = body['available_orders'];
+        final avail = <Map<String, dynamic>>[];
+        if (rawAvail is List) {
+          for (final item in rawAvail) {
+            if (item is Map) {
+              avail.add(Map<String, dynamic>.from(item));
+            }
+          }
+        }
+        return (active, avail);
       }
     } catch (_) {}
-    return null;
+    return (null, const <Map<String, dynamic>>[]);
+  }
+
+  /// Claim an unassigned order directly from the Delivery app.
+  Future<(bool, String?, Map<String, dynamic>?)> acceptOrder(int orderId) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/driver/orders/$orderId/accept'),
+            headers: _headers(),
+          )
+          .timeout(const Duration(seconds: 6));
+      final body = regaJsonDecode(res.body) as Map<String, dynamic>;
+      final data = body['data'] is Map
+          ? Map<String, dynamic>.from(body['data'] as Map)
+          : null;
+      if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true) {
+        return (true, body['message']?.toString(), data);
+      }
+      return (false, body['message']?.toString(), data);
+    } catch (_) {
+      return (false, null, null);
+    }
   }
 
   Future<List<dynamic>> fetchOrdersHistory({String status = 'all'}) async {
@@ -191,7 +232,8 @@ class DriverApiService {
     return [];
   }
 
-  Future<Map<String, dynamic>?> advanceOrderStatus(int orderId, String driverStatus) async {
+  Future<Map<String, dynamic>?> advanceOrderStatus(
+      int orderId, String driverStatus) async {
     try {
       final res = await http
           .patch(
@@ -217,12 +259,41 @@ class DriverApiService {
           )
           .timeout(const Duration(seconds: 5));
       final body = regaJsonDecode(res.body) as Map<String, dynamic>;
-      if (res.statusCode >= 200 && res.statusCode < 300 && body['success'] == true) {
+      if (res.statusCode >= 200 &&
+          res.statusCode < 300 &&
+          body['success'] == true) {
         return (true, body['message']?.toString());
       }
       return (false, body['message']?.toString());
     } catch (_) {
       return (false, null);
+    }
+  }
+
+  Future<(bool, String?, Map<String, dynamic>?)> claimWaitingBonus(
+    int orderId, {
+    int waitedMinutes = 16,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/driver/orders/$orderId/waiting-bonus'),
+            headers: _headers(),
+            body: jsonEncode({'waited_minutes': waitedMinutes}),
+          )
+          .timeout(const Duration(seconds: 5));
+      final body = regaJsonDecode(res.body) as Map<String, dynamic>;
+      final data = body['data'] is Map
+          ? Map<String, dynamic>.from(body['data'] as Map)
+          : null;
+      if (res.statusCode >= 200 &&
+          res.statusCode < 300 &&
+          body['success'] == true) {
+        return (true, body['message']?.toString(), data);
+      }
+      return (false, body['message']?.toString(), data);
+    } catch (_) {
+      return (false, null, null);
     }
   }
 

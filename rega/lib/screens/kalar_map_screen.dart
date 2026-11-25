@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import '../map/rega_map_styles.dart';
 import '../map/rega_standard_map.dart';
 import '../models/map_place.dart';
 import '../services/location_service.dart';
 
-/// Fullscreen work-city map — Mapbox Standard (replaces Google Maps).
+/// Fullscreen work-city map in Customer app — unified with Customer FlutterMap + MapboxTiles.
 class KalarMapScreen extends StatefulWidget {
   final String language;
   final VoidCallback? onBack;
@@ -27,13 +27,13 @@ class KalarMapScreen extends StatefulWidget {
 
 class _KalarMapScreenState extends State<KalarMapScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
-  final GlobalKey<RegaStandardMapState> _mapKey = GlobalKey<RegaStandardMapState>();
+  final GlobalKey<RegaStandardMapState> _mapKey =
+      GlobalKey<RegaStandardMapState>();
 
-  mb.PointAnnotationManager? _points;
   bool _isLocating = false;
   LatLng? _currentGpsLocation;
   MapPlace? _selectedPlace;
-  String _activeCategory = 'all';
+  final String _activeCategory = 'all';
   List<MapPlace> _searchResults = [];
 
   bool get _isRtl => widget.language != 'English';
@@ -54,76 +54,124 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
     super.dispose();
   }
 
-  Future<void> _onMapCreated(mb.MapboxMap map) async {
-    try {
-      _points = await map.annotations.createPointAnnotationManager();
-    } catch (_) {}
-    await _syncLandmarks();
-  }
-
-  Future<void> _syncLandmarks() async {
-    final mgr = _points;
-    if (mgr == null) return;
-    try {
-      await mgr.deleteAll();
-    } catch (_) {}
-
+  List<Marker> _buildLandmarkMarkers() {
+    final markers = <Marker>[];
     for (final place in KalarLandmarks.curatedPlaces) {
       if (_activeCategory != 'all' && place.iconKey != _activeCategory) continue;
       final selected = _selectedPlace?.id == place.id;
-      try {
-        await mgr.create(
-          mb.PointAnnotationOptions(
-            geometry: mb.Point(
-              coordinates: mb.Position(place.longitude, place.latitude),
+      markers.add(
+        Marker(
+          point: LatLng(place.latitude, place.longitude),
+          width: 110,
+          height: 62,
+          alignment: Alignment.bottomCenter,
+          child: GestureDetector(
+            onTap: () => _onPlaceSelected(place),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? const Color(0xFF1D4ED8)
+                        : const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    place.localizedName(widget.language),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  width: selected ? 34 : 28,
+                  height: selected ? 34 : 28,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? const Color(0xFFFAC800)
+                        : const Color(0xFF16A34A),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: Icon(
+                    Icons.place_rounded,
+                    size: selected ? 20 : 16,
+                    color: selected ? const Color(0xFF0F172A) : Colors.white,
+                  ),
+                ),
+              ],
             ),
-            textField: place.localizedName(widget.language),
-            textSize: selected ? 13.0 : 11.0,
-            textColor: selected ? 0xFF1D4ED8 : 0xFF0F172A,
-            textHaloColor: 0xFFFFFFFF,
-            textHaloWidth: 1.1,
-            iconSize: selected ? 1.4 : 1.1,
           ),
-        );
-      } catch (_) {}
+        ),
+      );
     }
 
     if (_currentGpsLocation != null) {
-      try {
-        await mgr.create(
-          mb.PointAnnotationOptions(
-            geometry: mb.Point(
-              coordinates: mb.Position(
-                _currentGpsLocation!.longitude,
-                _currentGpsLocation!.latitude,
+      markers.add(
+        Marker(
+          point: _currentGpsLocation!,
+          width: 90,
+          height: 54,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _isRtl ? 'شوێنی تۆ' : 'You',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
-            ),
-            textField: _isRtl ? 'شوێنی ئێستای تۆ' : 'You',
-            textSize: 12.0,
-            textColor: 0xFF2563EB,
-            textHaloColor: 0xFFFFFFFF,
-            textHaloWidth: 1.2,
+              const SizedBox(height: 2),
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                ),
+              ),
+            ],
           ),
-        );
-      } catch (_) {}
+        ),
+      );
     }
+    return markers;
   }
 
   Future<void> _tryGetInitialLocation() async {
-    final res = await KalarLocationService.getCurrentLocation(requestIfNeeded: false);
+    final res =
+        await KalarLocationService.getCurrentLocation(requestIfNeeded: false);
     if (res.isSuccess && mounted) {
       final pos = res.position!;
       setState(() {
         _currentGpsLocation = LatLng(pos.latitude, pos.longitude);
       });
-      await _syncLandmarks();
     }
   }
 
   Future<void> _handleMyLocationTap() async {
     if (_isLocating) return;
     setState(() => _isLocating = true);
-    final res = await KalarLocationService.getCurrentLocation(requestIfNeeded: true);
+    final res =
+        await KalarLocationService.getCurrentLocation(requestIfNeeded: true);
     if (!mounted) return;
     setState(() => _isLocating = false);
     if (res.isSuccess) {
@@ -131,7 +179,6 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
       final target = LatLng(pos.latitude, pos.longitude);
       setState(() => _currentGpsLocation = target);
       await _mapKey.currentState?.moveTo(target, zoom: 16.5);
-      await _syncLandmarks();
     }
   }
 
@@ -141,7 +188,6 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
       LatLng(place.latitude, place.longitude),
       zoom: 16.8,
     );
-    _syncLandmarks();
   }
 
   void _onSearch(String q) {
@@ -168,8 +214,9 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
               center: _currentGpsLocation ?? _mapCenter,
               zoom: 14.8,
               initialStyle: RegaMapStyles.defaultTracking,
-              showLayersFab: true,
-              onMapCreated: _onMapCreated,
+              showCustomerControls: true,
+              topControlsOffset: MediaQuery.of(context).padding.top + 64,
+              markers: _buildLandmarkMarkers(),
             ),
           ),
           Positioned(
@@ -188,7 +235,8 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
                       shape: const CircleBorder(),
                       child: InkWell(
                         customBorder: const CircleBorder(),
-                        onTap: widget.onBack ?? () => Navigator.maybePop(context),
+                        onTap:
+                            widget.onBack ?? () => Navigator.maybePop(context),
                         child: const SizedBox(
                           width: 42,
                           height: 42,
@@ -209,9 +257,11 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
                             hintText: _isRtl
                                 ? 'گەڕان لە ${widget.cityLabel ?? 'کەلار'}...'
                                 : 'Search Kalar...',
-                            prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                            prefixIcon:
+                                const Icon(Icons.search_rounded, size: 20),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
                       ),
@@ -297,36 +347,23 @@ class _KalarMapScreenState extends State<KalarMapScreen> {
                 color: Colors.white,
                 child: Padding(
                   padding: const EdgeInsets.all(14),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  child: Row(
                     children: [
-                      Text(
-                        _selectedPlace!.localizedName(widget.language),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
+                      const Icon(Icons.location_on_rounded,
+                          color: Color(0xFFE11D48), size: 28),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _selectedPlace!.localizedName(widget.language),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _selectedPlace!.localizedCategory(widget.language),
-                        style: const TextStyle(color: Color(0xFF64748B)),
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final cat in const ['all', 'hospital', 'school', 'market', 'park'])
-                            ChoiceChip(
-                              label: Text(cat),
-                              selected: _activeCategory == cat,
-                              onSelected: (_) {
-                                setState(() => _activeCategory = cat);
-                                _syncLandmarks();
-                              },
-                            ),
-                        ],
+                      IconButton(
+                        onPressed: () => setState(() => _selectedPlace = null),
+                        icon: const Icon(Icons.close_rounded),
                       ),
                     ],
                   ),
