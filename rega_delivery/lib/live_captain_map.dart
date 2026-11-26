@@ -1494,38 +1494,46 @@ class _CaptainLiveMapWidgetState extends State<CaptainLiveMapWidget>
                         const SizedBox(width: 4),
                         Directionality(
                           textDirection: TextDirection.ltr,
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: phone ? 8 : 10,
-                              vertical: 5,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: phone ? 84 : 120,
                             ),
-                            decoration: BoxDecoration(
-                              color: gold,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  tx(_formatCountdown(_etaSeconds)),
-                                  style: TextStyle(
-                                    color: const Color(0xFF0F172A),
-                                    fontSize: phone ? 13 : 14.5,
-                                    fontWeight: FontWeight.w900,
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures()
-                                    ],
-                                  ),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: phone ? 8 : 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: gold,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      tx(_formatCountdown(_etaSeconds)),
+                                      style: TextStyle(
+                                        color: const Color(0xFF0F172A),
+                                        fontSize: phone ? 13 : 14.5,
+                                        fontWeight: FontWeight.w900,
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures()
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      tx(_formatDistance(_remainingMeters)),
+                                      style: const TextStyle(
+                                        color: Color(0xFF334155),
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  tx(_formatDistance(_remainingMeters)),
-                                  style: const TextStyle(
-                                    color: Color(0xFF334155),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
                         ),

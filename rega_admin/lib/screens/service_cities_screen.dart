@@ -275,55 +275,95 @@ class _ServiceCitiesScreenState extends State<ServiceCitiesScreen> {
                           final stores = c['stores_count'] ?? 0;
                           return Card(
                             margin: const EdgeInsets.only(bottom: 10),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: active
-                                    ? RegaColors.emerald.withValues(alpha: 0.15)
-                                    : Colors.grey.shade200,
-                                child: Icon(
-                                  Icons.location_city_rounded,
-                                  color: active ? RegaColors.emeraldDark : Colors.grey,
-                                ),
-                              ),
-                              title: Text(
-                                tx(c['name_ku']?.toString() ?? ''),
-                                style: const TextStyle(fontWeight: FontWeight.w900),
-                              ),
-                              subtitle: Text(
-                                tx(
-                                  '${c['name_en'] ?? ''} · ${c['radius_km'] ?? 10} کم · '
-                                  'گەڕەک: $zones · فرۆشگا: $stores\n'
-                                  '${c['center_lat']} , ${c['center_lng']}',
-                                ),
-                              ),
-                              isThreeLine: true,
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Switch(
-                                    value: active,
-                                    onChanged: (v) async {
-                                      try {
-                                        await widget.api.updateServiceCity(
-                                          c['id'] as int,
-                                          {'is_active': v},
-                                        );
-                                        _load();
-                                      } catch (e) {
-                                        _showSnack(e.toString(), error: true);
-                                      }
-                                    },
+                            child: LayoutBuilder(
+                              builder: (context, cardConstraints) {
+                                final isCompactCard = cardConstraints.maxWidth < 430;
+                                final leadingAvatar = CircleAvatar(
+                                  backgroundColor: active
+                                      ? RegaColors.emerald.withValues(alpha: 0.15)
+                                      : Colors.grey.shade200,
+                                  child: Icon(
+                                    Icons.location_city_rounded,
+                                    color: active ? RegaColors.emeraldDark : Colors.grey,
                                   ),
-                                  IconButton(
-                                    onPressed: () => _showCityDialog(existing: c),
-                                    icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
+                                );
+                                final titleText = Text(
+                                  tx(c['name_ku']?.toString() ?? ''),
+                                  style: const TextStyle(fontWeight: FontWeight.w900),
+                                );
+                                final subtitleText = Text(
+                                  tx(
+                                    '${c['name_en'] ?? ''} · ${c['radius_km'] ?? 10} کم · '
+                                    'گەڕەک: $zones · فرۆشگا: $stores\n'
+                                    '${c['center_lat']} , ${c['center_lng']}',
                                   ),
-                                  IconButton(
-                                    onPressed: () => _confirmDelete(c),
-                                    icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
-                                  ),
-                                ],
-                              ),
+                                );
+                                final actionsRow = Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Switch(
+                                      value: active,
+                                      onChanged: (v) async {
+                                        try {
+                                          await widget.api.updateServiceCity(
+                                            c['id'] as int,
+                                            {'is_active': v},
+                                          );
+                                          _load();
+                                        } catch (e) {
+                                          _showSnack(e.toString(), error: true);
+                                        }
+                                      },
+                                    ),
+                                    IconButton(
+                                      onPressed: () => _showCityDialog(existing: c),
+                                      icon: const Icon(Icons.edit_outlined, color: RegaColors.blue),
+                                    ),
+                                    IconButton(
+                                      onPressed: () => _confirmDelete(c),
+                                      icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
+                                    ),
+                                  ],
+                                );
+                                if (isCompactCard) {
+                                  return Padding(
+                                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            leadingAvatar,
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  titleText,
+                                                  const SizedBox(height: 4),
+                                                  subtitleText,
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Align(
+                                          alignment: AlignmentDirectional.centerEnd,
+                                          child: actionsRow,
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
+                                return ListTile(
+                                  leading: leadingAvatar,
+                                  title: titleText,
+                                  subtitle: subtitleText,
+                                  isThreeLine: true,
+                                  trailing: actionsRow,
+                                );
+                              },
                             ),
                           );
                         }),

@@ -150,13 +150,18 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                   children: [
                     if (_cities.isNotEmpty)
                       DropdownButtonFormField<int>(
+                        isExpanded: true,
                         value: cityId,
                         decoration: InputDecoration(labelText: tx('شاری کار *')),
                         items: _cities.map((raw) {
                           final c = raw as Map<String, dynamic>;
                           return DropdownMenuItem(
                             value: (c['id'] as num).toInt(),
-                            child: Text(tx(c['name_ku']?.toString() ?? '')),
+                            child: Text(
+                              tx(c['name_ku']?.toString() ?? ''),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           );
                         }).toList(),
                         onChanged: (v) => setDialogState(() => cityId = v),

@@ -1135,6 +1135,7 @@ class _StoresScreenState extends State<StoresScreen> {
                               const SizedBox(height: 6),
                               if (serviceCities.isNotEmpty) ...[
                                 DropdownButtonFormField<int>(
+                                  isExpanded: true,
                                   value: selectedCityId,
                                   decoration: InputDecoration(
                                     labelText: tx('شاری کار'),
@@ -1144,7 +1145,11 @@ class _StoresScreenState extends State<StoresScreen> {
                                   items: serviceCities.map((c) {
                                     return DropdownMenuItem(
                                       value: (c['id'] as num).toInt(),
-                                      child: Text(tx(c['name_ku']?.toString() ?? '')),
+                                      child: Text(
+                                        tx(c['name_ku']?.toString() ?? ''),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     );
                                   }).toList(),
                                   onChanged: (v) async {
@@ -1154,6 +1159,7 @@ class _StoresScreenState extends State<StoresScreen> {
                                 ),
                                 const SizedBox(height: 10),
                                 DropdownButtonFormField<int?>(
+                                  isExpanded: true,
                                   value: selectedNeighborhoodId,
                                   decoration: InputDecoration(
                                     labelText: tx('گەڕەک'),
@@ -1163,12 +1169,20 @@ class _StoresScreenState extends State<StoresScreen> {
                                   items: [
                                     DropdownMenuItem<int?>(
                                       value: null,
-                                      child: Text(tx('— هەڵبژێرە —')),
+                                      child: Text(
+                                        tx('— هەڵبژێرە —'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
                                     ...cityNeighborhoods.map((n) {
                                       return DropdownMenuItem<int?>(
                                         value: (n['id'] as num).toInt(),
-                                        child: Text(tx(n['name_ku']?.toString() ?? '')),
+                                        child: Text(
+                                          tx(n['name_ku']?.toString() ?? ''),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       );
                                     }),
                                   ],

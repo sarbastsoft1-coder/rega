@@ -12,6 +12,7 @@ import 'package:rega_admin/rega_colors.dart';
 import 'package:rega_admin/rega_i18n.dart';
 import 'package:rega_admin/screens/accounting_screen.dart';
 import 'package:rega_admin/screens/admin_shell.dart';
+import 'package:rega_admin/screens/admin_staff_screen.dart';
 import 'package:rega_admin/screens/catalog_zones_screen.dart';
 import 'package:rega_admin/screens/customer_part_screen.dart';
 import 'package:rega_admin/screens/customers_screen.dart';
@@ -22,7 +23,10 @@ import 'package:rega_admin/screens/finance_screen.dart';
 import 'package:rega_admin/screens/live_radar_dialog.dart';
 import 'package:rega_admin/screens/login_screen.dart';
 import 'package:rega_admin/screens/marketing_screen.dart';
+import 'package:rega_admin/screens/order_intake_screen.dart';
 import 'package:rega_admin/screens/products_screen.dart';
+import 'package:rega_admin/screens/service_areas_part_screen.dart';
+import 'package:rega_admin/screens/service_cities_screen.dart';
 import 'package:rega_admin/screens/store_menu_categories_screen.dart';
 import 'package:rega_admin/screens/stores_screen.dart';
 import 'package:rega_admin/screens/support_settings_screen.dart';
@@ -610,14 +614,34 @@ class FakeApiClient extends ApiClient {
       ];
 
   @override
-  Future<List<dynamic>> getNeighborhoods() async => [
+  Future<List<dynamic>> getNeighborhoods({int? serviceCityId}) async => [
         {
           'id': 1,
+          'service_city_id': serviceCityId ?? 1,
           'name_ku': 'گەڕەکی شەهیدان — ناوەندی کەلار',
           'name_ar': 'حي الشهداء',
           'name_en': 'Shahidan Quarter',
           'delivery_fee': 2500,
           'is_active': true,
+        },
+      ];
+
+  @override
+  Future<List<dynamic>> getServiceCities() async => [
+        {
+          'id': 1,
+          'code': 'kalar',
+          'name_ku': 'کەلار',
+          'name_ar': 'كلار',
+          'name_en': 'Kalar',
+          'center_lat': 34.6289,
+          'center_lng': 45.3211,
+          'radius_km': 15.0,
+          'default_delivery_fee': 2000,
+          'sort_order': 1,
+          'is_active': true,
+          'neighborhoods_count': 4,
+          'stores_count': 18,
         },
       ];
 
@@ -988,6 +1012,7 @@ class _ViewportSpec {
 }
 
 const List<_ViewportSpec> _allViewports = [
+  _ViewportSpec('320x568', Size(320, 568)),
   _ViewportSpec('360x740', Size(360, 740)),
   _ViewportSpec('390x844', Size(390, 844)),
   _ViewportSpec('640x360', Size(640, 360)),
@@ -998,6 +1023,7 @@ const List<_ViewportSpec> _allViewports = [
 ];
 
 const List<_ViewportSpec> _coreViewports = [
+  _ViewportSpec('320x568', Size(320, 568)),
   _ViewportSpec('360x740', Size(360, 740)),
   _ViewportSpec('640x360', Size(640, 360)),
   _ViewportSpec('768x1024', Size(768, 1024)),
@@ -1174,8 +1200,8 @@ void main() {
       );
     }
 
-    // All 10 AdminShell tabs across phone, landscape, tablet, laptop, ultrawide
-    for (var tabIndex = 0; tabIndex < 10; tabIndex++) {
+    // All 11 AdminShell tabs across phone, landscape, tablet, laptop, ultrawide
+    for (var tabIndex = 0; tabIndex < AdminNavNotifier.tabPaths.length; tabIndex++) {
       for (final lang in _locales) {
         for (final vp in _coreViewports) {
           await _pumpWithGuard(
@@ -1447,6 +1473,25 @@ void main() {
         await openByIcon(ProductsScreen(api: api, lang: lang), Icons.add_rounded);
         await openByIcon(StoresScreen(api: api, lang: lang), Icons.add_rounded);
         await openByIcon(DriversScreen(api: api, lang: lang), Icons.add);
+        await openByIcon(ServiceCitiesScreen(api: api, lang: lang), Icons.add_location_alt_rounded);
+        await openByIcon(OrderIntakeScreen(api: api, lang: lang), Icons.add_shopping_cart_rounded);
+        await openByIcon(
+          AdminStaffScreen(
+            api: api,
+            lang: lang,
+          ),
+          Icons.person_add_alt_1_rounded,
+        );
+
+        await _pumpWithGuard(
+          tester,
+          viewport: spec.size,
+          viewInsets: spec.insets,
+          lang: lang,
+          api: api,
+          builder: (_) => Scaffold(body: ServiceAreasPartScreen(api: api, lang: lang)),
+          afterMount: () => _cycleFirstTabBar(tester),
+        );
 
         await _pumpWithGuard(
           tester,

@@ -344,22 +344,35 @@ class RegaStandardMapState extends State<RegaStandardMap> {
             child: Directionality(
               textDirection: TextDirection.ltr,
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _customerChip(
-                    label: 'سەتەلایت',
-                    icon: Icons.satellite_alt_rounded,
-                    active: isSat,
-                    activeColor: gold,
-                    onTap: toggleSatellite,
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: _customerChip(
+                        label: 'سەتەلایت',
+                        icon: Icons.satellite_alt_rounded,
+                        active: isSat,
+                        activeColor: gold,
+                        onTap: toggleSatellite,
+                      ),
+                    ),
                   ),
-                  const Spacer(),
-                  _customerChip(
-                    label: 'شوێنەکەم',
-                    icon: Icons.my_location_rounded,
-                    active: true,
-                    activeColor: gold,
-                    busy: _locating,
-                    onTap: goToMyLocation,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: _customerChip(
+                        label: 'شوێنەکەم',
+                        icon: Icons.my_location_rounded,
+                        active: true,
+                        activeColor: gold,
+                        busy: _locating,
+                        onTap: goToMyLocation,
+                      ),
+                    ),
                   ),
                 ],
               ),

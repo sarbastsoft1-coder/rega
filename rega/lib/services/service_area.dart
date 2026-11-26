@@ -260,7 +260,7 @@ class ServiceAreaBlockedScreen extends StatelessWidget {
       body: RegaResponsive.constrain(
         alignment: Alignment.center,
         maxWidth: 520,
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

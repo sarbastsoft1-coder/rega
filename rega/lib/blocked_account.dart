@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'iraq_phone_formatter.dart';
 import 'l10n/customer_l10n.dart';
-
+import 'rega_mobile.dart';
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
 class AccountBlockedException implements Exception {
@@ -113,6 +113,7 @@ class BlockedAccountContacts {
           textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
           child: AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            insetPadding: RegaResponsive.dialogInset(ctx, cap: 400),
             title: Row(
               children: [
                 Icon(Icons.block_rounded, color: RC.fg(Color(0xFFDC2626)), size: 28),
@@ -125,37 +126,42 @@ class BlockedAccountContacts {
                 ),
               ],
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  t('هەژمارەکەت لەلایەن بەڕێوەبەرەوە مسدود کراوە. تکایە پەیوەندی بە یارمەتی پشتگیری بکە لە ڕێگەی واتسئاپ.'),
-                  style: const TextStyle(fontWeight: FontWeight.w600, height: 1.5, fontSize: 14),
-                ),
-                const SizedBox(height: 18),
-                _ContactBtn(
-                  icon: Icons.chat_rounded,
-                  color: RC.bg(Color(0xFF16A34A)),
-                  label: tx('${t('پەیوەندی لە ڕێگەی واتسئاپ')}  ${contacts.whatsapp}'),
-                  onTap: () => contacts.open(
-                    contacts.whatsappUri,
-                    clipboardFallback: contacts.whatsapp,
-                  ),
-                ),
-                if (contacts.phone.trim().isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  _ContactBtn(
-                    icon: Icons.phone_rounded,
-                    color: RC.bg(Color(0xFFEA580C)),
-                    label: tx('${t('تەلەفۆن بۆ ڕاژەی کریاران')}  ${contacts.phone}'),
-                    onTap: () => contacts.open(
-                      contacts.telUri,
-                      clipboardFallback: contacts.phone,
+            content: SizedBox(
+              width: RegaResponsive.dialogMaxWidth(ctx, cap: 400),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      t('هەژمارەکەت لەلایەن بەڕێوەبەرەوە مسدود کراوە. تکایە پەیوەندی بە یارمەتی پشتگیری بکە لە ڕێگەی واتسئاپ.'),
+                      style: const TextStyle(fontWeight: FontWeight.w600, height: 1.5, fontSize: 14),
                     ),
-                  ),
-                ],
-              ],
+                    const SizedBox(height: 18),
+                    _ContactBtn(
+                      icon: Icons.chat_rounded,
+                      color: RC.bg(Color(0xFF16A34A)),
+                      label: tx('${t('پەیوەندی لە ڕێگەی واتسئاپ')}  ${contacts.whatsapp}'),
+                      onTap: () => contacts.open(
+                        contacts.whatsappUri,
+                        clipboardFallback: contacts.whatsapp,
+                      ),
+                    ),
+                    if (contacts.phone.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _ContactBtn(
+                        icon: Icons.phone_rounded,
+                        color: RC.bg(Color(0xFFEA580C)),
+                        label: tx('${t('تەلەفۆن بۆ ڕاژەی کریاران')}  ${contacts.phone}'),
+                        onTap: () => contacts.open(
+                          contacts.telUri,
+                          clipboardFallback: contacts.phone,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
             actions: [
               TextButton(

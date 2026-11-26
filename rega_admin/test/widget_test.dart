@@ -20,6 +20,7 @@ void main() {
           ChangeNotifierProvider.value(value: appState),
           ChangeNotifierProvider(create: (_) => AdminNavNotifier()),
           ChangeNotifierProvider(create: (_) => DashboardNotifier(api)),
+          ChangeNotifierProvider(create: (_) => AdminInboxNotifier(api)),
           ChangeNotifierProvider(create: (_) => OrdersNotifier(api)),
           ChangeNotifierProvider(create: (_) => DriversNotifier(api)),
           ChangeNotifierProvider(create: (_) => CustomersNotifier(api)),
@@ -33,7 +34,7 @@ void main() {
     expect(find.text('پانێڵی بەڕێوەبردنی ڕێگا'), findsOneWidget);
     expect(find.text('چوونە ژوورەوە بۆ پانێڵ'), findsOneWidget);
 
-    await tester.tap(find.text('ئینگلیزی'));
+    await tester.tap(find.text('EN'));
     await tester.pumpAndSettle();
 
     expect(find.text('REGA Admin Control'), findsOneWidget);

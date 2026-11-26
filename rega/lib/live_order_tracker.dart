@@ -1518,24 +1518,33 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
                       Marker(
                         point: _storePos,
                         width: 72,
-                        height: 78,
+                        height: 84,
                         alignment: Alignment.bottomCenter,
-                        child: _vendorLogoMarker(),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: _vendorLogoMarker(),
+                        ),
                       ),
                       Marker(
                         point: _customerPos,
                         width: 64,
-                        height: 68,
+                        height: 76,
                         alignment: Alignment.bottomCenter,
-                        child: _customerPinMarker(),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: _customerPinMarker(),
+                        ),
                       ),
                       if (_status != 'delivered')
                         Marker(
                           point: _displayDriverPos,
                           width: 72,
-                          height: 78,
+                          height: 86,
                           alignment: Alignment.center,
-                          child: _driverLiveMarker(),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: _driverLiveMarker(),
+                          ),
                         ),
                     ],
                   ),
@@ -1726,12 +1735,20 @@ class _CustomerLiveOrderTrackerScreenState extends State<CustomerLiveOrderTracke
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: List.generate(stepLabels.length, (i) {
             final active = i == activeIdx;
-            return Text(
-              tx(stepLabels[i]),
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: active ? FontWeight.w900 : FontWeight.w600,
-                color: i <= activeIdx ? RC.bg(Color(0xFF0F172A)) : RC.bg(Color(0xFF94A3B8)),
+            return Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Text(
+                    tx(stepLabels[i]),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: active ? FontWeight.w900 : FontWeight.w600,
+                      color: i <= activeIdx ? RC.bg(Color(0xFF0F172A)) : RC.bg(Color(0xFF94A3B8)),
+                    ),
+                  ),
+                ),
               ),
             );
           }),
