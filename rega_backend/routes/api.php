@@ -122,6 +122,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/upload', [VendorAppController::class, 'uploadMedia']);
 
         Route::get('/orders', [VendorAppController::class, 'orders']);
+        Route::delete('/orders/completed', [VendorAppController::class, 'clearCompletedOrders']);
+        Route::delete('/orders/{order}', [VendorAppController::class, 'deleteOrder']);
         Route::post('/orders/{order}/accept', [VendorAppController::class, 'acceptOrder']);
         Route::post('/orders/{order}/reject', [VendorAppController::class, 'rejectOrder']);
         Route::post('/orders/{order}/ready', [VendorAppController::class, 'markReady']);

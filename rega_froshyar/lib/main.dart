@@ -1023,11 +1023,96 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   void _deleteOrderById(String id) {
-    setState(() => _orders.removeWhere((o) => o.id == id));
+    final index = _orders.indexWhere((o) => o.id == id);
+    if (index == -1) return;
+    final removed = _orders[index];
+    final dbId = removed.dbId;
+
+    setState(() => _orders.removeAt(index));
+
+    // Demo / offline-only rows have no server id.
+    if (dbId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx('داواکاری سڕایەوە'), textAlign: TextAlign.center),
+          backgroundColor: RC.bg(const Color(0xFF00894C)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    VendorApiService.instance.deleteOrder(dbId).then((res) {
+      if (!mounted) return;
+      final (ok, msg) = res;
+      if (!ok) {
+        setState(() {
+          if (index <= _orders.length) {
+            _orders.insert(index, removed);
+          } else {
+            _orders.add(removed);
+          }
+        });
+      } else {
+        _seenBackendOrderIds.remove(dbId);
+        _localOrderStages.remove(dbId);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(msg), textAlign: TextAlign.center),
+          backgroundColor: ok ? RC.bg(const Color(0xFF00894C)) : RC.bg(const Color(0xFFE50010)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    });
   }
 
   void _clearCompletedOrders() {
+    final removed = _orders.where((o) => o.status == OrderStatus.completed).toList();
+    if (removed.isEmpty) return;
+
     setState(() => _orders.removeWhere((o) => o.status == OrderStatus.completed));
+
+    final hasServerRows = removed.any((o) => o.dbId != null);
+    if (!hasServerRows) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx('داواکاری تەواوبووەکان سڕانەوە'), textAlign: TextAlign.center),
+          backgroundColor: RC.bg(const Color(0xFF00894C)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    VendorApiService.instance.clearCompletedOrders().then((res) {
+      if (!mounted) return;
+      final (ok, msg) = res;
+      if (!ok) {
+        setState(() => _orders = [...removed, ..._orders]);
+      } else {
+        for (final o in removed) {
+          if (o.dbId != null) {
+            _seenBackendOrderIds.remove(o.dbId);
+            _localOrderStages.remove(o.dbId);
+          }
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(msg), textAlign: TextAlign.center),
+          backgroundColor: ok ? RC.bg(const Color(0xFF00894C)) : RC.bg(const Color(0xFFE50010)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      if (ok) {
+        _syncVendorOrdersOnly(initialLoad: false);
+      }
+    });
   }
 
   Future<void> _initBackendVendorSync({bool forceRelogin = false}) async {
@@ -1525,10 +1610,43 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   void _deleteCategory(String category) {
+    final catIndex = _categories.indexOf(category);
+    if (catIndex == -1) return;
+    final removedImage = _categoryImages[category];
+    final removedProducts = _products
+        .where((p) => p.category.trim() == category.trim())
+        .toList();
+
     setState(() {
       _categories.remove(category);
       _categoryImages.remove(category);
-      VendorApiService.instance.deleteCategoryByName(category);
+      _products.removeWhere((p) => p.category.trim() == category.trim());
+    });
+
+    VendorApiService.instance.deleteCategoryByName(category).then((res) {
+      if (!mounted) return;
+      final (ok, msg) = res;
+      if (!ok) {
+        setState(() {
+          if (catIndex <= _categories.length) {
+            _categories.insert(catIndex, category);
+          } else {
+            _categories.add(category);
+          }
+          if (removedImage != null) {
+            _categoryImages[category] = removedImage;
+          }
+          _products.addAll(removedProducts);
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(msg), textAlign: TextAlign.center),
+          backgroundColor: ok ? RC.bg(const Color(0xFF00894C)) : RC.bg(const Color(0xFFE50010)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     });
   }
 
@@ -1780,7 +1898,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1080),
-                  // [switch] [sound]  ... [REGA logo centered]
+                  // [switch] [sound]  ... [REGA logo centered] ...  [فرۆشگا text only]
                   child: Directionality(
                     textDirection: TextDirection.ltr,
                     child: Stack(
@@ -1814,6 +1932,25 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           ),
                         ),
                         Center(child: _buildTopLogo()),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 130),
+                            child: Text(
+                              t('فرۆشگا'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: kAppFontFamily,
+                                height: 1.15,
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),

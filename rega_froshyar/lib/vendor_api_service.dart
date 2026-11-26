@@ -474,12 +474,72 @@ class VendorApiService {
     }
   }
 
-  Future<void> deleteCategoryByName(String nameKu) async {
+  Future<(bool, String)> deleteCategoryByName(String nameKu) async {
     final id = categoryNameToId[nameKu];
-    if (id == null || !await ensureAuthenticated()) return;
-    await http
-        .delete(Uri.parse('$baseUrl/vendor/categories/$id'), headers: _headers())
-        .timeout(const Duration(seconds: 5));
+    if (id == null) {
+      return (false, 'بەش نەدۆزرایەوە');
+    }
+    if (!await ensureAuthenticated()) {
+      return (false, 'پەیوەندی بە سێرڤەرەوە نییە');
+    }
+    try {
+      final res = await http
+          .delete(Uri.parse('$baseUrl/vendor/categories/$id'), headers: _headers())
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        categoryNameToId.remove(nameKu);
+        return (true, 'بەش سڕایەوە');
+      }
+      final body = res.body.isNotEmpty
+          ? (regaJsonDecode(res.body) as Map<String, dynamic>)
+          : <String, dynamic>{};
+      return (false, body['message']?.toString() ?? 'سڕینەوەی بەش سەرکەوتوو نەبوو');
+    } catch (_) {
+      return (false, 'سڕینەوەی بەش سەرکەوتوو نەبوو');
+    }
+  }
+
+  Future<(bool, String)> deleteOrder(int orderDbId) async {
+    if (!await ensureAuthenticated()) {
+      return (false, 'پەیوەندی بە سێرڤەرەوە نییە');
+    }
+    try {
+      final res = await http
+          .delete(Uri.parse('$baseUrl/vendor/orders/$orderDbId'), headers: _headers())
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        return (true, 'داواکاری سڕایەوە');
+      }
+      final body = res.body.isNotEmpty
+          ? (regaJsonDecode(res.body) as Map<String, dynamic>)
+          : <String, dynamic>{};
+      return (false, body['message']?.toString() ?? 'سڕینەوەی داواکاری سەرکەوتوو نەبوو');
+    } catch (_) {
+      return (false, 'سڕینەوەی داواکاری سەرکەوتوو نەبوو');
+    }
+  }
+
+  Future<(bool, String)> clearCompletedOrders() async {
+    if (!await ensureAuthenticated()) {
+      return (false, 'پەیوەندی بە سێرڤەرەوە نییە');
+    }
+    try {
+      final res = await http
+          .delete(Uri.parse('$baseUrl/vendor/orders/completed'), headers: _headers())
+          .timeout(const Duration(seconds: 12));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = res.body.isNotEmpty
+            ? (regaJsonDecode(res.body) as Map<String, dynamic>)
+            : <String, dynamic>{};
+        return (true, body['message']?.toString() ?? 'داواکاری تەواوبووەکان سڕانەوە');
+      }
+      final body = res.body.isNotEmpty
+          ? (regaJsonDecode(res.body) as Map<String, dynamic>)
+          : <String, dynamic>{};
+      return (false, body['message']?.toString() ?? 'سڕینەوەی تەواوبووەکان سەرکەوتوو نەبوو');
+    } catch (_) {
+      return (false, 'سڕینەوەی تەواوبووەکان سەرکەوتوو نەبوو');
+    }
   }
 
   /// Upload image bytes. Returns `{path, url}` or throws on failure.

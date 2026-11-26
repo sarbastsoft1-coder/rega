@@ -206,9 +206,19 @@ class VendorAppController extends Controller
         if ($storeCategory->store_id !== $store->id) {
             abort(403);
         }
-        $storeCategory->delete();
 
-        return response()->json(['success' => true]);
+        $deletedProducts = 0;
+        DB::transaction(function () use ($storeCategory, $store, &$deletedProducts) {
+            $deletedProducts = (int) $storeCategory->products()->delete();
+            $storeCategory->delete();
+            $store->refreshDiscountBadge();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'بەش سڕایەوە.',
+            'deleted_products' => $deletedProducts,
+        ]);
     }
 
     public function products(Request $request): JsonResponse
@@ -714,6 +724,98 @@ class VendorAppController extends Controller
                 'server_time' => now()->toIso8601String(),
             ],
         ]);
+    }
+
+    /**
+     * Vendor may permanently remove finished / rejected orders from their list.
+     */
+    public function deleteOrder(Request $request, Order $order): JsonResponse
+    {
+        $this->resolveOrderStore($request, $order);
+
+        if (! $this->vendorMayDeleteOrder($order)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'تەنها داواکاری تەواوبوو / ڕەتکراو دەتوانرێت بسڕدرێتەوە.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($order) {
+            $order->items()->delete();
+            $order->statusLogs()->delete();
+            LiveTelemetrySession::where('order_id', $order->id)
+                ->orWhere('order_ref', $order->order_number)
+                ->delete();
+            $order->delete();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'داواکاری بە سەرکەوتوویی سڕایەوە.',
+        ]);
+    }
+
+    /**
+     * Clear all completed (handed-over / delivered) orders for this vendor's stores.
+     */
+    public function clearCompletedOrders(Request $request): JsonResponse
+    {
+        $storeIds = $request->user()->stores()->pluck('id');
+        if ($storeIds->isEmpty()) {
+            abort(404, 'هیچ فرۆشگایەک بەم هەژمارەوە نەبەستراوەتەوە.');
+        }
+
+        $orders = Order::query()
+            ->whereIn('store_id', $storeIds)
+            ->where(function ($q) {
+                $q->whereIn('vendor_status', ['completed', 'picked_up', 'on_the_way', 'delivered', 'arrived_customer'])
+                    ->orWhereIn('status', ['delivered', 'picked_up', 'on_the_way', 'arrived_customer']);
+            })
+            ->get();
+
+        $deleted = 0;
+        DB::transaction(function () use ($orders, &$deleted) {
+            foreach ($orders as $order) {
+                $order->items()->delete();
+                $order->statusLogs()->delete();
+                LiveTelemetrySession::where('order_id', $order->id)
+                    ->orWhere('order_ref', $order->order_number)
+                    ->delete();
+                $order->delete();
+                $deleted++;
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => $deleted > 0
+                ? "{$deleted} داواکاری تەواوبوو سڕایەوە."
+                : 'هیچ داواکاری تەواوبوویەک نەدۆزرایەوە.',
+            'deleted_count' => $deleted,
+        ]);
+    }
+
+    private function vendorMayDeleteOrder(Order $order): bool
+    {
+        $vendorStatus = (string) ($order->vendor_status ?? '');
+        $status = (string) ($order->status ?? '');
+
+        return in_array($vendorStatus, [
+            'completed',
+            'picked_up',
+            'on_the_way',
+            'arrived_customer',
+            'delivered',
+            'rejected',
+            'cancelled',
+        ], true) || in_array($status, [
+            'delivered',
+            'picked_up',
+            'on_the_way',
+            'arrived_customer',
+            'cancelled',
+            'rejected',
+        ], true);
     }
 
     public function handoverToDriver(Request $request, Order $order): JsonResponse
