@@ -967,12 +967,13 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                             padding: EdgeInsets.fromLTRB(padH, 4, padH, 20),
                             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: crossCount,
-                              mainAxisSpacing: 12,
+                              mainAxisSpacing: 10,
                               crossAxisSpacing: 12,
-                              mainAxisExtent: 184,
+                              // Tight to image+text row (84 + padding); was 184 and left a large blank gap.
+                              mainAxisExtent: 112,
                             ),
                             itemCount: products.length,
-                            itemBuilder: (_, i) => _buildProductRow(products[i]),
+                            itemBuilder: (_, i) => _buildProductRow(products[i], compact: true),
                           );
                         },
                       ),
@@ -984,7 +985,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
     );
   }
 
-  Widget _buildProductRow(Product product) {
+  Widget _buildProductRow(Product product, {bool compact = false}) {
     final resolved = VendorApiService.instance.resolveMediaUrl(product.imageUrl);
     late final ImageProvider provider;
     if (!kIsWeb && product.imagePath != null && product.imagePath!.isNotEmpty) {
@@ -1005,6 +1006,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
     final hasDiscount =
         product.discountPrice != null && product.discountPrice! > 0 && product.discountPrice! < product.price;
     final display = hasDiscount ? product.discountPrice!.toInt() : product.price.toInt();
+    final imgSize = compact ? 72.0 : 84.0;
 
     return Material(
       color: RC.bg(Colors.white),
@@ -1013,15 +1015,15 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
         onTap: () => _openProductForm(category: product.category, existing: product),
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(12),
+          margin: EdgeInsets.only(bottom: compact ? 0 : 10),
+          padding: EdgeInsets.all(compact ? 10 : 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: RC.bg(const Color(0xFF0F172A)), width: 1.15),
           ),
           child: Row(
             textDirection: TextDirection.rtl,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               GestureDetector(
                 onTap: () => showFullScreenImageDialog(context, imageProvider: provider, title: product.name),
@@ -1029,12 +1031,12 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                   borderRadius: BorderRadius.circular(12),
                   child: Image(
                     image: provider,
-                    width: 84,
-                    height: 84,
+                    width: imgSize,
+                    height: imgSize,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
-                      width: 84,
-                      height: 84,
+                      width: imgSize,
+                      height: imgSize,
                       color: RC.bg(const Color(0xFFFFF7ED)),
                       child: Icon(Icons.fastfood_rounded, color: RC.fg(_orange)),
                     ),
@@ -1044,11 +1046,14 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
                       tx(product.name),
                       textAlign: TextAlign.right,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 15,
@@ -1057,11 +1062,11 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                       ),
                     ),
                     if ((product.description ?? '').trim().isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         tx(product.description!),
                         textAlign: TextAlign.right,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: RC.fg(const Color(0xFF64748B)),
@@ -1071,7 +1076,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
                     Row(
                       textDirection: TextDirection.rtl,
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,

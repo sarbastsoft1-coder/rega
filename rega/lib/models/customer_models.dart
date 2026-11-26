@@ -84,12 +84,19 @@ class StoreItem {
     return double.parse(rating.clamp(0, 10).toStringAsFixed(1));
   }
 
-  /// ئایا گەیاندن خۆڕاییە بۆ ئەم فرۆشگایە (لەلایەن ئەدمینەوە یان باجی خۆڕایی)
-  bool get isFreeDelivery =>
-      deliveryFee <= 0 ||
-      (discountBadge != null &&
-          (discountBadge!.toUpperCase().contains('FREE') ||
-              discountBadge!.contains('خۆڕای')));
+  /// True only when admin marked delivery free (fee 0 or free badge).
+  /// A missing zone fee must NOT be treated as free — cart falls back to store/default.
+  bool get isFreeDelivery {
+    if (deliveryFee == 0) return true;
+    final badge = discountBadge?.trim() ?? '';
+    if (badge.isEmpty) return false;
+    final upper = badge.toUpperCase();
+    return upper.contains('FREE DELIVERY') ||
+        upper.contains('FREE_DELIVERY') ||
+        badge.contains('خۆڕایی') ||
+        badge.contains('خۆڕای گەیاندن') ||
+        badge.contains('گەیاندنی خۆڕا');
+  }
 }
 
 class ProductItem {

@@ -58,7 +58,8 @@ class PublicAndCustomerController extends Controller
         }
         $featuredStores = $storeQuery->limit(200)->get();
 
-        $settingsRows = PlatformSetting::whereIn('group', ['public', 'general', 'support'])->get();
+        // Include finance so default_delivery_fee (and related) reach the customer cart.
+        $settingsRows = PlatformSetting::whereIn('group', ['public', 'general', 'support', 'finance'])->get();
         $publicSettings = [];
         foreach ($settingsRows as $row) {
             $val = $row->value;

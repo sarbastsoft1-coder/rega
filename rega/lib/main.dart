@@ -238,6 +238,8 @@ class _MainScreenState extends State<MainScreen> {
   List<Map<String, dynamic>> _serviceCities = [];
   int? _selectedServiceCityId;
   static const String _kSelectedCityPref = 'rega_selected_service_city_id';
+  /// From bootstrap settings — used when zone/store fee is missing (never invent "free").
+  int _defaultDeliveryFee = 1500;
 
   // Provider-backed app state (source of truth for cart / session / location / orders)
   List<CartEntry> get _cart => context.read<CartNotifier>().mutableItems;
@@ -298,13 +300,27 @@ class _MainScreenState extends State<MainScreen> {
   bool get _hasDeliveryPlaceChosen => context.read<LocationNotifier>().hasChosenPlace;
 
   int get _deliveryFeeOrZero {
+    StoreItem? store;
     if (_cart.isNotEmpty) {
       final sId = _cart.first.product.storeId;
-      final s = allStores.where((st) => st.id == sId).firstOrNull;
-      if (s != null && s.isFreeDelivery) return 0;
+      store = allStores.where((st) => st.id == sId).firstOrNull;
     }
-    if (_selectedStore != null && _selectedStore!.isFreeDelivery) return 0;
-    return context.read<LocationNotifier>().deliveryFeeOrZero;
+    store ??= _selectedStore;
+
+    // Only show خۆڕایی when the store is explicitly free-delivery.
+    if (store != null && store.isFreeDelivery) return 0;
+
+    // 1) Neighborhood / zone fee (e.g. admin set 3000 on a گەڕەک)
+    final zoneFee = context.read<LocationNotifier>().neighborhood?.deliveryFee ?? 0;
+    if (zoneFee > 0) return zoneFee;
+
+    // 2) Store base delivery fee (admin store form presets: 1000…3000)
+    if (store != null && store.deliveryFee > 0) return store.deliveryFee;
+
+    // 3) Platform default — never treat "no zone chosen" as free
+    if (_defaultDeliveryFee > 0) return _defaultDeliveryFee;
+
+    return 0;
   }
 
   // Dynamic Marketplace Data from Backend (Categories, Banners)
@@ -1315,6 +1331,15 @@ class _MainScreenState extends State<MainScreen> {
             }
             return m;
           }).toList();
+        }
+
+        final rawSettings = boot['settings'];
+        if (rawSettings is Map) {
+          final feeRaw = rawSettings['default_delivery_fee'];
+          final fee = feeRaw is num ? feeRaw.toInt() : int.tryParse('$feeRaw');
+          if (fee != null && fee > 0) {
+            _defaultDeliveryFee = fee;
+          }
         }
 
         final rawStores = boot['stores'] as List<dynamic>? ?? [];
