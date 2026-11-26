@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:image_picker/image_picker.dart';
 import "package:flutter/foundation.dart";
 import 'package:audioplayers/audioplayers.dart';
@@ -509,8 +510,15 @@ class _RegaVendorAppState extends State<RegaVendorApp> {
           debugShowCheckedModeBanner: false,
           routerConfig: router,
           // ku/ar → Arabic locale so Material text fields/inputs are RTL like Arabic.
+          // Requires flutter_localizations — without these delegates TextFields crash
+          // as gray ErrorWidgets when locale is 'ar'.
           locale: Trans.materialLocale,
           supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: ThemeData(
             primarySwatch: Colors.orange,
             fontFamily: 'NotoKufiArabic',

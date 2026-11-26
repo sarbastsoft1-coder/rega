@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:io';
@@ -122,8 +123,15 @@ class _RegaAppState extends State<RegaApp> {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       // ku/ar → Arabic locale so Material inputs start from the right like Arabic.
+      // Requires flutter_localizations — without these delegates TextFields crash
+      // as gray ErrorWidgets when locale is 'ar'.
       locale: locale.langCode == 'en' ? const Locale('en') : const Locale('ar'),
       supportedLocales: const [Locale('en'), Locale('ar')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,

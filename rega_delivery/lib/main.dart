@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
@@ -161,8 +162,15 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       // ku/ar → Arabic locale so Material inputs start from the right like Arabic.
+      // Requires flutter_localizations — without these delegates TextFields crash
+      // as gray ErrorWidgets when locale is 'ar'.
       locale: session.locale == 'en' ? const Locale('en') : const Locale('ar'),
       supportedLocales: const [Locale('en'), Locale('ar')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,

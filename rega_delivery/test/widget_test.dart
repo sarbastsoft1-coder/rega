@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:delivery_app/blocked_account.dart';
@@ -229,6 +230,14 @@ Future<void> _pumpDriverWithGuard(
         ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
+          // Match production: ku/ar use Locale('ar') + flutter_localizations.
+          locale: lang == 'en' ? const Locale('en') : const Locale('ar'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: ThemeData(
             useMaterial3: true,
             brightness: isDark ? Brightness.dark : Brightness.light,

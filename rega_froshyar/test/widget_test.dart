@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:rega_vendor/assigned_driver_map.dart';
@@ -320,6 +321,15 @@ Future<void> _pumpVendorWithGuard(
         ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
+          // Match production: ku/ar use Locale('ar') + flutter_localizations.
+          // Without delegates, TextFields crash as gray ErrorWidgets.
+          locale: lang == 'en' ? const Locale('en') : const Locale('ar'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: ThemeData(
             useMaterial3: true,
             brightness: isDark ? Brightness.dark : Brightness.light,
@@ -388,6 +398,15 @@ void main() {
               lang: lang,
               isDark: isDark,
               builder: () => const LoginScreen(),
+              afterMount: () async {
+                expect(
+                  find.byType(ErrorWidget),
+                  findsNothing,
+                  reason:
+                      'Login TextFields must not crash as gray ErrorWidgets (lang=$lang)',
+                );
+                expect(find.byType(TextField), findsWidgets);
+              },
             );
           }
         }
