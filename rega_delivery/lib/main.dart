@@ -22,7 +22,9 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' show MapboxOptions
 import 'map/mapbox_tiles.dart';
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
-void main() {
+import 'services/push_notifications.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (MapboxTiles.accessToken.isNotEmpty) {
     try {
@@ -35,6 +37,7 @@ void main() {
       statusBarIconBrightness: Brightness.dark,
     ),
   );
+  await PushNotifications.instance.init();
   runApp(buildDriverProviders(child: const DeliveryDriverApp()));
 }
 
@@ -104,6 +107,7 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
           currentLocale: session.locale,
           onLogin: (phone) async {
             await session.login(phone: phone);
+            await PushNotifications.instance.requestPermissionAndSync();
             if (context.mounted) context.go('/map');
           },
         );
@@ -184,10 +188,12 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
       ),
       themeMode: session.themeMode,
       builder: (context, child) {
-        return RegaResponsive.appBuilder(
-          context,
-          child,
-          direction: session.textDirection,
+        return PushBannerHost(
+          child: RegaResponsive.appBuilder(
+            context,
+            child,
+            direction: session.textDirection,
+          ),
         );
       },
     );
@@ -791,6 +797,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   Future<void> _initBackendDriverSync() async {
     final ok = await DriverApiService.instance.ensureAuthenticated(phone: widget.driverPhone);
     if (!ok || !mounted) return;
+    unawaited(PushNotifications.instance.requestPermissionAndSync());
     await _refreshBackendDriverData();
     _driverSyncTimer?.cancel();
     _driverSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) {

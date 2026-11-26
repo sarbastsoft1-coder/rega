@@ -592,7 +592,7 @@ class VendorAppController extends Controller
                 'note' => "فرۆشیار شۆفێری دیاریکرد: {$driver->name} ({$driver->driverProfile->driver_code})",
             ]);
 
-            AppNotification::create([
+            AppNotification::createAndPush([
                 'user_id' => $driver->id,
                 'target_audience' => 'specific_user',
                 'title_ku' => "داواکاری نوێی {$order->order_number} گەیشت",
@@ -600,6 +600,9 @@ class VendorAppController extends Controller
                 'body_ku' => "داواکارییەک لە {$store->name_ku} بۆت دیاریکرا — شوێنی فرۆشگا لەسەر نەخشە دەرکەوتووە.",
                 'tag' => 'گەیاندن',
                 'type' => 'order',
+            ], [
+                'order_number' => (string) $order->order_number,
+                'order_id' => (string) $order->id,
             ]);
 
             // Push vendor GPS onto live telemetry so driver map shows the store pin.

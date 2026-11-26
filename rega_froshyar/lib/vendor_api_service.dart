@@ -86,6 +86,7 @@ class VendorApiService {
             'identifier': cleanId,
             'password': cleanPass,
             'device_name': 'rega_froshyar_app',
+            'role_filter': 'vendor',
           }),
         )
         .timeout(const Duration(seconds: 6));
@@ -109,6 +110,24 @@ class VendorApiService {
       }
     }
     return false;
+  }
+
+  /// Persist FCM device token so new-order / message pushes reach this phone.
+  Future<bool> updateFcmToken(String token) async {
+    await ensureAuthenticated();
+    if (!isAuthenticated || token.trim().isEmpty) return false;
+    try {
+      final res = await http
+          .put(
+            Uri.parse('$baseUrl/auth/profile'),
+            headers: _headers(),
+            body: jsonEncode({'fcm_token': token.trim()}),
+          )
+          .timeout(const Duration(seconds: 8));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> ensureAuthenticated() async {

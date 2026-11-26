@@ -28,6 +28,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' show MapboxOptions
 import 'map/mapbox_tiles.dart';
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
+import 'services/push_notifications.dart';
 
 part 'products_menu_screen.dart';
 
@@ -154,6 +155,10 @@ class Trans {
      'فڕۆشی مانگ': {'en': 'Month sales', 'ar': 'مبيعات الشهر'},
      'داهاتی سافی': {'en': 'Net income', 'ar': 'صافي الدخل'},
      'کۆمیسیۆن': {'en': 'Commission', 'ar': 'العمولة'},
+     'کۆی فرۆشتن': {'en': 'Total sales', 'ar': 'إجمالي المبيعات'},
+     'پڕفرۆشترین بەرهەمەکان': {'en': 'Top-selling products', 'ar': 'الأكثر مبيعاً'},
+     'هیچ بەرهەمێک نییە': {'en': 'No products', 'ar': 'لا توجد منتجات'},
+     'بەروار': {'en': 'Date', 'ar': 'تاريخ'},
      'بەرواری دیاریکراو': {'en': 'Custom date', 'ar': 'تاريخ محدد'},
      'هیچ فڕۆشێک تۆمار نەکراوە تا ئێستا': {'en': 'No sales recorded yet', 'ar': 'لم تُسجَّل أي مبيعات بعد'},
      'داواکاری': {'en': 'order', 'ar': 'طلب'},
@@ -382,6 +387,7 @@ Future<void> main() async {
     } catch (_) {}
   }
   await Trans.loadSavedLang();
+  await PushNotifications.instance.init();
   runApp(buildVendorProviders(child: const RegaVendorApp()));
 }
 
@@ -514,10 +520,12 @@ class _RegaVendorAppState extends State<RegaVendorApp> {
           ),
           themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
           builder: (context, child) {
-            return RegaResponsive.appBuilder(
-              context,
-              child,
-              direction: Trans.direction,
+            return PushBannerHost(
+              child: RegaResponsive.appBuilder(
+                context,
+                child,
+                direction: Trans.direction,
+              ),
             );
           },
         );
@@ -760,6 +768,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 phone: _phoneController.text,
                                 password: _passwordController.text,
                               );
+                              await PushNotifications.instance.requestPermissionAndSync();
                               if (!mounted) return;
                               context.go('/orders');
                             } on AccountBlockedException catch (e) {
@@ -1051,6 +1060,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         debugPrint('Vendor backend sync skipped: not authenticated');
         return;
       }
+
+      unawaited(PushNotifications.instance.requestPermissionAndSync());
 
       final store = await VendorApiService.instance.fetchStoreProfile();
       final cats = await VendorApiService.instance.fetchCategories();
@@ -1769,7 +1780,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1080),
-                  // Match reference: [switch] [sound]  ... [REGA logo centered] ...  [فرۆشگا] [store+dot]
+                  // [switch] [sound]  ... [REGA logo centered]
                   child: Directionality(
                     textDirection: TextDirection.ltr,
                     child: Stack(
@@ -1803,63 +1814,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           ),
                         ),
                         Center(child: _buildTopLogo()),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 115),
-                                child: Text(
-                                  t('فرۆشگا'),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w800,
-                                    fontFamily: kAppFontFamily,
-                                    height: 1.15,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  _buildHeaderGlassIcon(
-                                    size: 46,
-                                    radius: 14.5,
-                                    borderAlpha: 0.48,
-                                    onTap: () => _onItemTapped(0),
-                                    child: CustomPaint(
-                                      size: const Size(23, 23),
-                                      painter: _HeaderStorePainter(color: Colors.white),
-                                    ),
-                                  ),
-                                  Positioned(
-                                    bottom: -1,
-                                    right: -1,
-                                    child: Container(
-                                      width: 13,
-                                      height: 13,
-                                      decoration: BoxDecoration(
-                                        color: _isOnline
-                                            ? const Color(0xFF0FB884)
-                                            : const Color(0xFFEF4444),
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: const Color(0xFFDE7507),
-                                          width: 2,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -5008,7 +4962,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                   children: [
                                     IconButton(
                                       onPressed: () => Navigator.pop(dialogCtx),
-                                      icon: Icon(Icons.arrow_forward_ios_rounded, color: RC.fg(orange), size: 20),
+                                      icon: Icon(
+                                        Icons.chevron_right_rounded,
+                                        color: RC.fg(orange),
+                                        size: 28,
+                                        textDirection: TextDirection.ltr,
+                                      ),
                                     ),
                                     Expanded(
                                       child: Text(
@@ -8812,13 +8771,6 @@ class _RevenueScreenState extends State<RevenueScreen> {
     final monthSales = widget.orders
         .where((o) => o.timestamp.year == now.year && o.timestamp.month == now.month)
         .fold<double>(0, (s, o) => s + o.total);
-    final activeOrdersTotal = widget.orders
-        .where((o) =>
-            o.status == OrderStatus.pending ||
-            o.status == OrderStatus.accepted ||
-            o.status == OrderStatus.preparing ||
-            o.status == OrderStatus.ready)
-        .fold<double>(0, (s, o) => s + o.total);
     final balanceTotal = (api?['seller_balance'] as num?)?.toDouble() ??
         (api?['lifetime_seller_share'] as num?)?.toDouble() ??
         netProfit;
@@ -8828,61 +8780,61 @@ class _RevenueScreenState extends State<RevenueScreen> {
       child: SafeArea(
         bottom: false,
         child: RefreshIndicator(
-        color: const Color(0xFFEA580C),
-        onRefresh: () async {
-          await widget.onRefresh?.call();
-          await _loadAnalytics();
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(
-            horizontal: RegaResponsive.pagePadding(context),
-            vertical: 12,
-          ),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1080),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    t('داهاتی فڕۆشیار'),
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: RC.fg(const Color(0xFF0F172A)),
-                      fontFamily: kAppFontFamily,
+          color: const Color(0xFFEA580C),
+          onRefresh: () async {
+            await widget.onRefresh?.call();
+            await _loadAnalytics();
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.symmetric(
+              horizontal: RegaResponsive.pagePadding(context),
+              vertical: 10,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1080),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      t('داهاتی فرۆشیار'),
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: RC.fg(const Color(0xFF0F172A)),
+                        fontFamily: kAppFontFamily,
+                        height: 1.2,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildBalanceHeroCard(
-                    balance: balanceTotal,
-                    today: todaySales,
-                    week: weekSales,
-                    month: monthSales,
-                    active: activeOrdersTotal,
-                    loading: _analyticsLoading,
-                  ),
-                  const SizedBox(height: 14),
-                  _buildTabs(),
-                  const SizedBox(height: 14),
-                  _buildStatsGrid(
-                    totalSales: totalSales,
-                    commission: commission,
-                    netProfit: netProfit,
-                    ordersCount: baseOrders,
-                    commissionRatePct: commissionRatePct,
-                  ),
-                  const SizedBox(height: 14),
-                  _buildTopProductsCard(topProducts),
-                  const SizedBox(height: 24),
-                ],
+                    const SizedBox(height: 10),
+                    _buildBalanceHeroCard(
+                      balance: balanceTotal,
+                      today: todaySales,
+                      week: weekSales,
+                      month: monthSales,
+                      loading: _analyticsLoading,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildTabs(),
+                    const SizedBox(height: 10),
+                    _buildStatsGrid(
+                      totalSales: totalSales,
+                      commission: commission,
+                      netProfit: netProfit,
+                      ordersCount: baseOrders,
+                      commissionRatePct: commissionRatePct,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildTopProductsCard(topProducts),
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -8892,119 +8844,109 @@ class _RevenueScreenState extends State<RevenueScreen> {
     required double today,
     required double week,
     required double month,
-    required double active,
     required bool loading,
   }) {
-    Widget metric(String label, double value, {Color? valueColor, IconData? icon}) {
+    Widget metric(String label, double value) {
       return Expanded(
-        child: Column(
-          children: [
-            Text(
-              t(label),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: RC.fg(const Color(0xFF94A3B8)),
-                fontFamily: kAppFontFamily,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 12, color: valueColor ?? RC.fg(const Color(0xFF0F172A))),
-                  const SizedBox(width: 3),
-                ],
-                Flexible(
-                  child: Text(
-                    '${_formatAmount(value)} ${t('دینار')}',
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w900,
-                      color: valueColor ?? RC.fg(const Color(0xFF0F172A)),
-                      fontFamily: kAppFontFamily,
-                    ),
-                  ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          decoration: BoxDecoration(
+            color: RC.bg(const Color(0xFFF8FAFC)),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                t(label),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: RC.fg(const Color(0xFF64748B)),
+                  fontFamily: kAppFontFamily,
                 ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${_formatAmount(value)} ${t('دینار')}',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: RC.fg(const Color(0xFF0F172A)),
+                  fontFamily: kAppFontFamily,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
         color: RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       child: Column(
         children: [
           if (loading)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: CircularProgressIndicator(color: Color(0xFFEA580C)),
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  color: Color(0xFFEA580C),
+                ),
+              ),
             )
           else
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
                 Text(
                   _formatAmount(balance),
                   style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w900,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
                     color: RC.fg(const Color(0xFF0F172A)),
                     fontFamily: kAppFontFamily,
                     height: 1,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    t('دینار'),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: RC.fg(const Color(0xFFEA580C)),
-                      fontFamily: kAppFontFamily,
-                    ),
+                const SizedBox(width: 6),
+                Text(
+                  t('دینار'),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: RC.fg(const Color(0xFFEA580C)),
+                    fontFamily: kAppFontFamily,
                   ),
                 ),
               ],
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Row(
             children: [
-              metric('فڕۆشی ئەمڕۆ', today),
-              metric('فڕۆشی ئەم هەفتەیە', week),
-              metric('فڕۆشی مانگ', month),
-              metric(
-                'داواکارییە چالاکەکان',
-                active,
-                valueColor: const Color(0xFF0F8A5F),
-                icon: Icons.schedule_rounded,
-              ),
+              metric('ئەمڕۆ', today),
+              const SizedBox(width: 8),
+              metric('ئەم هەفتەیە', week),
+              const SizedBox(width: 8),
+              metric('ئەم مانگە', month),
             ],
           ),
         ],
@@ -9017,39 +8959,45 @@ class _RevenueScreenState extends State<RevenueScreen> {
     required double commission,
     required double netProfit,
     required int ordersCount,
-    required double commissionRatePct,
+    required double commissionRatePct, // retained for analytics parity
   }) {
-    final rateLabel = commissionRatePct.toStringAsFixed(commissionRatePct % 1 == 0 ? 0 : 1);
+    assert(commissionRatePct >= 0);
     Widget cell(String title, String value, {Color? valueColor}) {
       return Expanded(
         child: Container(
-          margin: const EdgeInsets.all(5),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          height: 78,
+          margin: const EdgeInsets.all(4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
-            color: RC.bg(Colors.white),
-            borderRadius: BorderRadius.circular(14),
+            color: RC.bg(const Color(0xFFF8FAFC)),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
                 title,
                 textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                   color: RC.fg(const Color(0xFF64748B)),
                   fontFamily: kAppFontFamily,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 value,
                 textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
                   color: valueColor ?? RC.fg(const Color(0xFF0F172A)),
                   fontFamily: kAppFontFamily,
                 ),
@@ -9064,18 +9012,22 @@ class _RevenueScreenState extends State<RevenueScreen> {
       children: [
         Row(
           children: [
-            cell(t('کۆی فرۆش'), '${_formatAmount(totalSales)} ${t('دینار')}'),
+            cell(t('کۆی فرۆشتن'), '${_formatAmount(totalSales)} ${t('دینار')}'),
             cell(
-              '${t('کۆمیسیۆن')} ($rateLabel٪)',
-              '${_formatAmount(commission)}- ${t('دینار')}',
-              valueColor: const Color(0xFFE11D48),
+              t('داهاتی سافی'),
+              '${_formatAmount(netProfit)} ${t('دینار')}',
+              valueColor: const Color(0xFF0F8A5F),
             ),
           ],
         ),
         Row(
           children: [
-            cell(t('داهاتی سافی'), '${_formatAmount(netProfit)} ${t('دینار')}'),
-            cell(t('داواکارییەکان'), '$ordersCount ${t('داواکاری')}'),
+            cell(t('داواکارییەکان'), '$ordersCount'),
+            cell(
+              t('کۆمیسیۆن'),
+              '${_formatAmount(commission)}- ${t('دینار')}',
+              valueColor: const Color(0xFFE11D48),
+            ),
           ],
         ),
       ],
@@ -9183,32 +9135,32 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
   Widget _buildTabs() {
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: RC.bg(Color(0xFFE5E7EB))),
+        color: RC.bg(const Color(0xFFF1F5F9)),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
       ),
       child: Row(
         children: [
           _buildTabItem(0, t('ئەمڕۆ')),
           _buildTabItem(1, t('ئەم هەفتەیە')),
           _buildTabItem(2, t('ئەم مانگە')),
-          _buildTabItem(3, t('بەرواری دیاریکراو')),
+          _buildTabItem(3, t('بەروار')),
         ],
       ),
     );
   }
 
   Widget _buildTabItem(int index, String title) {
-    bool isSelected = _selectedTabIndex == index;
+    final bool isSelected = _selectedTabIndex == index;
     return Expanded(
       child: GestureDetector(
         onTap: () async {
           if (index == 3) {
             final picked = await showDatePicker(
               context: context,
-              initialDate: DateTime.now(),
+              initialDate: _customDate ?? DateTime.now(),
               firstDate: DateTime(2023),
               lastDate: DateTime.now().add(const Duration(days: 1)),
             );
@@ -9229,22 +9181,25 @@ class _RevenueScreenState extends State<RevenueScreen> {
         },
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
           decoration: BoxDecoration(
-            color: isSelected ? RC.bg(Color(0xFFEA580C)) : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            color: isSelected ? RC.bg(const Color(0xFFEA580C)) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Center(
             child: Text(
-              tx(title),
+              title,
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFF4B5563)),
-                fontWeight: isSelected ? FontWeight.w900 : FontWeight.bold,
-                fontSize: 11.5,
+                color: isSelected
+                    ? RC.fg(Colors.white)
+                    : RC.fg(const Color(0xFF64748B)),
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                fontSize: 11,
+                fontFamily: kAppFontFamily,
               ),
             ),
           ),
@@ -9654,95 +9609,37 @@ class _RevenueScreenState extends State<RevenueScreen> {
 
   Widget _buildTopProductsCard(List<Map<String, dynamic>> topProducts) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       decoration: BoxDecoration(
         color: RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: RC.bg(Color(0xFFE5E7EB))),
-        boxShadow: [
-          BoxShadow(
-            color: RC.bg(Colors.black).withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final titleRow = Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: RC.bg(Color(0xFFFFF3E0)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.workspace_premium, color: RC.fg(Color(0xFFF06400)), size: 18),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      t('پڕداهاتترین بەرهەمەکان'),
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 13.5,
-                        color: RC.fg(Color(0xFF1E2024)),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              );
-              final subtitle = Text(
-                t('بەپێی کۆی فرۆش'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: RC.fg(Color(0xFF8E8E93)),
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              );
-              if (constraints.maxWidth < RegaBreakpoints.phone) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    titleRow,
-                    const SizedBox(height: 4),
-                    subtitle,
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: titleRow),
-                  const SizedBox(width: 6),
-                  Flexible(child: subtitle),
-                ],
-              );
-            },
+          Text(
+            t('پڕفرۆشترین بەرهەمەکان'),
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              color: RC.fg(const Color(0xFF0F172A)),
+              fontFamily: kAppFontFamily,
+            ),
           ),
-
-          const SizedBox(height: 16),
-
+          const SizedBox(height: 10),
           if (topProducts.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 28),
-              child: Center(
-                child: Text(
-                  t('هیچ فڕۆشێک تۆمار نەکراوە تا ئێستا'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: RC.fg(const Color(0xFFCBD5E1)),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    fontFamily: kAppFontFamily,
-                  ),
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              child: Text(
+                t('هیچ بەرهەمێک نییە'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: RC.fg(const Color(0xFF94A3B8)),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  fontFamily: kAppFontFamily,
                 ),
               ),
             )
@@ -9754,126 +9651,65 @@ class _RevenueScreenState extends State<RevenueScreen> {
   }
 
   Widget _buildTopProductItem(Map<String, dynamic> item) {
-    Color rankBg = const Color(0xFFF1F3F5);
-    Color rankColor = RC.bg(Color(0xFF495057));
-
-    if (item['rank'] == '١') {
-      rankBg = RC.bg(Color(0xFFFFF8E1));
-      rankColor = RC.bg(Color(0xFFFF8F00));
-    } else if (item['rank'] == '٢') {
-      rankBg = RC.bg(Color(0xFFECEFF1));
-      rankColor = RC.bg(Color(0xFF546E7A));
-    } else if (item['rank'] == '٣') {
-      rankBg = RC.bg(Color(0xFFEFEBE9));
-      rankColor = RC.bg(Color(0xFF6D4C41));
-    }
-
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: RC.bg(Color(0xFFFAFAF7)),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: RC.bg(Color(0xFFE5E7EB))),
+        color: RC.bg(const Color(0xFFF8FAFC)),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              // Rank badge
-              Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: rankBg,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  tx(item['rank']),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                    color: rankColor,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-
-              // Product Image
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.network(
-                  item['image'],
-                  width: 44,
-                  height: 44,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: 44,
-                    height: 44,
-                    color: RC.bgn(Colors.grey[200]),
-                    child: Icon(Icons.fastfood, color: RC.fg(Colors.grey), size: 22),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Name & Category
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      tx(item['name']),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 13.5,
-                        color: RC.fg(Color(0xFF1E2024)),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      tx('${item['category']} • ${item['sold']} دانە فرۆشراوە'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: RC.fg(Color(0xFF6B7280)),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Revenue
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: Text(
-                    tx('${_formatAmount(item['revenue'])} د.ع'),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                      color: RC.fg(Color(0xFFEA580C)),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            '${item['rank']}',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              color: RC.fg(const Color(0xFFEA580C)),
+              fontFamily: kAppFontFamily,
+            ),
           ),
-          const SizedBox(height: 8),
-          // Progress line
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: (item['percent'] as double).clamp(0.0, 1.0),
-              backgroundColor: RC.bg(Color(0xFFE5E7EB)),
-              valueColor: AlwaysStoppedAnimation<Color>(RC.bg(Color(0xFFEA580C))),
-              minHeight: 4,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${item['name']}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: RC.fg(const Color(0xFF0F172A)),
+                    fontFamily: kAppFontFamily,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${item['sold']} دانە',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: RC.fg(const Color(0xFF64748B)),
+                    fontWeight: FontWeight.w600,
+                    fontFamily: kAppFontFamily,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${_formatAmount(item['revenue'])} ${t('دینار')}',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              color: RC.fg(const Color(0xFF0F172A)),
+              fontFamily: kAppFontFamily,
             ),
           ),
         ],

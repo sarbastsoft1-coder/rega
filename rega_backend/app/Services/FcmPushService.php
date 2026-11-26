@@ -10,11 +10,18 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Firebase Cloud Messaging (HTTP v1) for REGA customer lock-screen push.
+ * Firebase Cloud Messaging (HTTP v1) for REGA lock-screen push
+ * (customer, vendor/seller, and delivery driver apps).
  * Requires FIREBASE_CREDENTIALS (service-account JSON path) and FCM_PROJECT_ID.
  */
 class FcmPushService
 {
+    public const CHANNEL_CUSTOMER = 'rega_customer_push';
+
+    public const CHANNEL_VENDOR = 'rega_vendor_push';
+
+    public const CHANNEL_DRIVER = 'rega_driver_push';
+
     private ?array $serviceAccount = null;
 
     private ?string $accessToken = null;
@@ -29,10 +36,21 @@ class FcmPushService
         return $path !== '' && is_readable($path) && $projectId !== '';
     }
 
+    public static function channelForRole(?string $role): string
+    {
+        return match ($role) {
+            'vendor' => self::CHANNEL_VENDOR,
+            'driver' => self::CHANNEL_DRIVER,
+            default => self::CHANNEL_CUSTOMER,
+        };
+    }
+
     /**
      * Push from an AppNotification model (title/body + data extras).
+     *
+     * @param  array<string, mixed>  $extraData
      */
-    public function sendForNotification(AppNotification $notification, iterable $userIds): int
+    public function sendForNotification(AppNotification $notification, iterable $userIds, array $extraData = []): int
     {
         $title = $this->pickLocale(
             $notification->title_ku,
@@ -56,6 +74,7 @@ class FcmPushService
             'body' => $body,
             'title_ku' => (string) ($notification->title_ku ?? ''),
             'body_ku' => (string) ($notification->body_ku ?? ''),
+            ...$extraData,
         ], fn ($v) => $v !== null && $v !== '');
 
         return $this->sendToUserIds($userIds, $title, $body, $data);
@@ -82,19 +101,40 @@ class FcmPushService
             return 0;
         }
 
-        $tokens = User::query()
+        $users = User::query()
             ->whereIn('id', $ids)
             ->whereNotNull('fcm_token')
             ->where('fcm_token', '!=', '')
-            ->pluck('fcm_token', 'id');
+            ->get(['id', 'fcm_token', 'role']);
 
-        return $this->sendToTokenMap($tokens, $title, $body, $data);
+        $sent = 0;
+        foreach ($users as $user) {
+            try {
+                $ok = $this->sendToToken(
+                    (string) $user->fcm_token,
+                    $title,
+                    $body,
+                    $data,
+                    self::channelForRole($user->role),
+                );
+                if ($ok) {
+                    $sent++;
+                }
+            } catch (Throwable $e) {
+                Log::warning('FCM send failed', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $sent;
     }
 
     /**
      * @param  Collection<int, string>  $tokenByUserId
      */
-    public function sendToTokenMap(Collection $tokenByUserId, string $title, string $body, array $data = []): int
+    public function sendToTokenMap(Collection $tokenByUserId, string $title, string $body, array $data = [], string $channelId = self::CHANNEL_CUSTOMER): int
     {
         if (! $this->isConfigured() || $tokenByUserId->isEmpty()) {
             return 0;
@@ -103,7 +143,7 @@ class FcmPushService
         $sent = 0;
         foreach ($tokenByUserId as $userId => $token) {
             try {
-                $ok = $this->sendToToken((string) $token, $title, $body, $data);
+                $ok = $this->sendToToken((string) $token, $title, $body, $data, $channelId);
                 if ($ok) {
                     $sent++;
                 }
@@ -118,8 +158,13 @@ class FcmPushService
         return $sent;
     }
 
-    public function sendToToken(string $token, string $title, string $body, array $data = []): bool
-    {
+    public function sendToToken(
+        string $token,
+        string $title,
+        string $body,
+        array $data = [],
+        string $channelId = self::CHANNEL_CUSTOMER,
+    ): bool {
         $projectId = (string) config('services.fcm.project_id');
         $accessToken = $this->accessToken();
         if ($accessToken === null) {
@@ -143,7 +188,7 @@ class FcmPushService
                 'android' => [
                     'priority' => 'high',
                     'notification' => [
-                        'channel_id' => 'rega_customer_push',
+                        'channel_id' => $channelId !== '' ? $channelId : self::CHANNEL_CUSTOMER,
                         'sound' => 'default',
                     ],
                 ],

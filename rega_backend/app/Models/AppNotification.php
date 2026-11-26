@@ -44,9 +44,12 @@ class AppNotification extends Model
     }
 
     /**
-     * Persist inbox row and fan-out FCM to the target user (customer lock-screen push).
+     * Persist inbox row and fan-out FCM to the target user
+     * (customer / vendor / driver lock-screen push).
+     *
+     * @param  array<string, mixed>  $extraData  Extra FCM data keys (e.g. order_number).
      */
-    public static function createAndPush(array $attributes): self
+    public static function createAndPush(array $attributes, array $extraData = []): self
     {
         $notification = static::create($attributes);
         if ($notification->user_id) {
@@ -54,6 +57,7 @@ class AppNotification extends Model
                 app(FcmPushService::class)->sendForNotification(
                     $notification,
                     [$notification->user_id],
+                    $extraData,
                 );
             } catch (\Throwable $e) {
                 report($e);

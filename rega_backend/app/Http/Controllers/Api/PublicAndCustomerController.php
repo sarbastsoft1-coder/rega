@@ -459,8 +459,10 @@ class PublicAndCustomerController extends Controller
                 ]
             );
 
-            return $created->load(['items', 'store:id,name_ku,name_en,phone,lat,lng', 'neighborhood']);
+            return $created->load(['items', 'store:id,name_ku,name_en,phone,lat,lng,owner_id', 'neighborhood']);
         });
+
+        $this->notifyVendorOfNewOrder($order);
 
         return response()->json([
             'success' => true,
@@ -745,8 +747,10 @@ class PublicAndCustomerController extends Controller
                 ]
             );
 
-            return $created->load(['items', 'store:id,name_ku,name_en,phone,lat,lng', 'driver:id,name,phone', 'neighborhood']);
+            return $created->load(['items', 'store:id,name_ku,name_en,phone,lat,lng,owner_id', 'driver:id,name,phone', 'neighborhood']);
         });
+
+        $this->notifyVendorOfNewOrder($order);
 
         return response()->json([
             'success' => true,
@@ -1251,6 +1255,48 @@ class PublicAndCustomerController extends Controller
                 'ticket_number' => $ticket->ticket_number,
             ],
         ], 201);
+    }
+
+    /**
+     * Lock-screen push to the store owner when a customer places an order.
+     */
+    protected function notifyVendorOfNewOrder(Order $order): void
+    {
+        try {
+            $store = $order->relationLoaded('store')
+                ? $order->store
+                : Store::query()->select(['id', 'owner_id', 'name_ku'])->find($order->store_id);
+
+            $ownerId = (int) ($store?->owner_id ?? 0);
+            if ($ownerId <= 0) {
+                return;
+            }
+
+            $orderNumber = (string) $order->order_number;
+            $customerName = trim((string) ($order->customer_name ?? ''));
+            $bodyKu = $customerName !== ''
+                ? "{$customerName} داواکاری نوێی نارد — تکایە قبوڵی بکە"
+                : 'کڕیار داواکاری نوێی نارد — تکایە قبوڵی بکە';
+
+            AppNotification::createAndPush([
+                'user_id' => $ownerId,
+                'target_audience' => 'specific_user',
+                'title_ku' => "داواکاری نوێ {$orderNumber}",
+                'title_ar' => "طلب جديد {$orderNumber}",
+                'title_en' => "New order {$orderNumber}",
+                'body_ku' => $bodyKu,
+                'body_ar' => 'أرسل الزبون طلباً جديداً — يرجى القبول',
+                'body_en' => 'Customer placed a new order — please accept',
+                'type' => 'order',
+                'tag' => 'داواکاری',
+                'store_id' => $store?->id,
+            ], [
+                'order_number' => $orderNumber,
+                'order_id' => (string) $order->id,
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }
 

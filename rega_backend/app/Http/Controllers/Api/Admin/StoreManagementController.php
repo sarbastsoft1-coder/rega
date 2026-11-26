@@ -200,7 +200,7 @@ class StoreManagementController extends Controller
 
             $store = Store::create($storePayload);
 
-            $cats = $validated['initial_categories'] ?? ['بەرهەمە سەرەکییەکان', 'خواردنەوەکان'];
+            $cats = $validated['initial_categories'] ?? ['بەرهەمەکان', 'خواردنەوەکان'];
             foreach ($cats as $idx => $catName) {
                 StoreCategory::create([
                     'store_id' => $store->id,

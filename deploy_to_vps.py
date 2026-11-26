@@ -37,6 +37,7 @@ PHP_COPIES = [
     "app/Http/Controllers/Api/VendorAppController.php",
     "app/Http/Controllers/Api/Admin/CatalogAndZonesController.php",
     "app/Http/Controllers/Api/Admin/StoreManagementController.php",
+    "app/Http/Controllers/Api/Admin/OrderManagementController.php",
     "app/Http/Controllers/Api/Admin/MarketingController.php",
     "app/Http/Controllers/Api/Admin/FinanceAndSupportController.php",
     "app/Http/Controllers/Api/Admin/AdminInboxController.php",
@@ -48,6 +49,7 @@ PHP_COPIES = [
     "app/Models/Store.php",
     "app/Models/AppNotification.php",
     "app/Services/FcmPushService.php",
+    "app/Services/DriverDispatchService.php",
     "config/services.php",
 ]
 

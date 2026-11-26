@@ -144,7 +144,7 @@ class OrderManagementController extends Controller
                 'note' => "شۆفێر دیاریکرا: {$driver->name} ({$driver->driverProfile->driver_code})",
             ]);
 
-            AppNotification::create([
+            AppNotification::createAndPush([
                 'user_id' => $driver->id,
                 'target_audience' => 'specific_user',
                 'title_ku' => "داواکاری نوێی {$order->order_number} گەیشت",
@@ -152,6 +152,9 @@ class OrderManagementController extends Controller
                 'body_ku' => "داواکارییەک لە {$order->store?->name_ku} بۆت دیاریکرا — شوێنی فرۆشگا لەسەر نەخشە دەرکەوتووە.",
                 'tag' => 'گەیاندن',
                 'type' => 'order',
+            ], [
+                'order_number' => (string) $order->order_number,
+                'order_id' => (string) $order->id,
             ]);
 
             $store = $order->store;

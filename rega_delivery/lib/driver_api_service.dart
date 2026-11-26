@@ -53,6 +53,7 @@ class DriverApiService {
               'identifier': cleanPhone,
               'password': cleanPass,
               'device_name': 'rega_delivery_app',
+              'role_filter': 'driver',
             }),
           )
           .timeout(const Duration(seconds: 6));
@@ -79,6 +80,24 @@ class DriverApiService {
       rethrow;
     } catch (_) {}
     return _token != null && _token!.isNotEmpty;
+  }
+
+  /// Persist FCM device token so assigned-order pushes reach this phone.
+  Future<bool> updateFcmToken(String token) async {
+    await initToken();
+    if (!hasToken || token.trim().isEmpty) return false;
+    try {
+      final res = await http
+          .put(
+            Uri.parse('$baseUrl/auth/profile'),
+            headers: _headers(),
+            body: jsonEncode({'fcm_token': token.trim()}),
+          )
+          .timeout(const Duration(seconds: 8));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> logout() async {

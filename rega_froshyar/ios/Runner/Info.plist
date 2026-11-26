@@ -38,6 +38,10 @@
 	<string>REGA Vendor needs your location to confirm you are inside the Kalar service area.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>REGA Vendor needs your location to confirm you are inside the Kalar service area.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

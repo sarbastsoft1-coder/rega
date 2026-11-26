@@ -776,7 +776,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        tx(cat),
+                        cat.trim() == 'بەرهەمە سەرەکییەکان' ? t('بەرهەمەکان') : tx(cat),
                         textAlign: TextAlign.right,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -838,13 +838,21 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                         onTap: () => setState(() => _openedCategory = null),
                         child: Padding(
                           padding: const EdgeInsets.all(9),
-                          child: Icon(Icons.arrow_forward_rounded, color: RC.fg(_orange), size: 20),
+                          child: Icon(
+                            Icons.arrow_forward_rounded,
+                            color: RC.fg(_orange),
+                            size: 20,
+                            textDirection: TextDirection.ltr,
+                          ),
                         ),
                       ),
                     );
+                    final titleLabel = cat.trim() == 'بەرهەمە سەرەکییەکان'
+                        ? t('بەرهەمەکان')
+                        : tx(cat);
                     final title = Text(
-                      tx(cat),
-                      textAlign: TextAlign.right,
+                      titleLabel,
+                      textAlign: TextAlign.left,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -867,7 +875,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                             textDirection: TextDirection.rtl,
                             children: [
                               backBtn,
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 12),
                               Expanded(child: title),
                             ],
                           ),
@@ -884,9 +892,9 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                       textDirection: TextDirection.rtl,
                       children: [
                         backBtn,
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         Expanded(child: title),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         addBtn,
                       ],
                     );

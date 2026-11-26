@@ -113,8 +113,8 @@ class DriverDispatchService
                 'note' => "شۆفێری نزیکترین دیاریکرا: {$chosenUser->name} ({$chosenProfile->driver_code}) - دووری: {$distanceMeters} مەتر",
             ]);
 
-            // Create notification for driver
-            AppNotification::create([
+            // Push + inbox for driver (works even when delivery app is backgrounded/closed)
+            AppNotification::createAndPush([
                 'user_id' => $chosenUser->id,
                 'target_audience' => 'specific_user',
                 'title_ku' => "داواکاری نوێی {$lockedOrder->order_number} گەیشت",
@@ -122,6 +122,9 @@ class DriverDispatchService
                 'body_ku' => "داواکارییەک لە {$lockedOrder->store?->name_ku} بە ئۆتۆماتیکی بۆت نێردرا.",
                 'tag' => 'گەیاندن',
                 'type' => 'order',
+            ], [
+                'order_number' => (string) $lockedOrder->order_number,
+                'order_id' => (string) $lockedOrder->id,
             ]);
 
             // Sync with LiveTelemetrySession
