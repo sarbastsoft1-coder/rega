@@ -4274,8 +4274,13 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     child: Padding(
                       padding: EdgeInsets.symmetric(
-                        horizontal: RegaResponsive.isPhone(context) ? 6 : 10,
-                        vertical: RegaResponsive.isPhone(context) ? 8 : 10,
+                        // S24 (~360): less side padding so 5 nav slots fit without overflow.
+                        horizontal: MediaQuery.sizeOf(context).width < 390
+                            ? 4
+                            : (RegaResponsive.isPhone(context) ? 6 : 10),
+                        vertical: MediaQuery.sizeOf(context).width < 390
+                            ? 6
+                            : (RegaResponsive.isPhone(context) ? 8 : 10),
                       ),
                       child: Row(
                         children: [
@@ -4329,14 +4334,16 @@ class _MainScreenState extends State<MainScreen> {
   }) {
     final bool isSelected = _currentIndex == index;
     final bool phone = RegaResponsive.isPhone(context);
+    // Galaxy S24 / compact phones (~360 CSS px): selected pill + Kurdish label overflows.
+    final bool compact = MediaQuery.sizeOf(context).width < 390;
     const pillYellow = Color(0xFFFAC800);
     const iconColor = Color(0xFF0F172A);
     final cartCount = isCart
         ? _cart.fold<int>(0, (sum, e) => sum + e.quantity)
         : 0;
     final iconSize = isSelected
-        ? (phone ? 30.0 : 32.0)
-        : (phone ? 28.0 : 30.0);
+        ? (compact ? 26.0 : (phone ? 30.0 : 32.0))
+        : (compact ? 24.0 : (phone ? 28.0 : 30.0));
 
     Widget iconWidget;
     if (isPercent) {
@@ -4398,7 +4405,8 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return Expanded(
-      flex: isSelected ? 2 : 1,
+      // On S24-class widths keep flex closer so the yellow pill doesn't crush neighbors.
+      flex: isSelected ? (compact ? 3 : 2) : (compact ? 2 : 1),
       child: InkWell(
         onTap: () {
           HapticFeedback.selectionClick();
@@ -4420,8 +4428,10 @@ class _MainScreenState extends State<MainScreen> {
             // Clip.none so the cart count badge is not cut into a blob.
             clipBehavior: Clip.none,
             padding: EdgeInsets.symmetric(
-              horizontal: isSelected ? (phone ? 14 : 16) : (phone ? 4 : 8),
-              vertical: phone ? 10 : 12,
+              horizontal: isSelected
+                  ? (compact ? 8 : (phone ? 14 : 16))
+                  : (compact ? 2 : (phone ? 4 : 8)),
+              vertical: compact ? 8 : (phone ? 10 : 12),
             ),
             decoration: BoxDecoration(
               color: isSelected ? pillYellow : Colors.transparent,
@@ -4433,17 +4443,19 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 iconWidget,
                 if (isSelected) ...[
-                  SizedBox(width: phone ? 6 : 8),
-                  Text(
-                    tx(label),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
-                    style: TextStyle(
-                      color: iconColor,
-                      fontSize: phone ? 13 : 14,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.2,
+                  SizedBox(width: compact ? 4 : (phone ? 6 : 8)),
+                  Flexible(
+                    child: Text(
+                      tx(label),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: TextStyle(
+                        color: iconColor,
+                        fontSize: compact ? 11.5 : (phone ? 13 : 14),
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
                 ],
@@ -4496,7 +4508,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // 🖼️ Smart Logo Widget (Base64 -> Asset PNG -> Network URL -> Default Text Logo)
-  Widget _buildLogoWidget() {
+  Widget _buildLogoWidget({double height = 48}) {
     // 💡 پشتگیری بۆ لۆگۆی Base64
     if (appLogoUrl.trim().startsWith('data:image')) {
       try {
@@ -4504,7 +4516,7 @@ class _MainScreenState extends State<MainScreen> {
         final bytes = base64Decode(base64Str);
         return Image.memory(
           bytes,
-          height: 48, // ڕێک 48 پێکسڵە
+          height: height,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => _buildDefaultTextLogo(),
         );
@@ -4516,13 +4528,13 @@ class _MainScreenState extends State<MainScreen> {
     if (appLogoAssetPath.trim().isNotEmpty) {
       return Image.asset(
         appLogoAssetPath,
-        height: 48, // ڕێک 48 پێکسڵە
+        height: height,
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
           if (appLogoUrl.trim().isNotEmpty) {
             return Image.network(
               appLogoUrl,
-              height: 48, // ڕێک 48 پێکسڵە
+              height: height,
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) => _buildDefaultTextLogo(),
             );
@@ -4533,7 +4545,7 @@ class _MainScreenState extends State<MainScreen> {
     } else if (appLogoUrl.trim().isNotEmpty) {
       return Image.network(
         appLogoUrl,
-        height: 48, // ڕێک 48 پێکسڵە
+        height: height,
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) => _buildDefaultTextLogo(),
       );
@@ -4625,14 +4637,16 @@ class _MainScreenState extends State<MainScreen> {
   /// Row under yellow header: location LEFT | داواکاری ڕاستەوخۆ RIGHT (forced LTR).
   Widget _buildHomeDirectRequestBar() {
     context.watch<LocationNotifier>();
+    final compact = MediaQuery.sizeOf(context).width < 390;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      padding: EdgeInsets.fromLTRB(compact ? 8 : 12, compact ? 8 : 10, compact ? 8 : 12, 6),
       child: Row(
         textDirection: TextDirection.ltr,
         children: [
           // LEFT: GPS icon + place (no city name)
           Expanded(
+            flex: compact ? 3 : 1,
             child: Material(
               color: Colors.transparent,
               child: InkWell(
@@ -4642,8 +4656,11 @@ class _MainScreenState extends State<MainScreen> {
                 onLongPress: _showCityAndPlacePicker,
                 borderRadius: BorderRadius.circular(50),
                 child: Container(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  constraints: BoxConstraints(minHeight: compact ? 44 : 48),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 10 : 14,
+                    vertical: compact ? 8 : 10,
+                  ),
                   decoration: BoxDecoration(
                     color: RC.bg(Colors.white),
                     borderRadius: BorderRadius.circular(50),
@@ -4658,8 +4675,8 @@ class _MainScreenState extends State<MainScreen> {
                   child: Row(
                     textDirection: TextDirection.ltr,
                     children: [
-                      _homeGpsIcon(size: 26),
-                      const SizedBox(width: 8),
+                      _homeGpsIcon(size: compact ? 22 : 26),
+                      SizedBox(width: compact ? 6 : 8),
                       Expanded(
                         child: Text(
                           tx(_homePlacePillLabel),
@@ -4667,7 +4684,7 @@ class _MainScreenState extends State<MainScreen> {
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.start,
                           style: TextStyle(
-                            fontSize: 13.5,
+                            fontSize: compact ? 12 : 13.5,
                             fontWeight: FontWeight.w900,
                             height: 1.2,
                             color: RC.fg(const Color(0xFF0F172A)),
@@ -4680,38 +4697,49 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          // RIGHT: داواکاری ڕاستەوخۆ
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _openDirectRequestScreen,
-              borderRadius: BorderRadius.circular(50),
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 48),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: RC.bg(Colors.white),
+          SizedBox(width: compact ? 6 : 10),
+          // RIGHT: داواکاری ڕاستەوخۆ — Flexible on S24 so the row never overflows.
+          Builder(
+            builder: (context) {
+              final btn = Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _openDirectRequestScreen,
                   borderRadius: BorderRadius.circular(50),
-                  boxShadow: [
-                    BoxShadow(
-                      color: RC.bg(Colors.black).withValues(alpha: 0.10),
-                      blurRadius: 12,
-                      offset: const Offset(0, 3),
+                  child: Container(
+                    constraints: BoxConstraints(minHeight: compact ? 44 : 48),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 10 : 16,
+                      vertical: compact ? 8 : 10,
                     ),
-                  ],
-                ),
-                child: Text(
-                  tx('داواکاری ڕاستەوخۆ'),
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: RC.fg(const Color(0xFF1E293B)),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: RC.bg(Colors.white),
+                      borderRadius: BorderRadius.circular(50),
+                      boxShadow: [
+                        BoxShadow(
+                          color: RC.bg(Colors.black).withValues(alpha: 0.10),
+                          blurRadius: 12,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      tx('داواکاری ڕاستەوخۆ'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: TextStyle(
+                        fontSize: compact ? 11 : 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: RC.fg(const Color(0xFF1E293B)),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+              return compact ? Flexible(flex: 2, child: btn) : btn;
+            },
           ),
         ],
       ),
@@ -4931,7 +4959,10 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildHeader() {
     final double topPadding = MediaQuery.of(context).padding.top;
-    const double toolbarHeight = 80.0; // تەواوی بەرزی ناڤباڕەکە (toolbarHeight: 80)
+    final compact = MediaQuery.sizeOf(context).width < 390;
+    final double toolbarHeight = compact ? 68.0 : 80.0;
+    final double logoH = compact ? 40.0 : 48.0;
+    final double iconSz = compact ? 24.0 : 26.0;
     return Container(
       height: toolbarHeight + topPadding,
       decoration: BoxDecoration(
@@ -4940,8 +4971,8 @@ class _MainScreenState extends State<MainScreen> {
       ),
       padding: EdgeInsets.only(
         top: topPadding,
-        left: 16,
-        right: 16,
+        left: compact ? 8 : 16,
+        right: compact ? 8 : 16,
       ),
       child: Center(
         child: ConstrainedBox(
@@ -4955,14 +4986,15 @@ class _MainScreenState extends State<MainScreen> {
                 // Search Icon (RTL: First child renders on the Right)
                 IconButton(
                   onPressed: _openSearchModal,
-                  icon: Icon(Icons.search_rounded, color: RC.fg(Colors.black), size: 26),
+                  visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+                  icon: Icon(Icons.search_rounded, color: RC.fg(Colors.black), size: iconSz),
                 ),
 
-                // Logo Center Badge (SizedBox بەرزی 52 پێکسڵ و لۆگۆ بە بەرزی 48 پێکسڵ بە BoxFit.contain)
+                // Logo Center Badge
                 SizedBox(
-                  height: 52,
+                  height: logoH + 4,
                   child: Center(
-                    child: _buildLogoWidget(),
+                    child: _buildLogoWidget(height: logoH),
                   ),
                 ),
 
@@ -4972,7 +5004,8 @@ class _MainScreenState extends State<MainScreen> {
                   children: [
                     IconButton(
                       onPressed: _openNotificationsModal,
-                      icon: Icon(Icons.notifications_rounded, color: RC.fg(Colors.black), size: 26),
+                      visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+                      icon: Icon(Icons.notifications_rounded, color: RC.fg(Colors.black), size: iconSz),
                     ),
                     if (_unreadNotificationCount > 0)
                       Positioned(
