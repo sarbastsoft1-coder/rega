@@ -341,10 +341,17 @@ class CustomerApiService {
   }
 
   /// Stores for one customer-home section only (category_id from admin جۆری فرۆشیار).
-  Future<List<Map<String, dynamic>>> fetchStoresByCategory(int categoryId) async {
+  /// Pass [cityId] to match city-scoped bootstrap; omit to list all cities.
+  Future<List<Map<String, dynamic>>> fetchStoresByCategory(
+    int categoryId, {
+    int? cityId,
+  }) async {
     try {
       final uri = Uri.parse('$baseUrl/public/stores').replace(
-        queryParameters: {'category_id': '$categoryId'},
+        queryParameters: {
+          'category_id': '$categoryId',
+          if (cityId != null) 'city_id': '$cityId',
+        },
       );
       final res = await http
           .get(uri, headers: _headers())

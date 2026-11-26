@@ -1281,7 +1281,7 @@ class _MainScreenState extends State<MainScreen> {
             final imgUrl = RegaApiHost.resolveMediaUrl(m['image_url']?.toString());
             final secUrl = RegaApiHost.resolveMediaUrl(m['secondary_image_url']?.toString());
             return {
-              'id': m['id'],
+              'id': _asInt(m['id']),
               // Display title resolved at render time via _homeCatTitle (locale-aware).
               'title': nameKu,
               'name_ku': nameKu,
@@ -1320,15 +1320,14 @@ class _MainScreenState extends State<MainScreen> {
         final rawStores = boot['stores'] as List<dynamic>? ?? [];
         for (final rs in rawStores) {
           final sm = rs as Map<String, dynamic>;
-          final dbStoreId = (sm['id'] as num?)?.toInt();
+          final dbStoreId = _asInt(sm['id']);
           if (dbStoreId == null) continue;
           final storeKey = 'db_store_$dbStoreId';
           final storeName = sm['name_ku']?.toString() ?? '';
           // Match key stays name_ku; UI labels use name_ar/name_en via locale helper.
           final catMap = sm['category'] as Map<String, dynamic>?;
           final catName = catMap?['name_ku']?.toString() ?? 'خواردنگە';
-          final catId = (sm['category_id'] as num?)?.toInt() ??
-              (catMap?['id'] as num?)?.toInt();
+          final catId = _asInt(sm['category_id']) ?? _asInt(catMap?['id']);
 
           final existingIdx = allStores.indexWhere((s) => s.id == storeKey || s.name == storeName);
           final rawBadge = sm['discount_badge']?.toString().trim();
@@ -1440,10 +1439,27 @@ class _MainScreenState extends State<MainScreen> {
           if (storeIdx >= 0) allStores[storeIdx] = mappedStore;
         }
         final currentDbStoreKeys = rawStores.map((rs) {
-          final id = ((rs as Map)['id'] as num?)?.toInt();
+          final id = _asInt((rs as Map)['id']);
           return id != null ? 'db_store_$id' : '';
         }).where((k) => k.isNotEmpty).toSet();
-        allStores.removeWhere((s) => s.id.startsWith('db_store_') && !currentDbStoreKeys.contains(s.id));
+        // Keep shops for the open home section so a city-scoped / offline sync
+        // does not blank the section after category fetch merged them.
+        final openCatId = _selectedCategory == 'گشتی'
+            ? null
+            : _asInt(
+                _dynamicCategories
+                    .cast<Map<String, dynamic>?>()
+                    .firstWhere(
+                      (c) => c?['catName'] == _selectedCategory,
+                      orElse: () => null,
+                    )?['id'],
+              );
+        allStores.removeWhere((s) {
+          if (!s.id.startsWith('db_store_')) return false;
+          if (currentDbStoreKeys.contains(s.id)) return false;
+          if (openCatId != null && s.categoryId == openCatId) return false;
+          return true;
+        });
       }
 
       await _syncNotificationsFromBackend();
@@ -1461,28 +1477,43 @@ class _MainScreenState extends State<MainScreen> {
     } catch (_) {}
   }
 
+  static int? _asInt(dynamic v) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse('$v');
+  }
+
   /// Open a customer-home section and load only vendors assigned to that category_id.
   Future<void> _openHomeCategory(Map<String, dynamic> cat) async {
     final catName = cat['catName']?.toString() ?? '';
-    final catId = (cat['id'] as num?)?.toInt();
+    final catId = _asInt(cat['id']);
     if (!mounted) return;
+    // Switch UI immediately so cached bootstrap shops show even offline.
     setState(() {
       _selectedCategory = catName;
       _selectedStore = null;
     });
     if (catId == null) return;
     try {
-      final rows = await CustomerApiService.instance.fetchStoresByCategory(catId);
-      if (!mounted || rows.isEmpty) return;
+      // Prefer city-scoped list; if empty (wrong city / no network earlier),
+      // fall back to unscoped so the section is not blank when shops exist.
+      var rows = await CustomerApiService.instance.fetchStoresByCategory(
+        catId,
+        cityId: _selectedServiceCityId,
+      );
+      if (rows.isEmpty) {
+        rows = await CustomerApiService.instance.fetchStoresByCategory(catId);
+      }
+      if (!mounted) return;
       for (final sm in rows) {
-        final dbStoreId = (sm['id'] as num?)?.toInt();
+        final dbStoreId = _asInt(sm['id']);
         if (dbStoreId == null) continue;
         final storeKey = 'db_store_$dbStoreId';
         final storeName = sm['name_ku']?.toString() ?? '';
         final catMap = sm['category'] as Map<String, dynamic>?;
         final mappedCatName = catMap?['name_ku']?.toString() ?? catName;
-        final mappedCatId = (sm['category_id'] as num?)?.toInt() ??
-            (catMap?['id'] as num?)?.toInt() ??
+        final mappedCatId = _asInt(sm['category_id']) ??
+            _asInt(catMap?['id']) ??
             catId;
         final rawBadge = sm['discount_badge']?.toString().trim();
         var mappedStore = StoreItem(
@@ -1540,7 +1571,12 @@ class _MainScreenState extends State<MainScreen> {
         // appear even when the store was missing from city-scoped bootstrap.
         final needsProducts = !allProducts.any((p) => p.storeId == mappedStore.id);
         if (needsProducts) {
-          final detail = await CustomerApiService.instance.fetchStoreDetails(dbStoreId);
+          Map<String, dynamic>? detail;
+          try {
+            detail = await CustomerApiService.instance.fetchStoreDetails(dbStoreId);
+          } catch (_) {
+            continue;
+          }
           final menuCats = detail?['store_categories'] as List<dynamic>? ?? [];
           final metaForStore = <String, Map<String, dynamic>>{};
           for (final rawCat in menuCats) {
@@ -1615,8 +1651,11 @@ class _MainScreenState extends State<MainScreen> {
           }
         }
       }
+    } catch (_) {
+      // Offline / timeout: keep showing whatever bootstrap already cached.
+    } finally {
       if (mounted) setState(() {});
-    } catch (_) {}
+    }
   }
 
   IconData _notifIconFor(String tag, String type) {
@@ -4948,18 +4987,20 @@ class _MainScreenState extends State<MainScreen> {
             (c) => c?['catName'] == _selectedCategory,
             orElse: () => null,
           );
-      final selectedCatId = (matchedHomeCat?['id'] as num?)?.toInt();
+      final selectedCatId = _asInt(matchedHomeCat?['id']);
 
-      // Strict: vendor/items only under the home tile matching stores.category_id.
-      // No fuzzy name matching (avoids leaking restaurants into other sections).
-      final categoryStores = allStores.where((s) {
+      // Prefer category_id match; if none (offline / stale ids), fall back to name.
+      final byId = selectedCatId == null
+          ? const <StoreItem>[]
+          : allStores.where((s) => s.categoryId == selectedCatId).toList();
+      final categoryPool = byId.isNotEmpty
+          ? byId
+          : allStores.where((s) => s.category == _selectedCategory).toList();
+      final categoryStores = categoryPool.where((s) {
         final matchesSearch = _searchQuery.isEmpty ||
             s.name.contains(_searchQuery) ||
             s.category.contains(_searchQuery);
-        final matchesCat = selectedCatId != null
-            ? s.categoryId == selectedCatId
-            : s.category == _selectedCategory;
-        return matchesCat && matchesSearch;
+        return matchesSearch;
       }).toList();
       final displayCatTitle = matchedHomeCat != null
           ? _homeCatTitle(matchedHomeCat)
