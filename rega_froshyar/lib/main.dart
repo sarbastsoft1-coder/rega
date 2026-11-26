@@ -208,6 +208,8 @@ class Trans {
      'قبوڵکردن': {'en': 'Accept', 'ar': 'قبول'},
      'تاقیکردنەوەی داواکاری نوێ': {'en': 'Test New Order', 'ar': 'تجربة طلب جديد'},
      'تاقیکردنەوەی داواکاری': {'en': 'Test Order', 'ar': 'تجربة طلب'},
+     'دەنگ': {'en': 'Sound', 'ar': 'صوت'},
+     'تاقیکردنەوەی دەنگ': {'en': 'Test sound', 'ar': 'اختبار الصوت'},
      'سڕینەوەی تەواوبووەکان': {'en': 'Clear completed', 'ar': 'حذف المكتملة'},
      'فرۆشگا کراوەیە': {'en': 'Store is open', 'ar': 'المتجر مفتوح'},
      'فرۆشگا داخراوە': {'en': 'Store is closed', 'ar': 'المتجر مغلق'},
@@ -299,6 +301,7 @@ class Trans {
      'کرتە بکە بۆ هەڵبژاردنی وێنە': {'en': 'Tap to choose an image', 'ar': 'اضغط لاختيار صورة'},
      'بارکردنی وێنە...': {'en': 'Uploading image...', 'ar': 'جاري رفع الصورة...'},
      'بارکردنی وێنە سەرکەوتوو نەبوو': {'en': 'Image upload failed', 'ar': 'فشل رفع الصورة'},
+     'وێنە بارکرا': {'en': 'Image uploaded', 'ar': 'تم رفع الصورة'},
      'هیچ فایلێک دیاری نەکراوە': {'en': 'No file selected', 'ar': 'لم يتم تحديد ملف'},
      'بەردەست': {'en': 'Available', 'ar': 'متاح'},
      'بەردەستە': {'en': 'Available', 'ar': 'متاح'},
@@ -916,6 +919,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   String _businessName = t('فرۆشگا');
   Timer? _backendPollTimer;
   final Set<int> _seenBackendOrderIds = {};
+  /// Prevents 4s poll from resurrecting orders while/after a local delete.
+  final Set<int> _locallyDeletedOrderIds = {};
   /// Preserves UI stages (accepted vs preparing) when backend collapses both to `preparing`.
   final Map<int, OrderStatus> _localOrderStages = {};
   
@@ -1037,7 +1042,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final removed = _orders[index];
     final dbId = removed.dbId;
 
-    setState(() => _orders.removeAt(index));
+    setState(() {
+      _orders.removeAt(index);
+      if (dbId != null) _locallyDeletedOrderIds.add(dbId);
+    });
 
     // Demo / offline-only rows have no server id.
     if (dbId == null) {
@@ -1057,6 +1065,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       final (ok, msg) = res;
       if (!ok) {
         setState(() {
+          _locallyDeletedOrderIds.remove(dbId);
           if (index <= _orders.length) {
             _orders.insert(index, removed);
           } else {
@@ -1082,7 +1091,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final removed = _orders.where((o) => o.status == OrderStatus.completed).toList();
     if (removed.isEmpty) return;
 
-    setState(() => _orders.removeWhere((o) => o.status == OrderStatus.completed));
+    setState(() {
+      _orders.removeWhere((o) => o.status == OrderStatus.completed);
+      for (final o in removed) {
+        if (o.dbId != null) _locallyDeletedOrderIds.add(o.dbId!);
+      }
+    });
 
     final hasServerRows = removed.any((o) => o.dbId != null);
     if (!hasServerRows) {
@@ -1101,7 +1115,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       if (!mounted) return;
       final (ok, msg) = res;
       if (!ok) {
-        setState(() => _orders = [...removed, ..._orders]);
+        setState(() {
+          for (final o in removed) {
+            if (o.dbId != null) _locallyDeletedOrderIds.remove(o.dbId);
+          }
+          _orders = [...removed, ..._orders];
+        });
       } else {
         for (final o in removed) {
           if (o.dbId != null) {
@@ -1234,6 +1253,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       for (final raw in list) {
         final m = raw as Map<String, dynamic>;
         final dbId = (m['id'] as num?)?.toInt();
+        if (dbId != null && _locallyDeletedOrderIds.contains(dbId)) {
+          continue;
+        }
         final vStatus = m['vendor_status']?.toString() ?? m['status']?.toString() ?? 'pending';
         if (dbId != null && !_seenBackendOrderIds.contains(dbId)) {
           _seenBackendOrderIds.add(dbId);
@@ -3221,62 +3243,58 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 bottom: false,
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(padH, 12, padH, 8),
-                  // One line like screenshot: داواکارییە چالاکەکان | تاقیکردنەوەی دەنگ
+                  // داواکارییەکان (right) — Spacer — sound/delete flush left
                   child: Row(
                     textDirection: TextDirection.rtl,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Expanded(
-                        child: Text(
-                          t('داواکارییە چالاکەکان'),
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            color: RC.fg(const Color(0xFF0F172A)),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 20,
-                            height: 1.1,
-                            fontFamily: kAppFontFamily,
-                          ),
+                      Text(
+                        t('داواکارییەکان'),
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          color: RC.fg(const Color(0xFF0F172A)),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 20,
+                          height: 1.1,
+                          fontFamily: kAppFontFamily,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Material(
-                          color: RC.bg(const Color(0xFFFF6418)),
+                      const Spacer(),
+                      Material(
+                        color: RC.bg(const Color(0xFFFF6418)),
+                        borderRadius: BorderRadius.circular(15),
+                        child: InkWell(
+                          onTap: () => OrderSoundService.playTestTone(),
+                          onLongPress: () => widget.onSimulateNewOrder?.call(),
                           borderRadius: BorderRadius.circular(15),
-                          child: InkWell(
-                            onTap: () => OrderSoundService.playTestTone(),
-                            onLongPress: () => widget.onSimulateNewOrder?.call(),
-                            borderRadius: BorderRadius.circular(15),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                textDirection: TextDirection.rtl,
-                                children: [
-                                  CustomPaint(
-                                    size: const Size(18, 18),
-                                    painter: _HeaderBellPainter(color: Colors.white),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: RegaResponsive.isPhone(context) ? 10 : 14,
+                              vertical: 9,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              textDirection: TextDirection.rtl,
+                              children: [
+                                CustomPaint(
+                                  size: const Size(18, 18),
+                                  painter: _HeaderBellPainter(color: Colors.white),
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  t(RegaResponsive.isPhone(context) ? 'دەنگ' : 'تاقیکردنەوەی دەنگ'),
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                    fontFamily: kAppFontFamily,
                                   ),
-                                  const SizedBox(width: 7),
-                                  Flexible(
-                                    child: Text(
-                                      t('تاقیکردنەوەی دەنگ'),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 13,
-                                        fontFamily: kAppFontFamily,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -3484,12 +3502,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   Widget _buildStatusTabs() {
     const teal = Color(0xFF0F8A5F);
+    final phone = RegaResponsive.isPhone(context);
+    final tabPadH = phone ? 10.0 : 12.0;
+    final tabFont = phone ? 12.5 : 13.5;
     return Container(
       width: double.infinity,
       color: Colors.transparent,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(6, 2, 6, 0),
+        padding: EdgeInsets.fromLTRB(phone ? 4 : 6, 4, phone ? 4 : 6, 0),
         child: Row(
           textDirection: TextDirection.rtl,
           children: List.generate(_statusTabs.length, (i) {
@@ -3498,8 +3519,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
             final count = orders.where((o) => o.status == tab.status).length;
             return InkWell(
               onTap: () => setState(() => _statusTab = i),
+              borderRadius: BorderRadius.circular(8),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                padding: EdgeInsets.fromLTRB(tabPadH, 8, tabPadH, 8),
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
@@ -3519,15 +3541,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             ? RC.fg(const Color(0xFF0F172A))
                             : RC.fg(const Color(0xFF94A3B8)),
                         fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
-                        fontSize: 11.5,
+                        fontSize: tabFont,
                         height: 1.15,
                         fontFamily: kAppFontFamily,
                       ),
                     ),
                     if (count > 0) ...[
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 5),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: selected ? RC.bg(teal) : RC.bg(const Color(0xFFE2E8F0)),
                           borderRadius: BorderRadius.circular(8),
@@ -3536,7 +3558,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           '$count',
                           style: TextStyle(
                             color: selected ? RC.fg(Colors.white) : RC.fg(const Color(0xFF64748B)),
-                            fontSize: 9,
+                            fontSize: 10,
                             height: 1.1,
                             fontWeight: FontWeight.w900,
                           ),
@@ -4628,181 +4650,209 @@ class _OrdersScreenState extends State<OrdersScreen> {
         ? order.driverName!.trim()
         : t('چاوەڕوانی شۆفێر');
     final priceStr = '${formatAmountOnly(order.total.toInt())} ${t('دینار')}';
+    final narrow = MediaQuery.sizeOf(context).width < 400;
 
-    // Tap name / anywhere on the card reopens the order action box (TB image 2).
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _openOrderActionBox(order),
-        borderRadius: BorderRadius.circular(22),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-          decoration: BoxDecoration(
-            color: RC.bg(Colors.white),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: RC.bg(const Color(0xFFE2E8F0)), width: 1.3),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
+    Widget deleteBtn() => Material(
+          color: RC.bg(const Color(0xFFFEE2E2)),
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            onTap: () => _confirmDeleteOrder(order),
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 textDirection: TextDirection.rtl,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Icon(Icons.delete_outline_rounded, color: RC.fg(const Color(0xFFDC2626)), size: 18),
+                  const SizedBox(width: 6),
                   Flexible(
                     child: Text(
-                      t('تەواوبوو'),
+                      t('سڕینەوە'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: RC.fg(green),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
+                        color: RC.fg(const Color(0xFFDC2626)),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
                         fontFamily: kAppFontFamily,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        tx(priceStr),
-                        style: TextStyle(
-                          color: RC.fg(redPrice),
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                          fontFamily: kAppFontFamily,
-                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              _completedInfoRow(Icons.person_outline_rounded, t('ناوی کڕیار'), order.customerName.trim().isEmpty ? 'کڕیار' : order.customerName),
-              const SizedBox(height: 10),
-              _completedInfoRow(Icons.phone_outlined, t('ژمارەی مۆبایل'), phone, valueLtr: true),
-              const SizedBox(height: 10),
-              _completedInfoRow(Icons.location_on_outlined, t('ناونیشانی کڕیار'), address),
-              const SizedBox(height: 12),
-              _completedInfoRow(Icons.pedal_bike_rounded, t('شۆفێر'), driverName, valueColor: green),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                decoration: BoxDecoration(
-                  color: RC.bg(orange),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  textDirection: TextDirection.rtl,
+            ),
+          ),
+        );
+
+    Widget detailsBtn() => Material(
+          color: RC.bg(Colors.white),
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            onTap: () => _openOrderActionBox(order),
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                textDirection: TextDirection.rtl,
+                children: [
+                  Flexible(
+                    child: Text(
+                      t('وردەکاری'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: RC.fg(const Color(0xFF0F172A)),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        fontFamily: kAppFontFamily,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(Icons.chevron_left_rounded, color: RC.fg(const Color(0xFF334155)), size: 20),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+      decoration: BoxDecoration(
+        color: RC.bg(Colors.white),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0)), width: 1.3),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Info area only — does not steal taps from delete/details.
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _openOrderActionBox(order),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(Icons.chat_bubble_outline_rounded, color: RC.fg(Colors.white), size: 17),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        tx('کڕیار لە $neighborhood داوای دەکات'),
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          color: RC.fg(Colors.white),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          fontFamily: kAppFontFamily,
+                    Row(
+                      textDirection: TextDirection.rtl,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            t('تەواوبوو'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: RC.fg(green),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                              fontFamily: kAppFontFamily,
+                            ),
+                          ),
                         ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              tx(priceStr),
+                              style: TextStyle(
+                                color: RC.fg(redPrice),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 18,
+                                fontFamily: kAppFontFamily,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    _completedInfoRow(
+                      Icons.person_outline_rounded,
+                      t('ناوی کڕیار'),
+                      order.customerName.trim().isEmpty ? 'کڕیار' : order.customerName,
+                    ),
+                    const SizedBox(height: 10),
+                    _completedInfoRow(Icons.phone_outlined, t('ژمارەی مۆبایل'), phone, valueLtr: true),
+                    const SizedBox(height: 10),
+                    _completedInfoRow(Icons.location_on_outlined, t('ناونیشانی کڕیار'), address),
+                    const SizedBox(height: 12),
+                    _completedInfoRow(Icons.pedal_bike_rounded, t('شۆفێر'), driverName, valueColor: green),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                      decoration: BoxDecoration(
+                        color: RC.bg(orange),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        textDirection: TextDirection.rtl,
+                        children: [
+                          Icon(Icons.chat_bubble_outline_rounded, color: RC.fg(Colors.white), size: 17),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              tx('کڕیار لە $neighborhood داوای دەکات'),
+                              textAlign: TextAlign.right,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: RC.fg(Colors.white),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                fontFamily: kAppFontFamily,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-              Row(
-                textDirection: TextDirection.rtl,
-                children: [
-                  Expanded(
-                    child: Material(
-                      color: RC.bg(const Color(0xFFFEE2E2)),
-                      borderRadius: BorderRadius.circular(14),
-                      child: InkWell(
-                        onTap: () => _confirmDeleteOrder(order),
-                        borderRadius: BorderRadius.circular(14),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.delete_outline_rounded, color: RC.fg(const Color(0xFFDC2626)), size: 18),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  t('سڕینەوەی داواکاری'),
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: RC.fg(const Color(0xFFDC2626)),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
-                                    fontFamily: kAppFontFamily,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Material(
-                      color: RC.bg(Colors.white),
-                      borderRadius: BorderRadius.circular(14),
-                      child: InkWell(
-                        onTap: () => _openOrderActionBox(order),
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  t('وردەکاری'),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: RC.fg(const Color(0xFF0F172A)),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
-                                    fontFamily: kAppFontFamily,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 2),
-                              Icon(Icons.chevron_left_rounded, color: RC.fg(const Color(0xFF334155)), size: 20),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+            child: narrow
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      detailsBtn(),
+                      const SizedBox(height: 8),
+                      deleteBtn(),
+                    ],
+                  )
+                : Row(
+                    textDirection: TextDirection.rtl,
+                    children: [
+                      Expanded(child: deleteBtn()),
+                      const SizedBox(width: 10),
+                      Expanded(child: detailsBtn()),
+                    ],
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -4814,6 +4864,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
     bool valueLtr = false,
     Color valueColor = const Color(0xFF0F172A),
   }) {
+    final labelW = MediaQuery.sizeOf(context).width < 380 ? 92.0 : 108.0;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       textDirection: TextDirection.rtl,
@@ -4821,10 +4872,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
         Icon(icon, size: 18, color: RC.fg(const Color(0xFF64748B))),
         const SizedBox(width: 8),
         SizedBox(
-          width: 108,
+          width: labelW,
           child: Text(
             tx(label),
             textAlign: TextAlign.right,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: RC.fg(const Color(0xFF64748B)),
               fontWeight: FontWeight.w700,

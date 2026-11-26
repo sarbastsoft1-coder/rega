@@ -68,10 +68,12 @@ Future<({String name, Uint8List bytes})?> _pickViaHtmlInput({
     }.toJS,
   );
 
+  // Cancel only after a long idle if the user dismissed the picker with no file.
+  // A short delay races the change event on some browsers and drops valid picks.
   web.window.addEventListener(
     'focus',
     (web.Event _) {
-      Future<void>.delayed(const Duration(milliseconds: 600), () {
+      Future<void>.delayed(const Duration(milliseconds: 1800), () {
         if (!completer.isCompleted &&
             (input.files == null || input.files!.length == 0)) {
           finish(null);
@@ -81,6 +83,7 @@ Future<({String name, Uint8List bytes})?> _pickViaHtmlInput({
   );
 
   web.document.body?.append(input);
-  input.click();
+  // Defer click so the input is in the DOM (required on some Chromium builds).
+  scheduleMicrotask(() => input.click());
   return completer.future;
 }

@@ -105,10 +105,10 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
       final old = _editingCategory!;
       await widget.onUpdateCategory?.call(old, name, imageUrl: _draftImageUrl);
       if (!mounted) return;
-      setState(() {
-        if (_openedCategory == old) _openedCategory = name;
-        _cancelDraft();
-      });
+      if (_openedCategory == old) {
+        setState(() => _openedCategory = name);
+      }
+      _cancelDraft();
       return;
     }
     widget.onAddCategory(name, imageUrl: _draftImageUrl);
@@ -116,6 +116,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
   }
 
   Future<void> _pickCategoryImage() async {
+    if (_imageBusy) return;
     final source = await _showImageSourceSheet();
     if (source == null || !mounted) return;
     setState(() => _imageBusy = true);
@@ -124,6 +125,9 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
       if (picked == null || !mounted) {
         if (mounted) setState(() => _imageBusy = false);
         return;
+      }
+      if (picked.bytes.isEmpty) {
+        throw Exception(t('بارکردنی وێنە سەرکەوتوو نەبوو'));
       }
       final compressed = await ImageCompressService.compressForUpload(
         name: picked.name.isNotEmpty ? picked.name : 'category.jpg',
@@ -138,6 +142,13 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
         _draftPreviewBytes = compressed.bytes;
         _imageBusy = false;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx('وێنە بارکرا'), textAlign: TextAlign.center),
+          backgroundColor: RC.bg(_green),
+          duration: const Duration(seconds: 1),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _imageBusy = false);
@@ -480,7 +491,8 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                                     crossAxisCount: crossCount,
                                     mainAxisSpacing: 14,
                                     crossAxisSpacing: 14,
-                                    childAspectRatio: 0.78,
+                                    // Taller cells so draft card (image + name + save) never clips.
+                                    childAspectRatio: showDraft ? 0.68 : 0.78,
                                   ),
                                   delegate: SliverChildBuilderDelegate(
                                     (context, index) {
@@ -530,7 +542,8 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
   }
 
   Widget _buildCategoryDraftCard() {
-    final hasImage = _draftPreviewBytes != null || (_draftImageUrl != null && _draftImageUrl!.isNotEmpty);
+    final hasImage =
+        _draftPreviewBytes != null || (_draftImageUrl != null && _draftImageUrl!.isNotEmpty);
     return Material(
       color: RC.bg(Colors.white),
       borderRadius: BorderRadius.circular(18),
@@ -540,86 +553,102 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: RC.bg(_orange), width: 1.6),
+          border: Border.all(color: RC.bg(_orange), width: 1.8),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Same image plane as completed cards — tap to upload / change.
             Expanded(
               child: Material(
-                color: RC.bg(const Color(0xFFF8FAFC)),
+                color: RC.bg(const Color(0xFFFFF7ED)),
                 child: InkWell(
                   onTap: _imageBusy ? null : _pickCategoryImage,
-                  child: hasImage
-                      ? Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            if (_draftPreviewBytes != null)
-                              Image.memory(
-                                _draftPreviewBytes!,
-                                fit: BoxFit.cover,
-                                alignment: Alignment.center,
-                              )
-                            else
-                              Image.network(
-                                VendorApiService.instance.resolveMediaUrl(_draftImageUrl!),
-                                fit: BoxFit.cover,
-                                alignment: Alignment.center,
-                                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (hasImage) ...[
+                        if (_draftPreviewBytes != null)
+                          Image.memory(
+                            _draftPreviewBytes!,
+                            fit: BoxFit.cover,
+                            alignment: Alignment.center,
+                          )
+                        else
+                          Image.network(
+                            VendorApiService.instance.resolveMediaUrl(_draftImageUrl!),
+                            fit: BoxFit.cover,
+                            alignment: Alignment.center,
+                            errorBuilder: (_, __, ___) => Center(
+                              child: Icon(Icons.broken_image_outlined, size: 40, color: RC.fg(_orange)),
+                            ),
+                          ),
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Container(
+                            width: double.infinity,
+                            color: Colors.black.withValues(alpha: 0.55),
+                            padding: const EdgeInsets.symmetric(vertical: 5),
+                            child: Text(
+                              t('گۆڕینی وێنە'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: RC.fg(Colors.white),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                                fontFamily: kAppFontFamily,
                               ),
-                            Align(
-                              alignment: Alignment.bottomCenter,
-                              child: Container(
-                                width: double.infinity,
-                                color: Colors.black.withValues(alpha: 0.55),
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                child: Text(
-                                  t('گۆڕینی وێنە'),
+                            ),
+                          ),
+                        ),
+                      ] else
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add_photo_alternate_outlined, size: 40, color: RC.fg(_orange)),
+                                const SizedBox(height: 6),
+                                Text(
+                                  t('هەڵبژاردن و بارکردنی وێنە'),
                                   textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: RC.fg(Colors.white),
+                                    color: RC.fg(_orange),
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 11,
+                                    fontSize: 11.5,
+                                    height: 1.2,
                                     fontFamily: kAppFontFamily,
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
-                            if (_imageBusy)
-                              const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
-                          ],
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (_imageBusy)
-                              const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(color: _orange, strokeWidth: 2),
-                              )
-                            else ...[
-                              Icon(Icons.image_outlined, size: 36, color: RC.fg(_orange)),
-                              const SizedBox(height: 6),
-                              Text(
-                                t('هەڵبژاردنی وێنە'),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: RC.fg(_green),
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 12,
-                                  fontFamily: kAppFontFamily,
-                                ),
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
+                      if (_imageBusy)
+                        ColoredBox(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          child: const Center(
+                            child: SizedBox(
+                              width: 26,
+                              height: 26,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.4),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
-            Padding(
+            // Footer matches completed card: name + actions.
+            Container(
+              color: RC.bg(Colors.white),
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: _catNameCtrl,
@@ -661,10 +690,11 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                         child: SizedBox(
                           height: 36,
                           child: ElevatedButton(
-                            onPressed: _saveDraft,
+                            onPressed: _imageBusy ? null : _saveDraft,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: RC.bg(_green),
                               foregroundColor: RC.fg(Colors.white),
+                              disabledBackgroundColor: RC.bg(_green).withValues(alpha: 0.5),
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(horizontal: 8),
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -690,7 +720,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                           color: RC.bg(_red),
                           borderRadius: BorderRadius.circular(10),
                           child: InkWell(
-                            onTap: _cancelDraft,
+                            onTap: _imageBusy ? null : _cancelDraft,
                             borderRadius: BorderRadius.circular(10),
                             child: Icon(Icons.close_rounded, color: RC.fg(Colors.white), size: 18),
                           ),
