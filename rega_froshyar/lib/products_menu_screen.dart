@@ -624,6 +624,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                   TextField(
                     controller: _catNameCtrl,
                     textAlign: TextAlign.right,
+                    textDirection: TextDirection.rtl,
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 13,
@@ -852,7 +853,8 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                         : tx(cat);
                     final title = Text(
                       titleLabel,
-                      textAlign: TextAlign.left,
+                      textAlign: TextAlign.right,
+                      textDirection: TextDirection.rtl,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -918,10 +920,10 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           final w = constraints.maxWidth;
-                          final useGrid = w >= 560;
-                          final crossCount = w >= 900
+                          final useGrid = w >= 720;
+                          final crossCount = w >= 980
                               ? 3
-                              : w >= 560
+                              : w >= 720
                                   ? 2
                                   : 1;
                           if (!useGrid) {
@@ -937,7 +939,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                               crossAxisCount: crossCount,
                               mainAxisSpacing: 12,
                               crossAxisSpacing: 12,
-                              childAspectRatio: 2.35,
+                              mainAxisExtent: 184,
                             ),
                             itemCount: products.length,
                             itemBuilder: (_, i) => _buildProductRow(products[i]),
@@ -1042,38 +1044,57 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                     const SizedBox(height: 10),
                     Row(
                       textDirection: TextDirection.rtl,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          tx('${formatAmountOnly(display)} ${t('دینار')}'),
-                          style: TextStyle(
-                            color: RC.fg(_green),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 14,
-                            fontFamily: kAppFontFamily,
-                          ),
-                        ),
-                        if (hasDiscount) ...[
-                          const SizedBox(width: 8),
-                          Text(
-                            formatAmountOnly(product.price.toInt()),
-                            style: TextStyle(
-                              color: RC.fg(const Color(0xFF94A3B8)),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                              decoration: TextDecoration.lineThrough,
-                              decorationColor: RC.fg(_red),
-                              fontFamily: kAppFontFamily,
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              textDirection: TextDirection.rtl,
+                              children: [
+                                Text(
+                                  tx('${formatAmountOnly(display)} ${t('دینار')}'),
+                                  style: TextStyle(
+                                    color: RC.fg(_green),
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 14,
+                                    fontFamily: kAppFontFamily,
+                                  ),
+                                ),
+                                if (hasDiscount) ...[
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    formatAmountOnly(product.price.toInt()),
+                                    style: TextStyle(
+                                      color: RC.fg(const Color(0xFF94A3B8)),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                      decoration: TextDecoration.lineThrough,
+                                      decorationColor: RC.fg(_red),
+                                      fontFamily: kAppFontFamily,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                        ],
-                        const Spacer(),
-                        Text(
-                          t('دەستکاری'),
-                          style: TextStyle(
-                            color: RC.fg(_green),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 13.5,
-                            fontFamily: kAppFontFamily,
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              t('دەستکاری'),
+                              style: TextStyle(
+                                color: RC.fg(_green),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13.5,
+                                fontFamily: kAppFontFamily,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -1155,6 +1176,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                   controller: nameCtrl,
                   autofocus: true,
                   textAlign: TextAlign.right,
+                  textDirection: TextDirection.rtl,
                   decoration: InputDecoration(
                     labelText: t('ناوی تایبەتمەندی'),
                     filled: true,
@@ -1327,6 +1349,7 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                     maxLines: maxLines,
                     keyboardType: type,
                     textAlign: TextAlign.right,
+                    textDirection: TextDirection.rtl,
                     style: TextStyle(fontWeight: FontWeight.w700, fontFamily: kAppFontFamily),
                     decoration: fieldDeco(hint: hint),
                   ),
@@ -1440,7 +1463,8 @@ class _ProductsMenuScreenState extends State<ProductsMenuScreen> {
                                         Expanded(
                                           child: Text(
                                             hasImage ? t('گۆڕینی وێنە') : t('هەڵبژاردنی وێنە'),
-                                            textAlign: TextAlign.left,
+                                            textAlign: TextAlign.right,
+                                            textDirection: TextDirection.rtl,
                                             style: TextStyle(
                                               color: RC.fg(_green),
                                               fontWeight: FontWeight.w900,

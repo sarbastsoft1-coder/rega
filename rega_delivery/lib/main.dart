@@ -160,6 +160,9 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
       title: 'REGA Delivery',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
+      // ku/ar → Arabic locale so Material inputs start from the right like Arabic.
+      locale: session.locale == 'en' ? const Locale('en') : const Locale('ar'),
+      supportedLocales: const [Locale('en'), Locale('ar')],
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
@@ -2249,7 +2252,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     Color? valueColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       decoration: BoxDecoration(
         color: RC.bg(Colors.white),
         borderRadius: BorderRadius.circular(28),
@@ -2266,11 +2269,21 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             child: Icon(icon, color: iconColor, size: 24),
           ),
           const SizedBox(height: 12),
-          Text(tx(title), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
           Text(
-            tx(value),
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: valueColor ?? RC.bg(Color(0xFF1E293B))),
+            tx(title),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              tx(value),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: valueColor ?? RC.bg(Color(0xFF1E293B))),
+            ),
           ),
         ],
       ),
@@ -2860,22 +2873,28 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           boxShadow: isSelected ? [BoxShadow(color: RC.bg(Colors.black).withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))] : null,
         ),
         child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                tx(label),
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                  color: isSelected ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFF64748B)),
-                ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    tx(label),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                      color: isSelected ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFF64748B)),
+                    ),
+                  ),
+                  if (isSelected) ...[
+                    const SizedBox(width: 6),
+                    Icon(Icons.circle, color: RC.fg(Color(0xFF16A34A)), size: 6),
+                  ],
+                ],
               ),
-              if (isSelected) ...[
-                const SizedBox(width: 6),
-                Icon(Icons.circle, color: RC.fg(Color(0xFF16A34A)), size: 6),
-              ],
-            ],
+            ),
           ),
         ),
       ),
@@ -3353,12 +3372,16 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    t('orders'),
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: RC.fg(const Color(0xFF1E293B)),
+                  Expanded(
+                    child: Text(
+                      t('orders'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: RC.fg(const Color(0xFF1E293B)),
+                      ),
                     ),
                   ),
                   IconButton(

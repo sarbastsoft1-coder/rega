@@ -140,6 +140,12 @@ class Trans {
     _persistLang(l);
   }
   static TextDirection get direction => lang.value == 'en' ? TextDirection.ltr : TextDirection.rtl;
+  static bool get isRtl => lang.value != 'en';
+  /// Kurdish/Arabic: text starts on the right (like Arabic). English: left.
+  static TextAlign get alignStart => isRtl ? TextAlign.right : TextAlign.left;
+  static TextAlign get alignEnd => isRtl ? TextAlign.left : TextAlign.right;
+  static Locale get materialLocale =>
+      lang.value == 'en' ? const Locale('en') : const Locale('ar');
 
   static String get(String key) {
     if (lang.value == 'ku') return tx(key);
@@ -499,6 +505,9 @@ class _RegaVendorAppState extends State<RegaVendorApp> {
           title: 'REGA Vendor',
           debugShowCheckedModeBanner: false,
           routerConfig: router,
+          // ku/ar → Arabic locale so Material text fields/inputs are RTL like Arabic.
+          locale: Trans.materialLocale,
+          supportedLocales: const [Locale('en'), Locale('ar')],
           theme: ThemeData(
             primarySwatch: Colors.orange,
             fontFamily: 'NotoKufiArabic',
@@ -1941,6 +1950,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.right,
+                              textDirection: TextDirection.rtl,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 19,
@@ -3233,34 +3243,40 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Material(
-                        color: RC.bg(const Color(0xFFFF6418)),
-                        borderRadius: BorderRadius.circular(15),
-                        child: InkWell(
-                          onTap: () => OrderSoundService.playTestTone(),
-                          onLongPress: () => widget.onSimulateNewOrder?.call(),
+                      Flexible(
+                        child: Material(
+                          color: RC.bg(const Color(0xFFFF6418)),
                           borderRadius: BorderRadius.circular(15),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              textDirection: TextDirection.rtl,
-                              children: [
-                                CustomPaint(
-                                  size: const Size(18, 18),
-                                  painter: _HeaderBellPainter(color: Colors.white),
-                                ),
-                                const SizedBox(width: 7),
-                                Text(
-                                  t('تاقیکردنەوەی دەنگ'),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
-                                    fontFamily: kAppFontFamily,
+                          child: InkWell(
+                            onTap: () => OrderSoundService.playTestTone(),
+                            onLongPress: () => widget.onSimulateNewOrder?.call(),
+                            borderRadius: BorderRadius.circular(15),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                textDirection: TextDirection.rtl,
+                                children: [
+                                  CustomPaint(
+                                    size: const Size(18, 18),
+                                    painter: _HeaderBellPainter(color: Colors.white),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 7),
+                                  Flexible(
+                                    child: Text(
+                                      t('تاقیکردنەوەی دەنگ'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13,
+                                        fontFamily: kAppFontFamily,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -4375,41 +4391,52 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     // Status (right) + price (left) — TB
                     Row(
                       textDirection: TextDirection.rtl,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          statusLabel,
-                          style: TextStyle(
-                            color: RC.fg(teal),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 18,
-                            fontFamily: kAppFontFamily,
+                        Flexible(
+                          child: Text(
+                            statusLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: RC.fg(teal),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                              fontFamily: kAppFontFamily,
+                            ),
                           ),
                         ),
-                        const Spacer(),
-                        Row(
-                          textDirection: TextDirection.rtl,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              tx(amountOnly),
-                              style: TextStyle(
-                                color: RC.fg(redPrice),
-                                fontWeight: FontWeight.w900,
-                                fontSize: 18,
-                                fontFamily: kAppFontFamily,
-                              ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              textDirection: TextDirection.rtl,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  tx(amountOnly),
+                                  style: TextStyle(
+                                    color: RC.fg(redPrice),
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 18,
+                                    fontFamily: kAppFontFamily,
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  t('دینار'),
+                                  style: TextStyle(
+                                    color: RC.fg(const Color(0xFF94A3B8)),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    fontFamily: kAppFontFamily,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 5),
-                            Text(
-                              t('دینار'),
-                              style: TextStyle(
-                                color: RC.fg(const Color(0xFF94A3B8)),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                fontFamily: kAppFontFamily,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -4500,26 +4527,33 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         }
                       },
                       borderRadius: BorderRadius.circular(12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        textDirection: TextDirection.rtl,
-                        children: [
-                          CustomPaint(
-                            size: const Size(16, 16),
-                            painter: _FlameIconPainter(color: RC.fg(Colors.white)),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            actionLabel,
-                            style: TextStyle(
-                              color: RC.fg(Colors.white),
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14,
-                              height: 1.1,
-                              fontFamily: kAppFontFamily,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          textDirection: TextDirection.rtl,
+                          children: [
+                            CustomPaint(
+                              size: const Size(16, 16),
+                              painter: _FlameIconPainter(color: RC.fg(Colors.white)),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                actionLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: RC.fg(Colors.white),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 14,
+                                  height: 1.1,
+                                  fontFamily: kAppFontFamily,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -4566,7 +4600,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         Expanded(
           child: Text(
             tx(value),
-            textAlign: TextAlign.left,
+            textAlign: valueLtr ? TextAlign.left : TextAlign.right,
             textDirection: valueLtr ? TextDirection.ltr : TextDirection.rtl,
             style: TextStyle(
               color: RC.fg(valueColor),
@@ -4621,24 +4655,35 @@ class _OrdersScreenState extends State<OrdersScreen> {
             children: [
               Row(
                 textDirection: TextDirection.rtl,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    t('تەواوبوو'),
-                    style: TextStyle(
-                      color: RC.fg(green),
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                      fontFamily: kAppFontFamily,
+                  Flexible(
+                    child: Text(
+                      t('تەواوبوو'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: RC.fg(green),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                        fontFamily: kAppFontFamily,
+                      ),
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    tx(priceStr),
-                    style: TextStyle(
-                      color: RC.fg(redPrice),
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                      fontFamily: kAppFontFamily,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        tx(priceStr),
+                        style: TextStyle(
+                          color: RC.fg(redPrice),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                          fontFamily: kAppFontFamily,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -4732,13 +4777,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(
-                                t('وردەکاری'),
-                                style: TextStyle(
-                                  color: RC.fg(const Color(0xFF0F172A)),
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 13,
-                                  fontFamily: kAppFontFamily,
+                              Flexible(
+                                child: Text(
+                                  t('وردەکاری'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: RC.fg(const Color(0xFF0F172A)),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                    fontFamily: kAppFontFamily,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 2),
@@ -4787,7 +4836,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         Expanded(
           child: Text(
             tx(value),
-            textAlign: TextAlign.left,
+            textAlign: valueLtr ? TextAlign.left : TextAlign.right,
             textDirection: valueLtr ? TextDirection.ltr : TextDirection.rtl,
             style: TextStyle(
               color: RC.fg(valueColor),
@@ -4930,7 +4979,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         Expanded(
           child: Text(
             tx(value),
-            textAlign: TextAlign.left,
+            textAlign: valueLtr ? TextAlign.left : TextAlign.right,
             textDirection: valueLtr ? TextDirection.ltr : TextDirection.rtl,
             style: TextStyle(
               color: RC.fg(const Color(0xFF0F172A)),
@@ -5366,7 +5415,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   for (int i = 0; i < rows.length; i++) ...[
                     if (i > 0) const SizedBox(height: 8),
                     Align(
-                      alignment: Alignment.centerLeft,
+                      alignment: rows[i].$4 ? Alignment.centerLeft : Alignment.centerRight,
                       child: rows[i].$5
                           ? Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -5376,6 +5425,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                               ),
                               child: Text(
                                 tx(rows[i].$2),
+                                textDirection: TextDirection.rtl,
                                 style: TextStyle(
                                   color: RC.fg(rows[i].$3),
                                   fontWeight: FontWeight.w800,
@@ -5386,7 +5436,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             )
                           : Text(
                               tx(rows[i].$2),
-                              textAlign: TextAlign.left,
+                              textAlign: rows[i].$4 ? TextAlign.left : TextAlign.right,
                               textDirection: rows[i].$4 ? TextDirection.ltr : TextDirection.rtl,
                               style: TextStyle(
                                 color: RC.fg(rows[i].$3),
@@ -7768,7 +7818,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return Directionality(
-              textDirection: TextDirection.ltr,
+              textDirection: Trans.direction,
               child: Dialog(
                 insetPadding: RegaResponsive.dialogInset(context, cap: 420, vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -8275,7 +8325,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return Directionality(
-              textDirection: TextDirection.ltr,
+              textDirection: Trans.direction,
               child: Dialog(
                 insetPadding: RegaResponsive.dialogInset(context, cap: 420, vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -8497,12 +8547,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
     int maxLines = 1,
     Color? hintColor,
     ValueChanged<String>? onChanged,
+    bool forceLtr = false,
   }) =>
       TextField(
         controller: controller,
         maxLines: maxLines,
-        textAlign: TextAlign.left,
-        style: const TextStyle(fontSize: 13),
+        textAlign: forceLtr ? TextAlign.left : Trans.alignStart,
+        textDirection: forceLtr ? TextDirection.ltr : Trans.direction,
+        style: const TextStyle(fontSize: 13, fontFamily: kAppFontFamily),
         onChanged: onChanged,
         decoration: InputDecoration(
           hintText: txn(hint),
@@ -10376,10 +10428,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    tx(formatTime(_openTime)),
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: RC.fg(Color(0xFF1F2937))),
+                                  Expanded(
+                                    child: Text(
+                                      tx(formatTime(_openTime)),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: RC.fg(Color(0xFF1F2937))),
+                                    ),
                                   ),
+                                  const SizedBox(width: 4),
                                   Icon(Icons.keyboard_arrow_down, color: RC.fgn(Colors.grey[400]), size: 20),
                                 ],
                               ),
@@ -10406,10 +10463,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    tx(formatTime(_closeTime)),
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: RC.fg(Color(0xFF1F2937))),
+                                  Expanded(
+                                    child: Text(
+                                      tx(formatTime(_closeTime)),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: RC.fg(Color(0xFF1F2937))),
+                                    ),
                                   ),
+                                  const SizedBox(width: 4),
                                   Icon(Icons.keyboard_arrow_down, color: RC.fgn(Colors.grey[400]), size: 20),
                                 ],
                               ),
@@ -10509,9 +10571,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      t('چوونە دەرەوە لە هەژمار'),
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, fontFamily: kAppFontFamily),
+                    Flexible(
+                      child: Text(
+                        t('چوونە دەرەوە لە هەژمار'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, fontFamily: kAppFontFamily),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Icon(Icons.logout_rounded, color: RC.fg(Colors.white), size: 20),

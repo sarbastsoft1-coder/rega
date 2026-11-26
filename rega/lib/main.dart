@@ -121,6 +121,9 @@ class _RegaAppState extends State<RegaApp> {
       title: tx('REGA - ڕێگا'),
       debugShowCheckedModeBanner: false,
       routerConfig: router,
+      // ku/ar → Arabic locale so Material inputs start from the right like Arabic.
+      locale: locale.langCode == 'en' ? const Locale('en') : const Locale('ar'),
+      supportedLocales: const [Locale('en'), Locale('ar')],
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
@@ -6554,11 +6557,19 @@ class _MainScreenState extends State<MainScreen> {
                                   ],
                                 ),
                               ),
-                              const Spacer(),
-                              moneyLine(
-                                amount: itemTotal,
-                                amountColor: RC.fg(const Color(0xFF0F172A)),
-                                amountSize: 16,
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Align(
+                                  alignment: AlignmentDirectional.centerEnd,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: moneyLine(
+                                      amount: itemTotal,
+                                      amountColor: RC.fg(const Color(0xFF0F172A)),
+                                      amountSize: 16,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
