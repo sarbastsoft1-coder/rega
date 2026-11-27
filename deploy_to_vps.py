@@ -38,9 +38,11 @@ PHP_COPIES = [
     "app/Http/Middleware/EnsureUserHasRole.php",
     "app/Http/Middleware/EnsureUserIsActive.php",
     "app/Http/Controllers/Api/DriverAppController.php",  # includes optional delivery PIN
+    "app/Http/Controllers/Api/LiveTelemetryController.php",
     "app/Http/Controllers/Api/PublicAndCustomerController.php",
     "app/Http/Controllers/Api/VendorAppController.php",
     "app/Http/Controllers/Api/Admin/CatalogAndZonesController.php",
+    "app/Http/Controllers/Api/Admin/EcosystemHubController.php",
     "app/Http/Controllers/Api/Admin/StoreManagementController.php",
     "app/Http/Controllers/Api/Admin/OrderManagementController.php",
     "app/Http/Controllers/Api/Admin/MarketingController.php",
@@ -56,6 +58,8 @@ PHP_COPIES = [
     "app/Services/FcmPushService.php",
     "app/Services/DriverDispatchService.php",
     "config/services.php",
+    "config/cors.php",
+    "config/sanctum.php",
 ]
 
 
