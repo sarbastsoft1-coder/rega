@@ -104,4 +104,18 @@ class DriverSessionNotifier extends ChangeNotifier {
       await prefs.setBool(_loggedInPrefKey, false);
     } catch (_) {}
   }
+
+  /// Local session clear after 401 (token already wiped by DriverApiService).
+  Future<void> markSessionExpired() async {
+    if (!_loggedIn && !DriverApiService.instance.hasToken) {
+      notifyListeners();
+      return;
+    }
+    _loggedIn = false;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_loggedInPrefKey, false);
+    } catch (_) {}
+  }
 }

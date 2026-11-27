@@ -495,7 +495,7 @@ class VendorAppController extends Controller
         return response()->json(['success' => true, 'data' => $order]);
     }
 
-    public function markReady(Request $request, Order $order): JsonResponse
+    public function markReady(Request $request, Order $order, DriverDispatchService $dispatchService): JsonResponse
     {
         $this->resolveOrderStore($request, $order);
 
@@ -519,16 +519,20 @@ class VendorAppController extends Controller
             ->orWhere('order_ref', $order->order_number)
             ->update(['status' => 'ready']);
 
-        // Manual flow: do NOT auto-assign a driver. Admin/vendor assigns via button.
+        // Auto-assign nearest eligible driver (online + verified + fresh GPS). Fail closed.
+        $dispatch = $dispatchService->autoAssignNearestDriver($order->fresh(), $request->user());
         $order = $order->fresh(['items', 'driver.driverProfile']);
 
         if ($order->customer_id) {
+            $bodyKu = $dispatch['success']
+                ? 'فرۆشگا داواکارییەکەی ئامادەکرد و شۆفێر دیاریکرا.'
+                : 'فرۆشگا داواکارییەکەی ئامادەکرد. چاوەڕوانی دیاریکردنی شۆفێر بکە.';
             AppNotification::createAndPush([
                 'user_id' => $order->customer_id,
                 'target_audience' => 'specific_user',
                 'title_ku' => "داواکاری {$order->order_number} ئامادەیە",
                 'title_en' => "Order {$order->order_number} is ready",
-                'body_ku' => 'فرۆشگا داواکارییەکەی ئامادەکرد. چاوەڕوانی دیاریکردنی شۆفێر بکە.',
+                'body_ku' => $bodyKu,
                 'tag' => 'گەیاندن',
                 'type' => 'order',
                 'store_id' => $order->store_id,
@@ -537,12 +541,14 @@ class VendorAppController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'داواکاری ئامادەکرا. شۆفێر دەبێت بە دوگمە دیاری بکرێت (ئادمین / فرۆشگا).',
+            'message' => $dispatch['success']
+                ? 'داواکاری ئامادەکرا و نزیکترین شۆفێر دیاریکرا.'
+                : 'داواکاری ئامادەکرا، بەڵام شۆفێری بەردەست نەدۆزرایەوە.',
             'data' => $order->makeHidden(['handover_pin', 'delivery_pin']),
             'dispatch' => [
-                'success' => false,
-                'message' => 'خۆکار دیاریکردنی شۆفێر کوژێنرایەوە — تەنها بە دوگمە.',
-                'distance_meters' => null,
+                'success' => $dispatch['success'],
+                'message' => $dispatch['message'],
+                'distance_meters' => $dispatch['distance_meters'],
             ],
         ]);
     }

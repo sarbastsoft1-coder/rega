@@ -15,12 +15,11 @@ import 'package:flutter_map/flutter_map.dart';
 enum MapboxStyle { streets, dark, outdoors, satellite }
 
 class MapboxTiles {
-  static const String _mbP1 =
-      'pk.eyJ1IjoibWlybmF0djMzIiwiYSI6ImNtd2FyazdtbzA4OTUyeXFzcGt5OTYxaTcifQ';
-  static const String _mbP2 = 'nnJqoQbULogKF8Cu3Hn7XA';
+  /// Pass at build time: `--dart-define=MAPBOX_TOKEN=pk....`
+  /// Empty default → OSM/ESRI fallback tiles (no secret in the binary).
   static const String accessToken = String.fromEnvironment(
     'MAPBOX_TOKEN',
-    defaultValue: '$_mbP1.$_mbP2',
+    defaultValue: '',
   );
 
   /// Studio Standard style — use with mapbox_maps_flutter MapWidget.

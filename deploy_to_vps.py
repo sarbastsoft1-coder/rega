@@ -25,14 +25,19 @@ UPLOAD_PATHS = [
     "rega_froshyar/lib",
     "rega_delivery/lib",
     "rega_backend/app",
+    "rega_backend/bootstrap/app.php",
     "rega_backend/database/migrations",
     "rega_backend/routes/api.php",
     "docker/Caddyfile",
 ]
 
 PHP_COPIES = [
+    "bootstrap/app.php",
     "routes/api.php",
-    "app/Http/Controllers/Api/DriverAppController.php",
+    "app/Http/Middleware/EnforceIdempotency.php",
+    "app/Http/Middleware/EnsureUserHasRole.php",
+    "app/Http/Middleware/EnsureUserIsActive.php",
+    "app/Http/Controllers/Api/DriverAppController.php",  # includes optional delivery PIN
     "app/Http/Controllers/Api/PublicAndCustomerController.php",
     "app/Http/Controllers/Api/VendorAppController.php",
     "app/Http/Controllers/Api/Admin/CatalogAndZonesController.php",

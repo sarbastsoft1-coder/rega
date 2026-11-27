@@ -7,6 +7,8 @@ import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../core/services/excel_backup_service.dart';
 import '../widgets/admin_top_header.dart';
+import 'catalog_zones_screen.dart';
+import 'marketing_screen.dart';
 
 import '../rega_i18n.dart';
 import '../rega_colors.dart';
@@ -27,7 +29,9 @@ class SupportSettingsScreen extends StatefulWidget {
 }
 
 class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
-  int _selectedSubTab = 0; // 0: گشتی, 1: هەژمار, 2: ئاگادارکردنەوە, 3: پارەدان, 4: ئاسایش
+  // 0 گشتی, 1 هەژمار, 2 ئاگادارکردنەوە, 3 پارەدان, 4 ئاسایش,
+  // 5 بەشەکانی ئەپ, 6 ئاگاداری کڕیار, 7 کۆپۆن و ڕیکلام
+  int _selectedSubTab = 0;
 
   List<Map<String, dynamic>> _adminStaff = [];
   bool _loadingStaff = false;
@@ -473,30 +477,37 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
     );
   }
 
+  bool get _isEmbeddedFullPageTab => _selectedSubTab >= 5;
+
   @override
   Widget build(BuildContext context) {
+    final padH = AdminBreakpoints.pagePadH(context);
     return Directionality(
       textDirection: widget.lang == 'en' ? TextDirection.ltr : TextDirection.rtl,
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: AdminBreakpoints.pagePadH(context), vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. Top Header Area (Matching Screenshot)
-              _buildTopHeader(),
-              const SizedBox(height: 16),
-
-              // 2. Sub-navigation Tabs: گشتی | هەژمار | ئاگادارکردنەوە | پارەدان | ئاسایش
-              _buildSubTabsRow(),
-              const SizedBox(height: 20),
-
-              // 3. Active Subtab Content (Smoothly changes when clicking any tab)
-              _buildActiveSubTabContent(),
-              const SizedBox(height: 24),
-            ],
-          ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(padH, 16, padH, 0),
+              child: _buildTopHeader(),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: padH),
+              child: _buildSubTabsRow(),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _isEmbeddedFullPageTab
+                  ? _buildActiveSubTabContent()
+                  : SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(padH, 8, padH, 24),
+                      child: _buildActiveSubTabContent(),
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -898,6 +909,9 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
       {'name': 'ئاگادارکردنەوە', 'icon': Icons.notifications_none_rounded},
       {'name': 'پارەدان', 'icon': Icons.payments_outlined},
       {'name': 'ئاسایش', 'icon': Icons.shield_outlined},
+      {'name': 'بەشەکانی ئەپ', 'icon': Icons.grid_view_rounded},
+      {'name': 'ئاگاداری کڕیار', 'icon': Icons.notifications_active_rounded},
+      {'name': 'کۆپۆن و ڕیکلام', 'icon': Icons.campaign_rounded},
     ];
 
     return Container(
@@ -974,6 +988,26 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
         return _buildPaymentsTab();
       case 4:
         return _buildSecurityTab();
+      case 5:
+        return CatalogZonesScreen(
+          key: const ValueKey('settings-app-categories'),
+          api: widget.api,
+          lang: widget.lang,
+          mode: CatalogZonesMode.categories,
+        );
+      case 6:
+        return MarketingScreen(
+          key: const ValueKey('settings-customer-notifications'),
+          api: widget.api,
+          lang: widget.lang,
+          mode: MarketingMode.notifications,
+        );
+      case 7:
+        return MarketingScreen(
+          key: const ValueKey('settings-coupons-ads'),
+          api: widget.api,
+          lang: widget.lang,
+        );
       default:
         return _buildPaymentsTab();
     }

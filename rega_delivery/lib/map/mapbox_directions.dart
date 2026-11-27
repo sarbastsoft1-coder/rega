@@ -12,6 +12,7 @@ class MapboxDirections {
     LatLng to, {
     Duration timeout = const Duration(seconds: 8),
   }) async {
+    if (!MapboxTiles.hasToken) return const [];
     final uri = Uri.parse(
       'https://api.mapbox.com/directions/v5/mapbox/driving/'
       '${from.longitude},${from.latitude};'

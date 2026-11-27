@@ -25,6 +25,11 @@ class RegaApiHost {
       final scheme = Uri.base.scheme == 'https' ? 'https' : 'http';
       return '$scheme://127.0.0.1:$apiPort';
     }
+    // Release mobile builds must set --dart-define=REGA_API_HOST=https://...
+    // Fail closed instead of shipping localhost cleartext as the API target.
+    if (kReleaseMode) {
+      return 'https://api.invalid';
+    }
     return 'http://127.0.0.1:$apiPort';
   }
 

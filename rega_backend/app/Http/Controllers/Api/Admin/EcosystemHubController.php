@@ -447,10 +447,22 @@ class EcosystemHubController extends Controller
     }
 
     /**
-     * Driver -> Customer delivery complete and settle financials (no PIN required).
+     * Driver/Admin -> Customer delivery complete and settle financials (PIN required).
      */
     public function verifyDeliveryPin(Request $request, Order $order): JsonResponse
     {
+        $validated = $request->validate([
+            'delivery_pin' => ['required', 'string', 'size:4'],
+        ]);
+
+        $expected = (string) ($order->delivery_pin ?? '');
+        if ($expected === '' || ! hash_equals($expected, (string) $validated['delivery_pin'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'PIN ی گەیاندن هەڵەیە.',
+            ], 422);
+        }
+
         $settled = $this->settlementService->markDelivered(
             $order,
             $request->user(),

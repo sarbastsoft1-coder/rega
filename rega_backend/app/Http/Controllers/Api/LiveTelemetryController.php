@@ -262,6 +262,17 @@ class LiveTelemetryController extends Controller
         $ref = $this->normalizeRef($orderRef);
         $session = $this->resolveOrBootstrapSession($ref);
 
+        if ($session->order_id) {
+            $order = Order::find($session->order_id);
+            $user = $request->user();
+            if ($order && $user && ! $user->isAdmin() && (int) $order->driver_id !== (int) $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ڕێگەت پێ نەدراوە بۆ نوێکردنەوەی شوێنی ئەم داواکارییە.',
+                ], 403);
+            }
+        }
+
         $validated = $request->validate([
             'driver_lat' => ['required', 'numeric'],
             'driver_lng' => ['required', 'numeric'],
@@ -270,10 +281,7 @@ class LiveTelemetryController extends Controller
             'eta_seconds' => ['nullable', 'integer', 'min:0'],
             'distance_remaining_meters' => ['nullable', 'integer', 'min:0'],
             'progress_permille' => ['nullable', 'integer', 'min:0', 'max:1000'],
-            'status' => ['nullable', 'string', 'max:40'],
-            'driver_status' => ['nullable', 'string', 'max:40'],
-            'driver_name' => ['nullable', 'string', 'max:120'],
-            'driver_phone' => ['nullable', 'string', 'max:30'],
+            // Status transitions must go through /driver/orders/{id}/status — ignore client status spoofing.
             'route_polyline' => ['nullable', 'array'],
         ]);
 
@@ -283,9 +291,11 @@ class LiveTelemetryController extends Controller
             'driver_heading' => (float) ($validated['driver_heading'] ?? $session->driver_heading),
             'driver_speed_kmh' => (float) ($validated['driver_speed_kmh'] ?? $session->driver_speed_kmh),
             'driver_pinged_at' => now(),
+            'driver_name' => $session->driver_name ?: ($request->user()?->name ?? $session->driver_name),
+            'driver_phone' => $session->driver_phone ?: ($request->user()?->phone ?? $session->driver_phone),
         ];
 
-        foreach (['eta_seconds', 'distance_remaining_meters', 'progress_permille', 'status', 'driver_status', 'driver_name', 'driver_phone', 'route_polyline'] as $field) {
+        foreach (['eta_seconds', 'distance_remaining_meters', 'progress_permille', 'route_polyline'] as $field) {
             if (array_key_exists($field, $validated) && $validated[$field] !== null) {
                 $updates[$field] = $validated[$field];
             }
@@ -293,7 +303,7 @@ class LiveTelemetryController extends Controller
 
         $session->update($updates);
 
-        // Mirror telemetry onto linked PostgreSQL Order + DriverProfile if present
+        // Mirror GPS onto linked Order + DriverProfile (do not rewrite order status from telemetry).
         if ($session->order_id) {
             $order = Order::find($session->order_id);
             if ($order) {
@@ -304,8 +314,6 @@ class LiveTelemetryController extends Controller
                     'driver_speed_kmh' => $session->driver_speed_kmh,
                     'eta_seconds' => $session->eta_seconds,
                     'distance_remaining_meters' => $session->distance_remaining_meters,
-                    'status' => $session->status,
-                    'driver_status' => $session->driver_status,
                     'last_telemetry_at' => now(),
                 ]);
 
@@ -323,14 +331,38 @@ class LiveTelemetryController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $this->formatPayload($session->fresh()),
+            'data' => $this->formatPayload($session->fresh(), publicSafe: true),
         ]);
     }
 
     public function verifyPin(Request $request, string $orderRef): JsonResponse
     {
+        $validated = $request->validate([
+            'delivery_pin' => ['required', 'string', 'size:4'],
+        ]);
+
         $ref = $this->normalizeRef($orderRef);
         $session = $this->resolveOrBootstrapSession($ref);
+        $user = $request->user();
+
+        $expectedPin = (string) ($session->delivery_pin ?? '');
+        $order = $session->order_id ? Order::find($session->order_id) : null;
+        if ($order) {
+            $expectedPin = (string) ($order->delivery_pin ?? $expectedPin);
+            if (! $user?->isAdmin() && (int) $order->driver_id !== (int) $user?->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ڕێگەت پێ نەدراوە بۆ تەواوکردنی ئەم داواکارییە.',
+                ], 403);
+            }
+        }
+
+        if ($expectedPin === '' || ! hash_equals($expectedPin, (string) $validated['delivery_pin'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'PIN ی گەیاندن هەڵەیە.',
+            ], 422);
+        }
 
         $session->update([
             'status' => 'delivered',
@@ -344,17 +376,14 @@ class LiveTelemetryController extends Controller
             'driver_pinged_at' => now(),
         ]);
 
-        if ($session->order_id) {
-            $order = Order::find($session->order_id);
-            if ($order && $order->status !== 'delivered') {
-                $this->settlementService->markDelivered($order, $request->user(), 'گەیاندن لەسەر نەخشەی زیندوو تەواوکرا');
-            }
+        if ($order && $order->status !== 'delivered') {
+            $this->settlementService->markDelivered($order, $user, 'گەیاندن لەسەر نەخشەی زیندوو تەواوکرا');
         }
 
         return response()->json([
             'success' => true,
             'message' => 'داواکارییەکە بە سەرکەوتوویی ڕادەستی کڕیار کرا!',
-            'data' => $this->formatPayload($session->fresh()),
+            'data' => $this->formatPayload($session->fresh(), publicSafe: true),
         ]);
     }
 
@@ -481,13 +510,13 @@ class LiveTelemetryController extends Controller
         ]);
     }
 
-    private function formatPayload(LiveTelemetrySession $s): array
+    private function formatPayload(LiveTelemetrySession $s, bool $publicSafe = true): array
     {
         $driverLive = $s->driver_pinged_at && $s->driver_pinged_at->diffInSeconds(now()) <= 5;
         $waypoints = $s->route_polyline ?? [];
         $pickupIndex = count($waypoints) >= 4 ? 3 : (int) floor(count($waypoints) / 2);
 
-        return [
+        $payload = [
             'order_ref' => $s->order_ref,
             'order_id' => $s->order_id,
             'status' => $s->status,
@@ -495,8 +524,6 @@ class LiveTelemetryController extends Controller
             'progress_permille' => $s->progress_permille,
             'eta_seconds' => $s->eta_seconds,
             'distance_remaining_meters' => $s->distance_remaining_meters,
-            'delivery_pin' => $s->delivery_pin,
-            'handover_pin' => $s->handover_pin,
             'total_amount' => $s->total_amount,
             'delivery_fee' => $s->delivery_fee,
             'driver_tip' => $s->driver_tip,
@@ -532,5 +559,13 @@ class LiveTelemetryController extends Controller
             'updated_at' => $s->updated_at?->toIso8601String(),
             'server_time_ms' => (int) round(microtime(true) * 1000),
         ];
+
+        // Never expose delivery/handover PINs on public tracker payloads.
+        if (! $publicSafe) {
+            $payload['delivery_pin'] = $s->delivery_pin;
+            $payload['handover_pin'] = $s->handover_pin;
+        }
+
+        return $payload;
     }
 }

@@ -27,14 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>REGA Delivery needs your phone location so the live map follows you while delivering orders.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>REGA Delivery needs location while delivering so customers and admin can track the captain in real time.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>REGA Delivery needs location while delivering so customers and admin can track the captain in real time.</string>
+	<string>REGA Delivery uses your phone GPS only while the app is open so the live map and fleet status show your real position — never a fake city default.</string>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>location</string>
 		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>
@@ -43,7 +38,7 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 		<key>NSAllowsArbitraryLoads</key>
-		<true/>
+		<false/>
 	</dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>

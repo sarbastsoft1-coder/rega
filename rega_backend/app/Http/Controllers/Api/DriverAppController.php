@@ -10,10 +10,12 @@ use App\Models\Order;
 use App\Models\OrderStatusLog;
 use App\Models\PlatformSetting;
 use App\Models\SupportTicket;
+use App\Services\DriverDispatchService;
 use App\Services\OrderSettlementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class DriverAppController extends Controller
@@ -29,11 +31,30 @@ class DriverAppController extends Controller
         return $profile;
     }
 
+    /** Real GPS with a recent ping — not a map overview / stale seed coord. */
+    private function isLocationTrusted(?DriverProfile $profile): bool
+    {
+        if ($profile === null) {
+            return false;
+        }
+        if ($profile->current_lat === null || $profile->current_lng === null || $profile->last_ping_at === null) {
+            return false;
+        }
+
+        return $profile->last_ping_at->gte(now()->subMinutes(15));
+    }
+
     public function profile(Request $request): JsonResponse
     {
+        $profile = $this->resolveDriverProfile($request);
+
+        $trusted = $this->isLocationTrusted($profile);
+
         return response()->json([
             'success' => true,
-            'data' => $this->resolveDriverProfile($request),
+            'data' => $profile,
+            'location_trusted' => $trusted,
+            'dispatch_eligible' => (bool) $profile->is_verified && (bool) $profile->is_online && $trusted,
         ]);
     }
 
@@ -47,6 +68,14 @@ class DriverAppController extends Controller
         ]);
 
         $goingOnline = (bool) $validated['is_online'];
+        $user = $request->user();
+
+        if ($goingOnline && $user && $user->is_active === false) {
+            return response()->json([
+                'success' => false,
+                'message' => 'هەژمارەکەت ناچالاک کراوە — ناتوانیت ئۆنلاین بیت.',
+            ], 403);
+        }
 
         if (! $goingOnline && $profile->is_online && $profile->online_since) {
             $minutes = max(0, $profile->online_since->diffInMinutes(now()));
@@ -61,21 +90,28 @@ class DriverAppController extends Controller
                 'is_online' => true,
                 'online_since' => $profile->online_since ?? now(),
             ];
+            // Never invent city-default coords — dispatch requires real GPS + last_ping_at.
             if (isset($validated['lat'], $validated['lng'])) {
                 $updates['current_lat'] = $validated['lat'];
                 $updates['current_lng'] = $validated['lng'];
-                $updates['last_ping_at'] = now();
-            } elseif ($profile->current_lat === null || $profile->current_lng === null) {
-                $updates['current_lat'] = 34.6295;
-                $updates['current_lng'] = 45.3159;
                 $updates['last_ping_at'] = now();
             }
             $profile->update($updates);
         }
 
+        $fresh = $profile->fresh(['user', 'documents']);
+        $trusted = $this->isLocationTrusted($fresh);
+
         return response()->json([
             'success' => true,
-            'data' => $profile->fresh(['user', 'documents']),
+            'data' => $fresh,
+            'location_trusted' => $trusted,
+            'dispatch_eligible' => (bool) $fresh->is_verified && (bool) $fresh->is_online && $trusted,
+            'warning' => ($goingOnline && ! $fresh->is_verified)
+                ? 'ئۆنلاین بوویت، بەڵام هەژمارەکەت پشتڕاست نەکراوەتەوە — قبوڵکردنی داواکاری داخراوە هەتا پشتڕاست بکرێیت.'
+                : (($goingOnline && ! $trusted)
+                    ? 'ئۆنلاین بوویت، بەڵام GPS نوێ نییە — شوێن بنێرە بۆ وەرگرتنی داواکاری.'
+                    : null),
         ]);
     }
 
@@ -83,8 +119,8 @@ class DriverAppController extends Controller
     {
         $profile = $this->resolveDriverProfile($request);
         $validated = $request->validate([
-            'lat' => ['required', 'numeric'],
-            'lng' => ['required', 'numeric'],
+            'lat' => ['required', 'numeric', 'between:-90,90'],
+            'lng' => ['required', 'numeric', 'between:-180,180'],
             'heading' => ['nullable', 'numeric'],
             'speed_kmh' => ['nullable', 'numeric'],
         ]);
@@ -102,6 +138,7 @@ class DriverAppController extends Controller
         }
 
         $profile->update($updates);
+        $profile->refresh();
 
         // Mirror onto active order + live telemetry so seller/customer maps move live.
         $activeOrder = Order::query()
@@ -156,6 +193,7 @@ class DriverAppController extends Controller
                 'lng' => (float) $profile->current_lng,
                 'is_online' => (bool) $profile->is_online,
             ],
+            'location_trusted' => $this->isLocationTrusted($profile),
         ]);
     }
 
@@ -167,6 +205,11 @@ class DriverAppController extends Controller
             ->with(['items', 'store:id,name_ku,phone,address_ku,lat,lng,logo_url', 'customer:id,name,phone'])
             ->latest()
             ->first();
+
+        // delivery_pin / handover_pin are secrets — driver submits them, must not receive them.
+        if ($order) {
+            $order->makeHidden(['delivery_pin', 'handover_pin']);
+        }
 
         return response()->json([
             'success' => true,
@@ -196,6 +239,124 @@ class DriverAppController extends Controller
         ]);
     }
 
+    /** Ready, unassigned orders drivers can accept (marketplace pool). */
+    public function availableOrders(Request $request): JsonResponse
+    {
+        $orders = Order::query()
+            ->whereNull('driver_id')
+            ->where(function ($q) {
+                $q->where('status', 'ready')->orWhere('vendor_status', 'ready');
+            })
+            ->whereNotIn('status', ['delivered', 'cancelled', 'rejected', 'pending'])
+            ->with(['items', 'store:id,name_ku,phone,address_ku,lat,lng,logo_url', 'customer:id,name,phone'])
+            ->latest('ready_at')
+            ->latest('id')
+            ->limit(50)
+            ->get()
+            ->makeHidden(['delivery_pin', 'handover_pin']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $orders,
+        ]);
+    }
+
+    public function claimOrder(Request $request, Order $order, DriverDispatchService $dispatchService): JsonResponse
+    {
+        $profile = $this->resolveDriverProfile($request);
+
+        if (! $profile->is_online) {
+            return response()->json([
+                'success' => false,
+                'message' => 'بۆ قبوڵکردنی داواکاری دەبێت ئۆنلاین بیت.',
+            ], 422);
+        }
+
+        if (! $profile->is_verified) {
+            return response()->json([
+                'success' => false,
+                'message' => 'هەژمارەکەت پشتڕاست نەکراوەتەوە — پەیوەندی بە ئادمینەوە بکە.',
+            ], 422);
+        }
+
+        // One active job at a time.
+        $busy = Order::query()
+            ->where('driver_id', $request->user()->id)
+            ->whereNotIn('status', ['delivered', 'cancelled', 'rejected'])
+            ->exists();
+        if ($busy) {
+            return response()->json([
+                'success' => false,
+                'message' => 'داواکارییەکی چالاکت هەیە — سەرەتا ئەوە تەواو بکە.',
+            ], 422);
+        }
+
+        $result = $dispatchService->claimOrderForDriver($order, $request->user());
+
+        if (! $result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['message'],
+            'data' => $result['order']?->makeHidden(['delivery_pin', 'handover_pin']),
+            'distance_meters' => $result['distance_meters'],
+        ]);
+    }
+
+    /**
+     * Driver declined or timed out the 30s accept window.
+     * Assigned orders are released and offered to the next driver; pool orders stay available.
+     */
+    public function declineOrderOffer(Request $request, Order $order, DriverDispatchService $dispatchService): JsonResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+            'timed_out' => ['sometimes', 'boolean'],
+        ]);
+
+        $result = $dispatchService->declineOfferAndReassign(
+            $order,
+            $request->user(),
+            $validated['reason'],
+            (bool) ($validated['timed_out'] ?? false),
+        );
+
+        if (! $result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['message'],
+            'reassigned' => $result['reassigned'],
+            'next_driver' => $result['driver']?->only(['id', 'name', 'phone']),
+        ]);
+    }
+
+    /**
+     * Allowed driver_status edges. Completion is PIN-only (verify-delivery).
+     *
+     * @var array<string, list<string>>
+     */
+    private const DRIVER_STATUS_TRANSITIONS = [
+        '' => ['driver_arriving_pickup'],
+        'unassigned' => ['driver_arriving_pickup'],
+        'driver_assigned' => ['driver_arriving_pickup'],
+        'driver_arriving_pickup' => ['arrived_pickup'],
+        'arrived_pickup' => ['picked_up'],
+        'picked_up' => ['on_the_way'],
+        'on_the_way' => ['arrived_customer'],
+        'arrived_customer' => [],
+    ];
+
     public function advanceOrderStatus(Request $request, Order $order): JsonResponse
     {
         if ($order->driver_id !== $request->user()->id) {
@@ -207,7 +368,32 @@ class DriverAppController extends Controller
         ]);
 
         $nextDriverStatus = $validated['driver_status'];
-        $oldStatus = $order->driver_status;
+        $oldStatus = (string) ($order->driver_status ?? '');
+
+        // Idempotent replay of the same status under flaky networks.
+        if ($oldStatus === $nextDriverStatus) {
+            return response()->json([
+                'success' => true,
+                'data' => $order->fresh([
+                    'items',
+                    'store:id,name_ku,phone,address_ku,lat,lng,logo_url',
+                    'customer:id,name,phone',
+                ])?->makeHidden(['delivery_pin', 'handover_pin']),
+            ]);
+        }
+
+        $allowed = self::DRIVER_STATUS_TRANSITIONS[$oldStatus] ?? null;
+        if ($allowed === null || ! in_array($nextDriverStatus, $allowed, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => "گواستنەوەی بارودۆخ لە «{$oldStatus}» بۆ «{$nextDriverStatus}» ڕێگەپێدراو نییە.",
+                'data' => [
+                    'current' => $oldStatus,
+                    'requested' => $nextDriverStatus,
+                    'allowed' => $allowed ?? [],
+                ],
+            ], 422);
+        }
 
         $updates = ['driver_status' => $nextDriverStatus];
 
@@ -230,7 +416,7 @@ class DriverAppController extends Controller
 
         OrderStatusLog::create([
             'order_id' => $order->id,
-            'from_status' => $oldStatus,
+            'from_status' => $oldStatus !== '' ? $oldStatus : null,
             'to_status' => $nextDriverStatus,
             'actor_id' => $request->user()->id,
             'actor_role' => 'driver',
@@ -271,7 +457,11 @@ class DriverAppController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $order->fresh(['items', 'store:id,name_ku,phone,address_ku,lat,lng,logo_url', 'customer:id,name,phone']),
+            'data' => $order->fresh([
+                'items',
+                'store:id,name_ku,phone,address_ku,lat,lng,logo_url',
+                'customer:id,name,phone',
+            ])?->makeHidden(['delivery_pin', 'handover_pin']),
         ]);
     }
 
@@ -281,14 +471,32 @@ class DriverAppController extends Controller
             abort(403);
         }
 
+        // PIN is optional — driver app may complete without customer code.
+        $validated = $request->validate([
+            'delivery_pin' => ['nullable', 'string', 'size:4'],
+        ]);
+
+        $pin = trim((string) ($validated['delivery_pin'] ?? ''));
+        if ($pin !== '') {
+            $expected = (string) ($order->delivery_pin ?? '');
+            if ($expected === '' || ! hash_equals($expected, $pin)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'PIN ی گەیاندن هەڵەیە. تکایە کۆدی ٤ ژمارەیی لە کڕیار وەربگرە.',
+                ], 422);
+            }
+        }
+
         $settled = $this->settlementService->markDelivered(
             $order,
             $request->user(),
             'گەیاندن تەواوکرا'
         );
 
+        $cleanRef = strtoupper(ltrim((string) $order->order_number, '#'));
         LiveTelemetrySession::where('order_id', $order->id)
             ->orWhere('order_ref', $order->order_number)
+            ->orWhere('order_ref', $cleanRef)
             ->update([
                 'status' => 'delivered',
                 'driver_status' => 'delivered',
@@ -300,7 +508,7 @@ class DriverAppController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'گەیاندن بە سەرکەوتوویی تەواوکرا و کرێ خرایە سەر باڵانسەکەت.',
-            'data' => $settled,
+            'data' => $settled->makeHidden(['delivery_pin', 'handover_pin']),
         ]);
     }
 
@@ -313,31 +521,59 @@ class DriverAppController extends Controller
         $threshold = (int) PlatformSetting::getValue('waiting_bonus_threshold_minutes', 15);
         $bonusAmount = (int) PlatformSetting::getValue('waiting_bonus_amount', 1000);
 
-        $waitedMinutes = $order->arrived_pickup_at
-            ? (int) $order->arrived_pickup_at->diffInMinutes($order->picked_up_at ?? now())
-            : (int) $request->integer('waited_minutes', 0);
+        return DB::transaction(function () use ($request, $order, $threshold, $bonusAmount) {
+            /** @var Order $locked */
+            $locked = Order::query()->lockForUpdate()->findOrFail($order->id);
 
-        if ($waitedMinutes < $threshold) {
+            if ($locked->driver_id !== $request->user()->id) {
+                abort(403);
+            }
+
+            if ((int) $locked->waiting_bonus > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'پاداشتی چاوەڕوانی پێشتر هەژمارکراوە.',
+                    'data' => $locked->makeHidden(['delivery_pin', 'handover_pin']),
+                ], 422);
+            }
+
+            if ($locked->arrived_pickup_at === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'پێویستە سەرەتا گەیشتن بە فرۆشگا تۆمار بکرێت پێش داواکردنی پاداشت.',
+                ], 422);
+            }
+
+            // Server timestamps only — client waited_minutes is ignored.
+            $waitedMinutes = (int) $locked->arrived_pickup_at
+                ->diffInMinutes($locked->picked_up_at ?? now());
+
+            if ($waitedMinutes < $threshold) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "کاتی چاوەڕوانی ({$waitedMinutes} خولەک) کەمترە لە {$threshold} خولەک.",
+                ], 422);
+            }
+
+            $locked->update([
+                'waiting_bonus' => $bonusAmount,
+                'driver_total_earning' => (int) $locked->delivery_fee + (int) $locked->driver_tip + $bonusAmount,
+            ]);
+
             return response()->json([
-                'success' => false,
-                'message' => "کاتی چاوەڕوانی ({$waitedMinutes} خولەک) کەمترە لە {$threshold} خولەک.",
-            ], 422);
-        }
-
-        $order->update([
-            'waiting_bonus' => $bonusAmount,
-            'driver_total_earning' => (int) $order->delivery_fee + (int) $order->driver_tip + $bonusAmount,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => "پاداشتی چاوەڕوانی ({$bonusAmount} د.ع) بۆت هەژمارکرا.",
-            'data' => $order->fresh(),
-        ]);
+                'success' => true,
+                'message' => "پاداشتی چاوەڕوانی ({$bonusAmount} د.ع) بۆت هەژمارکرا.",
+                'data' => $locked->fresh()?->makeHidden(['delivery_pin', 'handover_pin']),
+            ]);
+        });
     }
 
     public function requestCancellation(Request $request, Order $order): JsonResponse
     {
+        if ($order->driver_id !== $request->user()->id) {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:500'],
         ]);

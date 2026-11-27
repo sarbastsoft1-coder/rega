@@ -100,7 +100,7 @@ class AdminNavNotifier extends ChangeNotifier {
     '/support',
   ];
 
-  /// Sub-tab inside Customer hub (e.g. داواکاری ڕاستەوخۆ). Consumed once by [CustomerPartScreen].
+  /// Sub-tab inside Customers page (e.g. داواکاری ڕاستەوخۆ). Consumed once by [CustomerPartScreen].
   int? pendingCustomersSubTab;
 
   int _tabIndex = 0;

@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ku" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>REGA — تاقیکردنەوەی هەموو مۆبایل و ئایفۆنەکان (All Devices Responsive Tester)</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --panel: #111827;
+      --border: #1f2937;
+      --accent: #fac800;
+      --orange: #ff6418;
+      --green: #16a34a;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(17, 24, 39, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+      font-size: 16px;
+      color: var(--accent);
+    }
+    .brand span.badge {
+      background: rgba(250, 200, 0, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(250, 200, 0, 0.35);
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #0f172a;
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .group-label {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 0 8px;
+      font-weight: 700;
+    }
+    button, select {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid transparent;
+      padding: 6px 11px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    button:hover, select:hover {
+      background: rgba(255, 255, 255, 0.07);
+    }
+    button.active {
+      background: var(--accent);
+      color: #0f172a;
+      font-weight: 900;
+    }
+    button.app-btn.active {
+      background: var(--orange);
+      color: #fff;
+    }
+    select {
+      background: #1e293b;
+      border-color: #334155;
+      direction: ltr;
+    }
+    .workspace {
+      flex: 1;
+      padding: 24px 16px 48px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .device-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .device-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 6px 12px;
+      background: #111827;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 12.5px;
+      direction: ltr;
+    }
+    .device-title {
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .device-dims {
+      color: var(--accent);
+      font-family: monospace;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .phone-bezel {
+      position: relative;
+      background: #000;
+      border-radius: 38px;
+      padding: 12px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), 0 0 0 2px #334155;
+      transition: width 0.2s ease, height 0.2s ease;
+    }
+    .phone-bezel.tablet {
+      border-radius: 26px;
+      padding: 14px;
+    }
+    .phone-bezel.desktop {
+      border-radius: 14px;
+      padding: 8px;
+    }
+    .notch {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 86px;
+      height: 22px;
+      background: #000;
+      border-radius: 999px;
+      z-index: 10;
+      pointer-events: none;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
+    }
+    .phone-bezel.tablet .notch,
+    .phone-bezel.desktop .notch,
+    .phone-bezel.landscape .notch {
+      display: none;
+    }
+    .screen-wrap {
+      border-radius: 28px;
+      overflow: hidden;
+      background: #fff;
+      position: relative;
+    }
+    .phone-bezel.tablet .screen-wrap { border-radius: 16px; }
+    .phone-bezel.desktop .screen-wrap { border-radius: 8px; }
+    iframe {
+      border: 0;
+      display: block;
+      background: #fff;
+    }
+    .tip-bar {
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      color: #cbd5e1;
+      font-size: 12px;
+      padding: 7px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .tip-bar code {
+      background: #0f172a;
+      color: var(--accent);
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-family: monospace;
+      direction: ltr;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span>📱 REGA Mobile &amp; iPhone Lab</span>
+      <span class="badge">Live Responsive Viewer</span>
+    </div>
+
+    <div class="controls">
+      <!-- App Switcher -->
+      <div class="group" id="appGroup">
+        <span class="group-label">ئەپ:</span>
+        <button class="app-btn active" data-app="customer">کڕیار (Customer)</button>
+        <button class="app-btn" data-app="vendor">فرۆشیار (Vendor)</button>
+        <button class="app-btn" data-app="delivery">شۆفێر (Delivery)</button>
+        <button class="app-btn" data-app="admin">ئەدمین (Admin)</button>
+      </div>
+
+      <!-- Mode Switcher -->
+      <div class="group" id="modeGroup">
+        <span class="group-label">بینین:</span>
+        <button class="mode-btn active" data-mode="all-phones">هەموو ئایفۆن و مۆبایلەکان پێکەوە</button>
+        <button class="mode-btn" data-mode="single">تاکە ئامێر</button>
+        <button class="mode-btn" data-mode="all-apps">هەر ٤ ئەپەکە پێکەوە (iPhone 15)</button>
+      </div>
+
+      <!-- Single Device Picker -->
+      <div class="group" id="singleDeviceGroup" style="display:none;">
+        <span class="group-label">ئامێر:</span>
+        <select id="deviceSelect">
+          <option value="iphone-se">iPhone SE (320 × 568)</option>
+          <option value="iphone-13-mini">iPhone 13 Mini (375 × 812)</option>
+          <option value="iphone-14" selected>iPhone 14 / 15 (390 × 844)</option>
+          <option value="iphone-16-pro">iPhone 16 Pro (402 × 874)</option>
+          <option value="iphone-16-max">iPhone 15 / 16 Pro Max (430 × 932)</option>
+          <option value="galaxy-s24">Samsung Galaxy S24 (360 × 780)</option>
+          <option value="pixel-8">Google Pixel 8 Pro (412 × 915)</option>
+          <option value="ipad-mini">iPad Mini (768 × 1024)</option>
+          <option value="ipad-pro">iPad Pro 11" (834 × 1194)</option>
+          <option value="laptop">Laptop / Desktop (1280 × 720)</option>
+        </select>
+      </div>
+
+      <!-- Orientation & Scale -->
+      <div class="group">
+        <button id="rotateBtn" title="سوڕاندنەوەی شاشە (Portrait / Landscape)">🔄 سوڕاندنەوە</button>
+        <select id="scaleSelect" title="قەبارەی پیشاندان (Zoom)">
+          <option value="0.75">Zoom 75%</option>
+          <option value="0.85" selected>Zoom 85%</option>
+          <option value="1">Zoom 100%</option>
+        </select>
+        <button id="reloadBtn" title="نوێکردنەوەی هەموو شاشەکان">↻ نوێکردنەوە</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="tip-bar">
+    <div>
+      💡 لەم پەڕەیەدا دەتوانیت هەموو قەبارەکانی <strong>iPhone SE, iPhone 14/15/16 Pro Max, Galaxy S24, iPad</strong> بە زیندوویی تاقی بکەیتەوە.
+    </div>
+    <div dir="ltr">
+      Chrome built-in shortcut: press <code>F12</code> then <code>Ctrl + Shift + M</code>
+    </div>
+  </div>
+
+  <main class="workspace" id="workspace"></main>
+
+  <script>
+    const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.startsWith('192.168.');
+    const hostBase = location.hostname;
+
+    const APPS = {
+      customer: {
+        label: 'ئەپی کڕیار (Customer)',
+        url: isLocal ? `http://${hostBase}:8082/` : 'https://app.72.60.38.165.sslip.io/'
+      },
+      vendor: {
+        label: 'ئەپی فرۆشیار (Vendor)',
+        url: isLocal ? `http://${hostBase}:8081/` : 'https://vendor.72.60.38.165.sslip.io/'
+      },
+      delivery: {
+        label: 'ئەپی شۆفێر (Delivery)',
+        url: isLocal ? `http://${hostBase}:8083/` : 'https://delivery.72.60.38.165.sslip.io/'
+      },
+      admin: {
+        label: 'پانێڵی ئەدمین (Admin)',
+        url: isLocal ? `http://${hostBase}:8080/` : 'https://admin.72.60.38.165.sslip.io/'
+      }
+    };
+
+    const DEVICES = [
+      { id: 'iphone-se', name: 'iPhone SE (Compact)', w: 320, h: 568, type: 'phone' },
+      { id: 'galaxy-s24', name: 'Samsung Galaxy S24', w: 360, h: 780, type: 'phone' },
+      { id: 'iphone-13-mini', name: 'iPhone 13 Mini', w: 375, h: 812, type: 'phone' },
+      { id: 'iphone-14', name: 'iPhone 14 / 15', w: 390, h: 844, type: 'phone' },
+      { id: 'iphone-16-pro', name: 'iPhone 16 Pro', w: 402, h: 874, type: 'phone' },
+      { id: 'iphone-16-max', name: 'iPhone 16 Pro Max', w: 430, h: 932, type: 'phone' },
+      { id: 'pixel-8', name: 'Google Pixel 8 Pro', w: 412, h: 915, type: 'phone' },
+      { id: 'ipad-mini', name: 'iPad Mini / Tablet', w: 768, h: 1024, type: 'tablet' },
+      { id: 'ipad-pro', name: 'iPad Pro 11"', w: 834, h: 1194, type: 'tablet' },
+      { id: 'laptop', name: 'Desktop / Laptop', w: 1280, h: 720, type: 'desktop' }
+    ];
+
+    const CORE_SHOWCASE = ['iphone-se', 'galaxy-s24', 'iphone-14', 'iphone-16-max', 'ipad-mini'];
+
+    let currentApp = 'customer';
+    let currentMode = 'all-phones';
+    let currentDeviceId = 'iphone-14';
+    let isLandscape = false;
+    let zoomScale = 0.85;
+
+    function createDeviceCard({ title, w, h, type, url }) {
+      const finalW = isLandscape ? h : w;
+      const finalH = isLandscape ? w : h;
+      const scaledW = Math.round(finalW * zoomScale);
+      const scaledH = Math.round(finalH * zoomScale);
+
+      const card = document.createElement('div');
+      card.className = 'device-card';
+
+      const header = document.createElement('div');
+      header.className = 'device-header';
+      header.innerHTML = `
+        <span class="device-title">📱 ${title}</span>
+        <span class="device-dims">${finalW} × ${finalH}px</span>
+      `;
+
+      const bezel = document.createElement('div');
+      bezel.className = `phone-bezel ${type} ${isLandscape ? 'landscape' : ''}`;
+
+      const notch = document.createElement('div');
+      notch.className = 'notch';
+      bezel.appendChild(notch);
+
+      const wrap = document.createElement('div');
+      wrap.className = 'screen-wrap';
+      wrap.style.width = `${scaledW}px`;
+      wrap.style.height = `${scaledH}px`;
+
+      const iframe = document.createElement('iframe');
+      iframe.src = url;
+      iframe.style.width = `${finalW}px`;
+      iframe.style.height = `${finalH}px`;
+      iframe.style.transform = `scale(${zoomScale})`;
+      iframe.style.transformOrigin = '0 0';
+
+      wrap.appendChild(iframe);
+      bezel.appendChild(wrap);
+      card.appendChild(header);
+      card.appendChild(bezel);
+      return card;
+    }
+
+    function render() {
+      const ws = document.getElementById('workspace');
+      ws.innerHTML = '';
+
+      if (currentMode === 'single') {
+        const dev = DEVICES.find(d => d.id === currentDeviceId) || DEVICES[3];
+        ws.appendChild(createDeviceCard({
+          title: `${dev.name} — ${APPS[currentApp].label}`,
+          w: dev.w,
+          h: dev.h,
+          type: dev.type,
+          url: APPS[currentApp].url
+        }));
+      } else if (currentMode === 'all-apps') {
+        const dev = DEVICES.find(d => d.id === 'iphone-14');
+        Object.keys(APPS).forEach(appKey => {
+          ws.appendChild(createDeviceCard({
+            title: `${APPS[appKey].label} (iPhone 15)`,
+            w: dev.w,
+            h: dev.h,
+            type: dev.type,
+            url: APPS[appKey].url
+          }));
+        });
+      } else {
+        CORE_SHOWCASE.forEach(devId => {
+          const dev = DEVICES.find(d => d.id === devId);
+          if (!dev) return;
+          ws.appendChild(createDeviceCard({
+            title: dev.name,
+            w: dev.w,
+            h: dev.h,
+            type: dev.type,
+            url: APPS[currentApp].url
+          }));
+        });
+      }
+    }
+
+    document.querySelectorAll('.app-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.app-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentApp = btn.dataset.app;
+        if (currentMode === 'all-apps') {
+          currentMode = 'all-phones';
+          document.querySelectorAll('.mode-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.mode === 'all-phones');
+          });
+        }
+        render();
+      });
+    });
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentMode = btn.dataset.mode;
+        document.getElementById('singleDeviceGroup').style.display =
+          currentMode === 'single' ? 'flex' : 'none';
+        render();
+      });
+    });
+
+    document.getElementById('deviceSelect').addEventListener('change', e => {
+      currentDeviceId = e.target.value;
+      render();
+    });
+
+    document.getElementById('rotateBtn').addEventListener('click', () => {
+      isLandscape = !isLandscape;
+      render();
+    });
+
+    document.getElementById('scaleSelect').addEventListener('change', e => {
+      zoomScale = parseFloat(e.target.value) || 0.85;
+      render();
+    });
+
+    document.getElementById('reloadBtn').addEventListener('click', () => {
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>

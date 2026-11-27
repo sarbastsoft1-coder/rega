@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
@@ -24,6 +23,19 @@ import 'map/mapbox_tiles.dart';
 import 'rega_i18n.dart';
 import 'rega_colors.dart';
 import 'services/push_notifications.dart';
+import 'services/driver_network.dart';
+import 'services/driver_mutation_queue.dart';
+import 'services/driver_sync_plan.dart';
+import 'driver_shell_i18n.dart';
+import 'package:uuid/uuid.dart';
+import 'models/order_models.dart';
+import 'widgets/active_order_card.dart';
+import 'widgets/incoming_order_offer.dart';
+import 'widgets/driver_home_dashboard.dart';
+import 'screens/auth_screen.dart';
+export 'models/order_models.dart';
+export 'widgets/active_order_card.dart';
+export 'screens/auth_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +51,14 @@ Future<void> main() async {
     ),
   );
   await PushNotifications.instance.init();
+  DriverNetworkGate.check = () => DriverNetwork.instance.isOnline;
+  await DriverNetwork.instance.start();
+  await DriverMutationQueue.instance.load();
+  DriverNetwork.instance.addListener(() {
+    if (DriverNetwork.instance.isOnline) {
+      DriverMutationQueue.instance.scheduleDrain();
+    }
+  });
   runApp(buildDriverProviders(child: const DeliveryDriverApp()));
 }
 
@@ -211,495 +231,9 @@ class _DeliveryDriverAppState extends State<DeliveryDriverApp> {
   }
 }
 
-final Map<String, Map<String, String>> _trans = {
-  'ku': {
-    'home': 'نەخشە',
-    'orders': 'داواکارییەکان',
-    'earnings': 'داهات',
-    'profile': 'پڕۆفایل',
-    'online': 'ئۆنلاین',
-    'offline': 'ئۆفلاین',
-    'today': 'ئەمڕۆ',
-    'this_week': 'ئەم هەفتەیە',
-    'this_month': 'ئەم مانگە',
-    'total_earnings': 'داهاتی',
-    'bonus': 'پاداشت',
-    'avg_delivery': 'تێکرا/گەیاندن',
-    'total_deliveries': 'کۆی گەیاندن',
-    'online_hours': 'کاتژمێرەکانی ئۆنلاین',
-    'customer_tip': 'بەخشیشی کڕیار',
-    'earnings_history': 'مێژووی داهاتی گەیاندنەکان',
-    'motor_info': 'زانیاری ماتۆڕسکل',
-    'motor_type': 'جۆری ماتۆڕ',
-    'motor_id': 'ژمارەی ماتۆڕ',
-    'motor_model': 'مۆدێل',
-    'motor_color': 'ڕەنگی ماتۆڕ',
-    'legal_docs': 'بەڵگەنامه یاساییەکان',
-    'languages': 'زمانەکان',
-    'support': 'پشتیوانی خێرای شۆفێران',
-    'logout': 'چوونەدەرەوە لە هەژمار',
-    'verified': 'پشتڕاستکراوە',
-    'rating': 'هەڵسەنگاندن',
-    'completion': 'تەواوکردن',
-    'search_hint': 'گەڕان بەپێی ژمارەی داواکاری...',
-    'all': 'هەموو',
-    'delivered': 'گەیەندراو',
-    'cancelled': 'هەڵوەشێندراوە',
-    'no_orders': 'هیچ داواکارییەک نەدۆزرایەوە',
-    'show_info': 'پیشاندانی بۆکسی زانیارییەکان',
-    'iqd': 'دینار',
-    'support_title': 'پشتیوانی شۆفێرانی REGA',
-    'support_subtitle': 'تیمی ئۆپەراسیۆن و بەڕێوەبردنی گەیاندن',
-    'emergency_title': 'حاڵەتی فریاگوزاری یان ڕووداو',
-    'emergency_desc': 'لە کاتی کێشەی ئەمنی یان ڕووداوی هاتووچۆ',
-    'emergency_btn': 'پەیوەندی بەپەلە',
-    'hotline_title': 'هێڵی گەرمی بەڕێوەبەری شۆفێران',
-    'hotline_btn': 'پەیوەندی کردن',
-    'faq_title': 'پرسیارە باوەکانی شۆفێران:',
-    'faq_1_q': 'ئەگەر کڕیار وەڵامی تەلەفۆنی نەدایەوە چی بکەم؟',
-    'faq_1_a': 'تکایە لانیکەم ٣ جار لە ماوەی ١٠ خولەکدا پەیوەندی پێوە بکە، ئەگەر وەڵامی نەبوو لە ڕێگەی دوگمەی پشتیوانییەوە داواکاری هەڵوەشێنەوە تۆمار بکە.',
-    'faq_2_q': 'ئەگەر چێشتخانە خواردنەکەی ئامادە نەکردبوو؟',
-    'faq_2_a': 'دەتوانیت کاتی چاوەڕوانی لە ئەپەکەدا بنووسیت؛ ئەگەر زیاتر لە ١٥ خولەکی خایاند، پاداشتی چاوەڕوانی بۆ هەژمارەکەت زیاد دەبێت.',
-    'login_subtitle': 'بەرنامەی تایبەتی شۆفێرانی ماتۆڕسکلی گەیاندن',
-    'phone_label': 'ژمارەی مۆبایل',
-    'continue': 'بەردەوام بە',
-    'footer_text': 'پەیوەستە بە سیستمێی یەکگرتووی مارکێتپڵەیسی REGA',
-    'notifications': 'ئاگادارکردنەوەکان',
-    'no_notifications': 'هیچ ئاگادارکردنەوەیەکی نوێ نییە',
-    'new_order_notif': 'داواکاری نوێی #%s گەیشت',
-    'just_now': 'ئێستا',
-    'view_details': 'بینینی وردەکاری',
-    'status_on_way': 'بەرەو کڕیار',
-    'status_waiting': 'چاوەڕوانی شۆفێر',
-    'status_delivered': 'گەیەندرا',
-    'status_cancelled': 'هەڵوەشێندراوە',
-    'follow_driver': 'شوێنکەوتنی شۆفێر',
-    'show_full_route': 'پیشاندانی تەواوی ڕێڕەو',
-    'map_style': 'گۆڕینی شێوازی نەخشە',
-    'phone_gps': 'GPS ی مۆبایل — شوێنی ڕاستەقینەی گەیاندن',
-    'gps_locating': 'چاوەڕوانی GPSی مۆبایل...',
-    'gps_allow_phone': 'کرتە بکە بۆ ڕێگەدان بە GPS — شوێنی ساختە پیشان نادرێت',
-    'gps_required_online': 'بۆ ئۆنلاین بوون پێویستە GPSی مۆبایل کاربکات',
-    'gps_missing_online_warn': 'ئۆنلاین بوویت، بەڵام GPS بەردەست نییە — شوێن نوێ ناکرێتەوە هەتا GPS کاربکات',
-    'status_update_failed': 'نوێکردنەوەی دۆخی ئۆنلاین سەرکەوتوو نەبوو — پەیوەندی بپشکنە و دووبارە هەوڵ بدە',
-    'sim_drive': 'دەمۆی خۆکار',
-    'sync_order': 'هاوکاتکردنی نوێترین داواکاری کڕیار',
-    'arrived': 'گەیشتم',
-    'verify_pin': 'پشتڕاستکردنەوەی PIN',
-    'delivery_pin': 'PIN ی گەیاندن',
-    'eta': 'کاتی گەیشتن',
-    'distance': 'دووری',
-    'speed': 'خێرایی',
-    'new_order_arrived': 'داواکاری نوێ گەیشت!',
-    'order_completed': 'داواکارییەکە تەواو کرا!',
-    'accept_new_order': 'وەرگرتنی داواکاری نوێ',
-    'waiting_admin_order': 'چاوەڕوانی دیاریکردنی داواکاری لە ئادمینەوە...',
-    'go_online_for_orders': 'ئۆفلاینیت • بۆ وەرگرتنی داواکاری ئۆنلاین بە',
-    'handover_pin_hint': '🔑 کۆدی وەرگرتن بدە بە فرۆشیار:',
-    'merchant_pickup': 'فرۆشیار (وەرگرتن)',
-    'customer_dropoff': 'کڕیار (گەیاندن)',
-    'items_total': '{count} کاڵا • کۆی گشتی {total} د.ع',
-    'badge_new_order': 'داواکاری نوێ',
-    'badge_to_merchant': 'بەرەو فرۆشیار',
-    'badge_at_merchant': 'گەیشتە فرۆشیار',
-    'badge_picked': 'کاڵاکە وەرگیرا',
-    'badge_to_customer': 'بەرەو کڕیار',
-    'badge_at_customer': 'گەیشتە کڕیار',
-    'badge_delivered': 'گەیەندرا',
-    'btn_start_to_merchant': 'وەرگرتنی داواکاری و بەڕێکەوتن بەرەو فرۆشیار',
-    'btn_arrived_merchant': 'گەیشتمە لای فرۆشیار',
-    'btn_picked_up': 'کاڵاکەم وەرگرت',
-    'btn_start_to_customer': 'بەرەو کڕیار بەڕێکەوتم',
-    'btn_arrived_customer': 'گەیشتمە لای کڕیار',
-    'btn_complete_pin': 'گەیاندن تەواو بکە',
-    'btn_completed': 'تەواوکراوە',
-    'pin_verify_title': 'پشتڕاستکردنەوەی گەیاندن',
-    'pin_verify_hint': 'کۆدی ٤ ژمارەیی لە خاوەن داواکاری وەربگرە',
-    'nav_to_merchant': 'بەرەو {name}',
-    'nav_at_store': 'لە بەردەم چێشتخانەیت — داواکاری وەربگرە',
-    'nav_to_customer': 'بەرەو ماڵی {name}',
-    'nav_ask_pin': 'گەیشتیت! گەیاندن تەواو بکە',
-    'nav_done': 'گەیاندن تەواوبوو بە سەرکەوتوویی!',
-    'gps_live_sync': 'GPS LIVE • چرکە بە چرکە هاوکاتە',
-    'gps_live_kalar': 'GPS LIVE • نەخشەی زیندووی کەلار',
-    'km_unit': 'کم',
-    'm_unit': 'مەتر',
-    'dark_mode': 'دۆخی تاریک',
-    'light_mode': 'دۆخی ڕووناک',
-    'theme': 'ڕووکار',
-    'data_refreshed': 'داتا نوێکرایەوە',
-  },
-  'ar': {
-    'home': 'الخريطة',
-    'orders': 'الطلبات',
-    'earnings': 'الأرباح',
-    'profile': 'الملف الشخصي',
-    'online': 'متصل',
-    'offline': 'غير متصل',
-    'today': 'اليوم',
-    'this_week': 'هذا الأسبوع',
-    'this_month': 'هذا الشهر',
-    'total_earnings': 'إجمالي الأرباح',
-    'bonus': 'مكافأة',
-    'avg_delivery': 'متوسط/طلب',
-    'total_deliveries': 'إجمالي الطلبات',
-    'online_hours': 'ساعات العمل',
-    'customer_tip': 'إكرامية العميل',
-    'earnings_history': 'سجل الأرباح',
-    'motor_info': 'معلومات الدراجة',
-    'motor_type': 'نوع الدراجة',
-    'motor_id': 'رقم الدراجة',
-    'motor_model': 'الموديل',
-    'motor_color': 'اللون',
-    'legal_docs': 'الوثائق القانونية',
-    'languages': 'اللغات',
-    'support': 'دعم السائقين',
-    'logout': 'تسجيل الخروج',
-    'verified': 'تم التحقق',
-    'rating': 'التقييم',
-    'completion': 'الإكمال',
-    'search_hint': 'البحث برقم الطلب...',
-    'all': 'الكل',
-    'delivered': 'تم التوصيل',
-    'cancelled': 'ملغى',
-    'no_orders': 'لم يتم العثور على طلبات',
-    'show_info': 'إظهار صندوق المعلومات',
-    'iqd': 'دينار',
-    'support_title': 'دعم سائقي REGA',
-    'support_subtitle': 'فريق العمليات وإدارة التوصيل',
-    'emergency_title': 'حالة طوارئ أو حادث',
-    'emergency_desc': 'في حالة وجود مشاكل أمنية أو حوادث مرورية',
-    'emergency_btn': 'اتصال طارئ',
-    'hotline_title': 'الخط الساخن لمدير السائقين',
-    'hotline_btn': 'اتصال',
-    'faq_title': 'الأسئلة الشائعة للسائقين:',
-    'faq_1_q': 'ماذا أفعل إذا لم يرد العميل على الهاتف؟',
-    'faq_1_a': 'يرجى الاتصال ٣ مرات على الأقل خلال ١٠ دقائق، إذا لم يكن هناك رد، فقم بتسجيل طلب إلغاء عبر زر الدعم.',
-    'faq_2_q': 'ماذا لو لم يجهز المطعم الطعام؟',
-    'faq_2_a': 'يمكنك إدخال وقت الانتظار في التطبيق؛ إذا تجاوز ١٥ دقيقة، فستتم إضافة مكافأة انتظار إلى حسابك.',
-    'login_subtitle': 'تطبيق خاص لسائقي دراجات التوصيل',
-    'phone_label': 'رقم الموبايل',
-    'continue': 'استمرار',
-    'footer_text': 'مرتبط بنظام موحد لماركت بليس REGA',
-    'notifications': 'الإشعارات',
-    'no_notifications': 'لا توجد إشعارات جديدة',
-    'new_order_notif': 'وصل طلب جديد #%s',
-    'just_now': 'الآن',
-    'view_details': 'عرض التفاصيل',
-    'status_on_way': 'في الطريق',
-    'status_waiting': 'في انتظار السائق',
-    'status_delivered': 'تم التوصيل',
-    'status_cancelled': 'ملغى',
-    'follow_driver': 'تتبع السائق',
-    'show_full_route': 'عرض المسار الكامل',
-    'map_style': 'تغيير نمط الخريطة',
-    'phone_gps': 'GPS الهاتف — موقع التوصيل الحقيقي',
-    'gps_locating': 'جاري تحديد موقع الهاتف...',
-    'gps_allow_phone': 'اضغط للسماح بـ GPS — لن نعرض مكاناً وهمياً',
-    'gps_required_online': 'يجب تفعيل GPS الهاتف للاتصال أونلاين',
-    'gps_missing_online_warn': 'أنت متصل الآن، لكن GPS غير متاح — لن يُحدَّث الموقع حتى يعمل GPS',
-    'status_update_failed': 'تعذر تحديث حالة الاتصال — تحقق من الشبكة وحاول مرة أخرى',
-    'sim_drive': 'محاكاة القيادة',
-    'sync_order': 'مزامنة أحدث طلب عميل',
-    'arrived': 'وصلت',
-    'verify_pin': 'تحقق من PIN',
-    'delivery_pin': 'رمز التسليم',
-    'eta': 'وقت الوصول',
-    'distance': 'المسافة',
-    'speed': 'السرعة',
-    'new_order_arrived': 'وصل طلب جديد!',
-    'order_completed': 'تم إكمال الطلب!',
-    'accept_new_order': 'استلام طلب جديد',
-    'waiting_admin_order': 'بانتظار تعيين طلب من الإدارة...',
-    'go_online_for_orders': 'أنت غير متصل • فعّل الاتصال لاستلام الطلبات',
-    'handover_pin_hint': '🔑 أعط رمز الاستلام للبائع:',
-    'merchant_pickup': 'البائع (الاستلام)',
-    'customer_dropoff': 'العميل (التسليم)',
-    'items_total': '{count} أصناف • المجموع {total} د.ع',
-    'badge_new_order': 'طلب جديد',
-    'badge_to_merchant': 'إلى البائع',
-    'badge_at_merchant': 'وصل للبائع',
-    'badge_picked': 'تم استلام الطلب',
-    'badge_to_customer': 'إلى العميل',
-    'badge_at_customer': 'وصل للعميل',
-    'badge_delivered': 'تم التوصيل',
-    'btn_start_to_merchant': 'قبول الطلب والانطلاق نحو البائع',
-    'btn_arrived_merchant': 'وصلت إلى البائع',
-    'btn_picked_up': 'استلمت الطلب',
-    'btn_start_to_customer': 'انطلق نحو العميل',
-    'btn_arrived_customer': 'وصلت إلى العميل',
-    'btn_complete_pin': 'أكمل التوصيل',
-    'btn_completed': 'مكتمل',
-    'pin_verify_title': 'تأكيد التسليم',
-    'pin_verify_hint': 'خذ الرمز المكون من 4 أرقام من صاحب الطلب',
-    'nav_to_merchant': 'إلى {name}',
-    'nav_at_store': 'أمام المطعم — استلم الطلب',
-    'nav_to_customer': 'إلى منزل {name}',
-    'nav_ask_pin': 'وصلت! أكمل التوصيل',
-    'nav_done': 'تم التوصيل بنجاح!',
-    'gps_live_sync': 'GPS مباشر • مزامنة ثانية بثانية',
-    'gps_live_kalar': 'GPS مباشر • خريطة كلار الحية',
-    'km_unit': 'كم',
-    'm_unit': 'م',
-    'dark_mode': 'الوضع الداكن',
-    'light_mode': 'الوضع الفاتح',
-    'theme': 'المظهر',
-    'data_refreshed': 'تم تحديث البيانات',
-  },
-  'en': {
-    'home': 'Map',
-    'orders': 'Orders',
-    'earnings': 'Earnings',
-    'profile': 'Profile',
-    'online': 'Online',
-    'offline': 'Offline',
-    'today': 'Today',
-    'this_week': 'This Week',
-    'this_month': 'This Month',
-    'total_earnings': 'Total Earnings',
-    'bonus': 'Bonus',
-    'avg_delivery': 'Avg/Delivery',
-    'total_deliveries': 'Total Deliveries',
-    'online_hours': 'Online Hours',
-    'customer_tip': 'Customer Tip',
-    'earnings_history': 'Earnings History',
-    'motor_info': 'Motorcycle Info',
-    'motor_type': 'Type',
-    'motor_id': 'ID Number',
-    'motor_model': 'Model',
-    'motor_color': 'Color',
-    'legal_docs': 'Legal Documents',
-    'languages': 'Languages',
-    'support': 'Driver Support',
-    'logout': 'Log Out',
-    'verified': 'Verified',
-    'rating': 'Rating',
-    'completion': 'Completion',
-    'search_hint': 'Search by order ID...',
-    'all': 'All',
-    'delivered': 'Delivered',
-    'cancelled': 'Cancelled',
-    'no_orders': 'No orders found',
-    'show_info': 'Show Info Box',
-    'iqd': 'IQD',
-    'support_title': 'REGA Driver Support',
-    'support_subtitle': 'Operations and Delivery Management Team',
-    'emergency_title': 'Emergency or Incident',
-    'emergency_desc': 'In case of security issues or traffic accidents',
-    'emergency_btn': 'Emergency Call',
-    'hotline_title': 'Driver Manager Hotline',
-    'hotline_btn': 'Call',
-    'faq_title': 'Driver FAQs:',
-    'faq_1_q': 'What if the customer doesnt answer the phone?',
-    'faq_1_a': 'Please call at least 3 times within 10 minutes. If no response, register a cancellation request via the support button.',
-    'faq_2_q': 'What if the restaurant hasnt prepared the food?',
-    'faq_2_a': 'You can enter the waiting time in the app; if it exceeds 15 minutes, a waiting reward will be added to your account.',
-    'login_subtitle': 'Dedicated app for delivery motorcycle drivers',
-    'phone_label': 'Phone Number',
-    'continue': 'Continue',
-    'footer_text': 'Connected to REGA Marketplace unified system',
-    'notifications': 'Notifications',
-    'no_notifications': 'No new notifications',
-    'new_order_notif': 'New order #%s received',
-    'just_now': 'Just now',
-    'view_details': 'View Details',
-    'status_on_way': 'On the way',
-    'status_waiting': 'Waiting for Driver',
-    'status_delivered': 'Delivered',
-    'status_cancelled': 'Cancelled',
-    'follow_driver': 'Follow driver',
-    'show_full_route': 'Show full route',
-    'map_style': 'Change map style',
-    'phone_gps': 'Phone GPS — real delivery place',
-    'gps_locating': 'Getting phone GPS...',
-    'gps_allow_phone': 'Tap to allow GPS — fake place will not be shown',
-    'gps_required_online': 'Phone GPS is required to go online',
-    'gps_missing_online_warn': 'You are online, but GPS is unavailable — location will not update until GPS works',
-    'status_update_failed': 'Could not update online status — check connection and try again',
-    'sim_drive': 'Auto demo drive',
-    'sync_order': 'Sync latest customer order',
-    'arrived': 'I arrived',
-    'verify_pin': 'Verify PIN',
-    'delivery_pin': 'Delivery PIN',
-    'eta': 'ETA',
-    'distance': 'Distance',
-    'speed': 'Speed',
-    'new_order_arrived': 'New order arrived!',
-    'order_completed': 'Order completed!',
-    'accept_new_order': 'Accept new order',
-    'waiting_admin_order': 'Waiting for admin to assign an order...',
-    'go_online_for_orders': 'You are offline • Go online to receive orders',
-    'handover_pin_hint': '🔑 Give pickup code to merchant:',
-    'merchant_pickup': 'Merchant (Pickup)',
-    'customer_dropoff': 'Customer (Dropoff)',
-    'items_total': '{count} items • Total {total} IQD',
-    'badge_new_order': 'New order',
-    'badge_to_merchant': 'To merchant',
-    'badge_at_merchant': 'At merchant',
-    'badge_picked': 'Picked up',
-    'badge_to_customer': 'To customer',
-    'badge_at_customer': 'At customer',
-    'badge_delivered': 'Delivered',
-    'btn_start_to_merchant': 'Accept order & head to merchant',
-    'btn_arrived_merchant': 'Arrived at merchant',
-    'btn_picked_up': 'I picked up the order',
-    'btn_start_to_customer': 'Heading to customer',
-    'btn_arrived_customer': 'Arrived at customer',
-    'btn_complete_pin': 'Complete delivery',
-    'btn_completed': 'Completed',
-    'pin_verify_title': 'Verify delivery',
-    'pin_verify_hint': 'Enter the 4-digit code from the customer',
-    'nav_to_merchant': 'To {name}',
-    'nav_at_store': 'At the store — pick up the order',
-    'nav_to_customer': 'To {name}',
-    'nav_ask_pin': 'Arrived! Complete the delivery',
-    'nav_done': 'Delivery completed successfully!',
-    'gps_live_sync': 'GPS LIVE • second-by-second sync',
-    'gps_live_kalar': 'GPS LIVE • live Kalar map',
-    'km_unit': 'km',
-    'm_unit': 'm',
-    'dark_mode': 'Dark mode',
-    'light_mode': 'Light mode',
-    'theme': 'Theme',
-    'data_refreshed': 'Data refreshed',
-  }
-};
-
-String tr(String key, String locale) {
-  final code = locale == 'ckb' ? 'ku' : locale;
-  return _trans[code]?[key] ?? _trans['ku']?[key] ?? key;
-}
-
-String trFill(String key, String locale, Map<String, String> vars) {
-  var out = tr(key, locale);
-  vars.forEach((k, v) => out = out.replaceAll('{$k}', v));
-  return out;
-}
-
 // ---------------------------------------------------------
 // مۆدێلەکان (Data Models)
 // ---------------------------------------------------------
-
-enum OrderStatus {
-  driverAssigned,
-  driverArrivingPickup,
-  arrivedPickup,
-  pickedUp,
-  onTheWay,
-  arrivedCustomer,
-  delivered,
-}
-
-class OrderItem {
-  final String id;
-  final String name;
-  final int quantity;
-  final int price;
-
-  const OrderItem({
-    required this.id,
-    required this.name,
-    required this.quantity,
-    required this.price,
-  });
-}
-
-class OrderModel {
-  final String id;
-  final String orderNumber;
-  OrderStatus status;
-  final String vendorStatus;
-  final String merchantName;
-  final String merchantAddress;
-  final String merchantPhone;
-  final String customerName;
-  final String customerAddress;
-  final String customerPhone;
-  final List<OrderItem> items;
-  final int subtotal;
-  final int discountAmount;
-  final int deliveryFee;
-  final int tip;
-  final int waitingBonus;
-  final int totalAmount;
-  final String paymentMethod;
-  final String customerNotes;
-  final int? dbId;
-  final String handoverPin;
-  final String deliveryPin;
-  final double storeLat;
-  final double storeLng;
-  final double customerLat;
-  final double customerLng;
-
-  OrderModel({
-    required this.id,
-    required this.orderNumber,
-    required this.status,
-    this.vendorStatus = 'preparing',
-    required this.merchantName,
-    required this.merchantAddress,
-    required this.merchantPhone,
-    required this.customerName,
-    required this.customerAddress,
-    required this.customerPhone,
-    required this.items,
-    this.subtotal = 0,
-    this.discountAmount = 0,
-    required this.deliveryFee,
-    required this.tip,
-    this.waitingBonus = 0,
-    this.totalAmount = 0,
-    this.paymentMethod = 'cash',
-    this.customerNotes = '',
-    this.dbId,
-    this.handoverPin = '7392',
-    required this.deliveryPin,
-    this.storeLat = 34.6836,
-    this.storeLng = 45.3189,
-    this.customerLat = 34.6912,
-    this.customerLng = 45.3264,
-  });
-
-  int get itemsTotal => subtotal > 0
-      ? subtotal
-      : items.fold(0, (sum, i) => sum + (i.price * i.quantity));
-  int get itemsCount => items.fold(0, (sum, i) => sum + i.quantity);
-  int get totalEarnings => deliveryFee + tip + waitingBonus;
-  int get customerCashToCollect =>
-      totalAmount > 0 ? totalAmount : (itemsTotal - discountAmount + deliveryFee + tip);
-
-  /// Returns a clean display number like #10056 (stripping prefixes like 'RA-', internal '#', etc.)
-  String get displayOrderNumber {
-    if (orderNumber.trim().isEmpty) return '';
-    var clean = orderNumber.trim();
-    clean = clean.replaceAll('#', '');
-    if (clean.toUpperCase().startsWith('RA-')) {
-      clean = clean.substring(3);
-    } else if (clean.toUpperCase().startsWith('RA')) {
-      clean = clean.substring(2);
-    }
-    clean = clean.trim();
-    if (clean.isEmpty) return '';
-    return '#$clean';
-  }
-}
-
-/// Standalone formatter for order numbers across strings and maps
-String formatOrderCode(dynamic raw) {
-  if (raw == null) return '';
-  var s = raw.toString().trim();
-  if (s.isEmpty) return '';
-  s = s.replaceAll('#', '').trim();
-  if (s.toUpperCase().startsWith('RA-')) {
-    s = s.substring(3);
-  } else if (s.toUpperCase().startsWith('RA')) {
-    s = s.substring(2);
-  }
-  s = s.trim();
-  if (s.isEmpty) return '';
-  return '#$s';
-}
 
 // ---------------------------------------------------------
 // ڕووکاری سەرەکی ئەپ (Main Screen with Bottom Nav)
@@ -729,8 +263,9 @@ class DriverMainScreen extends StatefulWidget {
   State<DriverMainScreen> createState() => _DriverMainScreenState();
 }
 
-class _DriverMainScreenState extends State<DriverMainScreen> {
-  String t(String key) => _trans[widget.currentLocale]![key] ?? key;
+class _DriverMainScreenState extends State<DriverMainScreen>
+    with WidgetsBindingObserver {
+  String t(String key) => tr(key, widget.currentLocale);
   int _currentTabIndex = 0;
   bool _isOnline = false;
   bool _onlineToggleBusy = false;
@@ -744,25 +279,171 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   String _searchQuery = '';
   Map<String, dynamic>? _driverProfile;
   List<Map<String, dynamic>>? _backendOrdersList;
+  List<Map<String, dynamic>>? _availableOrdersList;
+  int? _claimingOrderId;
+  /// Incoming 30s accept offer shown above the map.
+  Map<String, dynamic>? _pendingOffer;
+  /// `available` (marketplace) or `assigned` (auto-dispatch).
+  String? _pendingOfferSource;
+  Timer? _offerTimer;
+  int _offerSecondsLeft = 30;
+  static const int _offerTimeoutSecs = 30;
+  bool _offerActionBusy = false;
+  final Set<int> _skippedOfferIds = <int>{};
+  final Set<int> _seenAvailableIds = <int>{};
+  final Set<int> _confirmedOfferIds = <int>{};
+  bool _locationTrusted = false;
   Map<String, dynamic> _supportContacts = const {};
   final Map<String, Map<String, dynamic>> _earningsCache = {};
   Timer? _driverSyncTimer;
   bool _didStartBackendSync = false;
   String? _lastNotifiedOrderNum;
+  bool _netOnline = true;
+  int _pendingMutations = 0;
+  int _syncTick = 0;
+  bool _refreshInFlight = false;
+  bool _refreshQueued = false;
+  bool _appInForeground = true;
+  static const _uuid = Uuid();
+  VoidCallback? _netListener;
+  VoidCallback? _queueListener;
 
   // لیستی ئاگادارکردنەوەکان (تەنها لە داتای ڕاستەقینە)
   final List<Map<String, String>> _notifications = [];
 
-  // لیستی هەموو داواکارییەکان بۆ بەشی لیست
-  List<Map<String, dynamic>> get _allOrdersData => _backendOrdersList ?? const [];
+  // لیستی هەموو داواکارییەکان بۆ بەشی لیست (مێژوو + بەردەست)
+  List<Map<String, dynamic>> get _allOrdersData {
+    final history = _backendOrdersList ?? const <Map<String, dynamic>>[];
+    final available = _availableOrdersList ?? const <Map<String, dynamic>>[];
+    return [...available, ...history];
+  }
+
+  bool _parseOnlineFlag(dynamic value) =>
+      value == true || value == 1 || value?.toString() == '1' || value?.toString().toLowerCase() == 'true';
+
+  List<Map<String, dynamic>> _mapOrdersFromBackend(
+    List<dynamic> history, {
+    required bool available,
+  }) {
+    return history.map((raw) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      final st = (m['status'] ?? 'pending').toString();
+      final store = (m['store'] is Map)
+          ? Map<String, dynamic>.from(m['store'] as Map)
+          : const <String, dynamic>{};
+      final cust = (m['customer'] is Map)
+          ? Map<String, dynamic>.from(m['customer'] as Map)
+          : const <String, dynamic>{};
+      final fee =
+          ((m['driver_total_earning'] ?? m['delivery_fee'] ?? 1500) as num)
+              .toInt();
+      final totalAmt =
+          ((m['total_amount'] ?? m['subtotal'] ?? 0) as num).toInt();
+      final isDelivered = st == 'delivered';
+      final isCancelled = st == 'cancelled' || st == 'rejected';
+      final numStr = (m['order_number'] ?? m['id'] ?? '').toString();
+      final statusType = available
+          ? 'available'
+          : (isDelivered
+              ? 'delivered'
+              : (isCancelled ? 'cancelled' : 'active'));
+      final statusKey = available
+          ? 'status_available'
+          : (isDelivered
+              ? 'status_delivered'
+              : (isCancelled ? 'status_cancelled' : 'status_on_way'));
+      final rawItems = (m['items'] as List<dynamic>?) ?? const [];
+      final mappedItems = rawItems.map((rawItem) {
+        final it = Map<String, dynamic>.from(rawItem as Map);
+        final qty = (it['quantity'] as num?)?.toInt() ?? 1;
+        final unit = ((it['unit_price'] ?? it['price'] ?? 0) as num).toInt();
+        return <String, dynamic>{
+          'name': (it['product_name'] ?? it['name'] ?? 'کاڵا').toString(),
+          'qty': qty,
+          'price': '${formatMoney(unit * qty)} ${t('iqd')}',
+        };
+      }).toList();
+      final storeLat = (store['lat'] as num?)?.toDouble();
+      final storeLng = (store['lng'] as num?)?.toDouble();
+      final driverLat = (_driverProfile?['current_lat'] as num?)?.toDouble();
+      final driverLng = (_driverProfile?['current_lng'] as num?)?.toDouble();
+      String? distanceLabel;
+      final distanceMeters = (m['distance_meters'] as num?)?.toDouble();
+      if (distanceMeters != null && distanceMeters > 0) {
+        distanceLabel = distanceMeters >= 1000
+            ? '${(distanceMeters / 1000).toStringAsFixed(1)} ${t('km_unit')}'
+            : '${distanceMeters.round()} ${t('m_unit')}';
+      } else if (storeLat != null &&
+          storeLng != null &&
+          driverLat != null &&
+          driverLng != null) {
+        final meters = Geolocator.distanceBetween(
+          driverLat,
+          driverLng,
+          storeLat,
+          storeLng,
+        );
+        distanceLabel = meters >= 1000
+            ? '${(meters / 1000).toStringAsFixed(1)} ${t('km_unit')}'
+            : '${meters.round()} ${t('m_unit')}';
+      }
+      return <String, dynamic>{
+        'raw': m,
+        'dbId': (m['id'] as num?)?.toInt(),
+        'id': formatOrderCode(numStr),
+        'merchant': (store['name_ku'] ?? 'فرۆشگای کەلار').toString(),
+        'merchantAddress': (store['address_ku'] ?? 'شاری کەلار').toString(),
+        'merchantPhone': (store['phone'] ?? '').toString(),
+        'customer':
+            (m['customer_name'] ?? cust['name'] ?? 'کڕیار').toString(),
+        'customerAddress':
+            (m['delivery_address'] ?? 'شاری کەلار').toString(),
+        'customerPhone':
+            (m['customer_phone'] ?? cust['phone'] ?? '').toString(),
+        'note': (m['delivery_note'] ?? m['notes'] ?? m['customer_note'] ?? '')
+            .toString(),
+        'items': mappedItems,
+        'distanceLabel': distanceLabel,
+        'statusKey': statusKey,
+        'statusType': statusType,
+        'price': '${formatMoney(fee)} ${t('iqd')}',
+        'totalAmount': '${formatMoney(totalAmt)} ${t('iqd')}',
+        'time': (m['created_at'] ?? m['ready_at'] ?? '')
+            .toString()
+            .replaceFirst('T', ' ')
+            .split('.')
+            .first,
+        'statusColor': available
+            ? RC.bg(const Color(0xFF2563EB))
+            : (isDelivered
+                ? RC.bg(const Color(0xFF16A34A))
+                : (isCancelled
+                    ? RC.bg(const Color(0xFFEF4444))
+                    : RC.bg(const Color(0xFFD97706)))),
+        'statusBg': available
+            ? RC.bg(const Color(0xFFDBEAFE))
+            : (isDelivered
+                ? RC.bg(const Color(0xFFDCFCE7))
+                : (isCancelled
+                    ? RC.bg(const Color(0xFFFEE2E2))
+                    : RC.bg(const Color(0xFFFEF3C7)))),
+      };
+    }).toList();
+  }
 
   List<Map<String, dynamic>> _getFilteredOrders() {
     final q = _searchQuery.trim().toLowerCase();
     return _allOrdersData.where((order) {
       bool matchesTab = true;
-      if (_selectedFilterIndex == 1) matchesTab = order['statusType'] == 'active';
-      if (_selectedFilterIndex == 2) matchesTab = order['statusType'] == 'delivered';
-      if (_selectedFilterIndex == 3) matchesTab = order['statusType'] == 'cancelled';
+      if (_selectedFilterIndex == 1) {
+        matchesTab = order['statusType'] == 'available';
+      }
+      if (_selectedFilterIndex == 2) {
+        matchesTab = order['statusType'] == 'delivered';
+      }
+      if (_selectedFilterIndex == 3) {
+        matchesTab = order['statusType'] == 'cancelled';
+      }
 
       bool matchesSearch = q.isEmpty ||
           order['id'].toString().toLowerCase().contains(q) ||
@@ -779,8 +460,40 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _currentTabIndex = widget.initialTabIndex;
     _resetActiveOrder();
+    _netOnline = DriverNetwork.instance.isOnline;
+    _pendingMutations = DriverMutationQueue.instance.pendingCount;
+    _netListener = () {
+      if (!mounted) return;
+      final online = DriverNetwork.instance.isOnline;
+      setState(() => _netOnline = online);
+      if (online) DriverMutationQueue.instance.scheduleDrain();
+    };
+    _queueListener = () {
+      if (!mounted) return;
+      setState(() => _pendingMutations = DriverMutationQueue.instance.pendingCount);
+    };
+    DriverNetwork.instance.addListener(_netListener!);
+    DriverMutationQueue.instance.addListener(_queueListener!);
+    DriverMutationQueue.instance.scheduleDrain();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final fg = state == AppLifecycleState.resumed;
+    if (fg == _appInForeground) return;
+    _appInForeground = fg;
+    if (fg) {
+      _armDriverSyncTimer();
+      if (DriverNetwork.instance.isOnline) {
+        unawaited(_refreshBackendDriverData(silent: true));
+      }
+    } else {
+      _driverSyncTimer?.cancel();
+      _driverSyncTimer = null;
+    }
   }
 
   @override
@@ -796,24 +509,82 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     setState(() => _currentTabIndex = index);
     context.read<DriverNavNotifier>().setTabIndex(index);
     context.go(DriverNavNotifier.pathForIndex(index));
+    if (DriverNetwork.instance.isOnline) {
+      unawaited(_refreshBackendDriverData(silent: true, forceTabScoped: true));
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (_netListener != null) {
+      DriverNetwork.instance.removeListener(_netListener!);
+    }
+    if (_queueListener != null) {
+      DriverMutationQueue.instance.removeListener(_queueListener!);
+    }
     _driverSyncTimer?.cancel();
+    _offerTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _armDriverSyncTimer() {
+    _driverSyncTimer?.cancel();
+    if (!_appInForeground) return;
+    final secs = DriverSyncPlan.intervalSeconds(
+      hasActiveOrder: _activeOrder.dbId != null,
+    );
+    _driverSyncTimer = Timer.periodic(Duration(seconds: secs), (_) {
+      if (!mounted || !_appInForeground || !DriverNetwork.instance.isOnline) {
+        return;
+      }
+      unawaited(_refreshBackendDriverData(silent: true));
+    });
   }
 
   Future<void> _initBackendDriverSync() async {
     final ok = await DriverApiService.instance.ensureAuthenticated(phone: widget.driverPhone);
     if (!ok || !mounted) return;
     unawaited(PushNotifications.instance.requestPermissionAndSync());
-    await _refreshBackendDriverData();
-    _driverSyncTimer?.cancel();
-    _driverSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      _refreshBackendDriverData(silent: true);
-    });
+    await _refreshBackendDriverData(forceFull: true);
+    _armDriverSyncTimer();
+    DriverMutationQueue.instance.scheduleDrain();
+  }
+
+  Widget _buildConnectivityBanner() {
+    final offline = !_netOnline;
+    final pending = _pendingMutations > 0;
+    if (!offline && !pending) return const SizedBox.shrink();
+    final text = offline
+        ? t('offline_banner')
+        : t('sync_pending_banner').replaceAll('{count}', '$_pendingMutations');
+    return Material(
+      color: offline ? const Color(0xFFB45309) : const Color(0xFF1D4ED8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              offline ? Icons.wifi_off_rounded : Icons.cloud_sync_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                tx(text),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   OrderStatus _parseBackendDriverStatus(String? driverStatus, String? orderStatus) {
@@ -838,111 +609,155 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     }
   }
 
-  Future<void> _refreshBackendDriverData({bool silent = false}) async {
-    final profileFuture = DriverApiService.instance.fetchProfile();
-    final activeFuture = DriverApiService.instance.fetchActiveOrder();
-    final historyFuture = DriverApiService.instance.fetchOrdersHistory();
-    final todayEarnFuture = DriverApiService.instance.fetchEarnings(period: 'today');
-    final weekEarnFuture = DriverApiService.instance.fetchEarnings(period: 'week');
-    final monthEarnFuture = DriverApiService.instance.fetchEarnings(period: 'month');
-    final supportFuture = _supportContacts.isEmpty
-        ? DriverApiService.instance.fetchSupportContacts()
-        : Future.value(_supportContacts);
-
-    final profile = await profileFuture;
-    final active = await activeFuture;
-    final history = await historyFuture;
-    final todayEarn = await todayEarnFuture;
-    final weekEarn = await weekEarnFuture;
-    final monthEarn = await monthEarnFuture;
-    final support = await supportFuture;
-
-    if (!mounted) return;
-
-    setState(() {
-      if (support.isNotEmpty) {
-        _supportContacts = support;
+  Future<void> _refreshBackendDriverData({
+    bool silent = false,
+    bool forceFull = false,
+    bool forceTabScoped = false,
+  }) async {
+    if (_refreshInFlight) {
+      _refreshQueued = true;
+      return;
+    }
+    _refreshInFlight = true;
+    final hadActive = _activeOrder.dbId != null;
+    try {
+      if (!silent) {
+        forceFull = true;
       }
+      final tick = forceFull ? 0 : ++_syncTick;
+      final plan = DriverSyncPlan.forTick(
+        tick: forceTabScoped ? 0 : tick,
+        tabIndex: _currentTabIndex,
+        earningsPeriodIndex: _selectedEarningsTimeIndex,
+        forceFull: forceFull,
+        needSupportContacts: _supportContacts.isEmpty,
+      );
 
-      if (profile != null) {
-        _driverProfile = profile;
-        if (!_onlineToggleBusy) {
-          _isOnline = profile['is_online'] == true;
+      // Tab switch: fetch tab-relevant endpoints even on tick 0 without full fan-out.
+      final effective = forceTabScoped && !forceFull
+          ? DriverSyncPlan.forTick(
+              tick: 4, // treat as deep enough for tab-local endpoints
+              tabIndex: _currentTabIndex,
+              earningsPeriodIndex: _selectedEarningsTimeIndex,
+              forceFull: false,
+              needSupportContacts: false,
+            )
+          : plan;
+
+      final profileFuture = effective.profile
+          ? DriverApiService.instance.fetchProfile()
+          : Future<Map<String, dynamic>?>.value(null);
+      final activeFuture = effective.activeOrder
+          ? DriverApiService.instance.fetchActiveOrder()
+          : Future<Map<String, dynamic>?>.value(null);
+      final historyFuture = effective.ordersHistory
+          ? DriverApiService.instance.fetchOrdersHistory()
+          : Future<List<dynamic>>.value(const []);
+      final availableFuture = effective.availableOrders
+          ? DriverApiService.instance.fetchAvailableOrders()
+          : Future<List<dynamic>>.value(const []);
+      final todayEarnFuture = effective.earningsToday
+          ? DriverApiService.instance.fetchEarnings(period: 'today')
+          : Future<Map<String, dynamic>?>.value(null);
+      final weekEarnFuture = effective.earningsWeek
+          ? DriverApiService.instance.fetchEarnings(period: 'week')
+          : Future<Map<String, dynamic>?>.value(null);
+      final monthEarnFuture = effective.earningsMonth
+          ? DriverApiService.instance.fetchEarnings(period: 'month')
+          : Future<Map<String, dynamic>?>.value(null);
+      final supportFuture = effective.supportContacts
+          ? DriverApiService.instance.fetchSupportContacts()
+          : Future<Map<String, dynamic>>.value(_supportContacts);
+
+      final profile = await profileFuture;
+      final active = effective.activeOrder ? await activeFuture : null;
+      final history = effective.ordersHistory ? await historyFuture : null;
+      final available =
+          effective.availableOrders ? await availableFuture : null;
+      final todayEarn = await todayEarnFuture;
+      final weekEarn = await weekEarnFuture;
+      final monthEarn = await monthEarnFuture;
+      final support = await supportFuture;
+
+      if (!mounted) return;
+
+      setState(() {
+        if (effective.supportContacts && support.isNotEmpty) {
+          _supportContacts = support;
         }
+
+        if (profile != null) {
+          _driverProfile = profile;
+          if (!_onlineToggleBusy) {
+            _isOnline = _parseOnlineFlag(profile['is_online']);
+          }
+          final trusted = profile['location_trusted'];
+          if (trusted is bool) {
+            _locationTrusted = trusted;
+          }
+        }
+
+        if (todayEarn != null) {
+          _earningsCache['today'] = todayEarn;
+          _todayEarnings =
+              (todayEarn['total_earnings'] as num?)?.toInt() ?? _todayEarnings;
+          _completedDeliveriesCount =
+              (todayEarn['total_deliveries'] as num?)?.toInt() ??
+                  _completedDeliveriesCount;
+        }
+        if (weekEarn != null) _earningsCache['week'] = weekEarn;
+        if (monthEarn != null) _earningsCache['month'] = monthEarn;
+
+        if (effective.activeOrder) {
+          if (active != null) {
+            _applyActiveOrderMap(active);
+          } else {
+            _isOrderCardVisible = false;
+            _activeOrder = OrderModel(
+              id: 'none',
+              orderNumber: '',
+              status: OrderStatus.driverAssigned,
+              merchantName: '',
+              merchantAddress: '',
+              merchantPhone: '',
+              customerName: '',
+              customerAddress: '',
+              customerPhone: '',
+              items: const [],
+              deliveryFee: 0,
+              tip: 0,
+              dbId: null,
+              handoverPin: '',
+              deliveryPin: '',
+            );
+          }
+        }
+
+        if (history != null) {
+          _backendOrdersList =
+              _mapOrdersFromBackend(history, available: false);
+        }
+        if (available != null) {
+          _availableOrdersList =
+              _mapOrdersFromBackend(available, available: true);
+        }
+      });
+
+      if (available != null) {
+        _maybeStartAvailableOffer();
       }
 
-      if (todayEarn != null) {
-        _earningsCache['today'] = todayEarn;
-        _todayEarnings = (todayEarn['total_earnings'] as num?)?.toInt() ?? _todayEarnings;
-        _completedDeliveriesCount =
-            (todayEarn['total_deliveries'] as num?)?.toInt() ?? _completedDeliveriesCount;
+      final hasActive = _activeOrder.dbId != null;
+      if (hasActive != hadActive) {
+        _armDriverSyncTimer();
       }
-      if (weekEarn != null) _earningsCache['week'] = weekEarn;
-      if (monthEarn != null) _earningsCache['month'] = monthEarn;
-
-      if (active != null) {
-        _applyActiveOrderMap(active);
-      } else {
-        _isOrderCardVisible = false;
-        _activeOrder = OrderModel(
-          id: 'none',
-          orderNumber: '',
-          status: OrderStatus.driverAssigned,
-          merchantName: '',
-          merchantAddress: '',
-          merchantPhone: '',
-          customerName: '',
-          customerAddress: '',
-          customerPhone: '',
-          items: const [],
-          deliveryFee: 0,
-          tip: 0,
-          dbId: null,
-          handoverPin: '',
-          deliveryPin: '',
-        );
+    } finally {
+      _refreshInFlight = false;
+      if (_refreshQueued) {
+        _refreshQueued = false;
+        unawaited(_refreshBackendDriverData(silent: true));
       }
-
-      _backendOrdersList = history.map((raw) {
-        final m = Map<String, dynamic>.from(raw as Map);
-        final st = (m['status'] ?? 'pending').toString();
-        final store = (m['store'] is Map)
-            ? Map<String, dynamic>.from(m['store'] as Map)
-            : const <String, dynamic>{};
-        final cust = (m['customer'] is Map)
-            ? Map<String, dynamic>.from(m['customer'] as Map)
-            : const <String, dynamic>{};
-        final fee = ((m['driver_total_earning'] ?? m['delivery_fee'] ?? 1500) as num).toInt();
-        final totalAmt = ((m['total_amount'] ?? m['subtotal'] ?? 0) as num).toInt();
-        final isDelivered = st == 'delivered';
-        final isCancelled = st == 'cancelled' || st == 'rejected';
-        final numStr = (m['order_number'] ?? m['id'] ?? '').toString();
-        return <String, dynamic>{
-          'raw': m,
-          'dbId': (m['id'] as num?)?.toInt(),
-          'id': formatOrderCode(numStr),
-          'merchant': (store['name_ku'] ?? 'فرۆشگای کەلار').toString(),
-          'merchantAddress': (store['address_ku'] ?? 'شاری کەلار').toString(),
-          'merchantPhone': (store['phone'] ?? '').toString(),
-          'customer': (m['customer_name'] ?? cust['name'] ?? 'کڕیار').toString(),
-          'customerAddress': (m['delivery_address'] ?? 'شاری کەلار').toString(),
-          'customerPhone': (m['customer_phone'] ?? cust['phone'] ?? '').toString(),
-          'statusKey': isDelivered
-              ? 'status_delivered'
-              : (isCancelled ? 'status_cancelled' : 'status_on_way'),
-          'statusType': isDelivered ? 'delivered' : (isCancelled ? 'cancelled' : 'active'),
-          'price': '${_formatMoney(fee)} ${t('iqd')}',
-          'totalAmount': '${_formatMoney(totalAmt)} ${t('iqd')}',
-          'time': (m['created_at'] ?? '').toString().replaceFirst('T', ' ').split('.').first,
-          'statusColor': isDelivered
-              ? RC.bg(const Color(0xFF16A34A))
-              : (isCancelled ? RC.bg(const Color(0xFFEF4444)) : RC.bg(const Color(0xFFD97706))),
-          'statusBg': isDelivered
-              ? RC.bg(const Color(0xFFDCFCE7))
-              : (isCancelled ? RC.bg(const Color(0xFFFEE2E2)) : RC.bg(const Color(0xFFFEF3C7))),
-        };
-      }).toList();
-    });
+    }
   }
 
   void _applyActiveOrderMap(Map<String, dynamic> active) {
@@ -991,8 +806,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       totalAmount: (active['total_amount'] as num?)?.toInt() ?? 0,
       paymentMethod: (active['payment_method'] ?? 'cash').toString(),
       customerNotes: (active['customer_notes'] ?? '').toString(),
-      handoverPin: (active['handover_pin'] ?? '7392').toString(),
-      deliveryPin: (active['delivery_pin'] ?? _activeOrder.deliveryPin).toString(),
+      handoverPin: (active['handover_pin'] ?? '').toString(),
+      // delivery_pin is never returned by API — customer tells the driver.
+      deliveryPin: '',
       storeLat: (store['lat'] as num?)?.toDouble() ??
           (active['store_lat'] as num?)?.toDouble() ??
           34.6295,
@@ -1015,7 +831,307 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         'type': 'order',
       });
       _isOrderCardVisible = true;
+      if (dbId != null &&
+          nextStatus == OrderStatus.driverAssigned &&
+          !_confirmedOfferIds.contains(dbId)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _startOfferFromActiveOrder();
+        });
+      }
     }
+  }
+
+  void _maybeStartAvailableOffer() {
+    if (!_isOnline || _activeOrder.dbId != null || _pendingOffer != null) {
+      return;
+    }
+    final list = _availableOrdersList ?? const <Map<String, dynamic>>[];
+    for (final order in list) {
+      final id = order['dbId'] as int?;
+      if (id == null) continue;
+      final isNew = _seenAvailableIds.add(id);
+      if (!isNew || _skippedOfferIds.contains(id) || _confirmedOfferIds.contains(id)) {
+        continue;
+      }
+      _startOffer(order, source: 'available');
+      return;
+    }
+  }
+
+  void _startOfferFromActiveOrder() {
+    final dbId = _activeOrder.dbId;
+    if (dbId == null ||
+        _activeOrder.status != OrderStatus.driverAssigned ||
+        _confirmedOfferIds.contains(dbId) ||
+        _pendingOffer != null) {
+      return;
+    }
+    _startOffer({
+      'dbId': dbId,
+      'id': _activeOrder.orderNumber,
+      'merchant': _activeOrder.merchantName,
+      'merchantAddress': _activeOrder.merchantAddress,
+      'customer': _activeOrder.customerName,
+      'customerAddress': _activeOrder.customerAddress,
+      'note': _activeOrder.customerNotes,
+      'items': _activeOrder.items
+          .map(
+            (it) => <String, dynamic>{
+              'name': it.name,
+              'qty': it.quantity,
+              'price': '${formatMoney(it.price * it.quantity)} ${t('iqd')}',
+            },
+          )
+          .toList(),
+      'price': '${formatMoney(_activeOrder.totalEarnings)} ${t('iqd')}',
+      'totalAmount':
+          '${formatMoney(_activeOrder.totalAmount > 0 ? _activeOrder.totalAmount : _activeOrder.totalEarnings)} ${t('iqd')}',
+    }, source: 'assigned');
+  }
+
+  void _startOffer(Map<String, dynamic> order, {required String source}) {
+    final dbId = order['dbId'] as int?;
+    if (dbId == null) return;
+    if (_pendingOffer != null) return;
+    if (_skippedOfferIds.contains(dbId) || _confirmedOfferIds.contains(dbId)) {
+      return;
+    }
+
+    _offerTimer?.cancel();
+    setState(() {
+      _pendingOffer = Map<String, dynamic>.from(order);
+      _pendingOfferSource = source;
+      _offerSecondsLeft = _offerTimeoutSecs;
+      _offerActionBusy = false;
+      _isOrderCardVisible = true;
+    });
+    if (_currentTabIndex != 0) {
+      _goTab(0);
+    }
+    _offerTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_offerSecondsLeft <= 1) {
+        timer.cancel();
+        setState(() => _offerSecondsLeft = 0);
+        unawaited(_handleOfferTimeout());
+        return;
+      }
+      setState(() => _offerSecondsLeft -= 1);
+    });
+  }
+
+  void _clearOffer({bool markSkipped = false, bool markConfirmed = false}) {
+    final id = _pendingOffer?['dbId'] as int?;
+    _offerTimer?.cancel();
+    _offerTimer = null;
+    if (id != null) {
+      if (markSkipped) _skippedOfferIds.add(id);
+      if (markConfirmed) _confirmedOfferIds.add(id);
+    }
+    if (!mounted) {
+      _pendingOffer = null;
+      _pendingOfferSource = null;
+      _offerActionBusy = false;
+      return;
+    }
+    setState(() {
+      _pendingOffer = null;
+      _pendingOfferSource = null;
+      _offerActionBusy = false;
+      _offerSecondsLeft = _offerTimeoutSecs;
+    });
+  }
+
+  Future<void> _handleOfferTimeout() async {
+    if (_pendingOffer == null || _offerActionBusy) return;
+    await _declinePendingOffer(
+      reason: t('offer_timeout_reason'),
+      timedOut: true,
+      askReason: true,
+    );
+  }
+
+  Future<void> _acceptPendingOffer() async {
+    final offer = _pendingOffer;
+    final source = _pendingOfferSource;
+    if (offer == null || _offerActionBusy) return;
+    final dbId = offer['dbId'] as int?;
+    if (dbId == null) return;
+
+    setState(() => _offerActionBusy = true);
+    _offerTimer?.cancel();
+
+    if (source == 'available') {
+      await _claimAvailableOrder(offer);
+      if (!mounted) return;
+      final claimed = _activeOrder.dbId == dbId;
+      _clearOffer(markConfirmed: claimed, markSkipped: !claimed);
+      return;
+    }
+
+    // Assigned: confirm by advancing to en-route-to-merchant.
+    try {
+      final updated = await DriverApiService.instance.advanceOrderStatus(
+        dbId,
+        'driver_arriving_pickup',
+        idempotencyKey: _uuid.v4(),
+      );
+      if (!mounted) return;
+      if (updated != null) {
+        setState(() {
+          _applyActiveOrderMap(updated);
+          _isOrderCardVisible = true;
+        });
+      } else {
+        setState(() {
+          _activeOrder.status = OrderStatus.driverArrivingPickup;
+          _isOrderCardVisible = true;
+        });
+      }
+      _clearOffer(markConfirmed: true);
+      _showSuccessSnackBar(t('new_order_arrived'));
+    } on DriverNetworkException {
+      if (!mounted) return;
+      setState(() => _offerActionBusy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(t('offline_banner'))),
+          backgroundColor: const Color(0xFFB45309),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _offerActionBusy = false);
+    }
+  }
+
+  Future<void> _declinePendingOffer({
+    String? reason,
+    bool timedOut = false,
+    bool askReason = false,
+  }) async {
+    final offer = _pendingOffer;
+    if (offer == null || _offerActionBusy) return;
+    final dbId = offer['dbId'] as int?;
+    if (dbId == null) return;
+
+    var finalReason = reason?.trim() ?? '';
+    if (askReason || finalReason.isEmpty) {
+      finalReason = await _promptOfferDeclineReason(
+            initial: finalReason.isNotEmpty ? finalReason : null,
+            timedOut: timedOut,
+          ) ??
+          '';
+      if (finalReason.isEmpty) {
+        // User cancelled dialog on manual decline — resume timer if still open.
+        if (!timedOut && _pendingOffer != null && _offerSecondsLeft > 0) {
+          return;
+        }
+        finalReason = timedOut
+            ? t('offer_timeout_reason')
+            : t('offer_reassign');
+      }
+    }
+
+    final source = _pendingOfferSource;
+    setState(() => _offerActionBusy = true);
+    try {
+      final (ok, msg) = await DriverApiService.instance.declineOrderOffer(
+        dbId,
+        reason: finalReason,
+        timedOut: timedOut,
+        idempotencyKey: _uuid.v4(),
+      );
+      if (!mounted) return;
+      _clearOffer(markSkipped: true);
+      if (source == 'assigned' || _activeOrder.dbId == dbId) {
+        setState(() => _resetActiveOrder());
+      }
+      await _refreshBackendDriverData(silent: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(ok ? (msg ?? t('offer_declined_ok')) : (msg ?? t('offer_decline_failed')))),
+          backgroundColor: ok ? const Color(0xFF1D4ED8) : const Color(0xFFDC2626),
+        ),
+      );
+    } on DriverNetworkException {
+      if (!mounted) return;
+      _clearOffer(markSkipped: true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(t('offline_banner'))),
+          backgroundColor: const Color(0xFFB45309),
+        ),
+      );
+    }
+  }
+
+  Future<String?> _promptOfferDeclineReason({
+    String? initial,
+    bool timedOut = false,
+  }) async {
+    final ctrl = TextEditingController(text: initial ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: !timedOut,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: RC.bg(Colors.white),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text(
+          tx(t('offer_reason_title')),
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            color: RC.fg(const Color(0xFF0F172A)),
+          ),
+        ),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 3,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: tx(t('offer_reason_hint')),
+            filled: true,
+            fillColor: RC.bg(const Color(0xFFF8FAFC)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        actions: [
+          if (!timedOut)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(tx('پاشگەزبوونەوە')),
+            ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              final text = ctrl.text.trim();
+              Navigator.pop(
+                ctx,
+                text.isEmpty ? t('offer_reassign') : text,
+              );
+            },
+            child: Text(tx(t('offer_reassign'))),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    return result;
   }
 
   CaptainRouteStage _toCaptainStage(OrderStatus s) {
@@ -1105,7 +1221,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         items: mappedItems,
         deliveryFee: (data['delivery_fee'] as num?)?.toInt() ?? 1500,
         tip: (data['driver_tip'] as num?)?.toInt() ?? 500,
-        deliveryPin: (data['delivery_pin'] ?? '4821').toString(),
+        deliveryPin: '',
         storeLat: (store['lat'] as num?)?.toDouble() ??
             (data['store_lat'] as num?)?.toDouble() ??
             34.6836,
@@ -1121,21 +1237,6 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       );
     });
     _showSuccessSnackBar('داواکاری زیندووی کڕیار (#$ref) هێنرایە سەر نەخشە!');
-  }
-
-  Future<void> _notifyBackendDeliveryComplete() async {
-    final cleanRef = _activeOrder.orderNumber.replaceAll('#', '').trim();
-    try {
-      await http
-          .post(
-            Uri.parse('${DriverApiService.baseUrl}/live-telemetry/$cleanRef/verify-pin'),
-            headers: const {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-          )
-          .timeout(const Duration(seconds: 2));
-    } catch (_) {}
   }
 
   void _resetActiveOrder() {
@@ -1165,7 +1266,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     );
   }
 
-  void _updateOrderStatus(OrderStatus nextStatus) {
+  Future<void> _updateOrderStatus(OrderStatus nextStatus) async {
     if (_activeOrder.dbId != null && nextStatus != OrderStatus.delivered) {
       final mapped = switch (nextStatus) {
         OrderStatus.driverArrivingPickup => 'driver_arriving_pickup',
@@ -1176,30 +1277,99 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         _ => null,
       };
       if (mapped != null) {
-        DriverApiService.instance.advanceOrderStatus(_activeOrder.dbId!, mapped);
+        final orderId = _activeOrder.dbId!;
+        final key = _uuid.v4();
+        try {
+          final data = await DriverApiService.instance.advanceOrderStatus(
+            orderId,
+            mapped,
+            idempotencyKey: key,
+          );
+          if (data == null) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(tx(t('status_update_failed'))),
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+            );
+            return;
+          }
+        } on DriverNetworkException {
+          await DriverMutationQueue.instance.enqueue(
+            type: 'order_status',
+            idempotencyKey: key,
+            payload: {'order_id': orderId, 'driver_status': mapped},
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(tx(t('mutation_queued'))),
+                backgroundColor: const Color(0xFF1D4ED8),
+              ),
+            );
+          }
+        }
       }
     }
-    setState(() {
-      _activeOrder.status = nextStatus;
-      if (nextStatus == OrderStatus.delivered) {
-        _todayEarnings += _activeOrder.totalEarnings;
-        _completedDeliveriesCount += 1;
-      }
-    });
+    if (!mounted) return;
+    // Earnings KPIs come from fetchEarnings only — never invent local bumps.
+    setState(() => _activeOrder.status = nextStatus);
   }
 
   Future<void> _completeDelivery() async {
-    if (_activeOrder.dbId != null) {
-      final (ok, msg) = await DriverApiService.instance.completeDelivery(_activeOrder.dbId!);
+    if (_activeOrder.dbId == null) {
+      // No backend order id — do not fake a successful settlement.
       if (!mounted) return;
-      if (!ok) {
-        _showSuccessSnackBar(msg ?? t('btn_complete_pin'));
-        return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(t('status_update_failed'))),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Complete without PIN dialog — one tap finishes delivery.
+    final orderId = _activeOrder.dbId!;
+    final key = _uuid.v4();
+    var ok = false;
+    String? msg;
+    Object? lastErr;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        final result = await DriverApiService.instance.completeDelivery(
+          orderId,
+          idempotencyKey: key,
+        );
+        ok = result.$1;
+        msg = result.$2;
+        lastErr = null;
+        break;
+      } on DriverNetworkException catch (e) {
+        lastErr = e;
+        await Future<void>.delayed(Duration(milliseconds: 600 * (1 << attempt)));
       }
     }
-    _updateOrderStatus(OrderStatus.delivered);
-    await _notifyBackendDeliveryComplete();
-    _refreshBackendDriverData(silent: true);
+    if (!mounted) return;
+    if (lastErr != null || !ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(
+            lastErr != null
+                ? t('complete_needs_network')
+                : (msg ?? t('status_update_failed')),
+          )),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    await _updateOrderStatus(OrderStatus.delivered);
+    // Server is source of truth for wallet / today earnings counters.
+    await _refreshBackendDriverData(forceFull: true);
     if (!mounted) return;
     _showSuccessSnackBar(t('nav_done'));
   }
@@ -1207,16 +1377,14 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   void _showSuccessSnackBar(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle, color: RC.fg(Colors.black)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(tx(msg), style: TextStyle(fontWeight: FontWeight.bold, color: RC.fg(Colors.black))),
-            ),
-          ],
+        content: Text(
+          tx(msg),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: RC.fg(Colors.black),
+          ),
         ),
-        backgroundColor: RC.bg(Color(0xFF00E676)),
+        backgroundColor: RC.bg(const Color(0xFF00E676)),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -1231,6 +1399,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           children: [
             // سەرپەڕەی سەرەوە: شۆفێر، ئۆنلاین/ئۆفلاین و داهاتی ئەمڕۆ
             _buildTopAppBar(),
+            // Offline / pending sync — below locked header, never inside it.
+            _buildConnectivityBanner(),
             // ناوەڕۆکی لاپەڕە بەپێی تاب
             Expanded(
               child: IndexedStack(
@@ -1246,73 +1416,270 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_currentTabIndex == 1 && !_isOnline) _buildClaimNeedOnlineBar(),
+          _buildBottomNav(),
+        ],
+      ),
     );
   }
 
-  /// Flip Offline ↔ Online immediately in the UI, then persist to backend.
-  /// GPS is best-effort and must never leave the pill stuck/dead on web.
+  /// Sticky hint above bottom nav on Orders tab while driver is offline.
+  Widget _buildClaimNeedOnlineBar() {
+    return Material(
+      color: const Color(0xFFF97316),
+      child: InkWell(
+        onTap: _onlineToggleBusy ? null : _toggleOnlineStatus,
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    tx(t('claim_need_online')),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Text(
+                  tx(t('online')),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                    decoration: TextDecoration.underline,
+                    decorationColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Flip Offline ↔ Online. Try GPS first when going online so dispatch/claim works.
   Future<void> _toggleOnlineStatus() async {
+    // Sync lock first — Switch+label can fire twice before setState runs.
     if (_onlineToggleBusy || !mounted) return;
+    _onlineToggleBusy = true;
 
     final previous = _isOnline;
     final nextOnline = !previous;
-    setState(() {
-      _onlineToggleBusy = true;
-      _isOnline = nextOnline;
-    });
+    final key = _uuid.v4();
+    if (mounted) {
+      setState(() => _isOnline = nextOnline);
+    }
 
-    // Persist status first (no GPS gate). Coords are attached later if available.
-    final updated = await DriverApiService.instance.updateOnlineStatus(nextOnline);
+    double? lat;
+    double? lng;
+    var gpsMissing = false;
+    if (nextOnline) {
+      try {
+        final fix = await _tryCaptureGpsForOnline().timeout(
+          const Duration(seconds: 6),
+          onTimeout: () => (null, null, true),
+        );
+        lat = fix.$1;
+        lng = fix.$2;
+        gpsMissing = fix.$3 || lat == null || lng == null;
+      } catch (_) {
+        gpsMissing = true;
+      }
+    }
+
+    Map<String, dynamic>? updated;
+    var queued = false;
+    try {
+      updated = await DriverApiService.instance.updateOnlineStatus(
+        nextOnline,
+        lat: lat,
+        lng: lng,
+        idempotencyKey: key,
+      );
+      if (nextOnline && lat != null && lng != null) {
+        try {
+          await DriverApiService.instance.updateLocation(lat, lng);
+        } on DriverNetworkException {
+          await DriverMutationQueue.instance.enqueue(
+            type: 'location_update',
+            idempotencyKey: 'location_latest',
+            payload: {'lat': lat, 'lng': lng},
+          );
+        } catch (_) {}
+      }
+    } on DriverNetworkException {
+      await DriverMutationQueue.instance.enqueue(
+        type: 'online_status',
+        idempotencyKey: key,
+        payload: {
+          'is_online': nextOnline,
+          if (lat != null) 'lat': lat,
+          if (lng != null) 'lng': lng,
+        },
+      );
+      queued = true;
+    }
 
     if (!mounted) return;
 
-    if (updated == null) {
+    if (updated == null && !queued) {
       setState(() {
         _isOnline = previous;
         _onlineToggleBusy = false;
       });
+      final err = DriverApiService.instance.lastMutationError;
+      final msg = err == 'session_expired'
+          ? t('session_expired')
+          : (err != null && err != 'status_update_failed' ? err : t('status_update_failed'));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(t('status_update_failed')),
-          backgroundColor: RC.bg(Color(0xFFDC2626)),
+          content: Text(tx(msg)),
+          backgroundColor: RC.bg(const Color(0xFFDC2626)),
         ),
       );
       return;
     }
 
-    // Prefer server truth when present.
-    final serverOnline = updated['is_online'];
+    if (queued) {
+      setState(() => _onlineToggleBusy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(t('mutation_queued'))),
+          backgroundColor: const Color(0xFF1D4ED8),
+        ),
+      );
+      return;
+    }
+
+    final data = updated!;
+    final serverOnline = data['is_online'];
+    final warning = data['warning']?.toString();
+    final trusted = data['location_trusted'];
     setState(() {
-      if (serverOnline is bool) {
-        _isOnline = serverOnline;
-      } else if (serverOnline != null) {
-        _isOnline = serverOnline == true || serverOnline.toString() == '1';
-      }
+      _isOnline = _parseOnlineFlag(serverOnline ?? nextOnline);
+      if (trusted is bool) _locationTrusted = trusted;
       _onlineToggleBusy = false;
+      if (_driverProfile != null) {
+        _driverProfile = {
+          ..._driverProfile!,
+          'is_online': _isOnline,
+          if (data.containsKey('is_verified'))
+            'is_verified': data['is_verified'],
+        };
+      }
     });
 
     if (!nextOnline || !mounted) return;
 
-    // Best-effort GPS after Online is already live — never blocks or spams orange banners.
-    unawaited(() async {
-      try {
-        final fix = await _tryCaptureGpsForOnline().timeout(
-          const Duration(seconds: 4),
-          onTimeout: () => (null, null, true),
-        );
-        final lat = fix.$1;
-        final lng = fix.$2;
-        if (lat != null && lng != null) {
-          await DriverApiService.instance.updateOnlineStatus(
-            true,
-            lat: lat,
-            lng: lng,
-          );
-          await DriverApiService.instance.updateLocation(lat, lng);
-        }
-      } catch (_) {}
-    }());
+    if (warning != null && warning.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(warning)),
+          backgroundColor: const Color(0xFFB45309),
+        ),
+      );
+    } else if (gpsMissing) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(t('gps_missing_online_warn'))),
+          backgroundColor: const Color(0xFFB45309),
+        ),
+      );
+    } else if (_parseOnlineFlag(updated['is_verified']) == false &&
+        updated['is_verified'] != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(t('not_verified_online'))),
+          backgroundColor: const Color(0xFFB45309),
+        ),
+      );
+    }
+  }
+
+  Future<void> _claimAvailableOrder(Map<String, dynamic> order) async {
+    final dbId = order['dbId'] as int?;
+    if (dbId == null || _claimingOrderId != null) return;
+
+    if (!_isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(t('claim_need_online'))),
+          backgroundColor: const Color(0xFFB45309),
+          action: SnackBarAction(
+            label: t('online'),
+            textColor: Colors.white,
+            onPressed: _toggleOnlineStatus,
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _claimingOrderId = dbId);
+    final key = _uuid.v4();
+    Map<String, dynamic>? claimed;
+    try {
+      claimed = await DriverApiService.instance.claimOrder(
+        dbId,
+        idempotencyKey: key,
+      );
+    } on DriverNetworkException {
+      if (!mounted) return;
+      setState(() => _claimingOrderId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(t('offline_banner'))),
+          backgroundColor: const Color(0xFFB45309),
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _claimingOrderId = null);
+
+    if (claimed == null) {
+      final err = DriverApiService.instance.lastMutationError;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(
+            err == null || err == 'claim_failed' ? t('claim_failed') : err,
+          )),
+          backgroundColor: RC.bg(const Color(0xFFDC2626)),
+        ),
+      );
+      await _refreshBackendDriverData(silent: true);
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tx(t('new_order_arrived'))),
+        backgroundColor: const Color(0xFF16A34A),
+      ),
+    );
+    if (_pendingOffer?['dbId'] == dbId) {
+      _clearOffer(markConfirmed: true);
+    } else {
+      _confirmedOfferIds.add(dbId);
+    }
+    setState(() {
+      _isOrderCardVisible = true;
+      _selectedFilterIndex = 0;
+    });
+    await _refreshBackendDriverData(silent: false);
+    if (mounted) _goTab(0);
   }
 
   /// Returns `(lat, lng, missing)`. Never throws for denied/unavailable GPS.
@@ -1357,6 +1724,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   }
 
   // سەرپەڕەی سەرەوە: شێوازی مۆدێرن بە ڕەنگی سەوز و لۆگۆی REGA
+  // PHASE LOCK: green REGA header — do not edit _buildTopAppBar visuals/handlers.
   Widget _buildTopAppBar() {
     final phone = RegaResponsive.isPhone(context);
     final padH = RegaResponsive.pagePadding(context);
@@ -1544,45 +1912,87 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 
   // لاپەڕەی نەخشە و کارتی داواکاری
   Widget _buildHomeMapScreen() {
-    final phone = RegaResponsive.isPhone(context);
     final padH = RegaResponsive.pagePadding(context);
     final profileLat = (_driverProfile?['current_lat'] as num?)?.toDouble();
     final profileLng = (_driverProfile?['current_lng'] as num?)?.toDouble();
+    final hasOffer = _pendingOffer != null;
+    final hasActive = _activeOrder.dbId != null;
+    final showActiveCard =
+        !hasOffer && _isOrderCardVisible && hasActive;
+
+    final liveMap = CaptainLiveMapWidget(
+      orderNumber: _activeOrder.orderNumber,
+      stage: _toCaptainStage(_activeOrder.status),
+      merchantName: _activeOrder.merchantName,
+      merchantAddress: _activeOrder.merchantAddress,
+      customerName: _activeOrder.customerName,
+      customerAddress: _activeOrder.customerAddress,
+      deliveryPin: _activeOrder.deliveryPin,
+      storeLat: _activeOrder.storeLat,
+      storeLng: _activeOrder.storeLng,
+      customerLat: _activeOrder.customerLat,
+      customerLng: _activeOrder.customerLng,
+      profileLat: profileLat,
+      profileLng: profileLng,
+      isOnline: _isOnline,
+      hasActiveOrder: hasActive || hasOffer,
+      isOrderCardExpanded: showActiveCard || hasOffer,
+      locale: widget.currentLocale,
+      translate: t,
+      onRefreshData: () => _refreshBackendDriverData(silent: false),
+      onStageAutoReached: (nextStage) {
+        _updateOrderStatus(_fromCaptainStage(nextStage));
+      },
+      onArrivedPromptPin: _completeDelivery,
+      onNewBackendOrderFound: _applySyncedBackendOrder,
+    );
+
+    // Idle home = full-bleed map + compact bottom sheet (map-first redesign).
+    if (!hasOffer && !hasActive) {
+      final available = _availableOrdersList ?? const <Map<String, dynamic>>[];
+      final incomingCount = available.length;
+      final firstMerchant = available.isEmpty
+          ? ''
+          : '${available.first['merchant'] ?? ''}'.trim();
+      final nearbyTitle = firstMerchant.isNotEmpty
+          ? firstMerchant
+          : (incomingCount > 0
+              ? '$incomingCount ${t('nearby_requests')}'
+              : t('nearby_requests'));
+      return DriverHomeDashboard(
+        mapChild: liveMap,
+        isOnline: _isOnline,
+        onlineBusy: _onlineToggleBusy,
+        todayEarningsLabel: '${formatMoney(_todayEarnings)} ${t('iqd')}',
+        completedCount: _completedDeliveriesCount,
+        incomingCount: incomingCount,
+        nearbyTitle: nearbyTitle,
+        onToggleOnline: _toggleOnlineStatus,
+        onOpenIncoming: () {
+          setState(() => _selectedFilterIndex = 1);
+          _goTab(1);
+        },
+        onOpenOrders: () {
+          setState(() => _selectedFilterIndex = 1);
+          _goTab(1);
+        },
+        todayEarningsCaption: t('today_earnings'),
+        completedCaption: t('completed_requests'),
+        offlineLabel: t('offline'),
+        waitingLabel: t('waiting_admin_order'),
+        acceptLabel: t('accept_short'),
+        ordersLabel: t('orders'),
+        goOnlineLabel: t('online'),
+      );
+    }
 
     return Stack(
+      clipBehavior: Clip.none,
       children: [
-        // Live FlutterMap + Mapbox raster tiles (works on both Web & Native)
-        Positioned.fill(
-          child: CaptainLiveMapWidget(
-            orderNumber: _activeOrder.orderNumber,
-            stage: _toCaptainStage(_activeOrder.status),
-            merchantName: _activeOrder.merchantName,
-            merchantAddress: _activeOrder.merchantAddress,
-            customerName: _activeOrder.customerName,
-            customerAddress: _activeOrder.customerAddress,
-            deliveryPin: _activeOrder.deliveryPin,
-            storeLat: _activeOrder.storeLat,
-            storeLng: _activeOrder.storeLng,
-            customerLat: _activeOrder.customerLat,
-            customerLng: _activeOrder.customerLng,
-            profileLat: profileLat,
-            profileLng: profileLng,
-            isOnline: _isOnline,
-            hasActiveOrder: _activeOrder.dbId != null,
-            isOrderCardExpanded: _isOrderCardVisible && _activeOrder.dbId != null,
-            locale: widget.currentLocale,
-            translate: t,
-            onRefreshData: () => _refreshBackendDriverData(silent: false),
-            onStageAutoReached: (nextStage) {
-              _updateOrderStatus(_fromCaptainStage(nextStage));
-            },
-            onArrivedPromptPin: _completeDelivery,
-            onNewBackendOrderFound: _applySyncedBackendOrder,
-          ),
-        ),
+        Positioned.fill(child: liveMap),
 
-        // کارتی سەرەکی داواکاری (Bottom Sheet Card)
-        if (_isOrderCardVisible && _activeOrder.dbId != null)
+        // کارتی سەرەکی داواکاری (Bottom Sheet Card) — behind offer, above map
+        if (showActiveCard)
           Positioned(
             left: padH,
             right: padH,
@@ -1593,84 +2003,129 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 constraints: BoxConstraints(
                   maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 580),
                 ),
-                child: _activeOrder.status == OrderStatus.delivered
-                    ? _buildCompletedCard()
-                    : ActiveOrderCard(
-                        order: _activeOrder,
-                        locale: widget.currentLocale,
-                        onUpdateStatus: _updateOrderStatus,
-                        onRequestPinVerification: _completeDelivery,
-                        onClaimWaitingBonus: _claimWaitingBonusForActiveOrder,
-                        onRequestCancel: _showCancelOrderDialog,
-                        onClose: () => setState(() => _isOrderCardVisible = false),
-                      ),
+                child: Material(
+                  elevation: 20,
+                  color: Colors.transparent,
+                  shadowColor: Colors.black45,
+                  borderRadius: BorderRadius.circular(24),
+                  child: _activeOrder.status == OrderStatus.delivered
+                      ? _buildCompletedCard()
+                      : ActiveOrderCard(
+                          order: _activeOrder,
+                          locale: widget.currentLocale,
+                          onUpdateStatus: _updateOrderStatus,
+                          onRequestPinVerification: _completeDelivery,
+                          onClaimWaitingBonus: _claimWaitingBonusForActiveOrder,
+                          onRequestCancel: _showCancelOrderDialog,
+                          onClose: () => setState(() => _isOrderCardVisible = false),
+                        ),
+                ),
               ),
             ),
           )
-        else if (_activeOrder.dbId != null)
-          // دوگمەی پیشاندانەوەی کارت کاتێک کارتەکە داخراوە
+        else if (hasActive)
+          // کارتی کورتکراوە — دیزاینی سادە (چێشتخانە / کڕیار)
           Positioned(
             left: padH,
             right: padH,
-            bottom: 16,
+            bottom: 12,
             child: Align(
               alignment: Alignment.bottomCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 460),
                 child: Material(
-                  color: const Color(0xFF0F172A),
-                  elevation: 8,
-                  borderRadius: BorderRadius.circular(20),
+                  color: RC.bg(Colors.white),
+                  elevation: 10,
+                  shadowColor: Colors.black26,
+                  borderRadius: BorderRadius.circular(22),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(22),
                     onTap: () => setState(() => _isOrderCardVisible = true),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      child: Row(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            width: 36,
+                            height: 4,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF22C55E).withValues(alpha: 0.2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.delivery_dining_rounded,
-                              color: Color(0xFF00E676),
-                              size: 22,
+                              color: RC.bg(const Color(0xFFCBD5E1)),
+                              borderRadius: BorderRadius.circular(4),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  tx('${_activeOrder.displayOrderNumber.isNotEmpty ? _activeOrder.displayOrderNumber : _activeOrder.orderNumber} • ${_activeOrder.merchantName}'),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDCFCE7),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  (_activeOrder.status == OrderStatus.pickedUp ||
+                                          _activeOrder.status == OrderStatus.onTheWay ||
+                                          _activeOrder.status == OrderStatus.arrivedCustomer)
+                                      ? Icons.home_rounded
+                                      : Icons.storefront_rounded,
+                                  color: const Color(0xFF16A34A),
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  tx((_activeOrder.status == OrderStatus.pickedUp ||
+                                          _activeOrder.status == OrderStatus.onTheWay ||
+                                          _activeOrder.status == OrderStatus.arrivedCustomer)
+                                      ? (_activeOrder.customerName.isNotEmpty
+                                          ? _activeOrder.customerName
+                                          : t('customer_dropoff'))
+                                      : (_activeOrder.merchantName.isNotEmpty
+                                          ? _activeOrder.merchantName
+                                          : 'چێشتخانە')),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: RC.fg(const Color(0xFF0F172A)),
                                     fontWeight: FontWeight.w900,
-                                    fontSize: 13.5,
+                                    fontSize: 16,
                                   ),
                                 ),
-                                Text(
-                                  tx(t('show_info')),
-                                  style: const TextStyle(
-                                    color: Color(0xFF00E676),
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 11.5,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                color: RC.fg(const Color(0xFF16A34A)),
+                                size: 28,
+                              ),
+                            ],
                           ),
-                          const Icon(
-                            Icons.keyboard_arrow_up_rounded,
-                            color: Colors.white,
-                            size: 24,
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF16A34A),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(28),
+                                ),
+                              ),
+                              onPressed: () =>
+                                  setState(() => _isOrderCardVisible = true),
+                              icon: const Icon(Icons.check_rounded, size: 20),
+                              label: Text(
+                                tx(t('show_info')),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -1679,9 +2134,9 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 ),
               ),
             ),
-          )
-        else
-          // دۆخی چاوەڕوانی: تەنها کاتێک ئادمین داواکاری بۆ ئەم شۆفێرە دەنێرێت دەردەکەوێت
+          ),
+        // بۆکسی داواکاری نوێ — هەمیشە پێش نەخشە (z-order سەرەوە)
+        if (hasOffer)
           Positioned(
             left: padH,
             right: padH,
@@ -1692,101 +2147,41 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 constraints: BoxConstraints(
                   maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 520),
                 ),
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: phone ? 14 : 18,
-                    vertical: phone ? 12 : 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: RC.bg(Colors.white),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: RC.bg(const Color(0xFFE2E8F0)),
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x1F000000),
-                        blurRadius: 18,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: _isOnline
-                              ? const Color(0xFFDCFCE7)
-                              : const Color(0xFFFEE2E2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          _isOnline
-                              ? Icons.radar_rounded
-                              : Icons.power_settings_new_rounded,
-                          color: _isOnline
-                              ? const Color(0xFF16A34A)
-                              : const Color(0xFFDC2626),
-                          size: 21,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              tx(_isOnline
-                                  ? t('waiting_admin_order')
-                                  : t('go_online_for_orders')),
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: phone ? 12.2 : 13.5,
-                                color: RC.fg(const Color(0xFF0F172A)),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              tx(
-                                '${t('today')}: $_completedDeliveriesCount ${t('delivered')} • ${_formatMoney(_todayEarnings)} ${t('iqd')}',
-                              ),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: RC.fg(const Color(0xFF64748B)),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (!_isOnline)
-                        TextButton(
-                          style: TextButton.styleFrom(
-                            backgroundColor: const Color(0xFF16A34A),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                          ),
-                          onPressed:
-                              _onlineToggleBusy ? null : _toggleOnlineStatus,
-                          child: Text(
-                            t('online'),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                    ],
+                child: IncomingOrderOffer(
+                  orderIdLabel: formatOrderCode(_pendingOffer!['id']),
+                  merchant: '${_pendingOffer!['merchant'] ?? ''}',
+                  merchantAddress:
+                      '${_pendingOffer!['merchantAddress'] ?? ''}',
+                  customer: '${_pendingOffer!['customer'] ?? ''}',
+                  customerAddress:
+                      '${_pendingOffer!['customerAddress'] ?? ''}',
+                  deliveryFeeLabel: '${_pendingOffer!['price'] ?? ''}',
+                  totalLabel: '${_pendingOffer!['totalAmount'] ?? _pendingOffer!['price'] ?? ''}',
+                  distanceLabel: _pendingOffer!['distanceLabel']?.toString(),
+                  note: _pendingOffer!['note']?.toString(),
+                  items: ((_pendingOffer!['items'] as List<dynamic>?) ??
+                          const [])
+                      .map((raw) {
+                    final it = Map<String, dynamic>.from(raw as Map);
+                    return (
+                      name: '${it['name'] ?? ''}',
+                      qty: (it['qty'] as num?)?.toInt() ?? 1,
+                      price: '${it['price'] ?? ''}',
+                    );
+                  }).toList(),
+                  secondsLeft: _offerSecondsLeft,
+                  totalSeconds: _offerTimeoutSecs,
+                  busy: _offerActionBusy,
+                  acceptLabel: t('accept_order'),
+                  declineLabel: t('offer_decline'),
+                  pickupLabel: t('merchant_pickup'),
+                  dropoffLabel: t('customer_dropoff'),
+                  feeCaption: t('delivery_fee_label'),
+                  totalCaption: t('order_total'),
+                  noteCaption: t('offer_note'),
+                  onAccept: () => unawaited(_acceptPendingOffer()),
+                  onDecline: () => unawaited(
+                    _declinePendingOffer(askReason: true),
                   ),
                 ),
               ),
@@ -1820,7 +2215,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           Text(t('order_completed'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 4),
           Text(
-            tx('بڕی ${_formatMoney(_activeOrder.totalEarnings)} د.ع زیادکرا بۆ باڵانسەکەت'),
+            tx('بڕی ${formatMoney(_activeOrder.totalEarnings)} د.ع زیادکرا بۆ باڵانسەکەت'),
             style: TextStyle(color: RC.fg(Colors.grey.shade600), fontSize: 13),
           ),
           const SizedBox(height: 14),
@@ -1847,21 +2242,40 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   Future<void> _claimWaitingBonusForActiveOrder() async {
     final dbId = _activeOrder.dbId;
     if (dbId == null) return;
-    final (ok, msg, updated) = await DriverApiService.instance.claimWaitingBonus(dbId);
-    if (!mounted) return;
-    if (ok) {
-      if (updated != null) {
-        setState(() => _applyActiveOrderMap(updated));
-      } else {
-        await _refreshBackendDriverData(silent: true);
-      }
+    final key = _uuid.v4();
+    try {
+      final (ok, msg, updated) = await DriverApiService.instance.claimWaitingBonus(
+        dbId,
+        idempotencyKey: key,
+      );
       if (!mounted) return;
-      _showSuccessSnackBar(msg ?? 'پاداشتی چاوەڕوانی زیادکرا');
-    } else {
+      if (ok) {
+        if (updated != null) {
+          setState(() => _applyActiveOrderMap(updated));
+        } else {
+          await _refreshBackendDriverData(silent: true);
+        }
+        if (!mounted) return;
+        _showSuccessSnackBar(msg ?? 'پاداشتی چاوەڕوانی زیادکرا');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tx(msg ?? 'هێشتا ١٥ خولەک چاوەڕوانیت تەواو نەکردووە')),
+            backgroundColor: RC.bg(const Color(0xFFD97706)),
+          ),
+        );
+      }
+    } on DriverNetworkException {
+      await DriverMutationQueue.instance.enqueue(
+        type: 'waiting_bonus',
+        idempotencyKey: key,
+        payload: {'order_id': dbId, 'waited_minutes': 16},
+      );
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(tx(msg ?? 'هێشتا ١٥ خولەک چاوەڕوانیت تەواو نەکردووە')),
-          backgroundColor: RC.bg(const Color(0xFFD97706)),
+          content: Text(tx(t('mutation_queued'))),
+          backgroundColor: const Color(0xFF1D4ED8),
         ),
       );
     }
@@ -1877,7 +2291,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         backgroundColor: RC.bg(Colors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(
-          tx('داواکاری هەڵوەشاندنەوە / کێشە (${_activeOrder.displayOrderNumber.isNotEmpty ? _activeOrder.displayOrderNumber : _activeOrder.orderNumber})'),
+          tx('داواکاری هەڵوەشاوە'),
+          textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w900,
@@ -1887,8 +2302,13 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         content: TextField(
           controller: reasonCtrl,
           maxLines: 3,
+          textAlign: TextAlign.center,
           decoration: InputDecoration(
-            hintText: tx('هۆکاری کێشەکە بنووسە (بۆ نموونە: کڕیار وەڵام ناداتەوە)...'),
+            hintText: tx('هۆکاری کێشەکە بنوسە'),
+            hintStyle: TextStyle(
+              color: RC.fg(const Color(0xFF94A3B8)),
+              fontWeight: FontWeight.w600,
+            ),
             filled: true,
             fillColor: RC.bg(const Color(0xFFF8FAFC)),
             border: OutlineInputBorder(
@@ -1897,8 +2317,14 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             ),
           ),
         ),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
         actions: [
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF94A3B8),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(tx('پاشگەزبوونەوە')),
           ),
@@ -1917,13 +2343,32 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     final reason = reasonCtrl.text.trim();
     reasonCtrl.dispose();
     if (submitted != true || !mounted) return;
-    final ok = await DriverApiService.instance.requestCancellation(
-      dbId,
-      reason.isEmpty ? 'کڕیار وەڵامی پەیوەندی ناداتەوە' : reason,
-    );
-    if (!mounted) return;
-    if (ok) {
-      _showSuccessSnackBar('داواکارییەکە نێردرا بۆ بەشی چاودێری ئادمین');
+    final key = _uuid.v4();
+    final reasonText =
+        reason.isEmpty ? 'کڕیار وەڵامی پەیوەندی ناداتەوە' : reason;
+    try {
+      final ok = await DriverApiService.instance.requestCancellation(
+        dbId,
+        reasonText,
+        idempotencyKey: key,
+      );
+      if (!mounted) return;
+      if (ok) {
+        _showSuccessSnackBar('داواکارییەکە نێردرا بۆ بەشی چاودێری ئادمین');
+      }
+    } on DriverNetworkException {
+      await DriverMutationQueue.instance.enqueue(
+        type: 'cancel_request',
+        idempotencyKey: key,
+        payload: {'order_id': dbId, 'reason': reasonText},
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tx(t('mutation_queued'))),
+          backgroundColor: const Color(0xFF1D4ED8),
+        ),
+      );
     }
   }
 
@@ -1939,6 +2384,20 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     final cashHand = (_selectedLiveEarnings?['cash_collected_hand'] as num?)?.toInt() ??
         (_driverProfile?['cash_collected_hand'] as num?)?.toInt() ??
         0;
+    final tipsVal = (_selectedLiveEarnings?['customer_tips'] as num?)?.toInt() ??
+        (_selectedLiveEarnings?['tips'] as num?)?.toInt() ??
+        0;
+    final hoursRaw = (_selectedLiveEarnings?['online_hours'] as num?)?.toString() ??
+        (_driverProfile?['online_hours_total'] as num?)?.toString() ??
+        '0';
+    final hours = '$hoursRaw ${t('hours_unit')}';
+
+    void selectPeriod(int index) {
+      setState(() => _selectedEarningsTimeIndex = index);
+      unawaited(
+        _refreshBackendDriverData(silent: true, forceTabScoped: true),
+      );
+    }
 
     return RefreshIndicator(
       color: const Color(0xFF16A34A),
@@ -1950,112 +2409,157 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.symmetric(
               horizontal: RegaResponsive.pagePadding(context),
-              vertical: 16,
+              vertical: 12,
             ),
             children: [
-              // ١. سەردێڕ و دەقی لاوەکی
+              // ١. سەردێڕ + نوێکردنەوە
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Container(
+                    width: 3,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF16A34A),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          t('earnings'),
-                          style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: RC.fg(const Color(0xFF1E293B))),
-                        ),
-                        Text(
-                          tx('Analytics & Live Settlement'),
-                          style: TextStyle(fontSize: 13, color: RC.fg(const Color(0xFF94A3B8)), fontWeight: FontWeight.w600),
-                        ),
-                      ],
+                    child: Text(
+                      t('earnings'),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: RC.fg(const Color(0xFF0F172A)),
+                      ),
                     ),
                   ),
                   IconButton(
                     tooltip: t('data_refreshed'),
-                    onPressed: () => _refreshBackendDriverData(silent: false),
-                    icon: const Icon(Icons.refresh_rounded, color: Color(0xFF16A34A)),
+                    onPressed: () =>
+                        _refreshBackendDriverData(silent: false),
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      size: 22,
+                      color: Color(0xFF16A34A),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 10),
 
-              // ٢. تابی کات (ئەمڕۆ، ئەم هەفتەیە، ئەم مانگە)
+              // ٢. تابی کات — لە RTL: ئەمڕۆ ڕاست، مانگ چەپ
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   color: RC.bg(const Color(0xFFF1F5F9)),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
-                    Expanded(child: _buildTimeTab(t('this_month'), _selectedEarningsTimeIndex == 0, onTap: () => setState(() => _selectedEarningsTimeIndex = 0))),
-                    Expanded(child: _buildTimeTab(t('this_week'), _selectedEarningsTimeIndex == 1, onTap: () => setState(() => _selectedEarningsTimeIndex = 1))),
-                    Expanded(child: _buildTimeTab(t('today'), _selectedEarningsTimeIndex == 2, onTap: () => setState(() => _selectedEarningsTimeIndex = 2))),
+                    // RTL: یەکەم منداڵ دەکەوێتە ڕاست — ئەمڕۆ لای ڕاست
+                    Expanded(
+                      child: _buildTimeTab(
+                        t('today'),
+                        _selectedEarningsTimeIndex == 2,
+                        onTap: () => selectPeriod(2),
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildTimeTab(
+                        t('this_week'),
+                        _selectedEarningsTimeIndex == 1,
+                        onTap: () => selectPeriod(1),
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildTimeTab(
+                        t('this_month'),
+                        _selectedEarningsTimeIndex == 0,
+                        onTap: () => selectPeriod(0),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 12),
 
-              // ٣. کارتی سەرەکی داهات (بەپێی کاتی دیاریکراو دەگۆڕێت)
+              // ٣. کارتی سەرەکی داهات
               _buildMainEarningsCard(),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
 
-              // ٤. بۆکسەکانی بەخشیش و کاتژمێر و جزدان
-              _buildEarningsSecondaryStats(),
-              const SizedBox(height: 14),
+              // ٤. ٢×٢ (بێ ئایکۆن لەبەردەم تێکست)
               Row(
                 children: [
                   Expanded(
                     child: _buildSecondaryStatBox(
-                      icon: Icons.account_balance_wallet_rounded,
-                      iconColor: RC.fg(const Color(0xFF16A34A)),
-                      iconBg: RC.bg(const Color(0xFFDCFCE7)),
-                      title: 'باڵانسی جزدان',
-                      value: '${_formatMoney(walletBal)} ${t('iqd')}',
-                      valueColor: RC.fg(const Color(0xFF16A34A)),
+                      title: t('online_hours'),
+                      value: hours,
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _buildSecondaryStatBox(
-                      icon: Icons.payments_outlined,
-                      iconColor: RC.fg(const Color(0xFFEA580C)),
-                      iconBg: RC.bg(const Color(0xFFFFF7ED)),
-                      title: 'کاشی وەرگیراو لە کڕیار',
-                      value: '${_formatMoney(cashHand)} ${t('iqd')}',
+                      title: t('customer_tip'),
+                      value: '${formatMoney(tipsVal)} ${t('iqd')}',
+                      valueColor: const Color(0xFF16A34A),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildSecondaryStatBox(
+                      title: t('wallet_balance'),
+                      value: '${formatMoney(walletBal)} ${t('iqd')}',
+                      valueColor: const Color(0xFF16A34A),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildSecondaryStatBox(
+                      title: t('cash_from_customer'),
+                      value: '${formatMoney(cashHand)} ${t('iqd')}',
+                      valueColor: const Color(0xFF16A34A),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
 
-              // ٥. سەردێڕی مێژووی داهاتی گەیاندنەکان
+              // ٥. مێژووی داهات
               Text(
                 t('earnings_history'),
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: RC.fg(const Color(0xFF1E293B))),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: RC.fg(const Color(0xFF0F172A)),
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
 
-              // ٦. لیستی داواکارییەکان (لە API history)
               if (historyRows.isNotEmpty)
                 ...historyRows.take(20).map((row) {
                   final m = Map<String, dynamic>.from(row as Map);
                   final id = (m['order_number'] ?? m['id'] ?? '-').toString();
-                  final time = (m['delivered_at'] ?? m['created_at'] ?? m['time'] ?? '')
-                      .toString()
-                      .replaceFirst('T', ' ')
-                      .split('.')
-                      .first;
-                  final earnAmt = (m['driver_total_earning'] as num?)?.toInt() ??
-                      (m['driver_earning'] as num?)?.toInt() ??
-                      (m['delivery_fee'] as num?)?.toInt() ??
-                      0;
-                  final total = '${_formatMoney(earnAmt)} ${t('iqd')}';
+                  final time =
+                      (m['delivered_at'] ?? m['created_at'] ?? m['time'] ?? '')
+                          .toString()
+                          .replaceFirst('T', ' ')
+                          .split('.')
+                          .first;
+                  final earnAmt =
+                      (m['driver_total_earning'] as num?)?.toInt() ??
+                          (m['driver_earning'] as num?)?.toInt() ??
+                          (m['delivery_fee'] as num?)?.toInt() ??
+                          0;
+                  final total = '${formatMoney(earnAmt)} ${t('iqd')}';
                   final orderTotal = (m['total_amount'] as num?)?.toInt() ?? 0;
                   final detail = orderTotal > 0
-                      ? 'کۆی داواکاری: ${_formatMoney(orderTotal)} ${t('iqd')}'
+                      ? 'کۆی داواکاری: ${formatMoney(orderTotal)} ${t('iqd')}'
                       : total;
                   return _buildEarningsHistoryItem(
                     formatOrderCode(id),
@@ -2065,12 +2569,23 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                   );
                 })
               else
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Text(
-                      t('no_orders').contains('no_orders') ? 'هیچ داهاتێک نییە' : t('no_orders'),
-                      style: TextStyle(color: RC.fg(const Color(0xFF94A3B8)), fontWeight: FontWeight.w700),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 18,
+                  ),
+                  decoration: BoxDecoration(
+                    color: RC.bg(Colors.white),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+                  ),
+                  child: Text(
+                    tx(t('no_orders')),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: RC.fg(const Color(0xFF94A3B8)),
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -2096,154 +2611,142 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       label = '${t('total_earnings')} ${t('this_month')}';
     }
     final total = _selectedLiveEarnings != null
-        ? '${_formatMoney((_selectedLiveEarnings!['total_earnings'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
+        ? '${formatMoney((_selectedLiveEarnings!['total_earnings'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
         : '0 ${t('iqd')}';
     final bonus = _selectedLiveEarnings != null
-        ? '${_formatMoney((_selectedLiveEarnings!['bonus'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
+        ? '${formatMoney((_selectedLiveEarnings!['bonus'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
         : '0 ${t('iqd')}';
     final avg = _selectedLiveEarnings != null
-        ? '${_formatMoney((_selectedLiveEarnings!['avg_per_delivery'] as num?)?.toInt() ?? 0)} ${t('iqd')}'
-        : '0 ${t('iqd')}';
+        ? '${formatMoney((_selectedLiveEarnings!['avg_per_delivery'] as num?)?.toInt() ?? 0)}'
+        : '0';
     final count = _selectedLiveEarnings != null
         ? '${_selectedLiveEarnings!['total_deliveries'] ?? 0}'
         : '0';
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
         color: RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: RC.bg(Color(0xFFDCFCE7)), width: 1.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
         boxShadow: [
           BoxShadow(
-            color: RC.bg(Colors.black).withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: RC.bg(Colors.black).withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  tx(label),
-                  style: TextStyle(color: RC.fg(Color(0xFF64748B)), fontSize: 15, fontWeight: FontWeight.w700),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: RC.bg(Color(0xFFF0FDF4)),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(tx('IQD'), style: TextStyle(color: RC.fg(Color(0xFF16A34A)), fontSize: 12, fontWeight: FontWeight.bold)),
-              ),
-            ],
+          Text(
+            tx(label),
+            style: TextStyle(
+              color: RC.fg(const Color(0xFF64748B)),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 3),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: AlignmentDirectional.centerStart,
             child: Text(
               tx(total),
               style: TextStyle(
-                fontSize: RegaResponsive.scale(context, 48),
+                fontSize: RegaResponsive.scale(context, 18),
                 fontWeight: FontWeight.w900,
-                color: RC.fg(Color(0xFF1E293B)),
+                color: RC.fg(const Color(0xFF1D4ED8)),
+                height: 1.05,
               ),
             ),
           ),
-          const SizedBox(height: 24),
-          Divider(height: 1, color: RC.bg(Color(0xFFF1F5F9))),
-          const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final deliveries = Expanded(child: _statItemEarnings(t('total_deliveries'), count));
-              final average = Expanded(child: _statItemEarnings(t('avg_delivery'), avg));
-              final bonusCol = Expanded(child: _statItemEarnings('${t('bonus')} (Bonus)', bonus, isGreen: true));
-              final divider = Container(width: 1, height: 40, color: RC.bg(Color(0xFFF1F5F9)));
-              if (constraints.maxWidth < RegaBreakpoints.phone) {
-                return Column(
-                  children: [
-                    Row(children: [deliveries, divider, average]),
-                    const SizedBox(height: 12),
-                    Row(children: [bonusCol]),
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  deliveries,
-                  divider,
-                  average,
-                  divider,
-                  bonusCol,
-                ],
-              );
-            },
+          const SizedBox(height: 6),
+          Divider(height: 1, color: RC.bg(const Color(0xFFF1F5F9))),
+          const SizedBox(height: 6),
+          // RTL: یەکەم ڕاست — کۆی گەیاندن ڕاست، تێکرا چەپ (وەک وێنەکە)
+          Row(
+            children: [
+              Expanded(
+                child: _statItemEarnings(t('total_deliveries'), count),
+              ),
+              Container(
+                width: 1,
+                height: 26,
+                color: RC.bg(const Color(0xFFF1F5F9)),
+              ),
+              Expanded(
+                child: _statItemEarnings(t('avg_delivery'), avg),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: RC.bg(const Color(0xFFF8FAFC)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    tx('${t('bonus')} (Bonus)'),
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      color: RC.fg(const Color(0xFF64748B)),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Text(
+                  tx(bonus),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: RC.fg(const Color(0xFF16A34A)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEarningsSecondaryStats() {
-    final hours = '${(_selectedLiveEarnings?['online_hours'] as num?)?.toString() ?? (_driverProfile?['online_hours_total'] as num?)?.toString() ?? '0'} ${t('hours').contains('hours') ? 'کاتژمێر' : t('hours')}';
-    final tipsVal = (_selectedLiveEarnings?['customer_tips'] as num?)?.toInt() ??
-        (_selectedLiveEarnings?['tips'] as num?)?.toInt() ??
-        0;
-    final tips = '${_formatMoney(tipsVal)} ${t('iqd')}';
-
-    return Row(
-      children: [
-        Expanded(
-          child: _buildSecondaryStatBox(
-            icon: Icons.timer_outlined,
-            iconColor: RC.fg(Color(0xFF3B82F6)),
-            iconBg: RC.bg(Color(0xFFEFF6FF)),
-            title: t('online_hours'),
-            value: hours,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildSecondaryStatBox(
-            icon: Icons.emoji_events_outlined,
-            iconColor: RC.fg(Color(0xFFF59E0B)),
-            iconBg: RC.bg(Color(0xFFFFFBEB)),
-            title: t('customer_tip'),
-            value: tips,
-            valueColor: RC.fg(Color(0xFF16A34A)),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildTimeTab(String label, bool isSelected, {VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? RC.bg(Colors.white) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
+          color: isSelected ? const Color(0xFF16A34A) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
           boxShadow: isSelected
-              ? [BoxShadow(color: RC.bg(Colors.black).withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withOpacity(0.28),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
               : null,
         ),
         child: Center(
           child: Text(
             tx(label),
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 11,
               fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-              color: isSelected ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFF64748B)),
+              color: isSelected
+                  ? Colors.white
+                  : RC.fg(const Color(0xFF64748B)),
             ),
           ),
         ),
@@ -2252,45 +2755,49 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   }
 
   Widget _buildSecondaryStatBox({
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBg,
     required String title,
     required String value,
     Color? valueColor,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
       decoration: BoxDecoration(
         color: RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
         boxShadow: [
-          BoxShadow(color: RC.bg(Colors.black).withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 5)),
+          BoxShadow(
+            color: RC.bg(Colors.black).withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
-            child: Icon(icon, color: iconColor, size: 24),
-          ),
-          const SizedBox(height: 12),
           Text(
             tx(title),
-            textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontSize: 10.5,
+              color: RC.fg(const Color(0xFF64748B)),
+              fontWeight: FontWeight.w700,
+              height: 1.25,
+            ),
           ),
           const SizedBox(height: 6),
           FittedBox(
             fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
             child: Text(
               tx(value),
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: valueColor ?? RC.bg(Color(0xFF1E293B))),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                color: valueColor ?? RC.fg(const Color(0xFF0F172A)),
+              ),
             ),
           ),
         ],
@@ -2301,14 +2808,25 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   Widget _statItemEarnings(String title, String val, {bool isGreen = false}) {
     return Column(
       children: [
-        Text(tx(title), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
+        Text(
+          tx(title),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 9,
+            color: RC.fg(const Color(0xFF94A3B8)),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 2),
         Text(
           tx(val),
+          textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 12,
             fontWeight: FontWeight.w900,
-            color: isGreen ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFF1E293B)),
+            color: isGreen
+                ? RC.fg(const Color(0xFF16A34A))
+                : RC.fg(const Color(0xFF0F172A)),
           ),
         ),
       ],
@@ -2378,7 +2896,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     );
   }
 
-  // لاپەڕەی پڕۆفایل (Profile Screen) ڕێک وەک وێنەکە
+  // لاپەڕەی پڕۆفایل — ناڤباری سەرەوە دستنەدراو
   Widget _buildProfileScreen() {
     return Center(
       child: ConstrainedBox(
@@ -2389,151 +2907,218 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             vertical: 16,
           ),
           children: [
-            // ١. کارتی زانیاری کەسی (Header Card)
             _buildProfileHeaderCard(),
-            const SizedBox(height: 16),
-
-            // ٢. کارتی زانیاری ماتۆڕسکل
+            const SizedBox(height: 14),
             _buildMotorcycleInfoCard(),
-            const SizedBox(height: 16),
-
-            // ٣. کارتی بەڵگەنامە یاساییەکان
-            _buildLegalDocumentsCard(),
-            const SizedBox(height: 16),
-
-            // ٤. کارتی زمانەکان
-            _buildLanguageSelectionCard(),
-            const SizedBox(height: 16),
-            _buildThemeSelectionCard(),
-            const SizedBox(height: 16),
-
-            // ٥. پشتیوانی خێرای شۆفێران
+            const SizedBox(height: 14),
+            _buildBalanceInfoCard(),
+            const SizedBox(height: 14),
+            _buildSettingsCard(),
+            const SizedBox(height: 14),
             _buildSupportTile(),
-            const SizedBox(height: 16),
-
-            // ٦. دوگمەی چوونەدەرەوە
+            const SizedBox(height: 14),
             _buildLogoutButton(),
             const SizedBox(height: 28),
             Center(
               child: Image.asset(
                 RC.isDark ? 'assets1/logo2_dark.png' : 'assets1/logo2.png',
-                height: 48,
+                height: 44,
                 fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                errorBuilder: (context, error, stackTrace) =>
+                    const SizedBox.shrink(),
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 36),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildProfileSectionCard({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(
+        color: RC.bg(Colors.white),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+        boxShadow: [
+          BoxShadow(
+            color: RC.bg(Colors.black).withOpacity(0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            tx(title),
+            textAlign: TextAlign.start,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: RC.fg(const Color(0xFF0F172A)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileKvRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              tx(label),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: RC.fg(const Color(0xFF64748B)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              tx(value),
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: valueColor ?? RC.fg(const Color(0xFF0F172A)),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildProfileHeaderCard() {
+    final name =
+        (_driverProfile?['user']?['name'] ?? _driverProfile?['name'] ?? '-')
+            .toString();
+    final phone = (_driverProfile?['user']?['phone'] ??
+            _driverProfile?['phone'] ??
+            widget.driverPhone)
+        .toString();
+    final code = (_driverProfile?['driver_code'] ?? '-').toString();
+    final rating = (_driverProfile?['rating'] ?? 0).toString();
+    final deliveries = (_driverProfile?['total_deliveries'] ?? 0).toString();
+    final completion = '${_driverProfile?['completion_rate'] ?? 0}%';
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
       decoration: BoxDecoration(
         color: RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
         boxShadow: [
           BoxShadow(
             color: RC.bg(Colors.black).withOpacity(0.03),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Column(
         children: [
-          // وێنەی پڕۆفایل و باجی پشتڕاستکردنەوە
           Stack(
+            clipBehavior: Clip.none,
             children: [
               Container(
-                width: 110,
-                height: 110,
+                width: 88,
+                height: 88,
                 decoration: BoxDecoration(
-                  color: RC.bg(Colors.white),
-                  borderRadius: BorderRadius.circular(36),
-                  border: Border.all(color: RC.bg(Color(0xFF22C55E)), width: 3),
+                  color: RC.bg(const Color(0xFFF0FDF4)),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF22C55E),
+                    width: 2.5,
+                  ),
                 ),
-                child: Icon(Icons.person_rounded, size: 64, color: RC.fg(Color(0xFF16A34A))),
+                child: Icon(
+                  Icons.person_rounded,
+                  size: 48,
+                  color: RC.fg(const Color(0xFF16A34A)),
+                ),
               ),
               Positioned(
-                bottom: 0,
-                left: 0,
+                bottom: 2,
+                left: 2,
                 child: Container(
-                  padding: const EdgeInsets.all(6),
+                  width: 22,
+                  height: 22,
                   decoration: BoxDecoration(
-                    color: RC.bg(Color(0xFF16A34A)),
+                    color: const Color(0xFF16A34A),
                     shape: BoxShape.circle,
-                    border: Border.all(color: RC.bg(Colors.white), width: 2),
+                    border: Border.all(color: Colors.white, width: 2),
                   ),
-                  child: Icon(Icons.check, color: RC.fg(Colors.white), size: 14),
+                  child: const Icon(Icons.check, color: Colors.white, size: 12),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              tx((_driverProfile?['user']?['name'] ?? _driverProfile?['name'] ?? '-').toString()),
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
+          const SizedBox(height: 14),
+          Text(
+            tx(name),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              color: RC.fg(const Color(0xFF0F172A)),
             ),
           ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: RC.bg(Color(0xFFF1F5F9)), borderRadius: BorderRadius.circular(8)),
-                  child: Text(
-                    tx((_driverProfile?['driver_code'] ?? '-').toString()),
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: RC.fg(Color(0xFF64748B))),
-                  ),
-                ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: RC.bg(const Color(0xFFF1F5F9)),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Text(
+              tx('$phone  •  $code'),
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: RC.fg(const Color(0xFF64748B)),
               ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: Text(tx('•'), style: TextStyle(color: RC.fg(Color(0xFFCBD5E1)))),
-              ),
-              Flexible(
-                child: Text(
-                  tx((_driverProfile?['user']?['phone'] ?? _driverProfile?['phone'] ?? widget.driverPhone).toString()),
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: RC.fg(Color(0xFF64748B)), fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 28),
-          // ئامارە خێراکان
+          const SizedBox(height: 18),
           Row(
             children: [
               Expanded(
-                child: _buildHeaderStat(
-                  'تەواوکردن',
-                  '${_driverProfile?['completion_rate'] ?? 0}%',
-                  valueColor: RC.fg(Color(0xFF16A34A)),
-                ),
+                child: _buildHeaderStat(t('rating'), rating),
               ),
-              const SizedBox(width: 12),
+              Container(
+                width: 1,
+                height: 44,
+                color: RC.bg(const Color(0xFFE2E8F0)),
+              ),
+              Expanded(
+                child: _buildHeaderStat(t('orders'), deliveries),
+              ),
+              Container(
+                width: 1,
+                height: 44,
+                color: RC.bg(const Color(0xFFE2E8F0)),
+              ),
               Expanded(
                 child: _buildHeaderStat(
-                  'کۆی گەیاندن',
-                  '${_driverProfile?['total_deliveries'] ?? 0}',
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildHeaderStat(
-                  'هەڵسەنگاندن',
-                  '${_driverProfile?['rating'] ?? 0}',
-                  isRating: true,
+                  t('completion'),
+                  completion,
+                  valueColor: const Color(0xFF16A34A),
                 ),
               ),
             ],
@@ -2543,365 +3128,189 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     );
   }
 
-  Widget _buildHeaderStat(String label, String value, {Color? valueColor, bool isRating = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: RC.bg(Color(0xFFF8FAFC)),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(tx(label), style: TextStyle(fontSize: 11, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600)),
+  Widget _buildHeaderStat(String label, String value, {Color? valueColor}) {
+    return Column(
+      children: [
+        Text(
+          tx(value),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+            color: valueColor ?? RC.fg(const Color(0xFF0F172A)),
           ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (isRating) ...[
-                Icon(Icons.star_rounded, color: RC.fg(Color(0xFFF59E0B)), size: 20),
-                const SizedBox(width: 4),
-              ],
-              Flexible(
-                child: Text(
-                  tx(value),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: isRating ? RC.bg(Color(0xFFF59E0B)) : (valueColor ?? RC.bg(Color(0xFF1E293B))),
-                  ),
-                ),
-              ),
-            ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          tx(label),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: RC.fg(const Color(0xFF94A3B8)),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildMotorcycleInfoCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [
-          BoxShadow(
-            color: RC.bg(Colors.black).withOpacity(0.03),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: RC.bg(Color(0xFFDCFCE7)), borderRadius: BorderRadius.circular(100)),
-                child: Text(t('verified'), style: TextStyle(color: RC.fg(Color(0xFF16A34A)), fontSize: 12, fontWeight: FontWeight.bold)),
-              ),
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        t('motor_info'),
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(Icons.two_wheeler_rounded, color: RC.fg(Color(0xFF16A34A)), size: 24),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final cols = constraints.maxWidth < 360 ? 1 : 2;
-              return GridView.count(
-                crossAxisCount: cols,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: cols == 1 ? 3.2 : 2.0,
-                children: [
-                  _buildMotorStatItem(t('motor_type'), (_driverProfile?['motor_type'] ?? '-').toString()),
-                  _buildMotorStatItem(t('motor_id'), (_driverProfile?['plate_number'] ?? '-').toString()),
-                  _buildMotorStatItem(t('motor_model'), (_driverProfile?['model_year'] ?? '-').toString()),
-                  _buildMotorStatItem(t('motor_color'), (_driverProfile?['motor_color'] ?? '-').toString()),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMotorStatItem(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: RC.bg(Color(0xFFF8FAFC)),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            tx(label),
-            style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.bold),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                tx(value),
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLegalDocumentsCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const Spacer(),
-              Text(t('legal_docs'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B)))),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: RC.bg(Color(0xFFEFF6FF)), shape: BoxShape.circle),
-                child: Icon(Icons.assignment_rounded, color: RC.fg(Color(0xFF3B82F6)), size: 24),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _buildDocumentItem(widget.currentLocale == 'ku' ? 'ناسنامەی باری شارستانی / کارتی نیشتمانی' : (widget.currentLocale == 'ar' ? 'البطاقة الوطنية' : 'National ID Card')),
-          _buildDocumentItem(widget.currentLocale == 'ku' ? 'مۆڵەتی شۆفێری ماتۆڕسکل' : (widget.currentLocale == 'ar' ? 'رخصة القيادة' : 'Driver License')),
-          _buildDocumentItem(widget.currentLocale == 'ku' ? 'بەڵگەی خاوەندارییەتی ماتۆڕ (ساڵانە)' : (widget.currentLocale == 'ar' ? 'سنوية الدراجة' : 'Motorcycle Registration')),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDocumentItem(String title) {
-    return InkWell(
-      onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tx('Viewing $title')))),
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: RC.bg(Color(0xFFF8FAFC)),
-          borderRadius: BorderRadius.circular(20),
+    return _buildProfileSectionCard(
+      title: t('motor_info'),
+      children: [
+        _buildProfileKvRow(
+          t('motor_id'),
+          (_driverProfile?['plate_number'] ?? '-').toString(),
         ),
-        child: Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: RC.fg(Color(0xFF22C55E)), size: 22),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                tx(title),
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF1E293B))),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: RC.bg(Color(0xFFDCFCE7)),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: Text(
-                  t('verified'),
-                  style: TextStyle(color: RC.fg(Color(0xFF16A34A)), fontSize: 11, fontWeight: FontWeight.bold),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-          ],
+        Divider(height: 1, color: RC.bg(const Color(0xFFF1F5F9))),
+        _buildProfileKvRow(
+          t('motor_type'),
+          (_driverProfile?['motor_type'] ?? '-').toString(),
         ),
-      ),
+        Divider(height: 1, color: RC.bg(const Color(0xFFF1F5F9))),
+        _buildProfileKvRow(
+          t('motor_color'),
+          (_driverProfile?['motor_color'] ?? '-').toString(),
+        ),
+        Divider(height: 1, color: RC.bg(const Color(0xFFF1F5F9))),
+        _buildProfileKvRow(
+          t('motor_model'),
+          (_driverProfile?['model_year'] ?? '-').toString(),
+        ),
+      ],
     );
   }
 
-  Widget _buildThemeSelectionCard() {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.35)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: widget.isDark ? RC.bg(Color(0xFF1E293B)) : RC.bg(Color(0xFFDCFCE7)),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: Text(
-                  tx(widget.isDark ? t('dark_mode') : t('light_mode')),
-                  style: TextStyle(
-                    color: widget.isDark ? RC.bg(Color(0xFF00E676)) : RC.bg(Color(0xFF16A34A)),
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Text(t('theme'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: theme.colorScheme.onSurface)),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: widget.isDark ? RC.bg(Color(0xFF1E293B)) : RC.bg(Color(0xFFF0FDF4)),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  widget.isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                  color: RC.fg(Color(0xFF16A34A)),
-                  size: 24,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              tx(widget.isDark ? t('dark_mode') : t('light_mode')),
-              style: TextStyle(fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface),
-            ),
-            value: widget.isDark,
-            activeColor: RC.bg(Color(0xFF00E676)),
-            onChanged: widget.onThemeChanged,
-          ),
-        ],
-      ),
+  Widget _buildBalanceInfoCard() {
+    final walletBal =
+        (_driverProfile?['wallet_balance'] as num?)?.toInt() ?? 0;
+    final cashHand =
+        (_driverProfile?['cash_collected_hand'] as num?)?.toInt() ?? 0;
+    final lifetime =
+        (_driverProfile?['lifetime_earnings'] as num?)?.toInt() ??
+            (_driverProfile?['total_earnings'] as num?)?.toInt() ??
+            _todayEarnings;
+
+    return _buildProfileSectionCard(
+      title: t('balance_section'),
+      children: [
+        _buildProfileKvRow(
+          t('total_earnings'),
+          '${formatMoney(lifetime)} ${t('iqd')}',
+          valueColor: const Color(0xFF16A34A),
+        ),
+        Divider(height: 1, color: RC.bg(const Color(0xFFF1F5F9))),
+        _buildProfileKvRow(
+          t('cash_on_hand'),
+          '${formatMoney(cashHand)} ${t('iqd')}',
+          valueColor: const Color(0xFF16A34A),
+        ),
+        Divider(height: 1, color: RC.bg(const Color(0xFFF1F5F9))),
+        _buildProfileKvRow(
+          t('wallet_balance'),
+          '${formatMoney(walletBal)} ${t('iqd')}',
+          valueColor: const Color(0xFF16A34A),
+        ),
+      ],
     );
   }
 
-  Widget _buildLanguageSelectionCard() {
+  Widget _buildSettingsCard() {
     String currentLangName = 'کوردی';
     if (widget.currentLocale == 'ar') currentLangName = 'العربية';
     if (widget.currentLocale == 'en') currentLangName = 'English';
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
-      ),
-      child: Column(
-        children: [
-          Row(
+    return _buildProfileSectionCard(
+      title: t('settings'),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                tx(t('theme')),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: RC.fg(const Color(0xFF64748B)),
+                ),
+              ),
+            ),
+            Switch.adaptive(
+              value: widget.isDark,
+              activeColor: const Color(0xFF16A34A),
+              onChanged: widget.onThemeChanged,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              tx(widget.isDark ? t('dark_mode') : t('light_mode')),
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: RC.fg(const Color(0xFF0F172A)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Divider(height: 1, color: RC.bg(const Color(0xFFF1F5F9))),
+        const SizedBox(height: 10),
+        Text(
+          tx(t('languages')),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: RC.fg(const Color(0xFF64748B)),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: RC.bg(const Color(0xFFF1F5F9)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: RC.bg(Color(0xFFDCFCE7)), borderRadius: BorderRadius.circular(100)),
-                child: Text(tx(currentLangName), style: TextStyle(color: RC.fg(Color(0xFF16A34A)), fontSize: 13, fontWeight: FontWeight.bold)),
-              ),
-              const Spacer(),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(t('languages'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B)))),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: RC.bg(Color(0xFFF0FDF4)), shape: BoxShape.circle),
-                    child: Icon(Icons.language_rounded, color: RC.fg(Color(0xFF16A34A)), size: 24),
-                  ),
-                ],
-              ),
+              Expanded(child: _buildLangOption('English', 'en')),
+              Expanded(child: _buildLangOption('العربية', 'ar')),
+              Expanded(child: _buildLangOption('کوردی', 'ku')),
             ],
           ),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: RC.bg(Color(0xFFF1F5F9)), borderRadius: BorderRadius.circular(20)),
-            child: Row(
-              children: [
-                Expanded(child: _buildLangOption('English', 'en')),
-                Expanded(child: _buildLangOption('العربية', 'ar')),
-                Expanded(child: _buildLangOption('کوردی', 'ku')),
-              ],
-            ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          tx(currentLangName),
+          textAlign: TextAlign.end,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: RC.fg(const Color(0xFF94A3B8)),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildLangOption(String label, String langCode) {
-    bool isSelected = widget.currentLocale == langCode;
+    final isSelected = widget.currentLocale == langCode;
     return InkWell(
       onTap: () => widget.onLanguageChange(langCode),
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? RC.bg(Colors.white) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: isSelected ? [BoxShadow(color: RC.bg(Colors.black).withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))] : null,
+          color: isSelected ? const Color(0xFF16A34A) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Center(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    tx(label),
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                      color: isSelected ? RC.bg(Color(0xFF16A34A)) : RC.bg(Color(0xFF64748B)),
-                    ),
-                  ),
-                  if (isSelected) ...[
-                    const SizedBox(width: 6),
-                    Icon(Icons.circle, color: RC.fg(Color(0xFF16A34A)), size: 6),
-                  ],
-                ],
-              ),
+          child: Text(
+            tx(label),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+              color: isSelected
+                  ? Colors.white
+                  : RC.fg(const Color(0xFF64748B)),
             ),
           ),
         ),
@@ -2912,24 +3321,32 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   Widget _buildSupportTile() {
     return InkWell(
       onTap: () => _showSupportBottomSheet(),
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
           color: RC.bg(Colors.white),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
         ),
         child: Row(
           children: [
-            Icon(widget.currentLocale == 'en' ? Icons.arrow_forward_ios_rounded : Icons.arrow_back_ios_new_rounded, size: 16, color: RC.fg(Color(0xFF94A3B8))),
-            const Spacer(),
-            Text(t('support'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF1E293B)))),
-            const SizedBox(width: 16),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: RC.bg(Color(0xFFF0FDF4)), shape: BoxShape.circle),
-              child: Icon(Icons.help_outline_rounded, color: RC.fg(Color(0xFF16A34A)), size: 24),
+            Expanded(
+              child: Text(
+                t('support'),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: RC.fg(const Color(0xFF0F172A)),
+                ),
+              ),
+            ),
+            Icon(
+              widget.currentLocale == 'en'
+                  ? Icons.arrow_forward_ios_rounded
+                  : Icons.arrow_back_ios_new_rounded,
+              size: 14,
+              color: RC.fg(const Color(0xFF94A3B8)),
             ),
           ],
         ),
@@ -2982,20 +3399,28 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       children: [
                         FittedBox(
                           fit: BoxFit.scaleDown,
-                          child: Text(t('support_title'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B)))),
+                          child: Text(
+                            t('support_title'),
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: RC.fg(const Color(0xFF1E293B)),
+                            ),
+                          ),
                         ),
                         FittedBox(
                           fit: BoxFit.scaleDown,
-                          child: Text(t('support_subtitle'), style: TextStyle(fontSize: 12, color: RC.fg(Color(0xFF94A3B8)), fontWeight: FontWeight.w600)),
+                          child: Text(
+                            t('support_subtitle'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: RC.fg(const Color(0xFF94A3B8)),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: RC.bg(Color(0xFFF0FDF4)), shape: BoxShape.circle),
-                    child: Icon(Icons.help_outline_rounded, color: RC.fg(Color(0xFF16A34A)), size: 24),
                   ),
                 ],
               ),
@@ -3042,20 +3467,14 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  t('emergency_title'),
-                                  textAlign: TextAlign.end,
-                                  style: TextStyle(color: RC.fg(Color(0xFF991B1B)), fontWeight: FontWeight.w900, fontSize: 14),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(Icons.error_outline_rounded, color: RC.fg(Color(0xFF991B1B)), size: 16),
-                            ],
+                          Text(
+                            t('emergency_title'),
+                            textAlign: TextAlign.end,
+                            style: TextStyle(
+                              color: RC.fg(const Color(0xFF991B1B)),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -3082,34 +3501,27 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 ),
                 child: Column(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            t('hotline_title'),
-                            textAlign: TextAlign.end,
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B))),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: RC.bg(Color(0xFFF0FDF4)), shape: BoxShape.circle),
-                          child: Icon(Icons.phone_outlined, color: RC.fg(Color(0xFF16A34A)), size: 24),
-                        ),
-                      ],
+                    Text(
+                      t('hotline_title'),
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: RC.fg(const Color(0xFF1E293B)),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton.icon(
+                      child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: RC.bg(Color(0xFF16A34A)),
+                          backgroundColor: RC.bg(const Color(0xFF16A34A)),
                           foregroundColor: RC.fg(Colors.white),
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                         onPressed: () {
                           final hotline = (_supportContacts['support_phone'] ??
@@ -3119,10 +3531,12 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                               .replaceAll(' ', '');
                           launchUrl(Uri.parse('tel:$hotline'));
                         },
-                        icon: const Icon(Icons.phone_in_talk_rounded),
-                        label: Text(
+                        child: Text(
                           tx('${t('hotline_btn')} : ${_supportContacts['support_phone'] ?? '0750 000 9372'}'),
-                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ),
@@ -3173,24 +3587,23 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   Widget _buildLogoutButton() {
     return InkWell(
       onTap: () => widget.onLogout(),
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         width: double.infinity,
-        height: 64,
+        height: 54,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: RC.bg(Color(0xFFEF4444)),
-          borderRadius: BorderRadius.circular(24),
+          color: RC.bg(const Color(0xFFFEE2E2)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: RC.bg(const Color(0xFFFECACA))),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              t('logout'),
-              style: TextStyle(color: RC.fg(Colors.white), fontSize: 18, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(width: 12),
-            Icon(Icons.logout_rounded, color: RC.fg(Colors.white), size: 22),
-          ],
+        child: Text(
+          t('logout'),
+          style: TextStyle(
+            color: RC.fg(const Color(0xFFDC2626)),
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
         ),
       ),
     );
@@ -3276,15 +3689,6 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                           ),
                           child: Row(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: RC.bg(Color(0xFFF0FDF4)),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Icon(Icons.shopping_basket_outlined, color: RC.fg(Color(0xFF16A34A)), size: 24),
-                              ),
-                              const SizedBox(width: 16),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3356,8 +3760,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   // لاپەڕەی لیستی داواکارییەکان (Orders List Screen)
   Widget _buildOrdersListScreen() {
     final allCount = _allOrdersData.length;
-    final activeCount =
-        _allOrdersData.where((o) => o['statusType'] == 'active').length;
+    final availableCount =
+        _allOrdersData.where((o) => o['statusType'] == 'available').length;
     final deliveredCount =
         _allOrdersData.where((o) => o['statusType'] == 'delivered').length;
     final cancelledCount =
@@ -3470,8 +3874,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                     ),
                     const SizedBox(width: 8),
                     _buildFilterChip(
-                      t('status_on_way'),
-                      '$activeCount',
+                      t('status_available'),
+                      '$availableCount',
                       _selectedFilterIndex == 1,
                       onTap: () => setState(() => _selectedFilterIndex = 1),
                     ),
@@ -3516,12 +3920,47 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
-                                  t('no_orders'),
+                                  tx(_selectedFilterIndex == 1
+                                      ? t('no_available_orders')
+                                      : t('no_orders')),
                                   style: TextStyle(
                                     color: RC.fg(Colors.grey.shade500),
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
+                                if (!_isOnline) ...[
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    tx(t('go_online_hint')),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: RC.fg(Colors.grey.shade400),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  TextButton(
+                                    onPressed: _onlineToggleBusy
+                                        ? null
+                                        : _toggleOnlineStatus,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: const Color(0xFF16A34A),
+                                    ),
+                                    child: Text(tx(t('online'))),
+                                  ),
+                                ] else if (!_locationTrusted) ...[
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    tx(t('gps_missing_online_warn')),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: RC.fg(Colors.grey.shade400),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -3537,52 +3976,68 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                             tablet: 2,
                             desktop: 2,
                           );
+                          Widget cardFor(Map<String, dynamic> order) {
+                            final isAvailable =
+                                order['statusType'] == 'available';
+                            return _buildListOrderCard(
+                              id: order['id'],
+                              merchant: order['merchant'],
+                              customer: order['customer'],
+                              status: t(order['statusKey']),
+                              price: order['price'],
+                              totalAmount:
+                                  order['totalAmount']?.toString() ??
+                                      order['price']?.toString() ??
+                                      '',
+                              time: order['time'],
+                              statusColor: order['statusColor'],
+                              statusBg: order['statusBg'],
+                              onTap: () => _showOrderDetailsModal(order),
+                              trailingAction: isAvailable
+                                  ? _buildAcceptOrderButton(order)
+                                  : null,
+                            );
+                          }
+
+                          // Content-height cards (no fixed aspect ratio = no empty space).
                           if (cols >= 2) {
-                            return GridView.builder(
+                            final rows = <Widget>[];
+                            for (var i = 0; i < filtered.length; i += cols) {
+                              final slice = filtered.skip(i).take(cols).toList();
+                              rows.add(
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: i + cols < filtered.length ? 10 : 0,
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      for (var j = 0; j < cols; j++) ...[
+                                        if (j > 0) const SizedBox(width: 10),
+                                        Expanded(
+                                          child: j < slice.length
+                                              ? cardFor(slice[j])
+                                              : const SizedBox.shrink(),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                            return ListView(
                               physics: const AlwaysScrollableScrollPhysics(),
                               padding: EdgeInsets.all(pad),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: cols,
-                                crossAxisSpacing: 14,
-                                mainAxisSpacing: 14,
-                                childAspectRatio: 1.65,
-                              ),
-                              itemCount: filtered.length,
-                              itemBuilder: (context, index) {
-                                final order = filtered[index];
-                                return _buildListOrderCard(
-                                  id: order['id'],
-                                  merchant: order['merchant'],
-                                  customer: order['customer'],
-                                  status: t(order['statusKey']),
-                                  price: order['price'],
-                                  time: order['time'],
-                                  statusColor: order['statusColor'],
-                                  statusBg: order['statusBg'],
-                                  onTap: () => _showOrderDetailsModal(order),
-                                );
-                              },
+                              children: rows,
                             );
                           }
                           return ListView.builder(
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: EdgeInsets.all(pad),
                             itemCount: filtered.length,
-                            itemBuilder: (context, index) {
-                              final order = filtered[index];
-                              return _buildListOrderCard(
-                                id: order['id'],
-                                merchant: order['merchant'],
-                                customer: order['customer'],
-                                status: t(order['statusKey']),
-                                price: order['price'],
-                                time: order['time'],
-                                statusColor: order['statusColor'],
-                                statusBg: order['statusBg'],
-                                onTap: () => _showOrderDetailsModal(order),
-                              );
-                            },
+                            itemBuilder: (context, index) =>
+                                cardFor(filtered[index]),
                           );
                         },
                       ),
@@ -3594,8 +4049,48 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     );
   }
 
+  Widget _buildModalGridCell({
+    required String label,
+    required String value,
+    bool emphasize = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            tx(label),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: RC.fg(const Color(0xFF94A3B8)),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            tx(value),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: emphasize ? 13 : 12,
+              fontWeight: FontWeight.w900,
+              color: RC.fg(
+                emphasize ? const Color(0xFF16A34A) : const Color(0xFF0F172A),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showOrderDetailsModal(Map<String, dynamic> order) {
     final isActive = order['statusType'] == 'active';
+    final isAvailable = order['statusType'] == 'available';
+    final divider = BorderSide(color: RC.bg(const Color(0xFFE2E8F0)), width: 1);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -3606,20 +4101,34 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
             maxWidth: RegaResponsive.dialogMaxWidth(ctx, cap: 540),
           ),
           child: Container(
-            padding: const EdgeInsets.all(22),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
             decoration: BoxDecoration(
               color: RC.bg(Colors.white),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Text(
+                        formatOrderCode(order['id']),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: RC.fg(const Color(0xFF0F172A)),
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: order['statusBg'] as Color?,
                         borderRadius: BorderRadius.circular(100),
@@ -3627,59 +4136,103 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       child: Text(
                         tx(t(order['statusKey'].toString())),
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w900,
                           color: order['statusColor'] as Color?,
                         ),
                       ),
                     ),
-                    Directionality(
-                      textDirection: TextDirection.ltr,
-                      child: Text(
-                        formatOrderCode(order['id']),
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          color: RC.fg(const Color(0xFF0F172A)),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  tx('فرۆشگا: ${order['merchant']} (${order['merchantAddress'] ?? ''})'),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                    color: RC.fg(const Color(0xFF0F172A)),
+                const SizedBox(height: 12),
+                // ٢×٢ وەک وێنەی ٢: کڕیار | فرۆشیار / کۆی گشتی | کرێی گەیاندن
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      IntrinsicHeight(
+                        child: Row(
+                          textDirection: TextDirection.rtl,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // RTL: یەکەم = ڕاست → فرۆشیار ڕاست، کڕیار چەپ (وەک وێنە)
+                            Expanded(
+                              child: _buildModalGridCell(
+                                label: t('label_seller'),
+                                value: '${order['merchant'] ?? ''}',
+                              ),
+                            ),
+                            VerticalDivider(width: 1, thickness: 1, color: divider.color),
+                            Expanded(
+                              child: _buildModalGridCell(
+                                label: t('label_customer'),
+                                value: '${order['customer'] ?? ''}',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Divider(height: 1, thickness: 1, color: divider.color),
+                      IntrinsicHeight(
+                        child: Row(
+                          textDirection: TextDirection.rtl,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: _buildModalGridCell(
+                                label: t('delivery_fee_label'),
+                                value: '${order['price'] ?? ''}',
+                                emphasize: true,
+                              ),
+                            ),
+                            VerticalDivider(width: 1, thickness: 1, color: divider.color),
+                            Expanded(
+                              child: _buildModalGridCell(
+                                label: t('order_total'),
+                                value: '${order['totalAmount'] ?? order['price'] ?? ''}',
+                                emphasize: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  tx('کڕیار: ${order['customer']} (${order['customerAddress'] ?? ''})'),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13.5,
-                    color: RC.fg(const Color(0xFF475569)),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  tx('هەقی گەیاندن: ${order['price']} • کۆی گشتی: ${order['totalAmount'] ?? order['price']}'),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14,
-                    color: Color(0xFF16A34A),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                if (isActive)
+                const SizedBox(height: 14),
+                if (isAvailable)
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF16A34A),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      unawaited(_claimAvailableOrder(order));
+                    },
+                    icon: const Icon(Icons.check_circle_rounded, size: 18),
+                    label: Text(
+                      tx(t('accept_order')),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
+                    ),
+                  )
+                else if (isActive)
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF16A34A),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -3689,10 +4242,13 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       setState(() => _isOrderCardVisible = true);
                       _goTab(0);
                     },
-                    icon: const Icon(Icons.map_rounded),
+                    icon: const Icon(Icons.map_rounded, size: 18),
                     label: Text(
                       tx('پیشاندان لەسەر نەخشەی زیندوو'),
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
                     ),
                   )
                 else
@@ -3708,19 +4264,70 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     );
   }
 
+  Widget _buildAcceptOrderButton(Map<String, dynamic> order) {
+    final dbId = order['dbId'] as int?;
+    final busy = dbId != null && _claimingOrderId == dbId;
+    return SizedBox(
+      width: double.infinity,
+      height: 42,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF16A34A),
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFF86EFAC),
+          disabledForegroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        onPressed: busy ? null : () => unawaited(_claimAvailableOrder(order)),
+        icon: busy
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.check_circle_rounded, size: 18),
+        label: Text(
+          tx(busy ? t('accepting_order') : t('accept_order')),
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 12.5,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFilterChip(String label, String count, bool isSelected, {bool isDanger = false, VoidCallback? onTap}) {
+    final selectedBg = const Color(0xFF16A34A);
+    final idleBg = RC.bg(const Color(0xFFF1F5F9));
+    final selectedFg = Colors.white;
+    final idleFg = RC.fg(const Color(0xFF64748B));
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? RC.bg(Colors.white) : RC.bg(Color(0xFFF8FAFC)),
+          color: isSelected ? selectedBg : idleBg,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? RC.bg(Color(0xFFE2E8F0)) : Colors.transparent,
+            color: isSelected ? selectedBg : RC.bg(const Color(0xFFE2E8F0)),
           ),
           boxShadow: isSelected
-              ? [BoxShadow(color: RC.bg(Colors.black).withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
+              ? [
+                  BoxShadow(
+                    color: selectedBg.withOpacity(0.28),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
               : null,
         ),
         child: Row(
@@ -3730,8 +4337,8 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               tx(label),
               style: TextStyle(
                 fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? RC.bg(Color(0xFF1E293B)) : RC.bg(Color(0xFF64748B)),
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                color: isSelected ? selectedFg : idleFg,
               ),
             ),
             if (count.isNotEmpty) ...[
@@ -3741,7 +4348,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: isDanger ? RC.bg(Color(0xFFEF4444)) : (isSelected ? RC.bg(Color(0xFF1E293B)) : RC.bg(Color(0xFF64748B))),
+                  color: isSelected
+                      ? selectedFg
+                      : (isDanger
+                          ? RC.fg(const Color(0xFFEF4444))
+                          : idleFg),
                 ),
               ),
             ],
@@ -3751,44 +4362,88 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     );
   }
 
+  Widget _buildOrderCardMetaCell({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required String title,
+    bool emphasizeValue = false,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: RC.bg(iconBg),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, size: 15, color: iconColor),
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            tx(title),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: emphasizeValue ? 12.5 : 12,
+              fontWeight: FontWeight.w800,
+              color: RC.fg(
+                emphasizeValue
+                    ? const Color(0xFF16A34A)
+                    : const Color(0xFF0F172A),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildListOrderCard({
     required String id,
     required String merchant,
     required String customer,
     required String status,
     required String price,
+    required String totalAmount,
     required String time,
     required Color statusColor,
     required Color statusBg,
     VoidCallback? onTap,
+    Widget? trailingAction,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
         decoration: BoxDecoration(
           color: RC.bg(Colors.white),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: RC.bg(const Color(0xFFF1F5F9))),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
           boxShadow: [
             BoxShadow(
-              color: RC.bg(Colors.black).withOpacity(0.02),
+              color: RC.bg(Colors.black).withValues(alpha: 0.04),
               blurRadius: 12,
-              offset: const Offset(0, 4),
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ١. بەشی سەرەوە: باری داواکاری (چەپ) و ژمارەی داواکاری (ڕاست)
             Row(
               children: [
                 Flexible(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: statusBg,
                       borderRadius: BorderRadius.circular(100),
@@ -3797,7 +4452,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       tx(status),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: statusColor),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: statusColor,
+                      ),
                     ),
                   ),
                 ),
@@ -3810,61 +4469,67 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.end,
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: RC.fg(const Color(0xFF1E293B))),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                        color: RC.fg(const Color(0xFF0F172A)),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-
-            // ٢. بەشی ناوەڕاست: فرۆشیار -> کڕیار (ڕاست بۆ چەپ)
+            const SizedBox(height: 10),
+            // Image-2 style: icon rows (customer | merchant)
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          tx(customer),
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: RC.fg(const Color(0xFF1E293B))),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Icon(Icons.arrow_forward, size: 16, color: RC.fg(const Color(0xFF94A3B8))),
-                      ),
-                      Flexible(
-                        child: Text(
-                          tx(merchant),
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: RC.fg(const Color(0xFF1E293B))),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                  child: _buildOrderCardMetaCell(
+                    icon: Icons.person_rounded,
+                    iconColor: const Color(0xFF2563EB),
+                    iconBg: const Color(0xFFDBEAFE),
+                    title: customer,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildOrderCardMetaCell(
+                    icon: Icons.storefront_rounded,
+                    iconColor: const Color(0xFFD97706),
+                    iconBg: const Color(0xFFFEF3C7),
+                    title: merchant,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-
-            // ٣. بەشی خوارەوە: نرخ (چەپ) و کات (ڕاست)
+            const SizedBox(height: 8),
+            // Image-2 style: delivery fee | total
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  tx(price),
-                  style: TextStyle(fontWeight: FontWeight.w900, color: RC.fg(const Color(0xFF16A34A)), fontSize: 16),
+                Expanded(
+                  child: _buildOrderCardMetaCell(
+                    icon: Icons.local_shipping_rounded,
+                    iconColor: const Color(0xFF7C3AED),
+                    iconBg: const Color(0xFFEDE9FE),
+                    title: price,
+                  ),
                 ),
-                Text(
-                  tx(time),
-                  style: TextStyle(fontSize: 12, color: RC.fg(const Color(0xFF94A3B8)), fontWeight: FontWeight.w500),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildOrderCardMetaCell(
+                    icon: Icons.payments_rounded,
+                    iconColor: const Color(0xFF16A34A),
+                    iconBg: const Color(0xFFDCFCE7),
+                    title: totalAmount,
+                    emphasizeValue: true,
+                  ),
                 ),
               ],
             ),
+            if (trailingAction != null) ...[
+              const SizedBox(height: 10),
+              trailingAction,
+            ],
           ],
         ),
       ),
@@ -4011,717 +4676,6 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
 }
 
 // ---------------------------------------------------------
-class ActiveOrderCard extends StatefulWidget {
-  final OrderModel order;
-  final ValueChanged<OrderStatus> onUpdateStatus;
-  final VoidCallback onRequestPinVerification;
-  final VoidCallback? onClaimWaitingBonus;
-  final VoidCallback? onRequestCancel;
-  final VoidCallback? onClose;
-  final String locale;
-
-  const ActiveOrderCard({
-    super.key,
-    required this.order,
-    required this.onUpdateStatus,
-    required this.onRequestPinVerification,
-    this.onClaimWaitingBonus,
-    this.onRequestCancel,
-    this.onClose,
-    this.locale = 'ku',
-  });
-
-  @override
-  State<ActiveOrderCard> createState() => _ActiveOrderCardState();
-}
-
-class _ActiveOrderCardState extends State<ActiveOrderCard> {
-  bool _isItemsExpanded = false;
-
-  String _t(String key) => tr(key, widget.locale);
-
-  // دیاریکردنی قۆناغ: ئایا لە قۆناغی فرۆشیارە یان کڕیار
-  bool get _isPickupStage =>
-      widget.order.status == OrderStatus.driverAssigned ||
-      widget.order.status == OrderStatus.driverArrivingPickup ||
-      widget.order.status == OrderStatus.arrivedPickup;
-
-  int get _stepIndex {
-    switch (widget.order.status) {
-      case OrderStatus.driverAssigned:
-      case OrderStatus.driverArrivingPickup:
-        return 0;
-      case OrderStatus.arrivedPickup:
-        return 1;
-      case OrderStatus.pickedUp:
-      case OrderStatus.onTheWay:
-        return 2;
-      case OrderStatus.arrivedCustomer:
-      case OrderStatus.delivered:
-        return 3;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final statusConfig = _getStatusConfig(widget.order.status);
-    final vSt = widget.order.vendorStatus;
-    final isVendorReady = vSt == 'ready' || vSt == 'completed' || !_isPickupStage;
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: RC.bg(Colors.white),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
-        boxShadow: const [
-          BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.14),
-            blurRadius: 28,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ١. سەرپەڕەی کارت (Card Header): ژمارەی داواکاری + قۆناغ + دۆخی فرۆشگا + قازانجی شۆفێر
-          Row(
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Directionality(
-                        textDirection: TextDirection.ltr,
-                        child: Text(
-                          widget.order.displayOrderNumber.isNotEmpty
-                              ? widget.order.displayOrderNumber
-                              : formatOrderCode(widget.order.orderNumber),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusConfig.badgeBg,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: statusConfig.badgeBorder),
-                      ),
-                      child: Text(
-                        tx(statusConfig.badgeLabel),
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          color: statusConfig.badgeTextColor,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isVendorReady
-                            ? const Color(0xFFDCFCE7)
-                            : const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        tx(isVendorReady
-                            ? 'فرۆشگا: ئامادەیە'
-                            : 'فرۆشگا: ئامادەکردن'),
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w900,
-                          color: isVendorReady
-                              ? const Color(0xFF15803D)
-                              : const Color(0xFFB45309),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                tx('${_formatMoney(widget.order.totalEarnings)} د.ع'),
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF16A34A),
-                ),
-              ),
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: widget.onClose,
-                child: Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: RC.bg(const Color(0xFFF1F5F9)),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: RC.fg(const Color(0xFF475569)),
-                    size: 20,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // ٢. هێڵی هەنگاوەکانی گەیاندن (4-Step Progress Bar)
-          Row(
-            children: List.generate(4, (i) {
-              final done = i <= _stepIndex;
-              return Expanded(
-                child: Container(
-                  height: 5,
-                  margin: EdgeInsets.only(left: i == 0 ? 0 : 3, right: i == 3 ? 0 : 3),
-                  decoration: BoxDecoration(
-                    color: done
-                        ? const Color(0xFF16A34A)
-                        : RC.bg(const Color(0xFFE2E8F0)),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 10),
-
-          // ٣. بەشی زانیاری فرۆشیار / کڕیار (styled-box)
-          _buildEntityInfoBox(),
-          const SizedBox(height: 10),
-
-          // ٤. پوختەی پارەی وەرگرتن لە کڕیار + تێبینی کڕیار
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: RC.bg(const Color(0xFFF0FDF4)),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: RC.bg(const Color(0xFFBBF7D0))),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Text(
-                    tx('بڕی کاشی وەرگرتن لە کڕیار (${widget.order.paymentMethod.toUpperCase()}):'),
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                      color: RC.fg(const Color(0xFF166534)),
-                    ),
-                  ),
-                ),
-                Text(
-                  tx('${_formatMoney(widget.order.customerCashToCollect)} د.ع'),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF15803D),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (widget.order.customerNotes.trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: RC.bg(const Color(0xFFFFFBEB)),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: RC.bg(const Color(0xFFFDE68A))),
-              ),
-              child: Text(
-                tx('تێبینی کڕیار: ${widget.order.customerNotes}'),
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: RC.fg(const Color(0xFF92400E)),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 10),
-
-          // ٥. بەشی کورتەی بەرهەمەکان (Accordion)
-          _buildItemsAccordion(),
-          const SizedBox(height: 10),
-
-          // ٦. دوگمە یاریدەدەرەکان (پاداشتی چاوەڕوانی + کێشە/هەڵوەشاندنەوە)
-          if (widget.onClaimWaitingBonus != null || widget.onRequestCancel != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  if (_isPickupStage && widget.onClaimWaitingBonus != null)
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFD97706),
-                          side: const BorderSide(color: Color(0xFFFCD34D)),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: widget.onClaimWaitingBonus,
-                        icon: const Icon(Icons.timer_outlined, size: 16),
-                        label: Text(
-                          tx('پاداشتی چاوەڕوانی'),
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (_isPickupStage &&
-                      widget.onClaimWaitingBonus != null &&
-                      widget.onRequestCancel != null)
-                    const SizedBox(width: 8),
-                  if (widget.onRequestCancel != null)
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFDC2626),
-                          side: const BorderSide(color: Color(0xFFFECACA)),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: widget.onRequestCancel,
-                        icon: const Icon(Icons.report_problem_outlined, size: 16),
-                        label: Text(
-                          tx('کێشە / هەڵوەشاندنەوە'),
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-          // ٧. دوگمەی سەرەکی بە ڕەنگی تایبەتی هەر قۆناغێک
-          _buildPrimaryActionButton(statusConfig),
-        ],
-      ),
-    );
-  }
-
-  // زانیاری شوێن و فرۆشیار/کڕیار
-  Widget _buildEntityInfoBox() {
-    final title = _isPickupStage ? _t('merchant_pickup') : _t('customer_dropoff');
-    final name = _isPickupStage ? widget.order.merchantName : widget.order.customerName;
-    final address = _isPickupStage ? widget.order.merchantAddress : widget.order.customerAddress;
-    final lat = _isPickupStage ? widget.order.storeLat : widget.order.customerLat;
-    final lng = _isPickupStage ? widget.order.storeLng : widget.order.customerLng;
-
-    Widget infoBlock() {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            tx(title),
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: _isPickupStage ? RC.bg(Color(0xFFC2410C)) : RC.bg(Colors.grey.shade600),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            tx(name),
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFF14532D))),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              Icon(Icons.location_on, size: 12, color: _isPickupStage ? RC.fg(Color(0xFFEA580C)) : RC.bg(Colors.grey.shade500)),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  tx(address),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: _isPickupStage ? RC.bg(Color(0xFF9A3412)) : RC.bg(Colors.grey.shade600),
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          if (_isPickupStage) ...[
-            const SizedBox(height: 4),
-            Text(
-              tx('GPS فرۆشگا: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}'),
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: RC.fg(Color(0xFFEA580C))),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
-      );
-    }
-
-  final contactActions = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildCircularIconButton(Icons.phone, () {
-          final phone = _isPickupStage ? widget.order.merchantPhone : widget.order.customerPhone;
-          launchUrl(Uri.parse('tel:$phone'));
-        }),
-        const SizedBox(width: 8),
-        _buildCircularIconButton(Icons.navigation, () async {
-          final uri = Uri.parse(
-            'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
-          );
-          final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-          if (!ok && mounted) {
-            _showActionToast('نەتوانرا نەخشە بکرێتەوە');
-          }
-        }),
-      ],
-    );
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: _isPickupStage ? RC.bg(Color(0xFFFFF7ED)) : RC.bg(Color(0xFFF8F9FA)),
-        border: Border.all(color: _isPickupStage ? RC.bg(Color(0xFFFED7AA)) : RC.bg(Colors.grey.shade300)),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth < RegaBreakpoints.phone) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                infoBlock(),
-                const SizedBox(height: 10),
-                Align(alignment: AlignmentDirectional.centerEnd, child: contactActions),
-              ],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(child: infoBlock()),
-              const SizedBox(width: 8),
-              contactActions,
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCircularIconButton(IconData icon, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: RC.bg(Color(0xFF00E676)),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, size: 18, color: RC.fg(Colors.black)),
-      ),
-    );
-  }
-
-  // لیستی بەرهەمەکان (Accordion)
-  Widget _buildItemsAccordion() {
-    return Container(
-      decoration: BoxDecoration(
-        color: RC.bg(Color(0xFFF8FAFC)),
-        border: Border.all(color: RC.bg(Color(0xFFE2E8F0))),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: () => setState(() => _isItemsExpanded = !_isItemsExpanded),
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      tx(trFill('items_total', widget.locale, {
-                        'count': '${widget.order.items.length}',
-                        'total': _formatMoney(widget.order.itemsTotal),
-                      })),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF1E293B))),
-                    ),
-                  ),
-                  AnimatedRotation(
-                    turns: _isItemsExpanded ? 0.5 : 0.0,
-                    duration: const Duration(milliseconds: 250),
-                    child: Icon(Icons.keyboard_arrow_down, size: 20, color: RC.fg(Color(0xFF64748B))),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_isItemsExpanded) ...[
-            Container(height: 1, color: RC.bg(Color(0xFFE2E8F0))),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 180),
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                itemCount: widget.order.items.length,
-                separatorBuilder: (ctx, i) => Divider(height: 1, color: RC.bg(Color(0xFFF1F5F9)), indent: 16, endIndent: 16),
-                itemBuilder: (ctx, i) {
-                  final item = widget.order.items[i];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  tx(item.name),
-                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: RC.fg(Color(0xFF1E293B))),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                tx('× ${item.quantity}'),
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFFEF4444))),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Flexible(
-                          child: Text(
-                            tx('${_formatMoney(item.price * item.quantity)} د.ع'),
-                            textAlign: TextAlign.end,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: RC.fg(Color(0xFF16A34A))),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // دوگمەی سەرەکی کارتی داواکاری
-  Widget _buildPrimaryActionButton(_StatusConfig config) {
-    return SizedBox(
-      height: 48,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: config.buttonBg,
-          foregroundColor: config.buttonTextColor,
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-        onPressed: () {
-          _handleNextStep();
-        },
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(config.buttonIcon, size: 20),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                tx(config.buttonLabel),
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _handleNextStep() {
-    switch (widget.order.status) {
-      case OrderStatus.driverAssigned:
-        widget.onUpdateStatus(OrderStatus.driverArrivingPickup);
-        break;
-      case OrderStatus.driverArrivingPickup:
-        widget.onUpdateStatus(OrderStatus.arrivedPickup);
-        break;
-      case OrderStatus.arrivedPickup:
-        widget.onUpdateStatus(OrderStatus.pickedUp);
-        break;
-      case OrderStatus.pickedUp:
-        widget.onUpdateStatus(OrderStatus.onTheWay);
-        break;
-      case OrderStatus.onTheWay:
-        widget.onUpdateStatus(OrderStatus.arrivedCustomer);
-        break;
-      case OrderStatus.arrivedCustomer:
-        widget.onRequestPinVerification();
-        break;
-      case OrderStatus.delivered:
-        break;
-    }
-  }
-
-  void _showActionToast(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tx(text)), duration: const Duration(seconds: 1)));
-  }
-
-  _StatusConfig _getStatusConfig(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.driverAssigned:
-        return _StatusConfig(
-          badgeLabel: _t('badge_new_order'),
-          badgeBg: RC.bg(Color(0xFFE8F5E9)),
-          badgeBorder: RC.bg(Color(0xFFBBF7D0)),
-          badgeTextColor: RC.bg(Color(0xFF16A34A)),
-          buttonLabel: _t('btn_start_to_merchant'),
-          buttonBg: RC.bg(Color(0xFF22C55E)),
-          buttonTextColor: RC.bg(Colors.white),
-          buttonIcon: Icons.arrow_back,
-        );
-      case OrderStatus.driverArrivingPickup:
-        return _StatusConfig(
-          badgeLabel: _t('badge_to_merchant'),
-          badgeBg: RC.bg(Color(0xFFEFF6FF)),
-          badgeBorder: RC.bg(Color(0xFFBFDBFE)),
-          badgeTextColor: RC.bg(Color(0xFF2563EB)),
-          buttonLabel: _t('btn_arrived_merchant'),
-          buttonBg: RC.bg(Color(0xFF2563EB)),
-          buttonTextColor: RC.bg(Colors.white),
-          buttonIcon: Icons.store,
-        );
-      case OrderStatus.arrivedPickup:
-        return _StatusConfig(
-          badgeLabel: _t('badge_at_merchant'),
-          badgeBg: RC.bg(Color(0xFFFFF7ED)),
-          badgeBorder: RC.bg(Color(0xFFFED7AA)),
-          badgeTextColor: RC.bg(Color(0xFFEA580C)),
-          buttonLabel: _t('btn_picked_up'),
-          buttonBg: RC.bg(Color(0xFFEA580C)),
-          buttonTextColor: RC.bg(Colors.white),
-          buttonIcon: Icons.shopping_bag,
-        );
-      case OrderStatus.pickedUp:
-        return _StatusConfig(
-          badgeLabel: _t('badge_picked'),
-          badgeBg: RC.bg(Color(0xFFF5F3FF)),
-          badgeBorder: RC.bg(Color(0xFFDDD6FE)),
-          badgeTextColor: RC.bg(Color(0xFF7C3AED)),
-          buttonLabel: _t('btn_start_to_customer'),
-          buttonBg: RC.bg(Color(0xFF7C3AED)),
-          buttonTextColor: RC.bg(Colors.white),
-          buttonIcon: Icons.navigation,
-        );
-      case OrderStatus.onTheWay:
-        return _StatusConfig(
-          badgeLabel: _t('badge_to_customer'),
-          badgeBg: RC.bg(Color(0xFFF0F9FF)),
-          badgeBorder: RC.bg(Color(0xFFBAE6FD)),
-          badgeTextColor: RC.bg(Color(0xFF0284C7)),
-          buttonLabel: _t('btn_arrived_customer'),
-          buttonBg: RC.bg(Color(0xFF0284C7)),
-          buttonTextColor: RC.bg(Colors.white),
-          buttonIcon: Icons.home,
-        );
-      case OrderStatus.arrivedCustomer:
-        return _StatusConfig(
-          badgeLabel: _t('badge_at_customer'),
-          badgeBg: RC.bg(Color(0xFFECFDF5)),
-          badgeBorder: RC.bg(Color(0xFFA7F3D0)),
-          badgeTextColor: RC.bg(Color(0xFF059669)),
-          buttonLabel: _t('btn_complete_pin'),
-          buttonBg: RC.bg(Color(0xFF059669)),
-          buttonTextColor: RC.bg(Colors.white),
-          buttonIcon: Icons.check_circle,
-        );
-      case OrderStatus.delivered:
-        return _StatusConfig(
-          badgeLabel: _t('badge_delivered'),
-          badgeBg: RC.bg(Color(0xFFE8F5E9)),
-          badgeBorder: RC.bg(Color(0xFFBBF7D0)),
-          badgeTextColor: RC.bg(Color(0xFF16A34A)),
-          buttonLabel: _t('btn_completed'),
-          buttonBg: RC.bg(Color(0xFF16A34A)),
-          buttonTextColor: RC.bg(Colors.white),
-          buttonIcon: Icons.check,
-        );
-    }
-  }
-}
-
-class _StatusConfig {
-  final String badgeLabel;
-  final Color badgeBg;
-  final Color badgeBorder;
-  final Color badgeTextColor;
-  final String buttonLabel;
-  final Color buttonBg;
-  final Color buttonTextColor;
-  final IconData buttonIcon;
-
-  _StatusConfig({
-    required this.badgeLabel,
-    required this.badgeBg,
-    required this.badgeBorder,
-    required this.badgeTextColor,
-    required this.buttonLabel,
-    required this.buttonBg,
-    required this.buttonTextColor,
-    required this.buttonIcon,
-  });
-}
-
-// نەخشەی نەخشێندراوی تایبەت (Custom Map Painter)
-// ---------------------------------------------------------
-
 class DeliveryMapPainterWidget extends StatefulWidget {
   final OrderStatus status;
 
@@ -4925,18 +4879,6 @@ class _MapCanvasPainter extends CustomPainter {
 // یاریدەدەرەکانی ژمارە و ڕێکخستن
 // ---------------------------------------------------------
 
-String _formatMoney(int amount) {
-  final str = amount.toString();
-  final buffer = StringBuffer();
-  for (int i = 0; i < str.length; i++) {
-    if (i > 0 && (str.length - i) % 3 == 0) {
-      buffer.write(',');
-    }
-    buffer.write(str[i]);
-  }
-  return buffer.toString();
-}
-
 class PositionMesh extends StatelessWidget {
   final double? top;
   final double? right;
@@ -4952,261 +4894,3 @@ class PositionMesh extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------
-// شاشەی چوونەژوورەوە (Auth Screen) ڕێک وەک وێنەکە
-// ---------------------------------------------------------
-
-class AuthScreen extends StatefulWidget {
-  final String currentLocale;
-  final Future<void> Function(String phone) onLogin;
-
-  const AuthScreen({
-    super.key,
-    required this.currentLocale,
-    required this.onLogin,
-  });
-
-  @override
-  State<AuthScreen> createState() => _AuthScreenState();
-}
-
-class _AuthScreenState extends State<AuthScreen> {
-  final TextEditingController _authPhoneCtrl = TextEditingController();
-  final TextEditingController _authPasswordCtrl = TextEditingController();
-  bool _isAuthenticating = false;
-  bool _obscurePassword = true;
-
-  @override
-  void dispose() {
-    _authPhoneCtrl.dispose();
-    _authPasswordCtrl.dispose();
-    super.dispose();
-  }
-  String t(String key) => _trans[widget.currentLocale]![key] ?? key;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: RC.bg(Color(0xFFF1F5F9)),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: RegaResponsive.pagePadding(context),
-              vertical: 40,
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: RegaResponsive.dialogMaxWidth(context, cap: 440),
-              ),
-            child: Container(
-              padding: EdgeInsets.all(
-                RegaResponsive.scale(context, 32).clamp(18.0, 32.0),
-              ),
-              decoration: BoxDecoration(
-                color: RC.bg(Colors.white),
-                borderRadius: BorderRadius.circular(40),
-                boxShadow: [
-                  BoxShadow(
-                    color: RC.bg(Colors.black).withOpacity(0.05),
-                    blurRadius: 30,
-                    offset: const Offset(0, 15),
-                  ),
-                ],
-              ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Logo Image
-                SizedBox(
-                  height: 100,
-                  child: Image.asset(
-                    RC.isDark ? 'assets1/logo2_dark.png' : 'assets1/logo2.png',
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) => Icon(Icons.delivery_dining_rounded, size: 80, color: RC.fg(Color(0xFF16A34A))),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  tx('REGA'),
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    color: RC.fg(Color(0xFF1E293B)),
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  t('login_subtitle'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: RC.fg(Color(0xFF94A3B8)),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 32),
-
-                // Phone Input Field
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t('phone_label'),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: RC.fg(Color(0xFF1E293B)),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: RC.bg(Colors.white),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: RC.bg(Color(0xFFE2E8F0)), width: 1.5),
-                      ),
-                      child: Directionality(
-                        textDirection: TextDirection.ltr,
-                        child: TextField(
-                          controller: _authPhoneCtrl,
-                          textDirection: TextDirection.ltr,
-                          textAlign: TextAlign.left,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1),
-                          keyboardType: TextInputType.phone,
-                          inputFormatters: [IraqPhoneFormatter()],
-                          decoration: InputDecoration(
-                            hintText: txn(IraqPhoneFormatter.hint),
-                            border: InputBorder.none,
-                            suffixIcon: Icon(Icons.phone_android_rounded, color: RC.fg(Color(0xFF94A3B8))),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t('password_label').contains('password_label') ? 'وشەی تێپەڕ' : t('password_label'),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: RC.fg(Color(0xFF1E293B)),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: RC.bg(Colors.white),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: RC.bg(Color(0xFFE2E8F0)), width: 1.5),
-                      ),
-                      child: TextField(
-                        controller: _authPasswordCtrl,
-                        obscureText: _obscurePassword,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        decoration: InputDecoration(
-                          hintText: tx('••••••••'),
-                          border: InputBorder.none,
-                          prefixIcon: Icon(Icons.lock_outline_rounded, color: RC.fg(Color(0xFF94A3B8))),
-                          suffixIcon: IconButton(
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                            icon: Icon(
-                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                              color: RC.fg(Color(0xFF94A3B8)),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 32),
-
-                // Continue Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: RC.bg(Color(0xFF16A34A)),
-                      foregroundColor: RC.fg(Colors.white),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    onPressed: _isAuthenticating
-                        ? null
-                        : () async {
-                            setState(() => _isAuthenticating = true);
-                            try {
-                              final ok = await DriverApiService.instance.ensureAuthenticated(
-                                phone: _authPhoneCtrl.text,
-                                password: _authPasswordCtrl.text,
-                              );
-                              if (!mounted) return;
-                              setState(() => _isAuthenticating = false);
-                              if (ok) {
-                                await widget.onLogin(_authPhoneCtrl.text.trim());
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(t('login_failed') == 'login_failed'
-                                      ? 'چوونە ژوورەوە سەرکەوتوو نەبوو'
-                                      : t('login_failed'))),
-                                );
-                              }
-                            } on AccountBlockedException catch (e) {
-                              if (!mounted) return;
-                              setState(() => _isAuthenticating = false);
-                              await BlockedAccountContacts.show(context, e);
-                            }
-                          },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.arrow_back_rounded, size: 20), // Back arrow is forward in RTL
-                        const SizedBox(width: 12),
-                        Text(
-                          t('continue'),
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-
-                // Footer
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.verified_user_rounded, color: RC.fg(Color(0xFF16A34A)), size: 18),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        t('footer_text'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: RC.fg(Color(0xFF94A3B8)),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      ),
-    ),
-  );
-  }
-}

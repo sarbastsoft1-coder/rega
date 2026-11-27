@@ -50,7 +50,8 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Personal access tokens expire after this many minutes (default 7 days).
+    'expiration' => (int) env('SANCTUM_EXPIRATION_MINUTES', 60 * 24 * 7),
 
     /*
     |--------------------------------------------------------------------------

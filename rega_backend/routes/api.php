@@ -61,21 +61,29 @@ Route::prefix('v1')->group(function () {
         Route::delete('/customer-orders/{id}', [PublicAndCustomerController::class, 'publicDeleteCustomerOrder']);
     });
 
-    // --- Real-Time 1-Second Live GPS Telemetry & Route Sync (`rega`, `rega_delivery`, `rega_admin`) ---
+    // --- Real-Time Live GPS Telemetry & Route Sync ---
+    // Public read/register for customer tracker maps. Writes & settlement require auth.
     Route::prefix('live-telemetry')->group(function () {
         Route::post('/register', [LiveTelemetryController::class, 'registerOrder']);
         Route::get('/latest-active', [LiveTelemetryController::class, 'latestActive']);
         Route::get('/{orderRef}', [LiveTelemetryController::class, 'show']);
-        Route::post('/{orderRef}', [LiveTelemetryController::class, 'pushTick']);
-        Route::post('/{orderRef}/verify-pin', [LiveTelemetryController::class, 'verifyPin']);
+
+        Route::middleware(['auth:sanctum', 'role:driver,super_admin,admin'])->group(function () {
+            Route::post('/{orderRef}', [LiveTelemetryController::class, 'pushTick']);
+            Route::post('/{orderRef}/verify-pin', [LiveTelemetryController::class, 'verifyPin']);
+        });
     });
 
     // --- Authentication (All Apps) ---
     Route::prefix('auth')->group(function () {
-        Route::post('/login', [AuthController::class, 'login']);
-        Route::post('/register', [AuthController::class, 'register']);
-        Route::post('/password-reset/request-otp', [AuthController::class, 'requestPasswordResetOtp']);
-        Route::post('/password-reset/confirm', [AuthController::class, 'resetPasswordWithOtp']);
+        Route::post('/login', [AuthController::class, 'login'])
+            ->middleware('throttle:5,1');
+        Route::post('/register', [AuthController::class, 'register'])
+            ->middleware('throttle:5,1');
+        Route::post('/password-reset/request-otp', [AuthController::class, 'requestPasswordResetOtp'])
+            ->middleware('throttle:3,1');
+        Route::post('/password-reset/confirm', [AuthController::class, 'resetPasswordWithOtp'])
+            ->middleware('throttle:5,1');
 
         Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/me', [AuthController::class, 'me']);
@@ -138,17 +146,22 @@ Route::prefix('v1')->group(function () {
     // --- Delivery Driver App (`rega_delivery`) ---
     Route::middleware(['auth:sanctum', 'role:driver,super_admin,admin'])->prefix('driver')->group(function () {
         Route::get('/profile', [DriverAppController::class, 'profile']);
-        Route::patch('/status', [DriverAppController::class, 'updateStatus']);
         Route::patch('/location', [DriverAppController::class, 'updateLocation']);
-
         Route::get('/orders/active', [DriverAppController::class, 'activeOrder']);
+        Route::get('/orders/available', [DriverAppController::class, 'availableOrders']);
         Route::get('/orders', [DriverAppController::class, 'ordersHistory']);
-        Route::patch('/orders/{order}/status', [DriverAppController::class, 'advanceOrderStatus']);
-        Route::post('/orders/{order}/verify-delivery', [DriverAppController::class, 'verifyDeliveryPin']);
-        Route::post('/orders/{order}/waiting-bonus', [DriverAppController::class, 'claimWaitingBonus']);
-        Route::post('/orders/{order}/cancel-request', [DriverAppController::class, 'requestCancellation']);
-
         Route::get('/earnings', [DriverAppController::class, 'earnings']);
+
+        // Mutations support Idempotency-Key replay under flaky networks.
+        Route::middleware('idempotency')->group(function () {
+            Route::patch('/status', [DriverAppController::class, 'updateStatus']);
+            Route::post('/orders/{order}/claim', [DriverAppController::class, 'claimOrder']);
+            Route::post('/orders/{order}/decline-offer', [DriverAppController::class, 'declineOrderOffer']);
+            Route::patch('/orders/{order}/status', [DriverAppController::class, 'advanceOrderStatus']);
+            Route::post('/orders/{order}/verify-delivery', [DriverAppController::class, 'verifyDeliveryPin']);
+            Route::post('/orders/{order}/waiting-bonus', [DriverAppController::class, 'claimWaitingBonus']);
+            Route::post('/orders/{order}/cancel-request', [DriverAppController::class, 'requestCancellation']);
+        });
     });
 
     // --- Admin Control Center (`rega_admin`) ---

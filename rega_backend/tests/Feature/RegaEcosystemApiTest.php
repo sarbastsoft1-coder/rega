@@ -28,6 +28,14 @@ class RegaEcosystemApiTest extends TestCase
         return $this->withToken($token);
     }
 
+    private function asGuest(): self
+    {
+        $this->app['auth']->forgetGuards();
+        $this->withoutToken();
+
+        return $this;
+    }
+
     public function test_health_and_public_bootstrap_work_on_postgresql(): void
     {
         $this->getJson('/api/health')
@@ -286,7 +294,26 @@ class RegaEcosystemApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'picked_up');
 
-        // 5. Driver advances to on_the_way -> arrived_customer -> completes delivery
+        // 4b. Cancel-request requires ownership
+        $foreignOrder = Order::query()
+            ->where(function ($q) use ($driverUserId) {
+                $q->whereNull('driver_id')->orWhere('driver_id', '!=', $driverUserId);
+            })
+            ->whereNotIn('status', ['delivered', 'cancelled', 'rejected'])
+            ->first();
+        if ($foreignOrder) {
+            $this->asBearer($driverToken)
+                ->postJson("/api/v1/driver/orders/{$foreignOrder->id}/cancel-request", [
+                    'reason' => 'ownership probe',
+                ])
+                ->assertForbidden();
+        }
+
+        // 5. Illegal FSM jump rejected; legal picked_up → on_the_way → arrived_customer
+        $this->asBearer($driverToken)
+            ->patchJson("/api/v1/driver/orders/{$orderId}/status", ['driver_status' => 'arrived_customer'])
+            ->assertStatus(422);
+
         $this->asBearer($driverToken)
             ->patchJson("/api/v1/driver/orders/{$orderId}/status", ['driver_status' => 'on_the_way'])
             ->assertOk();
@@ -295,8 +322,17 @@ class RegaEcosystemApiTest extends TestCase
             ->patchJson("/api/v1/driver/orders/{$orderId}/status", ['driver_status' => 'arrived_customer'])
             ->assertOk();
 
+        $orderModel->refresh();
         $this->asBearer($driverToken)
-            ->postJson("/api/v1/driver/orders/{$orderId}/verify-delivery")
+            ->postJson("/api/v1/driver/orders/{$orderId}/verify-delivery", [
+                'delivery_pin' => '0000',
+            ])
+            ->assertStatus(422);
+
+        $this->asBearer($driverToken)
+            ->postJson("/api/v1/driver/orders/{$orderId}/verify-delivery", [
+                'delivery_pin' => $orderModel->delivery_pin,
+            ])
             ->assertOk()
             ->assertJsonPath('data.status', 'delivered');
 
@@ -345,14 +381,27 @@ class RegaEcosystemApiTest extends TestCase
         ])->assertCreated();
 
         $this->assertEquals('RA-99001', $reg->json('data.order_ref'));
-        $this->assertEquals('7392', $reg->json('data.delivery_pin'));
+        // Public payloads must not leak delivery_pin
+        $this->assertNull($reg->json('data.delivery_pin'));
 
-        // 2. Driver app discovers latest active order and pushes 1-second telemetry ticks
+        $driverToken = $this->postJson('/api/v1/auth/login', [
+            'phone' => '07501234567',
+            'password' => 'password123',
+            'role_filter' => 'driver',
+        ])->json('data.token');
+
+        // Unauthenticated push must be rejected
+        $this->asGuest()->postJson('/api/v1/live-telemetry/RA-99001', [
+            'driver_lat' => 34.6875,
+            'driver_lng' => 45.3228,
+        ])->assertUnauthorized();
+
+        // 2. Driver pushes authenticated telemetry ticks (GPS only — status not client-spoofable)
         $this->getJson('/api/v1/live-telemetry/latest-active')
             ->assertOk()
             ->assertJsonPath('data.order_ref', 'RA-99001');
 
-        $this->postJson('/api/v1/live-telemetry/RA-99001', [
+        $this->asBearer($driverToken)->postJson('/api/v1/live-telemetry/RA-99001', [
             'driver_lat' => 34.6875,
             'driver_lng' => 45.3228,
             'driver_heading' => 48.5,
@@ -360,22 +409,30 @@ class RegaEcosystemApiTest extends TestCase
             'eta_seconds' => 64,
             'distance_remaining_meters' => 540,
             'progress_permille' => 680,
-            'status' => 'on_the_way',
-            'driver_status' => 'on_the_way',
         ])->assertOk();
 
-        // 3. Customer app polls 1s later and receives exact driver GPS, speed, heading, and countdown
+        // 3. Customer app polls and receives GPS without PIN leak
         $poll = $this->getJson('/api/v1/live-telemetry/RA-99001')
             ->assertOk()
-            ->assertJsonPath('data.status', 'on_the_way')
             ->assertJsonPath('data.eta_seconds', 64)
             ->assertJsonPath('data.distance_remaining_meters', 540)
             ->assertJsonPath('data.driver.is_live_captain', true);
 
         $this->assertEqualsWithDelta(34.6875, $poll->json('data.driver.lat'), 0.0001);
+        $this->assertNull($poll->json('data.delivery_pin'));
 
-        // 4. Complete delivery (no PIN required)
-        $this->postJson('/api/v1/live-telemetry/RA-99001/verify-pin')
+        // 4. Unauth / wrong PIN rejected; correct PIN completes (demo session, no wallet order)
+        $this->asGuest()->postJson('/api/v1/live-telemetry/RA-99001/verify-pin', [
+            'delivery_pin' => '7392',
+        ])->assertUnauthorized();
+
+        $this->asBearer($driverToken)->postJson('/api/v1/live-telemetry/RA-99001/verify-pin', [
+            'delivery_pin' => '0000',
+        ])->assertStatus(422);
+
+        $this->asBearer($driverToken)->postJson('/api/v1/live-telemetry/RA-99001/verify-pin', [
+            'delivery_pin' => '7392',
+        ])
             ->assertOk()
             ->assertJsonPath('data.status', 'delivered')
             ->assertJsonPath('data.eta_seconds', 0);
@@ -424,8 +481,11 @@ class RegaEcosystemApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'picked_up');
 
+        $adminOrder = Order::findOrFail($orderId);
         $this->asBearer($adminToken)
-            ->postJson("/api/v1/admin/orders/{$orderId}/verify-delivery")
+            ->postJson("/api/v1/admin/orders/{$orderId}/verify-delivery", [
+                'delivery_pin' => $adminOrder->delivery_pin,
+            ])
             ->assertOk()
             ->assertJsonPath('data.status', 'delivered');
 
@@ -644,5 +704,154 @@ class RegaEcosystemApiTest extends TestCase
         $this->assertTrue(
             collect($customerStore['products'] ?? [])->contains(fn ($p) => (int) $p['id'] === (int) $productId)
         );
+    }
+
+    public function test_driver_status_idempotency_key_replays_same_response(): void
+    {
+        $driverLogin = $this->postJson('/api/v1/auth/login', [
+            'phone' => '07501234567',
+            'password' => 'password123',
+        ])->assertOk();
+        $driverToken = $driverLogin->json('data.token');
+        $this->assertNotEmpty($driverToken);
+
+        $key = 'test-idem-status-'.uniqid('', true);
+
+        $first = $this->asBearer($driverToken)
+            ->withHeader('Idempotency-Key', $key)
+            ->patchJson('/api/v1/driver/status', ['is_online' => true])
+            ->assertOk();
+
+        $second = $this->asBearer($driverToken)
+            ->withHeader('Idempotency-Key', $key)
+            ->patchJson('/api/v1/driver/status', ['is_online' => false])
+            ->assertOk();
+
+        $this->assertSame($first->json(), $second->json());
+        $this->assertTrue((bool) $second->json('data.is_online'));
+    }
+
+    public function test_waiting_bonus_requires_server_timestamps_and_single_claim(): void
+    {
+        $driverLogin = $this->postJson('/api/v1/auth/login', [
+            'phone' => '07501234567',
+            'password' => 'password123',
+        ])->assertOk();
+        $driverToken = $driverLogin->json('data.token');
+        $driverUserId = $driverLogin->json('data.user.id');
+
+        $store = Store::where('slug', 'mam-rashid')->with('products')->firstOrFail();
+        $product = $store->products->firstOrFail();
+
+        $custToken = $this->postJson('/api/v1/auth/login', [
+            'phone' => '07703331122',
+            'password' => 'password123',
+        ])->assertOk()->json('data.token');
+
+        $orderId = $this->asBearer($custToken)->postJson('/api/v1/customer/orders', [
+            'store_id' => $store->id,
+            'delivery_address' => 'تست پاداشت',
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        Order::where('id', $orderId)->update([
+            'driver_id' => $driverUserId,
+            'driver_status' => 'arrived_pickup',
+            'arrived_pickup_at' => null,
+            'waiting_bonus' => 0,
+        ]);
+
+        // Client minutes ignored when no server arrived_pickup_at
+        $this->asBearer($driverToken)
+            ->postJson("/api/v1/driver/orders/{$orderId}/waiting-bonus", ['waited_minutes' => 99])
+            ->assertStatus(422);
+
+        Order::where('id', $orderId)->update([
+            'arrived_pickup_at' => now()->subMinutes(20),
+        ]);
+
+        $this->asBearer($driverToken)
+            ->postJson("/api/v1/driver/orders/{$orderId}/waiting-bonus", ['waited_minutes' => 1])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->asBearer($driverToken)
+            ->postJson("/api/v1/driver/orders/{$orderId}/waiting-bonus", ['waited_minutes' => 99])
+            ->assertStatus(422);
+
+        $this->assertGreaterThan(0, (int) Order::findOrFail($orderId)->waiting_bonus);
+    }
+
+    public function test_going_online_without_gps_does_not_invent_default_coords(): void
+    {
+        $driverLogin = $this->postJson('/api/v1/auth/login', [
+            'phone' => '07501234567',
+            'password' => 'password123',
+        ])->assertOk();
+        $driverToken = $driverLogin->json('data.token');
+        $driverUserId = $driverLogin->json('data.user.id');
+
+        DriverProfile::where('user_id', $driverUserId)->update([
+            'current_lat' => null,
+            'current_lng' => null,
+            'last_ping_at' => null,
+            'is_online' => false,
+        ]);
+
+        $res = $this->asBearer($driverToken)
+            ->patchJson('/api/v1/driver/status', ['is_online' => true])
+            ->assertOk();
+
+        $this->assertTrue((bool) $res->json('data.is_online'));
+        $this->assertNull($res->json('data.current_lat'));
+        $this->assertNull($res->json('data.current_lng'));
+        $this->assertFalse((bool) $res->json('location_trusted'));
+
+        $profile = DriverProfile::where('user_id', $driverUserId)->firstOrFail();
+        $this->assertNull($profile->current_lat);
+        $this->assertNull($profile->current_lng);
+        $this->assertNotEquals(34.6295, (float) ($profile->current_lat ?? 0));
+    }
+
+    public function test_dispatch_fails_closed_when_no_eligible_online_driver(): void
+    {
+        DriverProfile::query()->update([
+            'is_online' => false,
+            'last_ping_at' => null,
+        ]);
+
+        $vendorToken = $this->postJson('/api/v1/auth/login', [
+            'phone' => '07701112233',
+            'password' => 'password123',
+        ])->assertOk()->json('data.token');
+
+        $custToken = $this->postJson('/api/v1/auth/login', [
+            'phone' => '07703331122',
+            'password' => 'password123',
+        ])->assertOk()->json('data.token');
+
+        $store = Store::where('slug', 'mam-rashid')->with('products')->firstOrFail();
+        $product = $store->products->firstOrFail();
+
+        $orderId = $this->asBearer($custToken)->postJson('/api/v1/customer/orders', [
+            'store_id' => $store->id,
+            'delivery_address' => 'fail-closed probe',
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        Order::where('id', $orderId)->update(['driver_id' => null, 'driver_status' => 'unassigned']);
+
+        $this->asBearer($vendorToken)->postJson("/api/v1/vendor/orders/{$orderId}/accept")->assertOk();
+
+        $ready = $this->asBearer($vendorToken)
+            ->postJson("/api/v1/vendor/orders/{$orderId}/ready")
+            ->assertOk();
+
+        $this->assertNull($ready->json('data.driver_id'));
+        $this->assertFalse((bool) $ready->json('dispatch.success'));
+
+        $this->asBearer($vendorToken)
+            ->postJson("/api/v1/vendor/orders/{$orderId}/dispatch-driver")
+            ->assertStatus(422);
     }
 }

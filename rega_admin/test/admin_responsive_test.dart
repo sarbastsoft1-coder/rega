@@ -1272,7 +1272,7 @@ void main() {
     }
   });
 
-  testWidgets('FinanceScreen, AccountingScreen (all 6 tabs), SupportSettingsScreen (all 5 tabs) render cleanly', (tester) async {
+  testWidgets('FinanceScreen, AccountingScreen (all 6 tabs), SupportSettingsScreen (all 8 tabs) render cleanly', (tester) async {
     final api = FakeApiClient();
     for (final lang in _locales) {
       for (final vp in _coreViewports) {
@@ -1300,7 +1300,15 @@ void main() {
           api: api,
           builder: (_) => SupportSettingsScreen(api: api, lang: lang),
           afterMount: () async {
-            final tabLabels = ['هەژمار', 'ئاگادارکردنەوە', 'پارەدان', 'ئاسایش'];
+            final tabLabels = [
+              'هەژمار',
+              'ئاگادارکردنەوە',
+              'پارەدان',
+              'ئاسایش',
+              'بەشەکانی ئەپ',
+              'ئاگاداری کڕیار',
+              'کۆپۆن و ڕیکلام',
+            ];
             for (final label in tabLabels) {
               final localized = tx(label);
               final f = find.text(localized);
