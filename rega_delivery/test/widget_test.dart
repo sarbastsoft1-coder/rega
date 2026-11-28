@@ -373,7 +373,6 @@ void main() {
                     locale: lang,
                     onUpdateStatus: (_) {},
                     onRequestPinVerification: () {},
-                    onClaimWaitingBonus: () {},
                     onRequestCancel: () {},
                     onClose: () {},
                   ),

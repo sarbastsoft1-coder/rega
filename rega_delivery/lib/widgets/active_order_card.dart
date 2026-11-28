@@ -11,7 +11,6 @@ class ActiveOrderCard extends StatefulWidget {
   final OrderModel order;
   final ValueChanged<OrderStatus> onUpdateStatus;
   final VoidCallback onRequestPinVerification;
-  final VoidCallback? onClaimWaitingBonus;
   final VoidCallback? onRequestCancel;
   final VoidCallback? onClose;
   final String locale;
@@ -21,7 +20,6 @@ class ActiveOrderCard extends StatefulWidget {
     required this.order,
     required this.onUpdateStatus,
     required this.onRequestPinVerification,
-    this.onClaimWaitingBonus,
     this.onRequestCancel,
     this.onClose,
     this.locale = 'ku',
@@ -264,59 +262,30 @@ class _ActiveOrderCardState extends State<ActiveOrderCard> {
           _buildItemsAccordion(),
           const SizedBox(height: 10),
 
-          // ٦. دوگمە یاریدەدەرەکان (پاداشتی چاوەڕوانی + کێشە/هەڵوەشاندنەوە)
-          if (widget.onClaimWaitingBonus != null || widget.onRequestCancel != null)
+          // ٦. دوگمەی کێشە / هەڵوەشاندنەوە
+          if (widget.onRequestCancel != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  if (_isPickupStage && widget.onClaimWaitingBonus != null)
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFD97706),
-                          side: const BorderSide(color: Color(0xFFFCD34D)),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: widget.onClaimWaitingBonus,
-                        child: Text(
-                          tx('پاداشتی چاوەڕوانی'),
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFDC2626),
+                    side: const BorderSide(color: Color(0xFFFECACA)),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  if (_isPickupStage &&
-                      widget.onClaimWaitingBonus != null &&
-                      widget.onRequestCancel != null)
-                    const SizedBox(width: 8),
-                  if (widget.onRequestCancel != null)
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFDC2626),
-                          side: const BorderSide(color: Color(0xFFFECACA)),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: widget.onRequestCancel,
-                        child: Text(
-                          tx('کێشە / هەڵوەشاندنەوە'),
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
+                  ),
+                  onPressed: widget.onRequestCancel,
+                  child: Text(
+                    tx('کێشە / هەڵوەشاندنەوە'),
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
                     ),
-                ],
+                  ),
+                ),
               ),
             ),
 

@@ -2015,7 +2015,6 @@ class _DriverMainScreenState extends State<DriverMainScreen>
                           locale: widget.currentLocale,
                           onUpdateStatus: _updateOrderStatus,
                           onRequestPinVerification: _completeDelivery,
-                          onClaimWaitingBonus: _claimWaitingBonusForActiveOrder,
                           onRequestCancel: _showCancelOrderDialog,
                           onClose: () => setState(() => _isOrderCardVisible = false),
                         ),
@@ -3368,7 +3367,7 @@ class _DriverMainScreenState extends State<DriverMainScreen>
               maxWidth: RegaResponsive.dialogMaxWidth(ctx, cap: 580),
             ),
             child: Container(
-              height: MediaQuery.of(context).size.height * 0.9,
+              height: MediaQuery.of(context).size.height * 0.5,
               decoration: BoxDecoration(
                 color: RC.bg(Colors.white),
                 borderRadius: BorderRadius.only(
@@ -3492,12 +3491,12 @@ class _DriverMainScreenState extends State<DriverMainScreen>
 
               // Hotline Section
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: RC.bg(Colors.white),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: RC.bg(Color(0xFFF1F5F9))),
-                  boxShadow: [BoxShadow(color: RC.bg(Colors.black).withOpacity(0.02), blurRadius: 10)],
+                  boxShadow: [BoxShadow(color: RC.bg(Colors.black).withOpacity(0.02), blurRadius: 8)],
                 ),
                 child: Column(
                   children: [
@@ -3505,12 +3504,12 @@ class _DriverMainScreenState extends State<DriverMainScreen>
                       t('hotline_title'),
                       textAlign: TextAlign.end,
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 13,
                         fontWeight: FontWeight.w900,
                         color: RC.fg(const Color(0xFF1E293B)),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -3518,9 +3517,9 @@ class _DriverMainScreenState extends State<DriverMainScreen>
                           backgroundColor: RC.bg(const Color(0xFF16A34A)),
                           foregroundColor: RC.fg(Colors.white),
                           elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         onPressed: () {
@@ -3532,10 +3531,10 @@ class _DriverMainScreenState extends State<DriverMainScreen>
                           launchUrl(Uri.parse('tel:$hotline'));
                         },
                         child: Text(
-                          tx('${t('hotline_btn')} : ${_supportContacts['support_phone'] ?? '0750 000 9372'}'),
+                          '${t('hotline_btn')} : ${IraqPhoneFormatter.display((_supportContacts['support_phone'] ?? '0750 000 9372').toString())}',
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
-                            fontSize: 16,
+                            fontSize: 13,
                           ),
                         ),
                       ),
@@ -3543,7 +3542,7 @@ class _DriverMainScreenState extends State<DriverMainScreen>
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
               // FAQ Section
               Text(t('faq_title'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: RC.fg(Color(0xFF1E293B)))),
@@ -4050,40 +4049,20 @@ class _DriverMainScreenState extends State<DriverMainScreen>
   }
 
   Widget _buildModalGridCell({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
     required String label,
     required String value,
     bool emphasize = false,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            tx(label),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w700,
-              color: RC.fg(const Color(0xFF94A3B8)),
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            tx(value),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: emphasize ? 13 : 12,
-              fontWeight: FontWeight.w900,
-              color: RC.fg(
-                emphasize ? const Color(0xFF16A34A) : const Color(0xFF0F172A),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return _buildOrderCardGridCell(
+      icon: icon,
+      iconColor: iconColor,
+      iconBg: iconBg,
+      label: label,
+      value: value,
+      emphasizeValue: emphasize,
     );
   }
 
@@ -4159,18 +4138,23 @@ class _DriverMainScreenState extends State<DriverMainScreen>
                           textDirection: TextDirection.rtl,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // RTL: یەکەم = ڕاست → فرۆشیار ڕاست، کڕیار چەپ (وەک وێنە)
                             Expanded(
                               child: _buildModalGridCell(
-                                label: t('label_seller'),
-                                value: '${order['merchant'] ?? ''}',
+                                icon: Icons.person_rounded,
+                                iconColor: const Color(0xFF2563EB),
+                                iconBg: const Color(0xFFDBEAFE),
+                                label: t('label_customer'),
+                                value: '${order['customer'] ?? ''}',
                               ),
                             ),
                             VerticalDivider(width: 1, thickness: 1, color: divider.color),
                             Expanded(
                               child: _buildModalGridCell(
-                                label: t('label_customer'),
-                                value: '${order['customer'] ?? ''}',
+                                icon: Icons.storefront_rounded,
+                                iconColor: const Color(0xFFD97706),
+                                iconBg: const Color(0xFFFEF3C7),
+                                label: t('label_seller'),
+                                value: '${order['merchant'] ?? ''}',
                               ),
                             ),
                           ],
@@ -4184,6 +4168,9 @@ class _DriverMainScreenState extends State<DriverMainScreen>
                           children: [
                             Expanded(
                               child: _buildModalGridCell(
+                                icon: Icons.local_shipping_rounded,
+                                iconColor: const Color(0xFF7C3AED),
+                                iconBg: const Color(0xFFEDE9FE),
                                 label: t('delivery_fee_label'),
                                 value: '${order['price'] ?? ''}',
                                 emphasize: true,
@@ -4192,6 +4179,9 @@ class _DriverMainScreenState extends State<DriverMainScreen>
                             VerticalDivider(width: 1, thickness: 1, color: divider.color),
                             Expanded(
                               child: _buildModalGridCell(
+                                icon: Icons.payments_rounded,
+                                iconColor: const Color(0xFF16A34A),
+                                iconBg: const Color(0xFFDCFCE7),
                                 label: t('order_total'),
                                 value: '${order['totalAmount'] ?? order['price'] ?? ''}',
                                 emphasize: true,
@@ -4362,42 +4352,66 @@ class _DriverMainScreenState extends State<DriverMainScreen>
     );
   }
 
-  Widget _buildOrderCardMetaCell({
+  Widget _buildOrderCardGridCell({
     required IconData icon,
     required Color iconColor,
     required Color iconBg,
-    required String title,
+    String? label,
+    required String value,
     bool emphasizeValue = false,
   }) {
-    return Row(
-      children: [
-        Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            color: RC.bg(iconBg),
-            borderRadius: BorderRadius.circular(9),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: RC.bg(iconBg),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 14, color: iconColor),
           ),
-          child: Icon(icon, size: 15, color: iconColor),
-        ),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Text(
-            tx(title),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: emphasizeValue ? 12.5 : 12,
-              fontWeight: FontWeight.w800,
-              color: RC.fg(
-                emphasizeValue
-                    ? const Color(0xFF16A34A)
-                    : const Color(0xFF0F172A),
-              ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (label != null && label.isNotEmpty) ...[
+                  Text(
+                    tx(label),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: RC.fg(const Color(0xFF94A3B8)),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                ],
+                Text(
+                  tx(value),
+                  maxLines: label != null ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: emphasizeValue ? 13 : 12,
+                    fontWeight: FontWeight.w900,
+                    color: RC.fg(
+                      emphasizeValue
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -4414,21 +4428,22 @@ class _DriverMainScreenState extends State<DriverMainScreen>
     VoidCallback? onTap,
     Widget? trailingAction,
   }) {
+    final divider = BorderSide(color: RC.bg(const Color(0xFFE2E8F0)), width: 1);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
         decoration: BoxDecoration(
           color: RC.bg(Colors.white),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
           boxShadow: [
             BoxShadow(
-              color: RC.bg(Colors.black).withValues(alpha: 0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
+              color: RC.bg(Colors.black).withValues(alpha: 0.05),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -4441,8 +4456,8 @@ class _DriverMainScreenState extends State<DriverMainScreen>
                 Flexible(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 3,
+                      horizontal: 10,
+                      vertical: 4,
                     ),
                     decoration: BoxDecoration(
                       color: statusBg,
@@ -4453,7 +4468,7 @@ class _DriverMainScreenState extends State<DriverMainScreen>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w900,
                         color: statusColor,
                       ),
@@ -4471,7 +4486,7 @@ class _DriverMainScreenState extends State<DriverMainScreen>
                       textAlign: TextAlign.end,
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
-                        fontSize: 14,
+                        fontSize: 15,
                         color: RC.fg(const Color(0xFF0F172A)),
                       ),
                     ),
@@ -4480,51 +4495,80 @@ class _DriverMainScreenState extends State<DriverMainScreen>
               ],
             ),
             const SizedBox(height: 10),
-            // Image-2 style: icon rows (customer | merchant)
-            Row(
-              children: [
-                Expanded(
-                  child: _buildOrderCardMetaCell(
-                    icon: Icons.person_rounded,
-                    iconColor: const Color(0xFF2563EB),
-                    iconBg: const Color(0xFFDBEAFE),
-                    title: customer,
+            // Image-2 style: 2×2 grid with dividers
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: RC.bg(const Color(0xFFE2E8F0))),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  IntrinsicHeight(
+                    child: Row(
+                      textDirection: TextDirection.rtl,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _buildOrderCardGridCell(
+                            icon: Icons.person_rounded,
+                            iconColor: const Color(0xFF2563EB),
+                            iconBg: const Color(0xFFDBEAFE),
+                            value: customer,
+                          ),
+                        ),
+                        VerticalDivider(
+                          width: 1,
+                          thickness: 1,
+                          color: divider.color,
+                        ),
+                        Expanded(
+                          child: _buildOrderCardGridCell(
+                            icon: Icons.storefront_rounded,
+                            iconColor: const Color(0xFFD97706),
+                            iconBg: const Color(0xFFFEF3C7),
+                            value: merchant,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildOrderCardMetaCell(
-                    icon: Icons.storefront_rounded,
-                    iconColor: const Color(0xFFD97706),
-                    iconBg: const Color(0xFFFEF3C7),
-                    title: merchant,
+                  Divider(height: 1, thickness: 1, color: divider.color),
+                  IntrinsicHeight(
+                    child: Row(
+                      textDirection: TextDirection.rtl,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _buildOrderCardGridCell(
+                            icon: Icons.local_shipping_rounded,
+                            iconColor: const Color(0xFF7C3AED),
+                            iconBg: const Color(0xFFEDE9FE),
+                            label: t('delivery_fee_label'),
+                            value: price,
+                            emphasizeValue: true,
+                          ),
+                        ),
+                        VerticalDivider(
+                          width: 1,
+                          thickness: 1,
+                          color: divider.color,
+                        ),
+                        Expanded(
+                          child: _buildOrderCardGridCell(
+                            icon: Icons.payments_rounded,
+                            iconColor: const Color(0xFF16A34A),
+                            iconBg: const Color(0xFFDCFCE7),
+                            label: t('order_total'),
+                            value: totalAmount,
+                            emphasizeValue: true,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // Image-2 style: delivery fee | total
-            Row(
-              children: [
-                Expanded(
-                  child: _buildOrderCardMetaCell(
-                    icon: Icons.local_shipping_rounded,
-                    iconColor: const Color(0xFF7C3AED),
-                    iconBg: const Color(0xFFEDE9FE),
-                    title: price,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildOrderCardMetaCell(
-                    icon: Icons.payments_rounded,
-                    iconColor: const Color(0xFF16A34A),
-                    iconBg: const Color(0xFFDCFCE7),
-                    title: totalAmount,
-                    emphasizeValue: true,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
             if (trailingAction != null) ...[
               const SizedBox(height: 10),
