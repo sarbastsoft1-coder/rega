@@ -457,6 +457,10 @@ class ApiClient {
     return _send('PUT', '/admin/drivers/$driverProfileId', body: payload);
   }
 
+  Future<void> deleteDriver(int driverProfileId) async {
+    await _send('DELETE', '/admin/drivers/$driverProfileId');
+  }
+
   Future<void> toggleDriverActive(int driverProfileId) async {
     await _send('PATCH', '/admin/drivers/$driverProfileId/toggle-active');
   }
@@ -1002,16 +1006,36 @@ class ApiClient {
     return _downloadBinary('/admin/backups/$safe', fallbackName: fileName);
   }
 
+  Future<ExcelBackupFile> downloadAccountingReportCsv({
+    String period = 'month',
+    String? from,
+    String? to,
+  }) async {
+    return _downloadBinary(
+      '/admin/accounting/reports/export',
+      fallbackName: 'accounting_report_$period.csv',
+      query: {
+        'period': period,
+        'from': from,
+        'to': to,
+      },
+      accept: 'text/csv, application/octet-stream, application/json',
+    );
+  }
+
   Future<ExcelBackupFile> _downloadBinary(
     String path, {
     required String fallbackName,
+    Map<String, dynamic>? query,
+    String accept =
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/octet-stream, application/json',
   }) async {
-    final uri = _buildUri(path);
+    final uri = _buildUri(path, query);
     late http.Response res;
     try {
       res = await http
           .get(uri, headers: {
-            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/octet-stream, application/json',
+            'Accept': accept,
             if (_token != null && _token!.isNotEmpty) 'Authorization': 'Bearer $_token',
           })
           .timeout(const Duration(seconds: 120));

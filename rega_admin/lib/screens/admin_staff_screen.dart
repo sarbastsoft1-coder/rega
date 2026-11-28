@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import '../core/api/api_client.dart';
 import '../core/iraq_phone_formatter.dart';
 import '../core/theme/admin_breakpoints.dart';
+import '../core/theme/app_theme.dart';
 import '../widgets/admin_top_header.dart';
+import '../widgets/bulk_delete_bar.dart';
 import '../rega_i18n.dart';
 import '../rega_colors.dart';
 /// Dedicated page to create / edit / deactivate admin accounts.
@@ -26,6 +28,9 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
   List<Map<String, dynamic>> _staff = [];
   bool _loading = true;
   final _searchCtrl = TextEditingController();
+  bool _selectionMode = false;
+  final Set<int> _selectedIds = {};
+  bool _bulkBusy = false;
 
   @override
   void initState() {
@@ -49,6 +54,9 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
       if (!mounted) return;
       setState(() {
         _staff = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _selectedIds.removeWhere(
+          (id) => !_staff.any((s) => s['id'] == id),
+        );
         _loading = false;
       });
     } catch (e) {
@@ -66,6 +74,66 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
         backgroundColor: error ? RC.bg(Color(0xFFDC2626)) : RC.bg(Color(0xFF16A34A)),
       ),
     );
+  }
+
+  List<int> get _staffIds => _staff.map((s) => s['id']).whereType<int>().toList();
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) _selectedIds.clear();
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _selectAllStaff() {
+    setState(() => _selectedIds
+      ..clear()
+      ..addAll(_staffIds));
+  }
+
+  void _toggleStaffSelected(int id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _bulkDeleteStaff({required bool deleteAll}) async {
+    final ids = deleteAll ? _staffIds : _selectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteAdminStaff,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+    _snack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _load();
   }
 
   Future<void> _confirmDelete(Map<String, dynamic> staff) async {
@@ -92,8 +160,8 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tx('پاشگەزبوونەوە'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: RC.bg(Color(0xFFDC2626)),
-              foregroundColor: RC.fg(Colors.white),
+              backgroundColor: RegaColors.crimson,
+              foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(tx('سڕینەوە')),
@@ -339,12 +407,34 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                     ],
                   );
 
-            final toolbar = Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            final toolbar = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                BulkDeleteBar(
+                  lang: widget.lang,
+                  selectionMode: _selectionMode,
+                  selectedCount: _selectedIds.length,
+                  totalCount: _staff.length,
+                  busy: _bulkBusy,
+                  onToggleSelectionMode: _toggleSelectionMode,
+                  onSelectAll: _selectAllStaff,
+                  onClearSelection: _clearSelection,
+                  onDeleteSelected: () => _bulkDeleteStaff(deleteAll: false),
+                  onDeleteAll: () => _bulkDeleteStaff(deleteAll: true),
+                  extraActions: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: RC.bg(Color(0xFFEA580C)),
+                        foregroundColor: RC.fg(Colors.white),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      onPressed: _bulkBusy ? null : () => _showEditor(),
+                      icon: const Icon(Icons.person_add_alt_1_rounded),
+                      label: Text(tx('دروستکردنی ئەدمین'), style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 SizedBox(
                   width: phone ? constraints.maxWidth - padH * 2 : 280,
                   child: TextField(
@@ -360,16 +450,6 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                       ),
                     ),
                   ),
-                ),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: RC.bg(Color(0xFFEA580C)),
-                    foregroundColor: RC.fg(Colors.white),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                  onPressed: () => _showEditor(),
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                  label: Text(tx('دروستکردنی ئەدمین'), style: TextStyle(fontWeight: FontWeight.w900)),
                 ),
               ],
             );
@@ -441,18 +521,27 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                         final id = staff['id'] as int;
                         final active = staff['is_active'] != false;
                         final email = staff['email']?.toString();
+                        final selected = _selectedIds.contains(id);
                         return Center(
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 1080),
-                            child: Container(
+                            child: Material(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(14),
+                              child: InkWell(
+                                onTap: _selectionMode ? () => _toggleStaffSelected(id) : null,
+                                borderRadius: BorderRadius.circular(14),
+                                child: Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                color: cardBg,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? RC.bg(Color(0xFF334155))
-                                      : RC.bg(Color(0xFFE2E8F0)),
+                                  color: selected
+                                      ? RegaColors.orange
+                                      : (Theme.of(context).brightness == Brightness.dark
+                                          ? RC.bg(Color(0xFF334155))
+                                          : RC.bg(Color(0xFFE2E8F0))),
+                                  width: selected ? 2 : 1,
                                 ),
                               ),
                               child: LayoutBuilder(
@@ -461,6 +550,14 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                                   final avatarCol = Row(
                                     crossAxisAlignment: rowPhone ? CrossAxisAlignment.start : CrossAxisAlignment.center,
                                     children: [
+                                      if (_selectionMode)
+                                        Padding(
+                                          padding: const EdgeInsetsDirectional.only(end: 8),
+                                          child: BulkSelectBadge(
+                                            selected: selected,
+                                            onChanged: (_) => _toggleStaffSelected(id),
+                                          ),
+                                        ),
                                       CircleAvatar(
                                         backgroundColor: RC.bg(Color(0xFFFFEDD5)),
                                         child: Icon(
@@ -567,6 +664,8 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                                     ],
                                   );
                                 },
+                              ),
+                            ),
                               ),
                             ),
                           ),

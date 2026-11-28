@@ -8,6 +8,7 @@ import '../core/iraq_phone_formatter.dart';
 import '../core/services/media_pick_service.dart';
 import '../state/admin_app_notifier.dart';
 import '../widgets/admin_top_header.dart';
+import '../widgets/bulk_delete_bar.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 
@@ -130,6 +131,9 @@ class _StoresScreenState extends State<StoresScreen> {
   /// Marketplace home categories from admin (مارکێت، کافێ، …) — used when adding/filtering vendors.
   List<Map<String, dynamic>> _homeCategories = [];
   bool _isLoading = true;
+  bool _selectionMode = false;
+  final Set<int> _selectedIds = {};
+  bool _bulkBusy = false;
 
   String get _lang => widget.lang;
   String _t(String key) => AppStrings.tr(key, _lang);
@@ -275,6 +279,7 @@ class _StoresScreenState extends State<StoresScreen> {
 
       setState(() {
         _vendors = mapped;
+        _selectedIds.removeWhere((id) => !_vendors.any((v) => v.id == id));
         _homeCategories = cats;
         _registeredVendors = totalCount;
         _activeVendors = activeCount;
@@ -291,6 +296,113 @@ class _StoresScreenState extends State<StoresScreen> {
       if (mounted && !silent) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  void _vendorSnack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tx(msg)),
+        backgroundColor: error ? RegaColors.crimson : RegaColors.emeraldDark,
+      ),
+    );
+  }
+
+  List<int> get _filteredVendorIds =>
+      _filteredVendors.map((v) => v.id).toList();
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) _selectedIds.clear();
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _selectAllFilteredVendors() {
+    setState(() => _selectedIds
+      ..clear()
+      ..addAll(_filteredVendorIds));
+  }
+
+  void _toggleVendorSelected(int id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _bulkDeleteVendors({required bool deleteAll}) async {
+    final ids = deleteAll ? _filteredVendorIds : _selectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteStore,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+    _vendorSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _loadFromBackend();
+  }
+
+  Future<void> _confirmDeleteVendor(VendorItem v) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        insetPadding: AdminBreakpoints.dialogInset(ctx),
+        contentPadding: AdminBreakpoints.dialogContentPadding(ctx),
+        title: Text(_t('delete'), maxLines: 1, overflow: TextOverflow.ellipsis),
+        content: SingleChildScrollView(
+          child: Text(_t('confirm_delete_item')),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(_t('cancel')),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: RegaColors.crimson,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(_t('delete')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await widget.api.deleteStore(v.id);
+      _vendorSnack(tx('فرۆشگا سڕایەوە ✅'));
+      await _loadFromBackend();
+    } catch (e) {
+      _vendorSnack(e.toString(), error: true);
     }
   }
 
@@ -1680,6 +1792,38 @@ class _StoresScreenState extends State<StoresScreen> {
             children: [
               // 1. Top Header Area (Matching Screenshot)
               _buildTopHeader(),
+              const SizedBox(height: 12),
+              BulkDeleteBar(
+                lang: widget.lang,
+                selectionMode: _selectionMode,
+                selectedCount: _selectedIds.length,
+                totalCount: filtered.length,
+                busy: _bulkBusy,
+                onToggleSelectionMode: _toggleSelectionMode,
+                onSelectAll: _selectAllFilteredVendors,
+                onClearSelection: _clearSelection,
+                onDeleteSelected: () => _bulkDeleteVendors(deleteAll: false),
+                onDeleteAll: () => _bulkDeleteVendors(deleteAll: true),
+                extraActions: [
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: RC.bg(Color(0xFFEA580C)),
+                      foregroundColor: RC.fg(Colors.white),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _bulkBusy ? null : () => _showAddVendorDialog(),
+                    icon: Icon(Icons.add_rounded, size: 20, color: RC.fg(Colors.white)),
+                    label: Text(
+                      AppStrings.tr('add_vendor', widget.lang),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 20),
 
               // 2. 4 Top KPI Metric Cards (Matching Screenshot)
@@ -1747,7 +1891,7 @@ class _StoresScreenState extends State<StoresScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             shadowColor: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.3),
           ),
-          onPressed: () => _showAddVendorDialog(),
+          onPressed: _bulkBusy ? null : () => _showAddVendorDialog(),
           icon: Icon(Icons.add_rounded, size: 20, color: RC.fg(Colors.white)),
           label: Text(
             AppStrings.tr('add_vendor', widget.lang),
@@ -1770,8 +1914,6 @@ class _StoresScreenState extends State<StoresScreen> {
               topActions,
               const SizedBox(height: 12),
               titleBlock,
-              const SizedBox(height: 12),
-              addBtn,
             ],
           );
         }
@@ -2096,7 +2238,12 @@ class _StoresScreenState extends State<StoresScreen> {
 
   Widget _buildVendorMobileCard(VendorItem v) {
     final surfaces = AdminSurfaces.of(context);
-    return Container(
+    final selected = _selectedIds.contains(v.id);
+    return Material(
+      color: selected ? RegaColors.orange.withValues(alpha: 0.08) : Colors.transparent,
+      child: InkWell(
+        onTap: _selectionMode ? () => _toggleVendorSelected(v.id) : null,
+        child: Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
@@ -2108,6 +2255,14 @@ class _StoresScreenState extends State<StoresScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_selectionMode)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 8),
+                  child: BulkSelectBadge(
+                    selected: selected,
+                    onChanged: (_) => _toggleVendorSelected(v.id),
+                  ),
+                ),
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.network(
@@ -2184,11 +2339,24 @@ class _StoresScreenState extends State<StoresScreen> {
                       child: Icon(Icons.edit_outlined, size: 17, color: RC.fg(Color(0xFF475569))),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => _confirmDeleteVendor(v),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(8)),
+                      child: Icon(Icons.delete_outline, size: 17, color: RC.fg(Color(0xFFDC2626))),
+                    ),
+                  ),
                 ],
               ),
             ],
           ),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -2306,10 +2474,27 @@ class _StoresScreenState extends State<StoresScreen> {
                             separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
                             itemBuilder: (context, index) {
                               final v = pagedList[index];
-                              return Padding(
+                              final selected = _selectedIds.contains(v.id);
+                              return Material(
+                                color: selected
+                                    ? RegaColors.orange.withValues(alpha: 0.08)
+                                    : Colors.transparent,
+                                child: InkWell(
+                                  onTap: _selectionMode
+                                      ? () => _toggleVendorSelected(v.id)
+                                      : null,
+                                  child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                 child: Row(
                                   children: [
+                                    if (_selectionMode)
+                                      Padding(
+                                        padding: const EdgeInsetsDirectional.only(end: 8),
+                                        child: BulkSelectBadge(
+                                          selected: selected,
+                                          onChanged: (_) => _toggleVendorSelected(v.id),
+                                        ),
+                                      ),
                                     // 1. Vendor Name, Subtitle, and Thumbnail
                                     Expanded(
                                       flex: 3,
@@ -2446,13 +2631,12 @@ class _StoresScreenState extends State<StoresScreen> {
                                     ),
                                     const SizedBox(width: 8),
 
-                                    // 7. Actions [✏️] [👁]
+                                    // 7. Actions [✏️] [👁] [🗑]
                                     Expanded(
                                       flex: 2,
                                       child: Row(
                                         mainAxisAlignment: MainAxisAlignment.end,
                                         children: [
-                                          // View Details Eye Button
                                           InkWell(
                                             onTap: () => _showVendorDetailsDialog(v),
                                             borderRadius: BorderRadius.circular(6),
@@ -2466,7 +2650,6 @@ class _StoresScreenState extends State<StoresScreen> {
                                             ),
                                           ),
                                           const SizedBox(width: 6),
-                                          // Edit Button
                                           InkWell(
                                             onTap: () => _showAddVendorDialog(existing: v),
                                             borderRadius: BorderRadius.circular(6),
@@ -2479,10 +2662,25 @@ class _StoresScreenState extends State<StoresScreen> {
                                               child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
                                             ),
                                           ),
+                                          const SizedBox(width: 6),
+                                          InkWell(
+                                            onTap: () => _confirmDeleteVendor(v),
+                                            borderRadius: BorderRadius.circular(6),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: AdminSurfaces.of(context).chipFill,
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(Icons.delete_outline, size: 16, color: RC.fg(Color(0xFFDC2626))),
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ),
                                   ],
+                                ),
+                                  ),
                                 ),
                               );
                             },
@@ -2602,7 +2800,7 @@ class _StoresScreenState extends State<StoresScreen> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: active ? RC.bg(Colors.white) : RC.bg(Color(0xFF64748B)),
+              color: active ? Colors.white : RC.fg(const Color(0xFF64748B)),
             ),
           ),
         ),

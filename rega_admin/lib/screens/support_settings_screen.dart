@@ -613,7 +613,7 @@ class _SupportSettingsScreenState extends State<SupportSettingsScreen> {
                     ? SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.table_view_rounded, size: 18),
                 label: Text(

@@ -4,6 +4,7 @@ import '../core/localization/app_strings.dart';
 import '../core/services/media_pick_service.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
+import '../widgets/bulk_delete_bar.dart';
 import '../widgets/common_widgets.dart';
 
 import '../rega_i18n.dart';
@@ -37,6 +38,11 @@ class _MarketingScreenState extends State<MarketingScreen>
   List<dynamic> _coupons = [];
   List<dynamic> _banners = [];
   List<dynamic> _notifications = [];
+  bool _selectionMode = false;
+  final Set<int> _couponSelectedIds = {};
+  final Set<int> _bannerSelectedIds = {};
+  final Set<int> _notificationSelectedIds = {};
+  bool _bulkBusy = false;
 
   bool get _notificationsOnly => widget.mode == MarketingMode.notifications;
 
@@ -49,6 +55,15 @@ class _MarketingScreenState extends State<MarketingScreen>
         vsync: this,
         initialIndex: widget.initialTab.clamp(0, 2),
       );
+      _tabCtrl!.addListener(() {
+        if (_tabCtrl!.indexIsChanging) return;
+        setState(() {
+          _selectionMode = false;
+          _couponSelectedIds.clear();
+          _bannerSelectedIds.clear();
+          _notificationSelectedIds.clear();
+        });
+      });
     }
     _load();
   }
@@ -67,7 +82,14 @@ class _MarketingScreenState extends State<MarketingScreen>
     try {
       if (_notificationsOnly) {
         final notifs = await widget.api.getNotifications();
-        if (mounted) setState(() => _notifications = notifs);
+        if (mounted) {
+          setState(() {
+            _notifications = notifs;
+            _notificationSelectedIds.removeWhere(
+              (id) => !_notifications.any((n) => (n as Map)['id'] == id),
+            );
+          });
+        }
       } else {
         final results = await Future.wait([
           widget.api.getCoupons(),
@@ -79,6 +101,15 @@ class _MarketingScreenState extends State<MarketingScreen>
             _coupons = results[0];
             _banners = results[1];
             _notifications = results[2];
+            _couponSelectedIds.removeWhere(
+              (id) => !_coupons.any((c) => (c as Map)['id'] == id),
+            );
+            _bannerSelectedIds.removeWhere(
+              (id) => !_banners.any((b) => (b as Map)['id'] == id),
+            );
+            _notificationSelectedIds.removeWhere(
+              (id) => !_notifications.any((n) => (n as Map)['id'] == id),
+            );
           });
         }
       }
@@ -97,6 +128,186 @@ class _MarketingScreenState extends State<MarketingScreen>
         backgroundColor: error ? RegaColors.crimson : RegaColors.emeraldDark,
       ),
     );
+  }
+
+  int get _marketingTab =>
+      _notificationsOnly ? 2 : (_tabCtrl?.index ?? 0);
+
+  Set<int> get _activeSelectedIds => switch (_marketingTab) {
+        0 => _couponSelectedIds,
+        1 => _bannerSelectedIds,
+        _ => _notificationSelectedIds,
+      };
+
+  List<int> get _couponIds => _coupons.map((c) => (c as Map)['id']).whereType<int>().toList();
+  List<int> get _bannerIds => _banners.map((b) => (b as Map)['id']).whereType<int>().toList();
+  List<int> get _notificationIds =>
+      _notifications.map((n) => (n as Map)['id']).whereType<int>().toList();
+
+  List<int> get _activeListIds => switch (_marketingTab) {
+        0 => _couponIds,
+        1 => _bannerIds,
+        _ => _notificationIds,
+      };
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) {
+        _couponSelectedIds.clear();
+        _bannerSelectedIds.clear();
+        _notificationSelectedIds.clear();
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectionMode = false;
+      _couponSelectedIds.clear();
+      _bannerSelectedIds.clear();
+      _notificationSelectedIds.clear();
+    });
+  }
+
+  void _selectAllActive() {
+    setState(() {
+      switch (_marketingTab) {
+        case 0:
+          _couponSelectedIds
+            ..clear()
+            ..addAll(_couponIds);
+        case 1:
+          _bannerSelectedIds
+            ..clear()
+            ..addAll(_bannerIds);
+        default:
+          _notificationSelectedIds
+            ..clear()
+            ..addAll(_notificationIds);
+      }
+    });
+  }
+
+  void _toggleItemSelected(int id) {
+    setState(() {
+      final set = switch (_marketingTab) {
+        0 => _couponSelectedIds,
+        1 => _bannerSelectedIds,
+        _ => _notificationSelectedIds,
+      };
+      if (set.contains(id)) {
+        set.remove(id);
+      } else {
+        set.add(id);
+      }
+    });
+  }
+
+  Future<void> _bulkDeleteCoupons({required bool deleteAll}) async {
+    final ids = deleteAll ? _couponIds : _couponSelectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteCoupon,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _couponSelectedIds.clear();
+    });
+    _showSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _load();
+  }
+
+  Future<void> _bulkDeleteBanners({required bool deleteAll}) async {
+    final ids = deleteAll ? _bannerIds : _bannerSelectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteBanner,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _bannerSelectedIds.clear();
+    });
+    _showSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _load();
+  }
+
+  Future<void> _bulkDeleteNotifications({required bool deleteAll}) async {
+    final ids = deleteAll ? _notificationIds : _notificationSelectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteNotification,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _notificationSelectedIds.clear();
+    });
+    _showSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _load();
+  }
+
+  void _runBulkDeleteSelected() {
+    switch (_marketingTab) {
+      case 0:
+        _bulkDeleteCoupons(deleteAll: false);
+      case 1:
+        _bulkDeleteBanners(deleteAll: false);
+      default:
+        _bulkDeleteNotifications(deleteAll: false);
+    }
+  }
+
+  void _runBulkDeleteAll() {
+    switch (_marketingTab) {
+      case 0:
+        _bulkDeleteCoupons(deleteAll: true);
+      case 1:
+        _bulkDeleteBanners(deleteAll: true);
+      default:
+        _bulkDeleteNotifications(deleteAll: true);
+    }
   }
 
   void _showCouponDialog({Map<String, dynamic>? existing}) {
@@ -569,35 +780,62 @@ class _MarketingScreenState extends State<MarketingScreen>
                   );
                 }
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Card(
-                    child: ListTile(
-                      leading: avatar,
-                      title: Text(
-                        titleText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                  final selected =
+                      id != null && _notificationSelectedIds.contains(id);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: selected
+                            ? const BorderSide(color: RegaColors.orange, width: 2)
+                            : BorderSide.none,
                       ),
-                      subtitle: Text(
-                        subText,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
+                      child: InkWell(
+                        onTap: _selectionMode && id != null
+                            ? () => _toggleItemSelected(id)
+                            : null,
+                        borderRadius: BorderRadius.circular(12),
+                        child: ListTile(
+                        leading: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_selectionMode && id != null)
+                              Padding(
+                                padding: const EdgeInsetsDirectional.only(end: 6),
+                                child: BulkSelectBadge(
+                                  selected: selected,
+                                  onChanged: (_) => _toggleItemSelected(id),
+                                ),
+                              ),
+                            avatar,
+                          ],
+                        ),
+                        title: Text(
+                          titleText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        subtitle: Text(
+                          subText,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        isThreeLine: true,
+                        trailing: id == null
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
+                                onPressed: () async {
+                                  await widget.api.deleteNotification(id);
+                                  _load();
+                                },
+                              ),
                       ),
-                      isThreeLine: true,
-                      trailing: id == null
-                          ? null
-                          : IconButton(
-                              icon: const Icon(Icons.delete_outline, color: RegaColors.crimson),
-                              onPressed: () async {
-                                await widget.api.deleteNotification(id);
-                                _load();
-                              },
-                            ),
+                      ),
                     ),
-                  ),
-                );
+                  );
               }),
           ],
         );
@@ -617,6 +855,18 @@ class _MarketingScreenState extends State<MarketingScreen>
             subtitle: _notificationsOnly
                 ? 'ناردنی داشکاندن و ئاگاداری — دەردەکەوێت لە نۆتیفیکەیشنی ئەپی کڕیار'
                 : 'بەڕێوەبردنی کۆدەکانی داشکاندن، بانەرەکانی ئەپ و ناردنی نامەی گشتی',
+            trailing: BulkDeleteBar(
+              lang: widget.lang,
+              selectionMode: _selectionMode,
+              selectedCount: _activeSelectedIds.length,
+              totalCount: _activeListIds.length,
+              busy: _bulkBusy,
+              onToggleSelectionMode: _toggleSelectionMode,
+              onSelectAll: _selectAllActive,
+              onClearSelection: _clearSelection,
+              onDeleteSelected: _runBulkDeleteSelected,
+              onDeleteAll: _runBulkDeleteAll,
+            ),
           ),
         ),
         if (!_notificationsOnly && _tabCtrl != null)
@@ -658,6 +908,8 @@ class _MarketingScreenState extends State<MarketingScreen>
                                 const SizedBox(height: 14),
                                 ..._coupons.map((raw) {
                                   final c = raw as Map<String, dynamic>;
+                                  final itemId = (c['id'] as num?)?.toInt();
+                                  final selected = itemId != null && _couponSelectedIds.contains(itemId);
                                   final active = c['is_active'] == true;
                                   final actions = Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -708,7 +960,18 @@ class _MarketingScreenState extends State<MarketingScreen>
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 10),
                                     child: Card(
-                                      child: compactCoupon
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        side: selected
+                                            ? const BorderSide(color: RegaColors.orange, width: 2)
+                                            : BorderSide.none,
+                                      ),
+                                      child: InkWell(
+                                        onTap: _selectionMode && itemId != null
+                                            ? () => _toggleItemSelected(itemId)
+                                            : null,
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: compactCoupon
                                           ? Padding(
                                               padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
                                               child: Column(
@@ -716,6 +979,14 @@ class _MarketingScreenState extends State<MarketingScreen>
                                                 children: [
                                                   Row(
                                                     children: [
+                                                      if (_selectionMode && itemId != null)
+                                                        Padding(
+                                                          padding: const EdgeInsetsDirectional.only(end: 8),
+                                                          child: BulkSelectBadge(
+                                                            selected: selected,
+                                                            onChanged: (_) => _toggleItemSelected(itemId),
+                                                          ),
+                                                        ),
                                                       codeBadge,
                                                       const SizedBox(width: 10),
                                                       Expanded(
@@ -752,6 +1023,7 @@ class _MarketingScreenState extends State<MarketingScreen>
                                               ),
                                               trailing: actions,
                                             ),
+                                      ),
                                     ),
                                   );
                                 }),
@@ -802,6 +1074,8 @@ class _MarketingScreenState extends State<MarketingScreen>
                                 const SizedBox(height: 14),
                                 ..._banners.map((raw) {
                                   final b = raw as Map<String, dynamic>;
+                                  final itemId = (b['id'] as num?)?.toInt();
+                                  final selected = itemId != null && _bannerSelectedIds.contains(itemId);
                                   final active = b['is_active'] == true;
                                   final thumb = widget.api.resolveMediaUrl(b['image_url']?.toString());
                                   final titleStr = b['title_ku']?.toString() ?? '';
@@ -892,33 +1166,58 @@ class _MarketingScreenState extends State<MarketingScreen>
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
                                     child: Card(
-                                      child: ListTile(
-                                        leading: ClipRRect(
-                                          borderRadius: BorderRadius.circular(10),
-                                          child: SizedBox(
-                                            width: 72,
-                                            height: 48,
-                                            child: Image.network(
-                                              thumb,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, _, _) => const Icon(Icons.image_rounded),
-                                            ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        side: selected
+                                            ? const BorderSide(color: RegaColors.orange, width: 2)
+                                            : BorderSide.none,
+                                      ),
+                                      child: InkWell(
+                                        onTap: _selectionMode && itemId != null
+                                            ? () => _toggleItemSelected(itemId)
+                                            : null,
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: ListTile(
+                                          leading: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              if (_selectionMode && itemId != null)
+                                                Padding(
+                                                  padding: const EdgeInsetsDirectional.only(end: 6),
+                                                  child: BulkSelectBadge(
+                                                    selected: selected,
+                                                    onChanged: (_) => _toggleItemSelected(itemId),
+                                                  ),
+                                                ),
+                                              ClipRRect(
+                                                borderRadius: BorderRadius.circular(10),
+                                                child: SizedBox(
+                                                  width: 72,
+                                                  height: 48,
+                                                  child: Image.network(
+                                                    thumb,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (_, _, _) => const Icon(Icons.image_rounded),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
-                                        title: Text(
-                                          tx(titleStr),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontWeight: FontWeight.w800),
-                                        ),
-                                        subtitle: Text(
-                                          tx(subStr),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: bannerActions,
+                                          title: Text(
+                                            tx(titleStr),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(fontWeight: FontWeight.w800),
+                                          ),
+                                          subtitle: Text(
+                                            tx(subStr),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: bannerActions,
+                                          ),
                                         ),
                                       ),
                                     ),

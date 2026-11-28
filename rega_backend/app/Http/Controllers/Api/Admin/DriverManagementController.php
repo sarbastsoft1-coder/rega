@@ -636,5 +636,44 @@ class DriverManagementController extends Controller
             'data' => $driverProfile->fresh(['user', 'documents']),
         ]);
     }
+
+    public function destroy(DriverProfile $driverProfile): JsonResponse
+    {
+        $user = $driverProfile->user;
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'هەژماری شۆفێر نەدۆزرایەوە.',
+            ], 404);
+        }
+
+        // Keep financial/history integrity: suspend instead of hard-delete when orders exist.
+        if ($user->driverOrders()->exists()) {
+            $user->update(['is_active' => false]);
+            $user->tokens()->delete();
+            $driverProfile->update(['is_online' => false]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'ماتۆرسوارەکە داواکاری پێشووی هەیە، بۆیە هەژمارەکەی ڕاگیرا لەبری سڕینەوەی تەواو.',
+            ]);
+        }
+
+        DB::transaction(function () use ($driverProfile, $user) {
+            $driverProfile->load('documents');
+            foreach ($driverProfile->documents as $document) {
+                $this->deleteStoredFile($document->file_url);
+                $document->delete();
+            }
+            $driverProfile->delete();
+            $user->tokens()->delete();
+            $user->delete();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ماتۆرسوار بە سەرکەوتوویی سڕایەوە.',
+        ]);
+    }
 }
 

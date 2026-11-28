@@ -183,6 +183,62 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
     return '${(m / 1000).toStringAsFixed(1)} کم';
   }
 
+  /// When a driver has no real name, the phone is often stored in `name`.
+  String _driverPrimaryLabel(Map<String, dynamic> user) {
+    final name = (user['name'] ?? '').toString().trim();
+    final phone = (user['phone'] ?? '').toString().trim();
+    final nameDigits = IraqPhoneFormatter.digitsOnly(name);
+    if (name.isNotEmpty && nameDigits.length < 10) return name;
+    if (phone.isNotEmpty) return phone;
+    if (nameDigits.length >= 10) return name;
+    return name.isEmpty ? '—' : name;
+  }
+
+  bool _labelLooksLikePhone(String label) {
+    return IraqPhoneFormatter.digitsOnly(label).length >= 10;
+  }
+
+  Widget _driverTitleText(
+    String label, {
+    String code = '',
+    String suffix = '',
+    TextStyle? style,
+    int maxLines = 1,
+  }) {
+    final codePart = code.isEmpty ? '' : ' ($code)';
+    final style0 = style ?? const TextStyle(fontWeight: FontWeight.w900, fontSize: 13);
+    if (!_labelLooksLikePhone(label)) {
+      return Text(
+        tx('$label$codePart$suffix'),
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        style: style0,
+      );
+    }
+    return Text.rich(
+      TextSpan(
+        style: style0,
+        children: [
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: Text(
+                IraqPhoneFormatter.format(label),
+                style: style0,
+              ),
+            ),
+          ),
+          if (codePart.isNotEmpty) TextSpan(text: codePart),
+          if (suffix.isNotEmpty) TextSpan(text: suffix),
+        ],
+      ),
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
   List<Map<String, dynamic>> get _sortedDrivers {
     final list = _drivers.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     list.sort((a, b) {
@@ -337,11 +393,11 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                                 final infoCol = Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      tx('${u['name'] ?? ''} (${dp['driver_code'] ?? ''})$nearBadge'),
+                                    _driverTitleText(
+                                      _driverPrimaryLabel(Map<String, dynamic>.from(u)),
+                                      code: dp['driver_code']?.toString() ?? '',
+                                      suffix: nearBadge,
                                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
@@ -1022,9 +1078,9 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                 separatorBuilder: (_, __) => SizedBox(width: compact ? 10 : 0, height: compact ? 0 : 8),
                 itemBuilder: (_, idx) {
                   final dp = drivers[idx];
-                  final u = dp['user'] as Map<String, dynamic>? ?? {};
+                  final u = Map<String, dynamic>.from(dp['user'] as Map? ?? {});
                   final online = dp['is_online'] == true;
-                  final name = u['name']?.toString() ?? '—';
+                  final name = _driverPrimaryLabel(u);
                   final code = dp['driver_code']?.toString() ?? '';
 
                   final today = (dp['today_deliveries'] as num?)?.toInt() ?? 0;
@@ -1051,7 +1107,10 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(tx(name), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, fontSize: phone ? 12 : 13)),
+                                _driverTitleText(
+                                  name,
+                                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: phone ? 12 : 13),
+                                ),
                                 Text(
                                   tx(online ? 'ئۆنلاین · $dist' : 'ئۆفلاین · $dist'),
                                   maxLines: 1,
@@ -1096,10 +1155,9 @@ class _OrderIntakeScreenState extends State<OrderIntakeScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    tx('$name${code.isEmpty ? '' : ' ($code)'}'),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  _driverTitleText(
+                                    name,
+                                    code: code,
                                     style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
                                   ),
                                   Text(

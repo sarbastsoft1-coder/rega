@@ -21,7 +21,7 @@ import 'admin_staff_screen.dart';
 import 'support_settings_screen.dart';
 
 import '../rega_i18n.dart';
-import '../rega_colors.dart';
+
 class AdminShell extends StatefulWidget {
   final ApiClient api;
   final Map<String, dynamic> currentUser;
@@ -246,18 +246,18 @@ class _AdminShellState extends State<AdminShell> {
                   Stack(
                     alignment: Alignment.center,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.location_on_rounded,
                         size: 42,
-                        color: RC.fg(Color(0xFFFF5722)),
+                        color: Color(0xFFFF5722),
                       ),
                       Positioned(
                         top: 9,
                         child: Container(
                           width: 12,
                           height: 12,
-                          decoration: BoxDecoration(
-                            color: RC.bg(Color(0xFF113E2E)),
+                          decoration: const BoxDecoration(
+                            color: RegaColors.sidebarBg,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -268,8 +268,9 @@ class _AdminShellState extends State<AdminShell> {
                   if (!rail)
                   Text(
                     tx('REGA'),
-                    style: TextStyle(
-                      color: RC.fg(Colors.white),
+                    style: const TextStyle(
+                      // Sidebar is always dark forest green — keep light text in both themes.
+                      color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 16,
                       letterSpacing: 1.2,
@@ -286,7 +287,7 @@ class _AdminShellState extends State<AdminShell> {
                   final item = items[idx];
                   final active = _selectedIndex == idx;
 
-                  final Color itemBg = active ? RC.bg(Color(0xFFEA580C)) : Colors.transparent;
+                  final Color itemBg = active ? RegaColors.orange : Colors.transparent;
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6),
@@ -297,7 +298,7 @@ class _AdminShellState extends State<AdminShell> {
                         boxShadow: active
                             ? [
                                 BoxShadow(
-                                  color: RC.bg(Color(0xFFEA580C)).withValues(alpha: 0.35),
+                                  color: RegaColors.orange.withValues(alpha: 0.35),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -323,7 +324,11 @@ class _AdminShellState extends State<AdminShell> {
                                       child: Icon(
                                         item.icon,
                                         size: 22,
-                                        color: active ? RC.fg(Colors.white) : RC.bg(Colors.white).withValues(alpha: 0.75),
+                                        // Do not use RC.bg(white) here — in dark mode it maps to a
+                                        // dark slate and vanishes on the forest-green sidebar.
+                                        color: active
+                                            ? Colors.white
+                                            : Colors.white.withValues(alpha: 0.78),
                                       ),
                                     ),
                                   ),
@@ -335,7 +340,9 @@ class _AdminShellState extends State<AdminShell> {
                                 Icon(
                                   item.icon,
                                   size: 21,
-                                  color: active ? RC.fg(Colors.white) : RC.bg(Colors.white).withValues(alpha: 0.75),
+                                  color: active
+                                      ? Colors.white
+                                      : Colors.white.withValues(alpha: 0.78),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
@@ -346,7 +353,9 @@ class _AdminShellState extends State<AdminShell> {
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: active ? FontWeight.w900 : FontWeight.w600,
-                                      color: active ? RC.bg(Colors.white) : RC.bg(Colors.white).withValues(alpha: 0.85),
+                                      color: active
+                                          ? Colors.white
+                                          : Colors.white.withValues(alpha: 0.88),
                                     ),
                                   ),
                                 ),
@@ -367,7 +376,11 @@ class _AdminShellState extends State<AdminShell> {
                       message: AppStrings.tr('logout', widget.lang),
                       child: IconButton(
                         onPressed: widget.onLogout,
-                        icon: Icon(Icons.logout_rounded, size: 21, color: RC.fg(Colors.white70)),
+                        icon: Icon(
+                          Icons.logout_rounded,
+                          size: 21,
+                          color: Colors.white.withValues(alpha: 0.72),
+                        ),
                       ),
                     )
                   : Material(
@@ -382,7 +395,11 @@ class _AdminShellState extends State<AdminShell> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Row(
                       children: [
-                        Icon(Icons.logout_rounded, size: 21, color: RC.fg(Colors.white70)),
+                        Icon(
+                          Icons.logout_rounded,
+                          size: 21,
+                          color: Colors.white.withValues(alpha: 0.72),
+                        ),
                         const SizedBox(width: 14),
                         Expanded(
                           child: Text(
@@ -392,7 +409,7 @@ class _AdminShellState extends State<AdminShell> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: RC.fg(Colors.white70),
+                              color: Colors.white.withValues(alpha: 0.72),
                             ),
                           ),
                         ),

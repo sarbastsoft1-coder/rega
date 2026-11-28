@@ -216,6 +216,7 @@ Route::prefix('v1')->group(function () {
         Route::put('/drivers/{driverProfile}', [DriverManagementController::class, 'update']);
         Route::patch('/drivers/{driverProfile}/toggle', [DriverManagementController::class, 'toggleStatus']);
         Route::patch('/drivers/{driverProfile}/toggle-active', [DriverManagementController::class, 'toggleActive']);
+        Route::delete('/drivers/{driverProfile}', [DriverManagementController::class, 'destroy']);
         Route::get('/drivers/{driverProfile}/documents', [DriverManagementController::class, 'documents']);
         Route::patch('/driver-documents/{document}/verify', [DriverManagementController::class, 'verifyDocument']);
         Route::post('/driver-documents/{document}/upload', [DriverManagementController::class, 'uploadDocument']);

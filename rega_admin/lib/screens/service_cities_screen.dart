@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
+import '../widgets/bulk_delete_bar.dart';
 import '../widgets/common_widgets.dart';
 import '../rega_i18n.dart';
-import '../rega_colors.dart';
 
 /// Admin CRUD for multi-city work locations (کەلار، هەولێر، …).
 class ServiceCitiesScreen extends StatefulWidget {
@@ -21,6 +21,9 @@ class _ServiceCitiesScreenState extends State<ServiceCitiesScreen> {
   bool _loading = true;
   String? _error;
   List<dynamic> _cities = [];
+  bool _selectionMode = false;
+  final Set<int> _selectedIds = {};
+  bool _bulkBusy = false;
 
   @override
   void initState() {
@@ -36,7 +39,12 @@ class _ServiceCitiesScreenState extends State<ServiceCitiesScreen> {
     try {
       final list = await widget.api.getServiceCities();
       if (!mounted) return;
-      setState(() => _cities = list);
+      setState(() {
+        _cities = list;
+        _selectedIds.removeWhere(
+          (id) => !_cities.any((c) => (c as Map)['id'] == id),
+        );
+      });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -196,6 +204,69 @@ class _ServiceCitiesScreenState extends State<ServiceCitiesScreen> {
     );
   }
 
+  List<int> get _cityIds => _cities
+      .map((c) => (c as Map)['id'])
+      .whereType<int>()
+      .toList();
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) _selectedIds.clear();
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _selectAllCities() {
+    setState(() => _selectedIds
+      ..clear()
+      ..addAll(_cityIds));
+  }
+
+  void _toggleCitySelected(int id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _bulkDeleteCities({required bool deleteAll}) async {
+    final ids = deleteAll ? _cityIds : _selectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteServiceCity,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+    _showSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _load();
+  }
+
   Future<void> _confirmDelete(Map<String, dynamic> c) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -206,7 +277,10 @@ class _ServiceCitiesScreenState extends State<ServiceCitiesScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tx('نەخێر'))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: RegaColors.crimson,
+              foregroundColor: Colors.white,
+            ),
             child: Text(tx('سڕینەوە')),
           ),
         ],
@@ -232,6 +306,25 @@ class _ServiceCitiesScreenState extends State<ServiceCitiesScreen> {
           child: SectionHeader(
             title: 'شارەکانی کار',
             subtitle: 'کەلار و أربيل (هەولێر) و شارەکانی تر — زیادکردن / دەستکاری / سڕینەوە + مەودای GPS',
+            trailing: BulkDeleteBar(
+              lang: widget.lang,
+              selectionMode: _selectionMode,
+              selectedCount: _selectedIds.length,
+              totalCount: _cities.length,
+              busy: _bulkBusy,
+              onToggleSelectionMode: _toggleSelectionMode,
+              onSelectAll: _selectAllCities,
+              onClearSelection: _clearSelection,
+              onDeleteSelected: () => _bulkDeleteCities(deleteAll: false),
+              onDeleteAll: () => _bulkDeleteCities(deleteAll: true),
+              extraActions: [
+                ElevatedButton.icon(
+                  onPressed: _bulkBusy ? null : () => _showCityDialog(),
+                  icon: const Icon(Icons.add_location_alt_rounded, size: 18),
+                  label: Text(tx('زیادکردنی شار')),
+                ),
+              ],
+            ),
           ),
         ),
         Expanded(
@@ -259,33 +352,52 @@ class _ServiceCitiesScreenState extends State<ServiceCitiesScreen> {
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, height: 1.45),
                           ),
                         ),
-                        Align(
-                          alignment: AlignmentDirectional.centerEnd,
-                          child: ElevatedButton.icon(
-                            onPressed: () => _showCityDialog(),
-                            icon: const Icon(Icons.add_location_alt_rounded, size: 18),
-                            label: Text(tx('زیادکردنی شار')),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 6),
                         ..._cities.map((raw) {
                           final c = raw as Map<String, dynamic>;
+                          final cityId = c['id'] as int?;
+                          final selected = cityId != null && _selectedIds.contains(cityId);
                           final active = c['is_active'] == true;
                           final zones = c['neighborhoods_count'] ?? 0;
                           final stores = c['stores_count'] ?? 0;
                           return Card(
                             margin: const EdgeInsets.only(bottom: 10),
-                            child: LayoutBuilder(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: selected
+                                  ? const BorderSide(color: RegaColors.orange, width: 2)
+                                  : BorderSide.none,
+                            ),
+                            child: InkWell(
+                              onTap: _selectionMode && cityId != null
+                                  ? () => _toggleCitySelected(cityId)
+                                  : null,
+                              borderRadius: BorderRadius.circular(12),
+                              child: LayoutBuilder(
                               builder: (context, cardConstraints) {
                                 final isCompactCard = cardConstraints.maxWidth < 430;
-                                final leadingAvatar = CircleAvatar(
-                                  backgroundColor: active
-                                      ? RegaColors.emerald.withValues(alpha: 0.15)
-                                      : Colors.grey.shade200,
-                                  child: Icon(
-                                    Icons.location_city_rounded,
-                                    color: active ? RegaColors.emeraldDark : Colors.grey,
-                                  ),
+                                final leadingAvatar = Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: active
+                                          ? RegaColors.emerald.withValues(alpha: 0.15)
+                                          : Colors.grey.shade200,
+                                      child: Icon(
+                                        Icons.location_city_rounded,
+                                        color: active ? RegaColors.emeraldDark : Colors.grey,
+                                      ),
+                                    ),
+                                    if (_selectionMode && cityId != null)
+                                      PositionedDirectional(
+                                        start: -4,
+                                        top: -4,
+                                        child: BulkSelectBadge(
+                                          selected: selected,
+                                          onChanged: (_) => _toggleCitySelected(cityId),
+                                        ),
+                                      ),
+                                  ],
                                 );
                                 final titleText = Text(
                                   tx(c['name_ku']?.toString() ?? ''),
@@ -364,6 +476,7 @@ class _ServiceCitiesScreenState extends State<ServiceCitiesScreen> {
                                   trailing: actionsRow,
                                 );
                               },
+                            ),
                             ),
                           );
                         }),

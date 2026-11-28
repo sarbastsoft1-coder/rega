@@ -45,6 +45,7 @@ PHP_COPIES = [
     "app/Http/Controllers/Api/Admin/EcosystemHubController.php",
     "app/Http/Controllers/Api/Admin/StoreManagementController.php",
     "app/Http/Controllers/Api/Admin/OrderManagementController.php",
+    "app/Http/Controllers/Api/Admin/DriverManagementController.php",
     "app/Http/Controllers/Api/Admin/MarketingController.php",
     "app/Http/Controllers/Api/Admin/FinanceAndSupportController.php",
     "app/Http/Controllers/Api/Admin/AdminInboxController.php",

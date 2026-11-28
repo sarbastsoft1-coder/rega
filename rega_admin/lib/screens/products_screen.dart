@@ -6,11 +6,13 @@ import '../core/localization/app_strings.dart';
 import '../core/services/media_pick_service.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
+import '../widgets/bulk_delete_bar.dart';
 import '../widgets/common_widgets.dart';
 import 'store_menu_categories_screen.dart';
 
 import '../rega_i18n.dart';
 import '../rega_colors.dart';
+
 class ProductsScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
@@ -31,6 +33,9 @@ class _ProductsScreenState extends State<ProductsScreen>
   String? _error;
   List<dynamic> _products = [];
   List<dynamic> _stores = [];
+  bool _selectionMode = false;
+  final Set<int> _selectedIds = {};
+  bool _bulkBusy = false;
 
   @override
   void initState() {
@@ -64,6 +69,9 @@ class _ProductsScreenState extends State<ProductsScreen>
         setState(() {
           _products = results[0];
           _stores = results[1];
+          _selectedIds.removeWhere(
+            (id) => !_products.any((p) => (p as Map)['id'] == id),
+          );
         });
       }
     } catch (e) {
@@ -93,6 +101,69 @@ class _ProductsScreenState extends State<ProductsScreen>
     );
   }
 
+  List<int> get _productIds => _products
+      .map((p) => (p as Map)['id'])
+      .whereType<int>()
+      .toList();
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) _selectedIds.clear();
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _selectAllProducts() {
+    setState(() => _selectedIds
+      ..clear()
+      ..addAll(_productIds));
+  }
+
+  void _toggleProductSelected(int id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _bulkDeleteProducts({required bool deleteAll}) async {
+    final ids = deleteAll ? _productIds : _selectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteProduct,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+    _showSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _load();
+  }
+
   Future<void> _confirmDelete(Map<String, dynamic> product) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -120,7 +191,10 @@ class _ProductsScreenState extends State<ProductsScreen>
             child: Text(AppStrings.tr('cancel', widget.lang)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: RegaColors.crimson,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(AppStrings.tr('delete', widget.lang)),
           ),
@@ -498,7 +572,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                                           child: Column(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              CircularProgressIndicator(color: RC.bg(Colors.white)),
+                                              CircularProgressIndicator(color: Colors.white),
                                               const SizedBox(height: 10),
                                               Text(
                                                 tx(pickingImage
@@ -695,7 +769,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                     ? SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : Text(AppStrings.tr('save', widget.lang)),
               ),
@@ -729,10 +803,24 @@ class _ProductsScreenState extends State<ProductsScreen>
                     child: SectionHeader(
                       title: AppStrings.tr('nav_vendor_items', widget.lang),
                       subtitle: AppStrings.tr('vendor_items_subtitle', widget.lang),
-                      trailing: ElevatedButton.icon(
-                        onPressed: () => _showProductDialog(),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: Text(AppStrings.tr('add_vendor_item', widget.lang)),
+                      trailing: BulkDeleteBar(
+                        lang: widget.lang,
+                        selectionMode: _selectionMode,
+                        selectedCount: _selectedIds.length,
+                        totalCount: _products.length,
+                        busy: _bulkBusy,
+                        onToggleSelectionMode: _toggleSelectionMode,
+                        onSelectAll: _selectAllProducts,
+                        onClearSelection: _clearSelection,
+                        onDeleteSelected: () => _bulkDeleteProducts(deleteAll: false),
+                        onDeleteAll: () => _bulkDeleteProducts(deleteAll: true),
+                        extraActions: [
+                          ElevatedButton.icon(
+                            onPressed: _bulkBusy ? null : () => _showProductDialog(),
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: Text(AppStrings.tr('add_vendor_item', widget.lang)),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -851,6 +939,8 @@ class _ProductsScreenState extends State<ProductsScreen>
                   delegate: SliverChildBuilderDelegate(
                     (_, idx) {
                       final p = _products[idx] as Map<String, dynamic>;
+                      final productId = p['id'] as int?;
+                      final selected = productId != null && _selectedIds.contains(productId);
                       final store = p['store'] as Map<String, dynamic>?;
                       final menuCat = p['store_category'] as Map<String, dynamic>?;
                       final price = (p['price'] as num?)?.toInt() ?? 0;
@@ -861,7 +951,17 @@ class _ProductsScreenState extends State<ProductsScreen>
 
                       return Card(
                         clipBehavior: Clip.antiAlias,
-                        child: Column(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: selected
+                              ? const BorderSide(color: RegaColors.orange, width: 2)
+                              : BorderSide.none,
+                        ),
+                        child: InkWell(
+                          onTap: _selectionMode && productId != null
+                              ? () => _toggleProductSelected(productId)
+                              : null,
+                          child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Stack(
@@ -886,6 +986,15 @@ class _ProductsScreenState extends State<ProductsScreen>
                                           size: 36,
                                         ),
                                 ),
+                                if (_selectionMode && productId != null)
+                                  PositionedDirectional(
+                                    top: 8,
+                                    start: 8,
+                                    child: BulkSelectBadge(
+                                      selected: selected,
+                                      onChanged: (_) => _toggleProductSelected(productId),
+                                    ),
+                                  ),
                                 if (hasDiscount)
                                   PositionedDirectional(
                                     top: 8,
@@ -903,8 +1012,8 @@ class _ProductsScreenState extends State<ProductsScreen>
                                         AppStrings.tr('only_discounted', widget.lang),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: RC.fg(Colors.white),
+                                        style: const TextStyle(
+                                          color: Colors.white,
                                           fontSize: 10.5,
                                           fontWeight: FontWeight.w800,
                                         ),
@@ -1049,6 +1158,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                               ),
                             ),
                           ],
+                        ),
                         ),
                       );
                     },

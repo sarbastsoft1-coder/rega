@@ -406,6 +406,51 @@ class AppStrings {
       'ar': 'حذف',
       'en': 'Delete',
     },
+    'bulk_select': {
+      'ku': 'هەڵبژاردن',
+      'ar': 'تحديد',
+      'en': 'Select',
+    },
+    'bulk_select_all': {
+      'ku': 'هەڵبژاردنی هەموو',
+      'ar': 'تحديد الكل',
+      'en': 'Select all',
+    },
+    'bulk_cancel_select': {
+      'ku': 'هەڵوەشاندنەوەی هەڵبژاردن',
+      'ar': 'إلغاء التحديد',
+      'en': 'Cancel selection',
+    },
+    'bulk_delete_selected': {
+      'ku': 'سڕینەوەی هەڵبژێردراو ({count})',
+      'ar': 'حذف المحدد ({count})',
+      'en': 'Delete selected ({count})',
+    },
+    'bulk_delete_all': {
+      'ku': 'سڕینەوەی هەموو',
+      'ar': 'حذف الكل',
+      'en': 'Delete all',
+    },
+    'bulk_confirm_selected': {
+      'ku': 'دڵنیایت لە سڕینەوەی {count} دانەی هەڵبژێردراو؟ ئەم کردارە ناگەڕێتەوە.',
+      'ar': 'هل أنت متأكد من حذف {count} عنصر محدد؟ لا يمكن التراجع.',
+      'en': 'Delete {count} selected item(s)? This cannot be undone.',
+    },
+    'bulk_confirm_all': {
+      'ku': 'دڵنیایت لە سڕینەوەی هەموو {count} دانە لەم لیستەدا؟ ئەم کردارە ناگەڕێتەوە.',
+      'ar': 'هل أنت متأكد من حذف كل العناصر ({count}) في هذه القائمة؟ لا يمكن التراجع.',
+      'en': 'Delete all {count} item(s) in the current list? This cannot be undone.',
+    },
+    'bulk_deleted_ok': {
+      'ku': '{count} دانە سڕایەوە',
+      'ar': 'تم حذف {count} عنصر',
+      'en': 'Deleted {count} item(s)',
+    },
+    'bulk_deleted_partial': {
+      'ku': '{ok} سڕایەوە · {fail} شکستی هێنا',
+      'ar': 'تم حذف {ok} · فشل {fail}',
+      'en': 'Deleted {ok} · failed {fail}',
+    },
     'edit': {
       'ku': 'دەستکاری',
       'ar': 'تعديل',
@@ -954,6 +999,21 @@ class AppStrings {
       'ar': 'إذا كان للعميل طلبات سابقة فسيُوقَف حسابه بدل الحذف النهائي.',
       'en': 'If the customer has past orders, the account will be suspended instead of hard-deleted.',
     },
+    'confirm_delete_driver_title': {
+      'ku': 'سڕینەوەی ماتۆرسوار؟',
+      'ar': 'حذف السائق؟',
+      'en': 'Delete courier?',
+    },
+    'confirm_delete_driver_body': {
+      'ku': 'ئەگەر ماتۆرسوار داواکاری پێشووی هەبێت، هەژمارەکەی ڕادەگیرێت لە جیاتی سڕینەوەی تەواو.',
+      'ar': 'إذا كان للسائق طلبات سابقة فسيُوقَف حسابه بدل الحذف النهائي.',
+      'en': 'If the courier has past orders, the account will be suspended instead of hard-deleted.',
+    },
+    'driver_deleted': {
+      'ku': 'ماتۆرسوار سڕایەوە / ڕاگیرا',
+      'ar': 'تم حذف / إيقاف السائق',
+      'en': 'Courier deleted / suspended',
+    },
     'total_orders_label': {'ku': 'کۆی داواکارییەکان', 'ar': 'إجمالي الطلبات', 'en': 'Total orders'},
     // ── Drivers / Couriers ─────────────────────────────────────
     'drivers_title': {'ku': 'بەڕێوەبردنی ماتۆرسواران', 'ar': 'إدارة السائقين', 'en': 'Courier Management'},
@@ -1392,6 +1452,46 @@ class AppStrings {
       'ku': 'CSV لە ڕێگەی /admin/accounting/reports/export هەناردە دەکرێت.',
       'ar': 'يمكن تصدير CSV عبر /admin/accounting/reports/export.',
       'en': 'CSV can be exported via /admin/accounting/reports/export.',
+    },
+    'acc_download_csv': {
+      'ku': 'داگرتنی CSV',
+      'ar': 'تنزيل CSV',
+      'en': 'Download CSV',
+    },
+    'acc_download_diagram': {
+      'ku': 'داگرتنی هێڵکاری',
+      'ar': 'تنزيل المخطط',
+      'en': 'Download diagram',
+    },
+    'acc_charts_title': {
+      'ku': 'هێڵکاری و شیکاری',
+      'ar': 'المخططات والتحليل',
+      'en': 'Charts & analysis',
+    },
+    'acc_profit_split': {
+      'ku': 'دابەشبوونی قازانج',
+      'ar': 'توزيع الأرباح',
+      'en': 'Profit split',
+    },
+    'acc_shop_bars': {
+      'ku': 'قازانجی ئەدمین بەپێی دوکان',
+      'ar': 'ربح المشرف حسب المتجر',
+      'en': 'Admin profit by shop',
+    },
+    'acc_export_ok': {
+      'ku': 'فایلەکە داگیرا: {name}',
+      'ar': 'تم تنزيل الملف: {name}',
+      'en': 'Downloaded: {name}',
+    },
+    'acc_export_fail': {
+      'ku': 'هەناردەکردن سەرکەوتوو نەبوو',
+      'ar': 'فشل التصدير',
+      'en': 'Export failed',
+    },
+    'acc_no_chart_data': {
+      'ku': 'هیچ داتایەک بۆ هێڵکاری نییە لەم ماوەیەدا',
+      'ar': 'لا توجد بيانات للمخطط في هذه الفترة',
+      'en': 'No chart data for this period',
     },
     'acc_no_refund_tx': {
       'ku': 'هیچ مامەڵەی گەڕاندنەوەیەک نییە',

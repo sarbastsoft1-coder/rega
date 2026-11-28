@@ -329,11 +329,11 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
                 Container(
                   padding: EdgeInsets.all(isPhone ? 8 : 10),
                   decoration: BoxDecoration(
-                    color: RC.bg(Colors.white).withValues(alpha: 0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: RC.bg(Colors.white).withValues(alpha: 0.25), width: 1.2),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.2),
                   ),
-                  child: Icon(Icons.storefront_rounded, color: RC.fg(Colors.white), size: isPhone ? 22 : 26),
+                  child: Icon(Icons.storefront_rounded, color: Colors.white, size: isPhone ? 22 : 26),
                 ),
                 SizedBox(width: isPhone ? 10 : 14),
                 Expanded(
@@ -350,7 +350,7 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: RC.fg(Colors.white),
+                              color: Colors.white,
                               fontSize: isPhone ? 15 : 17,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0.8,
@@ -369,15 +369,15 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
                                   width: 6,
                                   height: 6,
                                   decoration: BoxDecoration(
-                                    color: RC.bg(Colors.white),
+                                    color: Colors.white,
                                     shape: BoxShape.circle,
                                   ),
                                 ),
                                 const SizedBox(width: 5),
                                 Text(
                                   tx('${_kpis['online_stores'] ?? 0} ئۆنلاین'),
-                                  style: TextStyle(
-                                    color: RC.fg(Colors.white),
+                                  style: const TextStyle(
+                                    color: Colors.white,
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -392,7 +392,10 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
                         tx('بەشی بەڕێوەبردنی فرۆشیاران و چێشتخانەکان — هاوکات لەگەڵ rega_froshyar'),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: RC.fg(Colors.white70), fontSize: isPhone ? 11 : 11.5),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          fontSize: isPhone ? 11 : 11.5,
+                        ),
                       ),
                     ],
                   ),
@@ -402,8 +405,8 @@ class _VendorPartScreenState extends State<VendorPartScreen> with SingleTickerPr
 
             final syncBtn = FilledButton.tonalIcon(
               style: FilledButton.styleFrom(
-                backgroundColor: RC.bg(Colors.white).withValues(alpha: 0.2),
-                foregroundColor: RC.fg(Colors.white),
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                foregroundColor: Colors.white,
                 padding: EdgeInsets.symmetric(horizontal: isPhone ? 12 : 14, vertical: isPhone ? 8 : 10),
               ),
               onPressed: () => _load(),

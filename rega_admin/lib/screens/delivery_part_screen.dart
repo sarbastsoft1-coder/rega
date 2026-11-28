@@ -887,10 +887,10 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
             Container(
               padding: EdgeInsets.all(isPhone ? 8 : 10),
               decoration: BoxDecoration(
-                color: RC.bg(Colors.white).withValues(alpha: 0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(Icons.two_wheeler_rounded, color: RC.fg(Colors.white), size: isPhone ? 22 : 26),
+              child: Icon(Icons.two_wheeler_rounded, color: Colors.white, size: isPhone ? 22 : 26),
             ),
             SizedBox(width: isPhone ? 10 : 12),
             Expanded(
@@ -902,7 +902,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: RC.fg(Colors.white),
+                      color: Colors.white,
                       fontSize: isPhone ? 15.5 : 18,
                       fontWeight: FontWeight.w900,
                     ),
@@ -912,7 +912,7 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
                       tx('بەستراوەتەوە بە ئەپی شۆفێران (rega_delivery) • ڕاداری چرکە بە چرکەی کەلار، ناردن، KYC و باڵانسی کاش'),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: RC.fg(Colors.white70), fontSize: 12),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.72), fontSize: 12),
                     ),
                 ],
               ),
@@ -926,8 +926,8 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
           children: [
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: RC.bg(Colors.white),
-                foregroundColor: RC.fg(Color(0xFF047857)),
+                backgroundColor: Colors.white,
+                foregroundColor: RC.fg(const Color(0xFF047857)),
                 padding: btnPadding,
               ),
               onPressed: () => _showQuickDeliverySettingsDialog(),
@@ -940,8 +940,8 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
             ),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: RC.bg(Colors.white),
-                foregroundColor: RC.fg(Color(0xFF047857)),
+                backgroundColor: Colors.white,
+                foregroundColor: RC.fg(const Color(0xFF047857)),
                 padding: btnPadding,
               ),
               onPressed: () => _tabController.animateTo(1),
@@ -954,8 +954,8 @@ class _DeliveryPartScreenState extends State<DeliveryPartScreen> with SingleTick
             ),
             FilledButton.tonalIcon(
               style: FilledButton.styleFrom(
-                backgroundColor: RC.bg(Colors.white).withValues(alpha: 0.2),
-                foregroundColor: RC.fg(Colors.white),
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                foregroundColor: Colors.white,
                 padding: btnPadding,
               ),
               onPressed: () {

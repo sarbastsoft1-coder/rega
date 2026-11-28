@@ -6,6 +6,7 @@ import '../core/localization/app_strings.dart';
 import '../core/services/media_pick_service.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
+import '../widgets/bulk_delete_bar.dart';
 import '../widgets/common_widgets.dart';
 
 import '../rega_i18n.dart';
@@ -35,6 +36,9 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
   int? _storeFilter;
   int? _homeCategoryFilter;
   final _searchCtrl = TextEditingController();
+  bool _selectionMode = false;
+  final Set<int> _selectedIds = {};
+  bool _bulkBusy = false;
 
   @override
   void initState() {
@@ -82,6 +86,9 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
         _rows = results[0];
         _stores = results[1];
         _homeCategories = homeCats;
+        _selectedIds.removeWhere(
+          (id) => !_rows.any((r) => (r as Map)['id'] == id),
+        );
       });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -132,6 +139,66 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
     }
   }
 
+  List<int> get _rowIds => _rows.map((r) => (r as Map)['id']).whereType<int>().toList();
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) _selectedIds.clear();
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _selectAllRows() {
+    setState(() => _selectedIds
+      ..clear()
+      ..addAll(_rowIds));
+  }
+
+  void _toggleRowSelected(int id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _bulkDeleteRows({required bool deleteAll}) async {
+    final ids = deleteAll ? _rowIds : _selectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteStoreCategory,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+    _showSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _load();
+  }
+
   void _confirmDelete(Map<String, dynamic> row) {
     showDialog(
       context: context,
@@ -161,7 +228,10 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
             child: Text(AppStrings.tr('cancel', widget.lang)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: RegaColors.crimson,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               Navigator.pop(ctx);
               try {
@@ -480,7 +550,7 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                     ? SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : Text(AppStrings.tr('save', widget.lang)),
               ),
@@ -546,40 +616,40 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(pad, 8, pad, 0),
-                child: narrow
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            tx('ڕووکاری فرۆشگا — بەشەکانی مێنیو / چیپ (${_rows.length})'),
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
-                          ),
-                          const SizedBox(height: 10),
-                          ElevatedButton.icon(
-                            onPressed: () => _showDialog(),
-                            icon: const Icon(Icons.add_rounded, size: 18),
-                            label: Text(tx('زیادکردنی بەش / چیپ')),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              tx('ڕووکاری فرۆشگا — بەشەکانی مێنیو / چیپ (${_rows.length})'),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          ElevatedButton.icon(
-                            onPressed: () => _showDialog(),
-                            icon: const Icon(Icons.add_rounded, size: 18),
-                            label: Text(tx('زیادکردنی بەش / چیپ')),
-                          ),
-                        ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      tx('ڕووکاری فرۆشگا — بەشەکانی مێنیو / چیپ (${_rows.length})'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: narrow ? 15 : 16,
                       ),
+                    ),
+                    const SizedBox(height: 10),
+                    BulkDeleteBar(
+                      lang: widget.lang,
+                      selectionMode: _selectionMode,
+                      selectedCount: _selectedIds.length,
+                      totalCount: _rows.length,
+                      busy: _bulkBusy,
+                      onToggleSelectionMode: _toggleSelectionMode,
+                      onSelectAll: _selectAllRows,
+                      onClearSelection: _clearSelection,
+                      onDeleteSelected: () => _bulkDeleteRows(deleteAll: false),
+                      onDeleteAll: () => _bulkDeleteRows(deleteAll: true),
+                      extraActions: [
+                        ElevatedButton.icon(
+                          onPressed: _bulkBusy ? null : () => _showDialog(),
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: Text(tx('زیادکردنی بەش / چیپ')),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
             SliverToBoxAdapter(
@@ -704,12 +774,22 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (_, index) {
                     final row = Map<String, dynamic>.from(_rows[index] as Map);
+                    final rowId = row['id'] as int?;
+                    final selected = rowId != null && _selectedIds.contains(rowId);
                     final store = row['store'] as Map<String, dynamic>?;
                     final homeCat = store?['category'] as Map<String, dynamic>?;
 
                     final thumbsAndInfo = Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (_selectionMode && rowId != null)
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(end: 8),
+                            child: BulkSelectBadge(
+                              selected: selected,
+                              onChanged: (_) => _toggleRowSelected(rowId),
+                            ),
+                          ),
                         _thumb(row['image_url']?.toString()),
                         const SizedBox(width: 8),
                         _thumb(row['secondary_image_url']?.toString()),
@@ -812,7 +892,18 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                     );
 
                     return Card(
-                      child: Padding(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: selected
+                            ? const BorderSide(color: RegaColors.orange, width: 2)
+                            : BorderSide.none,
+                      ),
+                      child: InkWell(
+                        onTap: _selectionMode && rowId != null
+                            ? () => _toggleRowSelected(rowId)
+                            : null,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: compactCard
                             ? Column(
@@ -833,6 +924,7 @@ class _StoreMenuCategoriesScreenState extends State<StoreMenuCategoriesScreen> {
                                   actionButtons,
                                 ],
                               ),
+                      ),
                       ),
                     );
                   },

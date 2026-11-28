@@ -1096,7 +1096,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-            color: active ? RC.bg(Colors.white) : surfaces.textSecondary,
+            color: active ? Colors.white : surfaces.textSecondary,
           ),
         ),
       ),

@@ -1,12 +1,20 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import '../core/api/api_client.dart';
 import '../core/localization/app_strings.dart';
+import '../core/services/backup_download_io.dart'
+    if (dart.library.html) '../core/services/backup_download_web.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 
 import '../rega_i18n.dart';
 import '../rega_colors.dart';
+
 class AccountingScreen extends StatefulWidget {
   final ApiClient api;
   final String lang;
@@ -38,6 +46,10 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
   /// null = global default rate; otherwise selected vendor store id
   int? _settingsStoreId;
   List<dynamic> _settingsStores = [];
+
+  bool _exportingCsv = false;
+  bool _exportingPng = false;
+  final GlobalKey _reportChartsKey = GlobalKey();
 
   String get _lang => widget.lang;
 
@@ -1274,7 +1286,61 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
     return note;
   }
 
+  Future<void> _downloadReportCsv() async {
+    if (_exportingCsv) return;
+    setState(() => _exportingCsv = true);
+    try {
+      final file = await widget.api.downloadAccountingReportCsv(period: _period);
+      triggerBrowserDownload(file.bytes, file.fileName);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_tp('acc_export_ok', {'name': file.fileName}))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_t('acc_export_fail')}: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _exportingCsv = false);
+    }
+  }
+
+  Future<void> _downloadReportDiagram() async {
+    if (_exportingPng) return;
+    final boundary = _reportChartsKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_t('acc_no_chart_data'))),
+      );
+      return;
+    }
+    setState(() => _exportingPng = true);
+    try {
+      final image = await boundary.toImage(pixelRatio: 2.5);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      if (byteData == null) throw StateError('png encode failed');
+      final bytes = Uint8List.view(byteData.buffer);
+      final name = 'rega_accounting_${_period}_${DateTime.now().millisecondsSinceEpoch}.png';
+      triggerBrowserDownload(bytes, name);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_tp('acc_export_ok', {'name': name}))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_t('acc_export_fail')}: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _exportingPng = false);
+    }
+  }
+
   Widget _buildReports() {
+    final surfaces = AdminSurfaces.of(context);
     final periodLabel = switch (_report['period'] ?? _period) {
       'today' || 'day' || 'daily' => _t('acc_period_today'),
       'week' || 'weekly' => _t('acc_period_week'),
@@ -1282,6 +1348,8 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
       'year' || 'yearly' => _t('acc_period_year'),
       final other => '$other',
     };
+    final series = (_dash['series'] as List?) ?? const [];
+    final byShop = (_dash['profit_by_shop'] as List?) ?? const [];
     final reportCards = <Widget>[
       StatKpiCard(
         title: _t('acc_kpi_revenue'),
@@ -1320,10 +1388,58 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
         accentColor: RegaColors.blue,
       ),
     ];
+
     return ListView(
       padding: EdgeInsets.all(AdminBreakpoints.pagePadH(context)),
       children: [
-        Text(_tp('acc_report_title', {'period': periodLabel}), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          alignment: WrapAlignment.spaceBetween,
+          children: [
+            Text(
+              _tp('acc_report_title', {'period': periodLabel}),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: surfaces.textPrimary,
+              ),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: _exportingCsv ? null : _downloadReportCsv,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: RegaColors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: _exportingCsv
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.download_rounded, size: 18),
+                  label: Text(_t('acc_download_csv')),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _exportingPng ? null : _downloadReportDiagram,
+                  icon: _exportingPng
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.image_outlined, size: 18),
+                  label: Text(_t('acc_download_diagram')),
+                ),
+              ],
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, c) {
@@ -1343,17 +1459,396 @@ class _AccountingScreenState extends State<AccountingScreen> with SingleTickerPr
             );
           },
         ),
+        const SizedBox(height: 18),
+        Text(
+          _t('acc_charts_title'),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: surfaces.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        RepaintBoundary(
+          key: _reportChartsKey,
+          child: ColoredBox(
+            color: surfaces.canvas,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildReportTrendChartCard(series),
+                const SizedBox(height: 12),
+                LayoutBuilder(
+                  builder: (context, c) {
+                    final stack = c.maxWidth < 900;
+                    final pie = _buildReportProfitPieCard();
+                    final bars = _buildReportShopBarsCard(byShop);
+                    if (stack) {
+                      return Column(
+                        children: [
+                          pie,
+                          const SizedBox(height: 12),
+                          bars,
+                        ],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: pie),
+                        const SizedBox(width: 12),
+                        Expanded(child: bars),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 16),
         Text(
           _tp('acc_report_range', {
-            'from': '${_report['from'] ?? '—'}',
-            'to': '${_report['to'] ?? '—'}',
+            'from': _formatReportDate(_report['from']),
+            'to': _formatReportDate(_report['to']),
           }),
-          style: const TextStyle(color: RegaColors.lightMuted),
+          style: TextStyle(color: surfaces.textSecondary),
         ),
-        const SizedBox(height: 8),
-        Text(_t('acc_csv_export_hint'), style: const TextStyle(fontSize: 12)),
       ],
+    );
+  }
+
+  String _formatReportDate(dynamic raw) {
+    if (raw == null) return '—';
+    final parsed = DateTime.tryParse(raw.toString());
+    if (parsed == null) return raw.toString();
+    final local = parsed.toLocal();
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    return '${local.year}-$m-$d';
+  }
+
+  Widget _reportChartShell({required String title, required Widget child, double height = 260}) {
+    final surfaces = AdminSurfaces.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: surfaces.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: surfaces.hairline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              color: surfaces.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(height: height, child: child),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportTrendChartCard(List series) {
+    final surfaces = AdminSurfaces.of(context);
+    if (series.isEmpty) {
+      return _reportChartShell(
+        title: _t('acc_revenue_trend'),
+        child: Center(
+          child: Text(_t('acc_no_chart_data'), style: TextStyle(color: surfaces.textSecondary)),
+        ),
+      );
+    }
+
+    final revenueSpots = <FlSpot>[];
+    final adminSpots = <FlSpot>[];
+    final sellerSpots = <FlSpot>[];
+    final labels = <String>[];
+    double maxY = 1;
+    for (var i = 0; i < series.length; i++) {
+      final m = Map<String, dynamic>.from(series[i] as Map);
+      final rev = (m['revenue'] as num?)?.toDouble() ?? 0;
+      final admin = (m['admin_profit'] as num?)?.toDouble() ?? 0;
+      final seller = (m['seller_profit'] as num?)?.toDouble() ?? 0;
+      revenueSpots.add(FlSpot(i.toDouble(), rev));
+      adminSpots.add(FlSpot(i.toDouble(), admin));
+      sellerSpots.add(FlSpot(i.toDouble(), seller));
+      if (rev > maxY) maxY = rev;
+      if (admin > maxY) maxY = admin;
+      if (seller > maxY) maxY = seller;
+      final day = m['day']?.toString() ?? '';
+      labels.add(day.length >= 10 ? day.substring(5, 10) : day);
+    }
+
+    LineChartBarData line(List<FlSpot> spots, Color color) => LineChartBarData(
+          spots: spots,
+          isCurved: true,
+          color: color,
+          barWidth: 3,
+          isStrokeCapRound: true,
+          dotData: FlDotData(show: spots.length <= 14),
+          belowBarData: BarAreaData(show: false),
+        );
+
+    return _reportChartShell(
+      title: _t('acc_revenue_trend'),
+      height: 280,
+      child: Column(
+        children: [
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                minX: 0,
+                maxX: (series.length - 1).clamp(0, 9999).toDouble(),
+                minY: 0,
+                maxY: maxY * 1.15,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) => FlLine(color: surfaces.hairline, strokeWidth: 1),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 44,
+                      getTitlesWidget: (value, meta) {
+                        if (value <= 0 || value == meta.max) return const SizedBox.shrink();
+                        final short = value >= 1000 ? '${(value / 1000).toStringAsFixed(0)}k' : value.toStringAsFixed(0);
+                        return Text(short, style: TextStyle(fontSize: 10, color: surfaces.textTertiary));
+                      },
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: (series.length / 6).clamp(1, 30).toDouble(),
+                      getTitlesWidget: (value, meta) {
+                        final i = value.round();
+                        if (i < 0 || i >= labels.length) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(labels[i], style: TextStyle(fontSize: 10, color: surfaces.textTertiary)),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipItems: (touched) => touched.map((t) {
+                      final label = switch (t.barIndex) {
+                        0 => _t('acc_kpi_revenue'),
+                        1 => _t('acc_kpi_admin_profit'),
+                        _ => _t('acc_kpi_seller_profit'),
+                      };
+                      return LineTooltipItem(
+                        '$label\n${formatIqd(t.y, lang: _lang)}',
+                        const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 11),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                lineBarsData: [
+                  line(revenueSpots, RegaColors.orange),
+                  line(adminSpots, RegaColors.forestGreen),
+                  line(sellerSpots, RegaColors.goldDark),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 14,
+            runSpacing: 6,
+            alignment: WrapAlignment.center,
+            children: [
+              _legendDot(RegaColors.orange, _t('acc_kpi_revenue')),
+              _legendDot(RegaColors.forestGreen, _t('acc_kpi_admin_profit')),
+              _legendDot(RegaColors.goldDark, _t('acc_kpi_seller_profit')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendDot(Color color, String label) {
+    final surfaces = AdminSurfaces.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: surfaces.textSecondary)),
+      ],
+    );
+  }
+
+  Widget _buildReportProfitPieCard() {
+    final surfaces = AdminSurfaces.of(context);
+    final admin = (_report['admin_earnings'] as num?)?.toDouble() ?? 0;
+    final seller = (_report['seller_earnings'] as num?)?.toDouble() ?? 0;
+    final costs = (_report['total_costs'] as num?)?.toDouble() ?? 0;
+    final total = admin + seller + costs;
+    if (total <= 0) {
+      return _reportChartShell(
+        title: _t('acc_profit_split'),
+        child: Center(
+          child: Text(_t('acc_no_chart_data'), style: TextStyle(color: surfaces.textSecondary)),
+        ),
+      );
+    }
+
+    final sections = <PieChartSectionData>[
+      PieChartSectionData(
+        value: admin,
+        color: RegaColors.forestGreen,
+        radius: 52,
+        title: '',
+      ),
+      PieChartSectionData(
+        value: seller,
+        color: RegaColors.goldDark,
+        radius: 52,
+        title: '',
+      ),
+      PieChartSectionData(
+        value: costs,
+        color: RegaColors.purple,
+        radius: 52,
+        title: '',
+      ),
+    ];
+
+    return _reportChartShell(
+      title: _t('acc_profit_split'),
+      height: 280,
+      child: Column(
+        children: [
+          Expanded(
+            child: PieChart(
+              PieChartData(
+                sectionsSpace: 2,
+                centerSpaceRadius: 42,
+                sections: sections,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            alignment: WrapAlignment.center,
+            children: [
+              _legendDot(RegaColors.forestGreen, '${_t('acc_kpi_admin_profit')}: ${formatIqd(admin, lang: _lang)}'),
+              _legendDot(RegaColors.goldDark, '${_t('acc_kpi_seller_profit')}: ${formatIqd(seller, lang: _lang)}'),
+              _legendDot(RegaColors.purple, '${_t('acc_chip_cost')}: ${formatIqd(costs, lang: _lang)}'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportShopBarsCard(List byShop) {
+    final surfaces = AdminSurfaces.of(context);
+    final top = byShop.take(8).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    if (top.isEmpty) {
+      return _reportChartShell(
+        title: _t('acc_shop_bars'),
+        child: Center(
+          child: Text(_t('acc_no_chart_data'), style: TextStyle(color: surfaces.textSecondary)),
+        ),
+      );
+    }
+
+    double maxY = 1;
+    final groups = <BarChartGroupData>[];
+    for (var i = 0; i < top.length; i++) {
+      final v = (top[i]['admin_earnings'] as num?)?.toDouble() ?? 0;
+      if (v > maxY) maxY = v;
+      groups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: v,
+              width: 14,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+              color: RegaColors.orange,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _reportChartShell(
+      title: _t('acc_shop_bars'),
+      height: 280,
+      child: BarChart(
+        BarChartData(
+          maxY: maxY * 1.2,
+          barGroups: groups,
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            getDrawingHorizontalLine: (_) => FlLine(color: surfaces.hairline, strokeWidth: 1),
+          ),
+          borderData: FlBorderData(show: false),
+          titlesData: FlTitlesData(
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 40,
+                getTitlesWidget: (value, meta) {
+                  if (value <= 0 || value == meta.max) return const SizedBox.shrink();
+                  final short = value >= 1000 ? '${(value / 1000).toStringAsFixed(0)}k' : value.toStringAsFixed(0);
+                  return Text(short, style: TextStyle(fontSize: 10, color: surfaces.textTertiary));
+                },
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, meta) {
+                  final i = value.toInt();
+                  if (i < 0 || i >= top.length) return const SizedBox.shrink();
+                  final name = _localizedStoreName(top[i]);
+                  final short = name.length > 8 ? '${name.substring(0, 8)}…' : name;
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(short, style: TextStyle(fontSize: 9, color: surfaces.textTertiary)),
+                  );
+                },
+              ),
+            ),
+          ),
+          barTouchData: BarTouchData(
+            touchTooltipData: BarTouchTooltipData(
+              getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                final name = _localizedStoreName(top[group.x]);
+                return BarTooltipItem(
+                  '$name\n${formatIqd(rod.toY, lang: _lang)}',
+                  const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 11),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
     );
   }
 

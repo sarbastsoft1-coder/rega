@@ -6,6 +6,7 @@ import '../core/localization/app_strings.dart';
 import '../core/services/media_pick_service.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
+import '../widgets/bulk_delete_bar.dart';
 import '../widgets/common_widgets.dart';
 
 import '../rega_i18n.dart';
@@ -39,6 +40,10 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
   List<dynamic> _categories = [];
   List<dynamic> _cities = [];
   int? _filterCityId;
+  bool _selectionMode = false;
+  final Set<int> _zoneSelectedIds = {};
+  final Set<int> _categorySelectedIds = {};
+  bool _bulkBusy = false;
 
   bool get _showZones =>
       widget.mode == CatalogZonesMode.both || widget.mode == CatalogZonesMode.zones;
@@ -57,6 +62,14 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
         vsync: this,
         initialIndex: widget.initialTab.clamp(0, 1),
       );
+      _tabCtrl!.addListener(() {
+        if (_tabCtrl!.indexIsChanging) return;
+        setState(() {
+          _selectionMode = false;
+          _zoneSelectedIds.clear();
+          _categorySelectedIds.clear();
+        });
+      });
     }
     _load();
   }
@@ -85,12 +98,20 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
           _cities = cities;
           _filterCityId = cityId;
           _zones = zones;
+          _zoneSelectedIds.removeWhere(
+            (id) => !_zones.any((z) => (z as Map)['id'] == id),
+          );
         });
       }
       if (_showCategories) {
         final cats = await widget.api.getCategories();
         if (!mounted) return;
-        setState(() => _categories = cats);
+        setState(() {
+          _categories = cats;
+          _categorySelectedIds.removeWhere(
+            (id) => !_categories.any((c) => (c as Map)['id'] == id),
+          );
+        });
       }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -107,6 +128,132 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
         backgroundColor: error ? RegaColors.crimson : RegaColors.emeraldDark,
       ),
     );
+  }
+
+  bool get _onCategoriesTab =>
+      _showCategories && (!_showZones || (_tabCtrl?.index ?? 0) == 1);
+
+  Set<int> get _activeSelectedIds =>
+      _onCategoriesTab ? _categorySelectedIds : _zoneSelectedIds;
+
+  List<int> get _zoneIds => _zones
+      .map((z) => (z as Map)['id'])
+      .whereType<int>()
+      .toList();
+
+  List<int> get _categoryIds => _categories
+      .map((c) => (c as Map)['id'])
+      .whereType<int>()
+      .toList();
+
+  List<int> get _activeListIds => _onCategoriesTab ? _categoryIds : _zoneIds;
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) {
+        _zoneSelectedIds.clear();
+        _categorySelectedIds.clear();
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectionMode = false;
+      _zoneSelectedIds.clear();
+      _categorySelectedIds.clear();
+    });
+  }
+
+  void _selectAllActive() {
+    setState(() {
+      if (_onCategoriesTab) {
+        _categorySelectedIds
+          ..clear()
+          ..addAll(_categoryIds);
+      } else {
+        _zoneSelectedIds
+          ..clear()
+          ..addAll(_zoneIds);
+      }
+    });
+  }
+
+  void _toggleZoneSelected(int id) {
+    setState(() {
+      if (_zoneSelectedIds.contains(id)) {
+        _zoneSelectedIds.remove(id);
+      } else {
+        _zoneSelectedIds.add(id);
+      }
+    });
+  }
+
+  void _toggleCategorySelected(int id) {
+    setState(() {
+      if (_categorySelectedIds.contains(id)) {
+        _categorySelectedIds.remove(id);
+      } else {
+        _categorySelectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _bulkDeleteZones({required bool deleteAll}) async {
+    final ids = deleteAll ? _zoneIds : _zoneSelectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteNeighborhood,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _zoneSelectedIds.clear();
+    });
+    _showSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _load();
+  }
+
+  Future<void> _bulkDeleteCategories({required bool deleteAll}) async {
+    final ids = deleteAll ? _categoryIds : _categorySelectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteCategory,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _categorySelectedIds.clear();
+    });
+    _showSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _load();
   }
 
   void _showZoneDialog({Map<String, dynamic>? existing}) {
@@ -492,7 +639,7 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      CircularProgressIndicator(color: RC.bg(Colors.white)),
+                                      CircularProgressIndicator(color: Colors.white),
                                       const SizedBox(height: 10),
                                       Text(
                                         tx(picking
@@ -530,7 +677,7 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                         ? SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
                         : Icon(
                             hasPreview ? Icons.sync_rounded : Icons.cloud_upload_rounded,
@@ -762,7 +909,7 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                     ? SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : Text(AppStrings.tr('save', widget.lang)),
               ),
@@ -817,7 +964,7 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: RC.fg(Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: Colors.white),
             onPressed: () async {
               Navigator.pop(ctx);
               try {
@@ -862,7 +1009,7 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr('cancel', widget.lang))),
           if (storesCount == 0)
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: RC.fg(Colors.white)),
+              style: ElevatedButton.styleFrom(backgroundColor: RegaColors.crimson, foregroundColor: Colors.white),
               onPressed: () async {
                 Navigator.pop(ctx);
                 try {
@@ -918,6 +1065,22 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
           child: SectionHeader(
             title: headerTitle,
             subtitle: headerSubtitle,
+            trailing: BulkDeleteBar(
+              lang: widget.lang,
+              selectionMode: _selectionMode,
+              selectedCount: _activeSelectedIds.length,
+              totalCount: _activeListIds.length,
+              busy: _bulkBusy,
+              onToggleSelectionMode: _toggleSelectionMode,
+              onSelectAll: _selectAllActive,
+              onClearSelection: _clearSelection,
+              onDeleteSelected: () => _onCategoriesTab
+                  ? _bulkDeleteCategories(deleteAll: false)
+                  : _bulkDeleteZones(deleteAll: false),
+              onDeleteAll: () => _onCategoriesTab
+                  ? _bulkDeleteCategories(deleteAll: true)
+                  : _bulkDeleteZones(deleteAll: true),
+            ),
           ),
         ),
         if (_hasTabs && _tabCtrl != null)
@@ -994,6 +1157,8 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
             const SizedBox(height: 14),
             ..._zones.map((raw) {
               final z = raw as Map<String, dynamic>;
+              final zoneId = (z['id'] as num?)?.toInt();
+              final selected = zoneId != null && _zoneSelectedIds.contains(zoneId);
               final active = z['is_active'] == true;
               final feeChip = Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -1038,13 +1203,32 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Card(
-                    child: Padding(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: selected
+                          ? const BorderSide(color: RegaColors.orange, width: 2)
+                          : BorderSide.none,
+                    ),
+                    child: InkWell(
+                      onTap: _selectionMode && zoneId != null
+                          ? () => _toggleZoneSelected(zoneId)
+                          : null,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
                       padding: const EdgeInsets.fromLTRB(12, 12, 10, 8),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Row(
                             children: [
+                              if (_selectionMode && zoneId != null)
+                                Padding(
+                                  padding: const EdgeInsetsDirectional.only(end: 8),
+                                  child: BulkSelectBadge(
+                                    selected: selected,
+                                    onChanged: (_) => _toggleZoneSelected(zoneId),
+                                  ),
+                                ),
                               CircleAvatar(
                                 backgroundColor: RegaColors.gold.withValues(alpha: 0.22),
                                 child: Icon(Icons.location_on_rounded, color: RC.fg(Color(0xFF0F172A))),
@@ -1079,16 +1263,41 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                         ],
                       ),
                     ),
+                    ),
                   ),
                 );
               }
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: selected
+                        ? const BorderSide(color: RegaColors.orange, width: 2)
+                        : BorderSide.none,
+                  ),
+                  child: InkWell(
+                    onTap: _selectionMode && zoneId != null
+                        ? () => _toggleZoneSelected(zoneId)
+                        : null,
+                    borderRadius: BorderRadius.circular(12),
+                    child: ListTile(
+                    leading: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_selectionMode && zoneId != null)
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(end: 6),
+                            child: BulkSelectBadge(
+                              selected: selected,
+                              onChanged: (_) => _toggleZoneSelected(zoneId),
+                            ),
+                          ),
+                        CircleAvatar(
                       backgroundColor: RegaColors.gold.withValues(alpha: 0.22),
                       child: Icon(Icons.location_on_rounded, color: RC.fg(Color(0xFF0F172A))),
+                        ),
+                      ],
                     ),
                     title: Text(
                       tx('${z['name_ku'] ?? ''} (${z['name_en'] ?? ''})'),
@@ -1109,6 +1318,7 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                         actions,
                       ],
                     ),
+                  ),
                   ),
                 ),
               );
@@ -1200,13 +1410,25 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                     Builder(
                       builder: (_) {
                         final c = _categories[index] as Map<String, dynamic>;
+                        final catId = (c['id'] as num?)?.toInt();
+                        final selected = catId != null && _categorySelectedIds.contains(catId);
                         final active = c['is_active'] == true;
                         final featured = c['is_featured_home'] == true;
                         return SizedBox(
                           width: cardWidth,
                           child: Card(
                             clipBehavior: Clip.antiAlias,
-                            child: Column(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: selected
+                                  ? const BorderSide(color: RegaColors.orange, width: 2)
+                                  : BorderSide.none,
+                            ),
+                            child: InkWell(
+                              onTap: _selectionMode && catId != null
+                                  ? () => _toggleCategorySelected(catId)
+                                  : null,
+                              child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 SizedBox(
@@ -1227,6 +1449,15 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                                               color: RC.bg(Color(0xFFE2E8F0)),
                                               child: const Icon(Icons.category_rounded, size: 40),
                                             ),
+                                      if (_selectionMode && catId != null)
+                                        PositionedDirectional(
+                                          top: 8,
+                                          end: 8,
+                                          child: BulkSelectBadge(
+                                            selected: selected,
+                                            onChanged: (_) => _toggleCategorySelected(catId),
+                                          ),
+                                        ),
                                       PositionedDirectional(
                                         top: 8,
                                         start: 8,
@@ -1364,6 +1595,7 @@ class _CatalogZonesScreenState extends State<CatalogZonesScreen>
                                   ),
                                 ),
                               ],
+                            ),
                             ),
                           ),
                         );

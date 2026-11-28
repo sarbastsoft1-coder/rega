@@ -6,6 +6,7 @@ import '../core/iraq_phone_formatter.dart';
 import '../core/localization/app_strings.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../widgets/admin_top_header.dart';
+import '../widgets/bulk_delete_bar.dart';
 import '../widgets/common_widgets.dart';
 import '../core/theme/app_theme.dart';
 
@@ -112,6 +113,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
   List<CustomerItem> _customers = [];
   bool _isLoading = true;
+  bool _selectionMode = false;
+  final Set<int> _selectedIds = {};
+  bool _bulkBusy = false;
 
   @override
   void initState() {
@@ -187,6 +191,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
       setState(() {
         _customers = mapped;
+        _selectedIds.removeWhere((id) => !_customers.any((c) => c.id == id));
         _totalCustomers = totalCount;
         _activeCustomers = activeCount;
         _newThisMonth = newThisMonthCount >= 0 ? newThisMonthCount : 0;
@@ -210,6 +215,67 @@ class _CustomersScreenState extends State<CustomersScreen> {
         backgroundColor: error ? RC.bg(Color(0xFFDC2626)) : RC.bg(Color(0xFF16A34A)),
       ),
     );
+  }
+
+  List<int> get _filteredCustomerIds =>
+      _filteredCustomers.map((c) => c.id).toList();
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) _selectedIds.clear();
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _selectAllFilteredCustomers() {
+    setState(() => _selectedIds
+      ..clear()
+      ..addAll(_filteredCustomerIds));
+  }
+
+  void _toggleCustomerSelected(int id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _bulkDeleteCustomers({required bool deleteAll}) async {
+    final ids = deleteAll ? _filteredCustomerIds : _selectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteCustomer,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+    _showSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _loadFromBackend();
   }
 
   List<CustomerItem> get _filteredCustomers {
@@ -596,7 +662,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                           ? SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
                           : Text(AppStrings.tr(isEdit ? 'save' : 'add', lang)),
                     ),
@@ -816,6 +882,18 @@ class _CustomersScreenState extends State<CustomersScreen> {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                BulkDeleteBar(
+                  lang: _lang,
+                  selectionMode: _selectionMode,
+                  selectedCount: _selectedIds.length,
+                  totalCount: _filteredCustomers.length,
+                  busy: _bulkBusy,
+                  onToggleSelectionMode: _toggleSelectionMode,
+                  onSelectAll: _selectAllFilteredCustomers,
+                  onClearSelection: _clearSelection,
+                  onDeleteSelected: () => _bulkDeleteCustomers(deleteAll: false),
+                  onDeleteAll: () => _bulkDeleteCustomers(deleteAll: true),
+                ),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     foregroundColor: RC.fg(const Color(0xFF113E2E)),
@@ -1307,7 +1385,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
   Widget _buildCustomerMobileCard(CustomerItem c) {
     final surfaces = AdminSurfaces.of(context);
     final lang = _lang;
-    return Container(
+    final selected = _selectedIds.contains(c.id);
+    return Material(
+      color: selected ? RegaColors.orange.withValues(alpha: 0.08) : Colors.transparent,
+      child: InkWell(
+        onTap: _selectionMode ? () => _toggleCustomerSelected(c.id) : null,
+        child: Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
@@ -1319,6 +1402,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_selectionMode)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 8),
+                  child: BulkSelectBadge(
+                    selected: selected,
+                    onChanged: (_) => _toggleCustomerSelected(c.id),
+                  ),
+                ),
               Container(
                 width: 36,
                 height: 36,
@@ -1430,6 +1521,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
             ],
           ),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -1546,10 +1639,27 @@ class _CustomersScreenState extends State<CustomersScreen> {
                             separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
                             itemBuilder: (context, index) {
                               final c = pagedList[index];
-                              return Padding(
+                              final selected = _selectedIds.contains(c.id);
+                              return Material(
+                                color: selected
+                                    ? RegaColors.orange.withValues(alpha: 0.08)
+                                    : Colors.transparent,
+                                child: InkWell(
+                                  onTap: _selectionMode
+                                      ? () => _toggleCustomerSelected(c.id)
+                                      : null,
+                                  child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                 child: Row(
                                   children: [
+                                    if (_selectionMode)
+                                      Padding(
+                                        padding: const EdgeInsetsDirectional.only(end: 8),
+                                        child: BulkSelectBadge(
+                                          selected: selected,
+                                          onChanged: (_) => _toggleCustomerSelected(c.id),
+                                        ),
+                                      ),
                                     // 1. Customer Name + Avatar
                                     Expanded(
                                       flex: 3,
@@ -1735,6 +1845,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                     ),
                                   ],
                                 ),
+                                  ),
+                                ),
                               );
                             },
                           ),
@@ -1840,7 +1952,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: active ? RC.bg(Colors.white) : RC.bg(Color(0xFF64748B)),
+              color: active ? Colors.white : RC.fg(const Color(0xFF64748B)),
             ),
           ),
         ),

@@ -3131,6 +3131,44 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             final today = (d['today_deliveries'] as num?)?.toInt() ?? 0;
                             final todayAssigned = (d['today_orders'] as num?)?.toInt() ?? 0;
                             final near = idx == 0 && d['distance_meters'] != null ? ' · نزیکترین' : '';
+                            final rawName = (d['name'] ?? '').toString().trim();
+                            final rawPhone = (d['phone'] ?? '').toString().trim();
+                            final nameDigits = IraqPhoneFormatter.digitsOnly(rawName);
+                            final titleName = (rawName.isNotEmpty && nameDigits.length < 10)
+                                ? rawName
+                                : IraqPhoneFormatter.display(
+                                    rawPhone.isNotEmpty ? rawPhone : rawName,
+                                  );
+                            final code = (d['driver_code'] ?? '').toString();
+                            final titleStyle = const TextStyle(fontWeight: FontWeight.w800);
+                            final titleWidget = nameDigits.length >= 10 ||
+                                    IraqPhoneFormatter.digitsOnly(rawPhone).length >= 10
+                                ? Text.rich(
+                                    TextSpan(
+                                      style: titleStyle,
+                                      children: [
+                                        WidgetSpan(
+                                          alignment: PlaceholderAlignment.baseline,
+                                          baseline: TextBaseline.alphabetic,
+                                          child: Directionality(
+                                            textDirection: TextDirection.ltr,
+                                            child: Text(
+                                              IraqPhoneFormatter.format(
+                                                rawPhone.isNotEmpty ? rawPhone : rawName,
+                                              ),
+                                              style: titleStyle,
+                                            ),
+                                          ),
+                                        ),
+                                        if (code.isNotEmpty) TextSpan(text: ' ($code)'),
+                                        if (near.isNotEmpty) TextSpan(text: near),
+                                      ],
+                                    ),
+                                  )
+                                : Text(
+                                    tx('$titleName${code.isEmpty ? '' : ' ($code)'}$near'),
+                                    style: titleStyle,
+                                  );
                             final phone = RegaResponsive.isPhone(ctx);
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -3147,14 +3185,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                               child: Column(
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
-                                                  Text(
-                                                    tx('${d['name'] ?? ''} (${d['driver_code'] ?? ''})$near'),
-                                                    style: const TextStyle(fontWeight: FontWeight.w800),
-                                                  ),
+                                                  titleWidget,
                                                   const SizedBox(height: 4),
                                                   Text(
                                                     tx('${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${_fmtDriverDistance(d['distance_meters'])}\n'
-                                                    'ئەمڕۆ: $today گەیاندن · $todayAssigned داواکاری • ${IraqPhoneFormatter.display((d['phone'] ?? '').toString())}'),
+                                                    'ئەمڕۆ: $today گەیاندن · $todayAssigned داواکاری • ${IraqPhoneFormatter.display(rawPhone)}'),
                                                     style: TextStyle(fontSize: 12, color: RC.fg(Colors.grey.shade700), height: 1.35),
                                                   ),
                                                 ],
@@ -3182,10 +3217,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                   : ListTile(
                                       contentPadding: EdgeInsets.zero,
                                       leading: Icon(Icons.two_wheeler_rounded, color: online ? RC.fg(Color(0xFF16A34A)) : RC.bg(Colors.grey)),
-                                      title: Text(tx('${d['name'] ?? ''} (${d['driver_code'] ?? ''})$near'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                                      title: titleWidget,
                                       subtitle: Text(
                                         tx('${online ? '🟢 ئۆنلاین' : '⚫ ئۆفلاین'} • ${_fmtDriverDistance(d['distance_meters'])}\n'
-                                        'ئەمڕۆ: $today گەیاندن · $todayAssigned داواکاری • ${IraqPhoneFormatter.display((d['phone'] ?? '').toString())}'),
+                                        'ئەمڕۆ: $today گەیاندن · $todayAssigned داواکاری • ${IraqPhoneFormatter.display(rawPhone)}'),
                                       ),
                                       isThreeLine: true,
                                       trailing: ElevatedButton(

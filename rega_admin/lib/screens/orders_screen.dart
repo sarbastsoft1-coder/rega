@@ -7,6 +7,7 @@ import '../core/localization/app_strings.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/admin_top_header.dart';
+import '../widgets/bulk_delete_bar.dart';
 import '../widgets/common_widgets.dart';
 import 'live_radar_dialog.dart';
 
@@ -114,6 +115,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   List<AdminOrderItem> _orders = [];
   bool _isLoading = true;
+  bool _selectionMode = false;
+  final Set<int> _selectedIds = {};
+  bool _bulkBusy = false;
 
   @override
   void initState() {
@@ -195,6 +199,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
         setState(() {
           _orders = mapped;
+          _selectedIds.removeWhere((id) => !_orders.any((o) => o.id == id));
           _totalOrdersKPI = _toDigits(totalCount);
           _pendingOrdersKPI = _toDigits(pendingCount);
           _inTransitOrdersKPI = _toDigits(inTransitCount);
@@ -218,6 +223,68 @@ class _OrdersScreenState extends State<OrdersScreen> {
         backgroundColor: error ? RC.bg(Color(0xFFDC2626)) : RC.bg(Color(0xFF16A34A)),
       ),
     );
+  }
+
+  List<int> get _filteredOrderIds =>
+      _filteredOrders.map((o) => o.id).toList();
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) _selectedIds.clear();
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _selectAllFilteredOrders() {
+    setState(() => _selectedIds
+      ..clear()
+      ..addAll(_filteredOrderIds));
+  }
+
+  void _toggleOrderSelected(int id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _bulkDeleteOrders({required bool deleteAll}) async {
+    final ids = deleteAll ? _filteredOrderIds : _selectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteOrder,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+    _showSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _load();
+    widget.onOrderChanged?.call();
   }
 
   List<AdminOrderItem> get _filteredOrders {
@@ -614,8 +681,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
-  void _confirmDeleteOrder(AdminOrderItem o) {
-    showDialog(
+  Future<void> _confirmDeleteOrder(AdminOrderItem o) async {
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         insetPadding: AdminBreakpoints.dialogInset(ctx),
@@ -627,25 +694,28 @@ class _OrdersScreenState extends State<OrdersScreen> {
           child: Text(tx('ئایا دڵنیایت لە سڕینەوەی ئەم داواکارییە بە تەواوی لە سیستەم؟')),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tx('پاشگەزبوونەوە'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tx('پاشگەزبوونەوە'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: RC.bg(Color(0xFFDC2626)),
-              foregroundColor: RC.fg(Colors.white),
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              setState(() {
-                _orders.removeWhere((x) => x.id == o.id);
-              });
-              _showSnack('داواکاری ${o.orderNumber} سڕایەوە ✅');
-            },
+            onPressed: () => Navigator.pop(ctx, true),
             child: Text(tx('سڕینەوە')),
           ),
         ],
       ),
     );
+    if (ok != true || !mounted) return;
+    try {
+      await widget.api.deleteOrder(o.id);
+      _showSnack('داواکاری ${o.orderNumber} سڕایەوە ✅');
+      await _load();
+      widget.onOrderChanged?.call();
+    } catch (e) {
+      _showSnack(e.toString(), error: true);
+    }
   }
 
   Future<void> _showOrderDetailsModal(AdminOrderItem o) async {
@@ -791,6 +861,19 @@ class _OrdersScreenState extends State<OrdersScreen> {
             children: [
               // 1. Top Header Area (Matching Screenshot)
               _buildTopHeader(),
+              const SizedBox(height: 12),
+              BulkDeleteBar(
+                lang: widget.lang,
+                selectionMode: _selectionMode,
+                selectedCount: _selectedIds.length,
+                totalCount: filtered.length,
+                busy: _bulkBusy,
+                onToggleSelectionMode: _toggleSelectionMode,
+                onSelectAll: _selectAllFilteredOrders,
+                onClearSelection: _clearSelection,
+                onDeleteSelected: () => _bulkDeleteOrders(deleteAll: false),
+                onDeleteAll: () => _bulkDeleteOrders(deleteAll: true),
+              ),
               const SizedBox(height: 20),
 
               // 2. 4 Top KPI Metric Cards (Matching Screenshot)
@@ -1245,10 +1328,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
                             itemBuilder: (context, index) {
                               final o = orders[index];
-                              return Padding(
+                              final selected = _selectedIds.contains(o.id);
+                              return Material(
+                                color: selected
+                                    ? RegaColors.orange.withValues(alpha: 0.08)
+                                    : Colors.transparent,
+                                child: InkWell(
+                                  onTap: _selectionMode
+                                      ? () => _toggleOrderSelected(o.id)
+                                      : null,
+                                  child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                 child: Row(
                                   children: [
+                                    if (_selectionMode)
+                                      Padding(
+                                        padding: const EdgeInsetsDirectional.only(end: 8),
+                                        child: BulkSelectBadge(
+                                          selected: selected,
+                                          onChanged: (_) => _toggleOrderSelected(o.id),
+                                        ),
+                                      ),
                                     // 1. Order Number
                                     Expanded(
                                       flex: 2,
@@ -1442,6 +1542,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                     ),
                                   ],
                                 ),
+                                  ),
+                                ),
                               );
                             },
                           ),
@@ -1595,7 +1697,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   Widget _buildOrderMobileCard(AdminOrderItem o) {
     final surfaces = AdminSurfaces.of(context);
-    return Container(
+    final selected = _selectedIds.contains(o.id);
+    return Material(
+      color: selected ? RegaColors.orange.withValues(alpha: 0.08) : Colors.transparent,
+      child: InkWell(
+        onTap: _selectionMode ? () => _toggleOrderSelected(o.id) : null,
+        child: Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
@@ -1606,6 +1713,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
         children: [
           Row(
             children: [
+              if (_selectionMode)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 8),
+                  child: BulkSelectBadge(
+                    selected: selected,
+                    onChanged: (_) => _toggleOrderSelected(o.id),
+                  ),
+                ),
               Expanded(
                 child: Text(
                   tx(o.orderNumber),
@@ -1680,6 +1795,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
           const SizedBox(height: 8),
           Align(alignment: AlignmentDirectional.centerEnd, child: _buildOrderRowActions(o)),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -1770,7 +1887,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: active ? RC.bg(Colors.white) : RC.bg(Color(0xFF64748B)),
+              color: active ? Colors.white : RC.fg(const Color(0xFF64748B)),
             ),
           ),
         ),

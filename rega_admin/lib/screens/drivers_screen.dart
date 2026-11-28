@@ -12,6 +12,7 @@ import '../core/services/media_pick_service.dart';
 import '../core/services/open_url_io.dart' if (dart.library.html) '../core/services/open_url_web.dart';
 import '../map/rega_standard_map.dart';
 import '../widgets/admin_top_header.dart';
+import '../widgets/bulk_delete_bar.dart';
 import '../widgets/common_widgets.dart';
 import '../core/theme/admin_breakpoints.dart';
 import '../core/theme/app_theme.dart';
@@ -197,6 +198,9 @@ class _DriversScreenState extends State<DriversScreen> {
 
   List<CourierItem> _couriers = [];
   bool _isLoading = true;
+  bool _selectionMode = false;
+  final Set<int> _selectedIds = {};
+  bool _bulkBusy = false;
 
   @override
   void initState() {
@@ -366,6 +370,7 @@ class _DriversScreenState extends State<DriversScreen> {
 
       setState(() {
         _couriers = merged;
+        _selectedIds.removeWhere((id) => !_couriers.any((c) => c.id == id));
         _totalDriversKPI = _toDigits(totalCount);
         _activeDriversKPI = _toDigits(activeCount);
         _inDeliveryKPI = _toDigits(inDeliveryCount);
@@ -390,6 +395,133 @@ class _DriversScreenState extends State<DriversScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteCourier(CourierItem c) async {
+    final lang = widget.lang;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (confirmCtx) => AlertDialog(
+        insetPadding: AdminBreakpoints.dialogInset(confirmCtx),
+        contentPadding: AdminBreakpoints.dialogContentPadding(confirmCtx),
+        title: Text(
+          AppStrings.tr('confirm_delete_driver_title', lang),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        content: SingleChildScrollView(
+          child: Text(AppStrings.tr('confirm_delete_driver_body', lang)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(confirmCtx, false),
+            child: Text(AppStrings.tr('cancel', lang)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(confirmCtx, true),
+            child: Text(
+              AppStrings.tr('delete', lang),
+              style: TextStyle(
+                color: RC.fg(const Color(0xFFDC2626)),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await widget.api.deleteDriver(c.id);
+      _showSnack(AppStrings.tr('driver_deleted', lang));
+      await _loadFromBackend();
+    } catch (e) {
+      _showSnack(e.toString(), error: true);
+    }
+  }
+
+  Widget _courierActionBtn({
+    required IconData icon,
+    required Color iconColor,
+    required VoidCallback onTap,
+    double size = 28,
+    double iconSize = 16,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AdminSurfaces.of(context).chipFill,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(icon, size: iconSize, color: iconColor),
+      ),
+    );
+  }
+
+  List<int> get _filteredCourierIds =>
+      _filteredCouriers.map((c) => c.id).toList();
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) _selectedIds.clear();
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _selectAllFilteredCouriers() {
+    setState(() => _selectedIds
+      ..clear()
+      ..addAll(_filteredCourierIds));
+  }
+
+  void _toggleCourierSelected(int id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _bulkDeleteCouriers({required bool deleteAll}) async {
+    final ids = deleteAll ? _filteredCourierIds : _selectedIds.toList();
+    if (ids.isEmpty) return;
+    final ok = await BulkDeleteActions.confirm(
+      context: context,
+      lang: widget.lang,
+      count: ids.length,
+      deleteAll: deleteAll,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _bulkBusy = true);
+    final result = await BulkDeleteActions.run(
+      ids: ids,
+      deleteOne: widget.api.deleteDriver,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+    _showSnack(
+      BulkDeleteActions.resultMessage(widget.lang, result),
+      error: result.failed > 0 && result.ok == 0,
+    );
+    await _loadFromBackend();
   }
 
   List<CourierItem> get _filteredCouriers {
@@ -1230,7 +1362,7 @@ class _DriversScreenState extends State<DriversScreen> {
                   ? SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: RC.bg(Colors.white)),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
                   : Text(
                       tx(isEdit ? 'پاشەکەوتکردنی هەموو گۆڕانکارییەکان' : 'زیادکردنی شۆفێر'),
@@ -1693,27 +1825,34 @@ class _DriversScreenState extends State<DriversScreen> {
               _buildTopHeader(),
               const SizedBox(height: 16),
 
-              // 2. Action Button: + زیادکردنی ماتۆرسوار
-              Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  Flexible(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: RC.bg(Color(0xFF113E2E)),
-                        foregroundColor: RC.fg(Colors.white),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onPressed: () => _showAddCourierDialog(),
-                      icon: Icon(Icons.add, size: 18, color: RC.fg(Colors.white)),
-                      label: Text(
-                        AppStrings.tr('add_courier', widget.lang),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                      ),
+              // 2. Bulk delete + add courier
+              BulkDeleteBar(
+                lang: widget.lang,
+                selectionMode: _selectionMode,
+                selectedCount: _selectedIds.length,
+                totalCount: _filteredCouriers.length,
+                busy: _bulkBusy,
+                onToggleSelectionMode: _toggleSelectionMode,
+                onSelectAll: _selectAllFilteredCouriers,
+                onClearSelection: _clearSelection,
+                onDeleteSelected: () => _bulkDeleteCouriers(deleteAll: false),
+                onDeleteAll: () => _bulkDeleteCouriers(deleteAll: true),
+                extraActions: [
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: RC.bg(Color(0xFF113E2E)),
+                      foregroundColor: RC.fg(Colors.white),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: _bulkBusy ? null : () => _showAddCourierDialog(),
+                    icon: Icon(Icons.add, size: 18, color: RC.fg(Colors.white)),
+                    label: Text(
+                      AppStrings.tr('add_courier', widget.lang),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
                     ),
                   ),
                 ],
@@ -2278,10 +2417,27 @@ class _DriversScreenState extends State<DriversScreen> {
                             separatorBuilder: (_, _) => Divider(height: 1, color: AdminSurfaces.of(context).hairline),
                             itemBuilder: (context, index) {
                               final c = list[index];
-                              return Padding(
+                              final selected = _selectedIds.contains(c.id);
+                              return Material(
+                                color: selected
+                                    ? RegaColors.orange.withValues(alpha: 0.08)
+                                    : Colors.transparent,
+                                child: InkWell(
+                                  onTap: _selectionMode
+                                      ? () => _toggleCourierSelected(c.id)
+                                      : null,
+                                  child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                 child: Row(
                                   children: [
+                                    if (_selectionMode)
+                                      Padding(
+                                        padding: const EdgeInsetsDirectional.only(end: 8),
+                                        child: BulkSelectBadge(
+                                          selected: selected,
+                                          onChanged: (_) => _toggleCourierSelected(c.id),
+                                        ),
+                                      ),
                                     // 1. Driver Name + Avatar
                                     Expanded(
                                       flex: 3,
@@ -2370,43 +2526,35 @@ class _DriversScreenState extends State<DriversScreen> {
                                     ),
                                     const SizedBox(width: 8),
 
-                                    // 6. Action Buttons [✏️] [👁]
+                                    // 6. Action Buttons [👁] [✏️] [🗑]
                                     Expanded(
                                       flex: 2,
                                       child: Row(
                                         mainAxisAlignment: MainAxisAlignment.end,
                                         children: [
-                                          // View details button
-                                          InkWell(
+                                          _courierActionBtn(
+                                            icon: Icons.visibility_outlined,
+                                            iconColor: RC.fg(const Color(0xFF475569)),
                                             onTap: () => _showCourierDetailsDialog(c),
-                                            borderRadius: BorderRadius.circular(6),
-                                            child: Container(
-                                              padding: const EdgeInsets.all(6),
-                                              decoration: BoxDecoration(
-                                                color: AdminSurfaces.of(context).chipFill,
-                                                borderRadius: BorderRadius.circular(6),
-                                              ),
-                                              child: Icon(Icons.visibility_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
-                                            ),
                                           ),
                                           const SizedBox(width: 6),
-                                          // Edit button
-                                          InkWell(
+                                          _courierActionBtn(
+                                            icon: Icons.edit_outlined,
+                                            iconColor: RC.fg(const Color(0xFF475569)),
                                             onTap: () => _showAddCourierDialog(existing: c),
-                                            borderRadius: BorderRadius.circular(6),
-                                            child: Container(
-                                              padding: const EdgeInsets.all(6),
-                                              decoration: BoxDecoration(
-                                                color: AdminSurfaces.of(context).chipFill,
-                                                borderRadius: BorderRadius.circular(6),
-                                              ),
-                                              child: Icon(Icons.edit_outlined, size: 16, color: RC.fg(Color(0xFF475569))),
-                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          _courierActionBtn(
+                                            icon: Icons.delete_outline,
+                                            iconColor: RC.fg(const Color(0xFFDC2626)),
+                                            onTap: () => _confirmDeleteCourier(c),
                                           ),
                                         ],
                                       ),
                                     ),
                                   ],
+                                ),
+                                  ),
                                 ),
                               );
                             },
@@ -2477,7 +2625,12 @@ class _DriversScreenState extends State<DriversScreen> {
 
   Widget _buildCourierMobileCard(CourierItem c) {
     final surfaces = AdminSurfaces.of(context);
-    return Container(
+    final selected = _selectedIds.contains(c.id);
+    return Material(
+      color: selected ? RegaColors.orange.withValues(alpha: 0.08) : Colors.transparent,
+      child: InkWell(
+        onTap: _selectionMode ? () => _toggleCourierSelected(c.id) : null,
+        child: Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
@@ -2486,6 +2639,17 @@ class _DriversScreenState extends State<DriversScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_selectionMode)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: BulkSelectBadge(
+                  selected: selected,
+                  onChanged: (_) => _toggleCourierSelected(c.id),
+                ),
+              ),
+            ),
           Row(
             children: [
               CircleAvatar(radius: 18, backgroundImage: NetworkImage(c.avatarUrl)),
@@ -2527,30 +2691,34 @@ class _DriversScreenState extends State<DriversScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              InkWell(
+              _courierActionBtn(
+                icon: Icons.visibility_outlined,
+                iconColor: RC.fg(const Color(0xFF475569)),
                 onTap: () => _showCourierDetailsDialog(c),
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(8)),
-                  child: Icon(Icons.visibility_outlined, size: 17, color: RC.fg(Color(0xFF475569))),
-                ),
+                size: 34,
+                iconSize: 17,
               ),
               const SizedBox(width: 8),
-              InkWell(
+              _courierActionBtn(
+                icon: Icons.edit_outlined,
+                iconColor: RC.fg(const Color(0xFF475569)),
                 onTap: () => _showAddCourierDialog(existing: c),
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(color: surfaces.chipFill, borderRadius: BorderRadius.circular(8)),
-                  child: Icon(Icons.edit_outlined, size: 17, color: RC.fg(Color(0xFF475569))),
-                ),
+                size: 34,
+                iconSize: 17,
+              ),
+              const SizedBox(width: 8),
+              _courierActionBtn(
+                icon: Icons.delete_outline,
+                iconColor: RC.fg(const Color(0xFFDC2626)),
+                onTap: () => _confirmDeleteCourier(c),
+                size: 34,
+                iconSize: 17,
               ),
             ],
           ),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -2615,7 +2783,7 @@ class _DriversScreenState extends State<DriversScreen> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: active ? RC.bg(Colors.white) : RC.bg(Color(0xFF64748B)),
+              color: active ? Colors.white : RC.fg(const Color(0xFF64748B)),
             ),
           ),
         ),
